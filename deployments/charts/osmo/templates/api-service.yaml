@@ -49,6 +49,7 @@ spec:
         {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api "protectedAnnotations" $protectedPodAnnotations) | nindent 8 }}
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
         {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
+        osmo.nvidia.com/config-checksum: {{ include (print $.Template.BasePath "/configs.yaml") . | sha256sum }}
         osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}

@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import json
 import types
 from typing import Any
 import unittest
@@ -66,42 +65,26 @@ class ServiceAuthConnectorTest(unittest.TestCase):
     def tearDown(self):
         configmap_state.set_parsed_configs(None)
 
-    def test_missing_legacy_database_identity_fails(self):
+    def test_missing_secret_identity_fails_without_database_access(self):
         postgres = _connector(None)
-        postgres.execute_fetch_command = mock.Mock(return_value=[])
+        postgres.execute_fetch_command = mock.Mock()
 
         with self.assertRaisesRegex(
-                osmo_errors.OSMODatabaseError, 'Service auth is not found'):
+                osmo_errors.OSMOUserError, 'Secret mount is required'):
             postgres.get_service_auth()
 
-        postgres.execute_fetch_command.assert_called_once()
-
-    def test_legacy_chart_identity_is_read_from_database(self):
-        service_auth = _authentication_config()
-        postgres = _connector(None)
-        postgres.execute_fetch_command = mock.Mock(return_value=[{
-            'value': service_auth.canonical_json(include_login_info=False),
-        }])
-
-        with mock.patch.object(
-            connectors.ServiceConfig, 'deserialize',
-            return_value=types.SimpleNamespace(service_auth=service_auth),
-        ) as deserialize:
-            loaded = postgres.get_service_auth()
-
-        self.assertEqual(
-            loaded.canonical_json(include_login_info=False),
-            service_auth.canonical_json(include_login_info=False))
-        deserialize.assert_called_once()
+        postgres.execute_fetch_command.assert_not_called()
 
     def test_secret_backed_service_read_excludes_legacy_database_row(self):
         service_auth = _authentication_config()
         postgres = _connector(service_auth)
-        postgres.execute_fetch_command = mock.Mock(return_value=[
-            types.SimpleNamespace(
-                key='service_base_url', value='https://osmo.example.com',
-                type='SERVICE'),
-        ])
+        postgres.execute_fetch_command = mock.Mock()
+        configmap_state.set_parsed_configs({
+            'service': {
+                'service_base_url': 'https://osmo.example.com',
+                'service_auth': service_auth.plaintext_dict(),
+            },
+        })
 
         with mock.patch.object(
             auth.AuthenticationConfig,
@@ -111,8 +94,7 @@ class ServiceAuthConnectorTest(unittest.TestCase):
             service_config = postgres.get_service_configs()
 
         generate_default.assert_not_called()
-        query = postgres.execute_fetch_command.call_args.args[0]
-        self.assertIn("key != 'service_auth'", query)
+        postgres.execute_fetch_command.assert_not_called()
         self.assertEqual(service_config.service_auth.active_key, service_auth.active_key)
         self.assertEqual(service_config.service_base_url, 'https://osmo.example.com')
 
@@ -131,87 +113,42 @@ class ServiceAuthConnectorTest(unittest.TestCase):
             service_auth.canonical_json(include_login_info=False),
         )
 
-    def test_external_service_auth_database_write_is_rejected(self):
+    def test_service_auth_database_write_is_rejected(self):
         postgres = _connector(_authentication_config())
         postgres.execute_commit_command = mock.Mock()
 
         with self.assertRaisesRegex(
-                osmo_errors.OSMOUserError, 'managed outside PostgreSQL') as context:
+                osmo_errors.OSMOUserError, 'ConfigMap-owned') as context:
             postgres.set_config(
                 'service_auth', '{}', connectors.ConfigType.SERVICE)
 
         self.assertEqual(context.exception.status_code, 409)
         postgres.execute_commit_command.assert_not_called()
 
-    def test_legacy_chart_database_write_remains_available(self):
+    def test_all_database_config_writes_are_rejected(self):
         postgres = _connector(None)
-        postgres.execute_commit_command = mock.Mock(return_value=1)
+        postgres.execute_commit_command = mock.Mock()
 
-        self.assertEqual(postgres.set_config(
-            'service_auth', '{}', connectors.ConfigType.SERVICE), 1)
+        with self.assertRaisesRegex(osmo_errors.OSMOUserError, 'ConfigMap-owned'):
+            postgres.set_config(
+                'service_base_url', 'https://osmo.example.com',
+                connectors.ConfigType.SERVICE)
+        postgres.execute_commit_command.assert_not_called()
 
-        postgres.execute_commit_command.assert_called_once()
-
-    def test_service_history_always_omits_service_auth(self):
+    def test_non_role_history_is_rejected_before_sql(self):
         service_auth = _authentication_config()
         postgres = _connector(service_auth)
         postgres.execute_commit_command = mock.Mock()
 
-        postgres.create_config_history_entry(
-            config_type=connectors.ConfigHistoryType.SERVICE,
-            name='',
-            username='operator',
-            data={
-                'service_auth': service_auth.plaintext_dict(),
-                'service_base_url': 'https://osmo.example.com',
-            },
-            description='Secret-native snapshot',
-        )
-
-        parameters = postgres.execute_commit_command.call_args.args[1]
-        persisted_data = json.loads(parameters[6])
-        self.assertNotIn('service_auth', persisted_data)
-        self.assertEqual(
-            persisted_data['service_base_url'], 'https://osmo.example.com')
-
-    def test_initial_service_history_omits_service_auth(self):
-        service_auth = _authentication_config()
-        postgres = _connector(service_auth)
-        postgres.execute_fetch_command = mock.Mock(return_value=[])
-        postgres.execute_commit_command = mock.Mock()
-        service_configs = types.SimpleNamespace(
-            plaintext_dict=mock.Mock(return_value={
-                'service_auth': service_auth.plaintext_dict(),
-                'service_base_url': 'https://osmo.example.com',
-            }))
-        workflow_configs = types.SimpleNamespace(
-            plaintext_dict=mock.Mock(return_value={}))
-
-        with (
-            mock.patch.object(postgres, '_init_default_configs'),
-            mock.patch.object(postgres, 'create_default_roles'),
-            mock.patch.object(
-                postgres, 'get_service_configs', return_value=service_configs),
-            mock.patch.object(
-                postgres, 'get_workflow_configs', return_value=workflow_configs),
-            mock.patch.object(connectors.Backend, 'list_from_db', return_value=[]),
-            mock.patch.object(connectors.PodTemplate, 'list_from_db', return_value=[]),
-            mock.patch.object(connectors.GroupTemplate, 'list_from_db', return_value=[]),
-            mock.patch.object(connectors.ResourceValidation, 'list_from_db', return_value=[]),
-            mock.patch.object(connectors.BackendTests, 'list_from_db', return_value=[]),
-            mock.patch.object(connectors.Role, 'list_from_db', return_value=[]),
-            mock.patch(
-                'src.utils.connectors.postgres.fetch_editable_pool_config',
-                return_value=[],
-            ),
-        ):
-            postgres._init_configs()  # pylint: disable=protected-access
-
-        service_parameters = postgres.execute_commit_command.call_args_list[0].args[1]
-        persisted_data = json.loads(service_parameters[5])
-        self.assertNotIn('service_auth', persisted_data)
-        self.assertEqual(
-            persisted_data['service_base_url'], 'https://osmo.example.com')
+        with self.assertRaisesRegex(osmo_errors.OSMOUserError, 'ConfigMap-only'):
+            postgres.create_config_history_entry(
+                config_type=connectors.ConfigHistoryType.SERVICE,
+                name='',
+                username='operator',
+                data={'service_auth': service_auth.plaintext_dict()},
+                description='must not persist',
+            )
+        postgres.execute_commit_command.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -879,7 +879,7 @@ class CredentialSecretBuildTest(unittest.TestCase):
              mock.patch.object(task.TaskGroup, '_get_registry_creds', return_value=({}, None)), \
              mock.patch.object(task.TaskGroup, 'convert_all_pod_specs', return_value=([], [], [])), \
              mock.patch.object(task.TaskGroup, '_build_topology_tree', return_value=([], [])), \
-             mock.patch('src.utils.connectors.Pool.fetch_from_db', return_value=mock_pool):
+             mock.patch('src.utils.connectors.Pool.fetch_from_configmap', return_value=mock_pool):
             mock_progress = mock.create_autospec(
                 task.progress.ProgressWriter, instance=True)
             group.get_kb_specs(

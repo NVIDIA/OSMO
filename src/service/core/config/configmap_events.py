@@ -23,8 +23,11 @@ Slack/email/PagerDuty without any OSMO-specific integration.
 """
 
 import datetime
+import json
 import logging
-from typing import Protocol
+import os
+import tempfile
+from typing import Any, Protocol
 
 from kubernetes import client, config as kube_config  # type: ignore
 from kubernetes.client.exceptions import ApiException  # type: ignore
@@ -34,6 +37,8 @@ from kubernetes.client.exceptions import ApiException  # type: ignore
 # CamelCase per K8s convention.
 REASON_RELOAD_FAILED = 'ConfigMapReloadFailed'
 REASON_RELOAD_SUCCEEDED = 'ConfigMapReloaded'
+RECONCILIATION_STATE_ANNOTATION = (
+    'osmo.nvidia.com/backend-reconciliation-state')
 
 # K8s Event messages are capped at ~1KB; truncate with an ellipsis so we
 # don't get rejected by the apiserver.
@@ -45,6 +50,60 @@ class EventRecorder(Protocol):
 
     def emit_reload_failed(self, message: str) -> None: ...
     def emit_reload_succeeded(self, message: str) -> None: ...
+
+
+class ReconciliationStateStore(Protocol):
+    """Durable storage required before an API snapshot becomes ready."""
+
+    def load_reconciliation_state(self) -> dict[str, Any] | None: ...
+    def save_reconciliation_state(self, state: dict[str, Any]) -> None: ...
+
+
+def _decode_reconciliation_state(encoded: str) -> dict[str, Any]:
+    try:
+        state = json.loads(encoded)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            'backend reconciliation checkpoint is malformed') from error
+    if not isinstance(state, dict):
+        raise RuntimeError(
+            'backend reconciliation checkpoint must be an object')
+    if state.get('format_version') != 1 or not isinstance(
+            state.get('backends'), dict):
+        raise RuntimeError(
+            'backend reconciliation checkpoint has an unsupported format')
+    return state
+
+
+class FileReconciliationStateStore:
+    """Atomic checkpoint storage for API processes running outside Kubernetes."""
+
+    def __init__(self, path: str):
+        self._path = path
+
+    def load_reconciliation_state(self) -> dict[str, Any] | None:
+        try:
+            with open(self._path, encoding='utf-8') as checkpoint_file:
+                return _decode_reconciliation_state(checkpoint_file.read())
+        except FileNotFoundError:
+            return None
+
+    def save_reconciliation_state(self, state: dict[str, Any]) -> None:
+        directory = os.path.dirname(os.path.abspath(self._path))
+        temporary_path = ''
+        try:
+            with tempfile.NamedTemporaryFile(
+                    mode='w', encoding='utf-8', dir=directory,
+                    prefix='.osmo-reconciliation-', delete=False,
+            ) as checkpoint_file:
+                temporary_path = checkpoint_file.name
+                json.dump(state, checkpoint_file, sort_keys=True, separators=(',', ':'))
+                checkpoint_file.flush()
+                os.fsync(checkpoint_file.fileno())
+            os.replace(temporary_path, self._path)
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                os.unlink(temporary_path)
 
 
 class ConfigMapEventRecorder:
@@ -86,6 +145,31 @@ class ConfigMapEventRecorder:
 
     def emit_reload_succeeded(self, message: str) -> None:
         self._emit('Normal', REASON_RELOAD_SUCCEEDED, message)
+
+    def load_reconciliation_state(self) -> dict[str, Any] | None:
+        """Load the non-secret backend reconciliation checkpoint."""
+        if self._core_v1 is None:
+            raise RuntimeError('Kubernetes API is unavailable')
+        configmap = self._core_v1.read_namespaced_config_map(
+            self._configmap_name, self._namespace)
+        annotations = configmap.metadata.annotations or {}
+        encoded = annotations.get(RECONCILIATION_STATE_ANNOTATION)
+        if not encoded:
+            return None
+        return _decode_reconciliation_state(encoded)
+
+    def save_reconciliation_state(self, state: dict[str, Any]) -> None:
+        """Atomically patch the non-secret backend reconciliation checkpoint."""
+        if self._core_v1 is None:
+            raise RuntimeError('Kubernetes API is unavailable')
+        encoded = json.dumps(state, sort_keys=True, separators=(',', ':'))
+        self._core_v1.patch_namespaced_config_map(
+            self._configmap_name,
+            self._namespace,
+            {'metadata': {'annotations': {
+                RECONCILIATION_STATE_ANNOTATION: encoded,
+            }}},
+        )
 
     def _emit(self, event_type: str, reason: str, message: str) -> None:
         """Emit or update the deduplicated Event for (configmap, reason).

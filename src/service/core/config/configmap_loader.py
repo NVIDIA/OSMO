@@ -24,13 +24,11 @@ import hashlib
 import json
 import logging
 import os
-import threading
 import time
 from typing import Any, Callable, Dict, List
 
 import pydantic
 import yaml
-from watchdog import events, observers
 
 from src.lib.utils import jinja_sandbox, osmo_errors
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
@@ -57,6 +55,10 @@ class LoadResult(enum.Enum):
     PERMANENT_FAILURE = 'permanent'
 
 
+class ConfigSnapshotValidationError(ValueError):
+    """Safe-to-report structural validation error without config values."""
+
+
 class ConfigFileMixin(pydantic.BaseModel):
     """Pydantic mixin adding `--config_file` to a service config class.
 
@@ -75,51 +77,8 @@ class ConfigFileMixin(pydantic.BaseModel):
         })
 
 
-# ---------------------------------------------------------------------------
-# File event handler (watchdog)
-# ---------------------------------------------------------------------------
-
-class ConfigFileEventHandler(events.FileSystemEventHandler):
-    """Watches for ConfigMap file changes with debounce.
-
-    K8s ConfigMap volume mounts use atomic symlink swaps (..data → timestamped dir).
-    We watch the parent directory and filter for events affecting our config file
-    or the ..data symlink.
-    """
-
-    def __init__(self, config_filename: str, reload_callback: Callable):
-        super().__init__()
-        self._config_filename = config_filename
-        self._reload_callback = reload_callback
-        self._debounce_timer: threading.Timer | None = None
-        self._debounce_delay = 2.0
-        self._lock = threading.Lock()
-
-    def on_any_event(self, event: events.FileSystemEvent) -> None:
-        path = str(event.src_path)
-        if not (path.endswith(self._config_filename)
-                or '..data' in path):
-            return
-        with self._lock:
-            if self._debounce_timer:
-                self._debounce_timer.cancel()
-            self._debounce_timer = threading.Timer(
-                self._debounce_delay, self._reload_callback)
-            self._debounce_timer.daemon = True
-            self._debounce_timer.start()
-
-
-# ---------------------------------------------------------------------------
-# ConfigMap watcher
-# ---------------------------------------------------------------------------
-
 class ConfigMapWatcher:
-    """Watches a ConfigMap-mounted YAML file and serves configs from memory.
-
-    On startup: parse file → validate → populate module-level dict → start watchdog.
-    On file change: re-parse → validate → atomic swap of dict reference.
-    Configs are served from the in-memory dict.
-    """
+    """Loads one immutable ConfigMap snapshot during process startup."""
 
     def __init__(
         self,
@@ -127,6 +86,8 @@ class ConfigMapWatcher:
         postgres: connectors.PostgresConnector | None = None,
         *,
         event_recorder: configmap_events.EventRecorder | None = None,
+        reconciliation_state_store: (
+            configmap_events.ReconciliationStateStore | None) = None,
         enable_reconciliation: bool = False,
         backend_queue_updater: Callable[..., bool] | None = None,
         backend_test_updater: Callable[..., bool] | None = None,
@@ -135,19 +96,17 @@ class ConfigMapWatcher:
         self._postgres = postgres
         self._stable_service_auth: auth.AuthenticationConfig | None = None
         self._event_recorder = event_recorder
+        self._reconciliation_state_store = reconciliation_state_store
         self._enable_reconciliation = enable_reconciliation
         self._backend_queue_updater = backend_queue_updater
         self._backend_test_updater = backend_test_updater
-        self._watch_directory = os.path.dirname(config_file_path)
-        self._config_filename = os.path.basename(config_file_path)
-        self._observer: Any = None
         self._last_reconciled_snapshot: Dict[str, Any] | None = None
         # Only emit "reload succeeded" events when recovering from a
         # previous failure — successful reloads on their own are noise.
         self._last_reload_failed = False
 
     def start(self) -> None:
-        """Load configs, activate ConfigMap mode, start file watcher.
+        """Load configs and activate immutable ConfigMap mode.
 
         Retries the initial load on transient failures (file missing
         because kubelet hasn't finished projecting the ConfigMap volume)
@@ -170,8 +129,8 @@ class ConfigMapWatcher:
                 raise RuntimeError(
                     f'ConfigMap load failed at startup after '
                     f'{_STARTUP_RETRY_DEADLINE_S:.0f}s '
-                    f'({self._config_file_path}): file never became '
-                    f'readable. Refusing to serve.')
+                    f'({self._config_file_path}): a required startup '
+                    f'dependency never became ready. Refusing to serve.')
             time.sleep(_STARTUP_RETRY_INTERVAL_S)
 
         configmap_guard.set_configmap_mode(True)
@@ -179,19 +138,12 @@ class ConfigMapWatcher:
             'ConfigMap mode activated — '
             'all config writes via CLI/API are blocked')
 
-        self._observer = observers.Observer()
-        self._observer.schedule(
-            ConfigFileEventHandler(self._config_filename, self._load_and_apply),
-            path=self._watch_directory,
-            recursive=False)
-        self._observer.daemon = True
-        self._observer.start()
-        logging.info('Config file watcher started for %s', self._config_file_path)
+        logging.info(
+            'Immutable ConfigMap snapshot loaded from %s; changes require a pod restart',
+            self._config_file_path)
 
     def stop(self) -> None:
-        if self._observer:
-            self._observer.stop()
-            self._observer.join(timeout=5)
+        """Compatibility no-op; immutable snapshots have no background watcher."""
 
     def _record_failure(self, message: str) -> None:
         """Log + emit a K8s Warning event for a reload failure."""
@@ -215,6 +167,18 @@ class ConfigMapWatcher:
         unparseable / invalid; retrying won't help.
         """
         reconciliation_baseline = self._last_reconciled_snapshot
+        if self._enable_reconciliation and reconciliation_baseline is None:
+            if self._reconciliation_state_store is None:
+                self._record_failure(
+                    'ConfigMap backend reconciliation has no durable state store')
+                return LoadResult.PERMANENT_FAILURE
+            try:
+                reconciliation_baseline = (
+                    self._reconciliation_state_store.load_reconciliation_state())
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                self._record_failure(
+                    f'Failed to load backend reconciliation checkpoint: {error}')
+                return LoadResult.TRANSIENT_FAILURE
         try:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
@@ -235,8 +199,6 @@ class ConfigMapWatcher:
             return LoadResult.PERMANENT_FAILURE
 
         managed_configs = raw_config
-        # Dataset config is deprecated; tolerate stale ConfigMap blocks without loading them.
-        managed_configs.pop('dataset', None)
 
         # JWT signing identity is externally owned. Discard ConfigMap input before
         # resolving secret references so it is never interpreted as runtime auth.
@@ -244,15 +206,21 @@ class ConfigMapWatcher:
         if isinstance(service_config, dict):
             service_config.pop('service_auth', None)
 
-        # Resolve secret file references (reads mounted K8s Secret files)
-        for section in managed_configs.values():
-            if isinstance(section, dict):
-                _resolve_secret_file_references(section)
+        # Resolve mounted Secret references. Any missing, malformed, or
+        # out-of-root reference is a permanent startup error; serving with
+        # partially resolved credentials is never safe.
+        try:
+            for section in managed_configs.values():
+                if isinstance(section, dict):
+                    _resolve_secret_file_references(section)
+        except (TypeError, ValueError) as error:
+            self._record_failure(f'ConfigMap Secret resolution failed: {error}')
+            return LoadResult.PERMANENT_FAILURE
 
         self._hydrate_service_auth(managed_configs)
 
-        validation_errors = _validate_configmap_runtime_contract(managed_configs)
-        validation_errors.extend(_validate_configs(managed_configs))
+        validation_errors = validate_configmap_snapshot(
+            managed_configs, postgres=self._postgres)
         if validation_errors:
             joined_errors = '; '.join(validation_errors)
             self._record_failure(
@@ -267,6 +235,35 @@ class ConfigMapWatcher:
         _resolve_backend_test_computed_fields(managed_configs)
         _resolve_pool_computed_fields(managed_configs)
 
+        if self._enable_reconciliation:
+            try:
+                backends_reconciled = _reconcile_backend_side_effects(
+                    reconciliation_baseline, managed_configs,
+                    self._backend_queue_updater, self._backend_test_updater)
+                if not backends_reconciled:
+                    self._record_failure(
+                        'ConfigMap backend side-effect reconciliation did not '
+                        'durably queue all required work')
+                    return LoadResult.TRANSIENT_FAILURE
+                checkpoint = _build_reconciliation_state(managed_configs)
+                if self._reconciliation_state_store is None:
+                    raise RuntimeError(
+                        'backend reconciliation has no durable state store')
+                self._reconciliation_state_store.save_reconciliation_state(
+                    checkpoint)
+                self._last_reconciled_snapshot = checkpoint
+                # Clean assignment state only after all other reconciliation
+                # work is durable. A transient backend failure must not revoke
+                # roles for a snapshot that was not accepted.
+                _reconcile_user_role_assignments(
+                    managed_configs, self._postgres)
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                self._record_failure(
+                    f'ConfigMap backend side-effect reconciliation failed: {error}')
+                return LoadResult.TRANSIENT_FAILURE
+
+        # Publish the validated snapshot only after every required backend side
+        # effect is durably queued and its cleanup checkpoint is persisted.
         configmap_guard.set_parsed_configs(managed_configs)
         if not configmap_guard.is_configmap_mode():
             configmap_guard.set_configmap_mode(True)
@@ -275,23 +272,6 @@ class ConfigMapWatcher:
                 'all config writes via CLI/API are blocked')
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
-        if self._enable_reconciliation:
-            roles_reconciled = False
-            backends_reconciled = False
-            try:
-                roles_reconciled = _reconcile_user_role_assignments(
-                    managed_configs, self._postgres)
-            except Exception:  # pylint: disable=broad-exception-caught
-                logging.exception('ConfigMap user role reconciliation failed')
-            try:
-                backends_reconciled = _reconcile_backend_side_effects(
-                    reconciliation_baseline, managed_configs,
-                    self._backend_queue_updater, self._backend_test_updater)
-            except Exception:  # pylint: disable=broad-exception-caught
-                logging.exception(
-                    'ConfigMap backend side-effect reconciliation failed')
-            if roles_reconciled and backends_reconciled:
-                self._last_reconciled_snapshot = copy.deepcopy(managed_configs)
         self._record_success()
 
         return LoadResult.SUCCESS
@@ -300,7 +280,7 @@ class ConfigMapWatcher:
         self, managed_configs: Dict[str, Any],
     ) -> None:
         """Hydrate the stable JWT signing identity from its configured source."""
-        service_config = managed_configs.setdefault('service', {})
+        service_config = managed_configs.get('service')
         if not isinstance(service_config, dict):
             return
 
@@ -320,20 +300,8 @@ def start_config_watcher(
     is_api_service: bool = False,
     backend_queue_updater: Callable[..., bool] | None = None,
     backend_test_updater: Callable[..., bool] | None = None,
-) -> 'ConfigMapWatcher | None':
-    """Initialize and start a ConfigMapWatcher when `config_file` is set.
-
-    Returns the watcher so the caller can keep a reference (the watchdog
-    Observer thread is daemonic; without a live reference the watcher may
-    be GC'd while the process is still alive).
-
-    Only the API service emits K8s Events on reload failures. All four
-    services watch the same ConfigMap and all reload on the same file
-    change; emitting from each would multiply the same logical event.
-    The API is the natural single emitter — operators look there first.
-    (Replica-level races on the same Event object exist regardless and
-    are handled defensively by configmap_events; this gate just avoids
-    cross-service duplication.)
+) -> 'ConfigMapWatcher':
+    """Load an immutable ConfigMap snapshot when `config_file` is set.
 
     ConfigMap mode is authoritative for managed config except service auth.
     ConfigMap-supplied service auth is ignored. On the first load, the watcher
@@ -341,23 +309,39 @@ def start_config_watcher(
     preserve that watcher-local identity.
     """
     if not config_file:
-        return None
+        raise RuntimeError(
+            'OSMO_CONFIG_FILE is required; PostgreSQL-managed service '
+            'configuration is not supported in 6.4.')
 
     event_recorder: configmap_events.EventRecorder | None = None
+    reconciliation_state_store: (
+        configmap_events.ReconciliationStateStore | None) = None
     if is_api_service:
         pod_namespace = os.environ.get('POD_NAMESPACE')
         configmap_name = os.environ.get('OSMO_CONFIGMAP_NAME')
         if pod_namespace and configmap_name:
             event_recorder = configmap_events.ConfigMapEventRecorder(
                 namespace=pod_namespace, configmap_name=configmap_name)
+            reconciliation_state_store = event_recorder
+        elif os.environ.get('KUBERNETES_SERVICE_HOST'):
+            raise RuntimeError(
+                'POD_NAMESPACE and OSMO_CONFIGMAP_NAME are required for '
+                'in-cluster API backend reconciliation.')
         else:
-            logging.warning(
-                'POD_NAMESPACE or OSMO_CONFIGMAP_NAME unset; '
-                'ConfigMap reload events will not be emitted')
+            reconciliation_state_file = os.environ.get(
+                'OSMO_RECONCILIATION_STATE_FILE')
+            if not reconciliation_state_file:
+                raise RuntimeError(
+                    'OSMO_RECONCILIATION_STATE_FILE is required when the API '
+                    'runs outside Kubernetes.')
+            reconciliation_state_store = (
+                configmap_events.FileReconciliationStateStore(
+                    reconciliation_state_file))
 
     watcher = ConfigMapWatcher(
         config_file, postgres,
         event_recorder=event_recorder,
+        reconciliation_state_store=reconciliation_state_store,
         enable_reconciliation=is_api_service,
         backend_queue_updater=backend_queue_updater,
         backend_test_updater=backend_test_updater,
@@ -370,9 +354,75 @@ def start_config_watcher(
 # Backend side-effect reconciliation
 # ---------------------------------------------------------------------------
 
-def _stable_config_hash(payload: Any) -> str:
+def _config_digest(payload: Any) -> str:
     encoded = json.dumps(payload, sort_keys=True, default=str).encode('utf-8')
-    return hashlib.sha256(encoded).hexdigest()[:12]
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _stable_config_hash(payload: Any) -> str:
+    """Return a short, deterministic suffix suitable for Kubernetes job IDs."""
+    return _config_digest(payload)[:12]
+
+
+_RECONCILIATION_STATE_VERSION = 1
+
+
+def _build_reconciliation_state(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the non-secret checkpoint needed for cleanup after a restart."""
+    state_backends: Dict[str, Any] = {}
+    backends = snapshot.get('backends', {})
+    pools = snapshot.get('pools', {})
+    backend_tests = snapshot.get('backend_tests', {})
+    for backend_name, backend_config in backends.items():
+        if not isinstance(backend_config, dict):
+            continue
+        tests = backend_config.get('tests', [])
+        if not isinstance(tests, list):
+            tests = []
+        queue_payload = {
+            'scheduler_settings': _normalized_scheduler_settings(backend_config),
+            'pools': {
+                pool_name: pool_config
+                for pool_name, pool_config in pools.items()
+                if _pool_backend(pool_config) == backend_name
+            },
+        }
+        test_payload = {
+            'node_condition_prefix': backend_config.get(
+                'node_conditions', {}).get('prefix', 'osmo.nvidia.com/'),
+            'backend_tests': {
+                test_name: backend_tests.get(test_name)
+                for test_name in tests
+            },
+        }
+        state_backends[backend_name] = {
+            'k8s_namespace': backend_config.get('k8s_namespace', ''),
+            'scheduler_settings': backend_config.get('scheduler_settings', {}),
+            'node_conditions': {
+                'prefix': test_payload['node_condition_prefix'],
+            },
+            'queue_hash': _config_digest(queue_payload),
+            'test_hash': _config_digest(test_payload),
+        }
+    return {
+        'format_version': _RECONCILIATION_STATE_VERSION,
+        'backends': state_backends,
+    }
+
+
+def _as_reconciliation_state(snapshot: Dict[str, Any] | None) -> Dict[str, Any]:
+    if snapshot is None:
+        return {
+            'format_version': _RECONCILIATION_STATE_VERSION,
+            'backends': {},
+        }
+    if snapshot.get('format_version') == _RECONCILIATION_STATE_VERSION:
+        backends = snapshot.get('backends')
+        if not isinstance(backends, dict):
+            raise ValueError('reconciliation checkpoint has invalid backends')
+        return snapshot
+    # Compatibility for same-process tests and a pre-checkpoint first load.
+    return _build_reconciliation_state(snapshot)
 
 
 def _backend_config_from_snapshot(
@@ -451,113 +501,28 @@ def _affected_backends_for_queue_sync(
     previous: Dict[str, Any] | None,
     current: Dict[str, Any],
 ) -> set[str]:
-    affected: set[str] = set()
-    old_backends = previous.get('backends', {}) if previous else {}
-    new_backends = current.get('backends', {})
-
-    for backend_name in set(old_backends) | set(new_backends):
-        if backend_name not in old_backends or backend_name not in new_backends:
-            affected.add(backend_name)
-            continue
-        old_backend = old_backends.get(backend_name, {})
-        new_backend = new_backends.get(backend_name, {})
-        if not isinstance(old_backend, dict) or not isinstance(new_backend, dict):
-            continue
-        old_scheduler = _normalized_scheduler_settings(old_backend)
-        new_scheduler = _normalized_scheduler_settings(new_backend)
-        if old_scheduler != new_scheduler:
-            affected.add(backend_name)
-
-    old_pools = previous.get('pools', {}) if previous else {}
-    new_pools = current.get('pools', {})
-    for pool_name in set(old_pools) | set(new_pools):
-        old_pool = old_pools.get(pool_name)
-        new_pool = new_pools.get(pool_name)
-        if old_pool == new_pool:
-            continue
-        old_backend = _pool_backend(old_pool)
-        new_backend = _pool_backend(new_pool)
-        if old_backend:
-            affected.add(old_backend)
-        if new_backend:
-            affected.add(new_backend)
-
-    return affected
-
-
-def _backend_test_template_names(test_config: Any) -> set[str]:
-    if not isinstance(test_config, dict):
-        return set()
-    templates = test_config.get('common_pod_template', [])
-    if not isinstance(templates, list):
-        return set()
-    return {template for template in templates if isinstance(template, str)}
-
-
-def _backends_referencing_tests(
-    snapshot: Dict[str, Any] | None, test_names: set[str],
-) -> set[str]:
-    if not snapshot or not test_names:
-        return set()
-    affected: set[str] = set()
-    for backend_name, backend_config in snapshot.get('backends', {}).items():
-        if not isinstance(backend_config, dict):
-            continue
-        tests = backend_config.get('tests', [])
-        if isinstance(tests, list) and test_names.intersection(tests):
-            affected.add(backend_name)
-    return affected
+    old_backends = _as_reconciliation_state(previous)['backends']
+    new_backends = _build_reconciliation_state(current)['backends']
+    return {
+        backend_name
+        for backend_name in set(old_backends) | set(new_backends)
+        if old_backends.get(backend_name, {}).get('queue_hash')
+        != new_backends.get(backend_name, {}).get('queue_hash')
+    }
 
 
 def _affected_backends_for_test_sync(
     previous: Dict[str, Any] | None,
     current: Dict[str, Any],
 ) -> set[str]:
-    affected: set[str] = set()
-    old_backends = previous.get('backends', {}) if previous else {}
-    new_backends = current.get('backends', {})
-    if previous is None:
-        return {
-            backend_name for backend_name, backend_config in new_backends.items()
-            if isinstance(backend_config, dict)
-        }
-
-    for backend_name in set(old_backends) | set(new_backends):
-        old_backend = old_backends.get(backend_name, {})
-        new_backend = new_backends.get(backend_name, {})
-        if not isinstance(old_backend, dict) or not isinstance(new_backend, dict):
-            continue
-        old_prefix = old_backend.get('node_conditions', {}).get('prefix')
-        new_prefix = new_backend.get('node_conditions', {}).get('prefix')
-        if old_backend.get('tests', []) != new_backend.get('tests', []):
-            affected.add(backend_name)
-        elif old_prefix != new_prefix:
-            affected.add(backend_name)
-
-    old_tests = previous.get('backend_tests', {}) if previous else {}
-    new_tests = current.get('backend_tests', {})
-    changed_tests = {
-        test_name for test_name in set(old_tests) | set(new_tests)
-        if old_tests.get(test_name) != new_tests.get(test_name)
+    old_backends = _as_reconciliation_state(previous)['backends']
+    new_backends = _build_reconciliation_state(current)['backends']
+    return {
+        backend_name
+        for backend_name in set(old_backends) | set(new_backends)
+        if old_backends.get(backend_name, {}).get('test_hash')
+        != new_backends.get(backend_name, {}).get('test_hash')
     }
-    affected.update(_backends_referencing_tests(previous, changed_tests))
-    affected.update(_backends_referencing_tests(current, changed_tests))
-
-    old_templates = previous.get('pod_templates', {}) if previous else {}
-    new_templates = current.get('pod_templates', {})
-    changed_templates = {
-        template_name for template_name in set(old_templates) | set(new_templates)
-        if old_templates.get(template_name) != new_templates.get(template_name)
-    }
-    if changed_templates:
-        template_affected_tests = {
-            test_name for test_name, test_config in {**old_tests, **new_tests}.items()
-            if _backend_test_template_names(test_config).intersection(changed_templates)
-        }
-        affected.update(_backends_referencing_tests(previous, template_affected_tests))
-        affected.update(_backends_referencing_tests(current, template_affected_tests))
-
-    return affected
 
 
 def _reconcile_backend_side_effects(
@@ -617,15 +582,21 @@ def _reconcile_backend_side_effects(
                 backend_name)
 
     for backend_name in sorted(test_backends):
-        backend_config = _backend_config_from_snapshot(current, backend_name)
+        current_config = _backend_config_from_snapshot(current, backend_name)
+        previous_config = _backend_config_from_snapshot(previous, backend_name)
+        backend_config = current_config
         if backend_config is None:
-            previous_config = _backend_config_from_snapshot(previous, backend_name)
             if previous_config is None:
                 continue
             backend_config = {
                 **previous_config,
                 'tests': [],
             }
+        previous_prefix = (
+            previous_config.get('node_conditions', {}).get(
+                'prefix', 'osmo.nvidia.com/')
+            if previous_config is not None else None
+        )
         tests = backend_config.get('tests', [])
         if not isinstance(tests, list):
             tests = []
@@ -633,6 +604,27 @@ def _reconcile_backend_side_effects(
             backend_config.get('node_conditions', {}).get(
                 'prefix', 'osmo.nvidia.com/')
         )
+        if (current_config is not None and previous_prefix is not None
+                and previous_prefix != node_condition_prefix):
+            cleanup_payload = {
+                'backend': backend_name,
+                'node_condition_prefix': previous_prefix,
+                'backend_tests': {},
+            }
+            cleanup_job_id = (
+                f'{backend_name}-cleanup-tests-configmap-'
+                f'{_stable_config_hash(cleanup_payload)}'
+            )
+            try:
+                cleanup_queued = backend_test_updater(
+                    backend_name, {}, previous_prefix,
+                    job_id=cleanup_job_id)
+                success = success and cleanup_queued
+            except Exception:  # pylint: disable=broad-exception-caught
+                success = False
+                logging.exception(
+                    'Failed to queue old-prefix backend test cleanup for %s',
+                    backend_name)
         payload = {
             'backend': backend_config,
             'backend_tests': {
@@ -665,20 +657,21 @@ def _reconcile_backend_side_effects(
 
 def _reconcile_user_role_assignments(
     current: Dict[str, Any], postgres: connectors.PostgresConnector | None,
-) -> bool:
-    """Remove assignments for roles absent from the current ConfigMap."""
+) -> None:
+    """Remove assignments whose ConfigMap-owned role no longer exists."""
     if postgres is None:
-        logging.warning(
-            'ConfigMap user role reconciliation enabled without Postgres')
-        return False
-
+        raise RuntimeError(
+            'ConfigMap role assignment reconciliation requires PostgreSQL')
     roles = current.get('roles')
-    role_names = [role_name for role_name in roles
-                  if isinstance(role_name, str)] if isinstance(roles, dict) else []
+    if not isinstance(roles, dict) or not roles:
+        raise RuntimeError(
+            'ConfigMap role assignment reconciliation requires non-empty roles')
+    role_names = sorted(
+        role_name for role_name in roles
+        if isinstance(role_name, str) and role_name)
     postgres.execute_commit_command(
         'DELETE FROM user_roles WHERE NOT (role_name = ANY(%s::text[]));',
         (role_names,))
-    return True
 
 
 def _resolve_backend_test_computed_fields(managed_configs: Dict[str, Any]) -> None:
@@ -738,9 +731,11 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
 
     unknown_keys = set(managed_configs.keys()) - _EXPECTED_CONFIG_KEYS
+    expected_keys = ', '.join(sorted(_EXPECTED_CONFIG_KEYS))
     for key in unknown_keys:
-        logging.warning('Unknown config key: %s (expected one of: %s)',
-                        key, ', '.join(sorted(_EXPECTED_CONFIG_KEYS)))
+        errors.append(
+            f'{key}: unknown config section; expected one of '
+            f'{expected_keys}')
 
     # Validate singleton configs by constructing Pydantic models
     for config_key, config_class in [
@@ -758,19 +753,225 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
         except Exception as error:  # pylint: disable=broad-exception-caught
             errors.append(f'{config_key}: {error}')
 
-    # Validate named config sections are dicts
-    for config_key in ['resource_validations', 'pod_templates', 'group_templates',
-                       'backends', 'backend_tests', 'pools', 'roles']:
+    # Validate every named entry through the same production models used by
+    # config APIs and runtime hydration.
+    validators: Dict[str, Callable[[str, Any], Any]] = {
+        'resource_validations': lambda _name, value: connectors.ResourceValidation(
+            resource_validations=value),
+        'pod_templates': lambda _name, value: connectors.PodTemplate(
+            pod_template=value),
+        'group_templates': lambda name, value: _validate_group_template_entry(
+            name, value),
+        'backends': lambda name, value: _validate_backend_entry(name, value),
+        'backend_tests': lambda name, value: connectors.BackendTests(
+            **{**value, 'name': name}),
+        'pools': lambda name, value: connectors.PoolEditable(name=name, **value),
+        'roles': lambda name, value: _validate_role_entry(name, value),
+    }
+    for config_key, validator in validators.items():
         section = managed_configs.get(config_key)
         if section is not None and not isinstance(section, dict):
             errors.append(
                 f'{config_key}: must be a dict, got {type(section).__name__}')
+            continue
+        if not isinstance(section, dict):
+            continue
+        for name, value in section.items():
+            if not isinstance(name, str) or not name:
+                errors.append(f'{config_key}: every entry must have a non-empty string name')
+                continue
+            try:
+                validator(name, value)
+            except pydantic.ValidationError as error:
+                errors.append(
+                    f'{config_key}.{name}: {_format_validation_error(error)}')
+            except ConfigSnapshotValidationError as error:
+                errors.append(f'{config_key}.{name}: {error}')
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                errors.append(f'{config_key}.{name}: {type(error).__name__}')
 
+    return errors
+
+
+def _validate_required_sections(managed_configs: Dict[str, Any]) -> List[str]:
+    """Require the exact nine-section 6.4 runtime document."""
+    errors = [
+        f'{key}: required 6.4 config section is missing'
+        for key in sorted(_EXPECTED_CONFIG_KEYS - set(managed_configs))
+    ]
+    roles = managed_configs.get('roles')
+    if isinstance(roles, dict) and not roles:
+        errors.append('roles: required 6.4 config section must not be empty')
+    return errors
+
+
+def _validate_role_entry(name: str, value: Any) -> connectors.Role:
+    """Validate a ConfigMap-owned role definition.
+
+    ``sync_mode`` controls the legacy PostgreSQL assignment synchronizer and
+    is deliberately not part of the file-backed authorization contract.
+    """
+    if not isinstance(value, dict):
+        raise ConfigSnapshotValidationError('role entry must be a mapping')
+    if 'sync_mode' in value:
+        raise ConfigSnapshotValidationError(
+            'sync_mode is not used by ConfigMap-backed authorization')
+    return connectors.Role(name=name, **value)
+
+
+def _validate_backend_entry(name: str, value: Any) -> connectors.Backend:
+    if not isinstance(value, dict):
+        raise ConfigSnapshotValidationError(
+            'backend entry must be a mapping')
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return connectors.Backend(
+        name=name,
+        description=value.get('description', ''),
+        version='',
+        k8s_uid='',
+        k8s_namespace=value.get('k8s_namespace', ''),
+        dashboard_url=value.get('dashboard_url', ''),
+        grafana_url=value.get('grafana_url', ''),
+        tests=value.get('tests', []),
+        scheduler_settings=value.get('scheduler_settings', {}),
+        node_conditions=value.get('node_conditions', {}),
+        last_heartbeat=now,
+        created_date=now,
+        router_address=value.get('router_address', ''),
+        online=False,
+    )
+
+
+def _validate_group_template_entry(
+    name: str, value: Any,
+) -> connectors.GroupTemplate:
+    """Validate the runtime invariants formerly enforced on DB insertion."""
+    if not isinstance(value, dict):
+        raise ConfigSnapshotValidationError(
+            'group template entry must be a mapping')
+    for required_field in ('apiVersion', 'kind'):
+        if not isinstance(value.get(required_field), str) or not value[required_field]:
+            raise ConfigSnapshotValidationError(
+                f'group template {name} requires a non-empty {required_field}')
+    metadata = value.get('metadata')
+    if (not isinstance(metadata, dict)
+            or not isinstance(metadata.get('name'), str)
+            or not metadata['name']):
+        raise ConfigSnapshotValidationError(
+            f'group template {name} requires a non-empty metadata.name')
+    if 'namespace' in metadata:
+        raise ConfigSnapshotValidationError(
+            f'group template {name} must not set metadata.namespace; '
+            'OSMO assigns it at runtime')
+    return connectors.GroupTemplate(group_template=value)
+
+
+def _validate_cross_references(managed_configs: Dict[str, Any]) -> List[str]:
+    """Reject dangling ConfigMap references instead of silently skipping them."""
+    errors: List[str] = []
+    backends = managed_configs.get('backends', {})
+    pools = managed_configs.get('pools', {})
+    pod_templates = managed_configs.get('pod_templates', {})
+    resource_validations = managed_configs.get('resource_validations', {})
+    group_templates = managed_configs.get('group_templates', {})
+    backend_tests = managed_configs.get('backend_tests', {})
+    sections = (backends, pools, pod_templates, resource_validations,
+                group_templates, backend_tests)
+    if not all(isinstance(section, dict) for section in sections):
+        return errors
+
+    def require_names(
+        owner: str, raw_names: Any, available: Dict[str, Any], target: str,
+    ) -> None:
+        if not isinstance(raw_names, list):
+            return
+        for name in raw_names:
+            if isinstance(name, str) and name not in available:
+                errors.append(f'{owner}: references missing {target} {name}')
+
+    for backend_name, backend in backends.items():
+        if isinstance(backend, dict):
+            require_names(
+                f'backends.{backend_name}.tests', backend.get('tests', []),
+                backend_tests, 'backend test')
+    for test_name, test in backend_tests.items():
+        if isinstance(test, dict):
+            require_names(
+                f'backend_tests.{test_name}.common_pod_template',
+                test.get('common_pod_template', []), pod_templates,
+                'pod template')
+    for pool_name, pool in pools.items():
+        if not isinstance(pool, dict):
+            continue
+        backend = pool.get('backend')
+        if isinstance(backend, str) and backend not in backends:
+            errors.append(f'pools.{pool_name}.backend: references missing backend {backend}')
+        for field, available, label in (
+            ('common_pod_template', pod_templates, 'pod template'),
+            ('common_resource_validations', resource_validations, 'resource validation'),
+            ('common_group_templates', group_templates, 'group template'),
+        ):
+            require_names(f'pools.{pool_name}.{field}', pool.get(field, []),
+                          available, label)
+        platforms = pool.get('platforms', {})
+        if isinstance(platforms, dict):
+            default_platform = pool.get('default_platform')
+            if (isinstance(default_platform, str) and default_platform
+                    and default_platform not in platforms):
+                errors.append(
+                    f'pools.{pool_name}.default_platform: references missing '
+                    f'platform {default_platform}')
+            for platform_name, platform in platforms.items():
+                if not isinstance(platform, dict):
+                    continue
+                require_names(
+                    f'pools.{pool_name}.platforms.{platform_name}.override_pod_template',
+                    platform.get('override_pod_template', []), pod_templates,
+                    'pod template')
+                require_names(
+                    f'pools.{pool_name}.platforms.{platform_name}.resource_validations',
+                    platform.get('resource_validations', []), resource_validations,
+                    'resource validation')
+    return errors
+
+
+def _validate_active_workflow_references(
+    postgres: connectors.PostgresConnector | None,
+    managed_configs: Dict[str, Any],
+) -> List[str]:
+    """Reject a snapshot that removes authority needed by alive workflows."""
+    if postgres is None:
+        return []
+    rows = postgres.execute_fetch_command(
+        'SELECT workflow_id, pool, backend FROM workflows '
+        'WHERE status IN (\'PENDING\', \'RUNNING\', \'WAITING\') '
+        'ORDER BY workflow_id;', (), True)
+    pools = managed_configs.get('pools', {})
+    backends = managed_configs.get('backends', {})
+    errors: List[str] = []
+    for row in rows or []:
+        workflow_id = row['workflow_id']
+        pool_name = row['pool']
+        backend_name = row['backend']
+        pool = pools.get(pool_name) if isinstance(pools, dict) else None
+        if not isinstance(pool, dict):
+            errors.append(
+                f'active workflow {workflow_id}: pool {pool_name} is missing')
+            continue
+        if not isinstance(backends, dict) or backend_name not in backends:
+            errors.append(
+                f'active workflow {workflow_id}: backend {backend_name} is missing')
+        if pool.get('backend') != backend_name:
+            errors.append(
+                f'active workflow {workflow_id}: pool {pool_name} no longer '
+                f'references backend {backend_name}')
     return errors
 
 
 def _validate_configmap_runtime_contract(
     managed_configs: Dict[str, Any],
+    *,
+    require_service_auth: bool = True,
 ) -> List[str]:
     """Validate runtime fields that ConfigMap mode must own.
 
@@ -780,8 +981,9 @@ def _validate_configmap_runtime_contract(
     errors: List[str] = []
 
     service_config = managed_configs.get('service')
-    if (not isinstance(service_config, dict)
-            or 'service_auth' not in service_config):
+    if (require_service_auth and (
+            not isinstance(service_config, dict)
+            or 'service_auth' not in service_config)):
         errors.append(
             'service.service_auth: required from the configured auth source')
 
@@ -796,6 +998,28 @@ def _validate_configmap_runtime_contract(
                     'ConfigMap mode because backend queue names include the '
                     'backend Kubernetes namespace')
 
+    return errors
+
+
+def validate_configmap_snapshot(
+    managed_configs: Dict[str, Any],
+    *,
+    postgres: connectors.PostgresConnector | None = None,
+    require_service_auth: bool = True,
+) -> List[str]:
+    """Run the complete pure snapshot contract plus optional live checks.
+
+    The offline rendered-config verifier uses the same entry point as runtime but
+    omits service-auth, which is mounted separately from config.yaml, and the
+    live-workflow query, which is only available to running services.
+    """
+    errors = _validate_required_sections(managed_configs)
+    errors.extend(_validate_configmap_runtime_contract(
+        managed_configs, require_service_auth=require_service_auth))
+    errors.extend(_validate_configs(managed_configs))
+    errors.extend(_validate_cross_references(managed_configs))
+    errors.extend(_validate_active_workflow_references(
+        postgres, managed_configs))
     return errors
 
 
@@ -1105,18 +1329,16 @@ def _decode_dockerconfig_identity(
 
 def _resolve_secret_file_references(config_data: Dict[str, Any],
                                      parent_key: str = '') -> None:
-    """Recursively resolve secret_file / secretName references in a config dict.
+    """Resolve explicit OSMO config Secret references without touching pod specs.
 
-    Walks the dict tree. When it finds a dict with 'secret_file' or 'secretName':
+    Walks the dict tree. A Kubernetes Secret reference is recognized only when
+    both ``secretName`` and ``secretKey`` are present. Requiring the pair keeps
+    workload constructs such as ``volumes[].secret.secretName`` unchanged.
+
+    When it finds a dict with ``secret_file`` or the explicit key pair:
     - Reads the YAML file from the mounted K8s Secret path
     - If the file contains a dict: merges the file contents into the parent dict
     - If the file contains a 'value' key: replaces the entire dict with that value
-
-    For secretName references without an explicit secretKey, supports two
-    K8s Secret creation styles:
-    - Single-file (`--from-file=cred.yaml=...`): reads `cred.yaml` from the mount
-    - Per-field (`--from-literal=access_key_id=... --from-literal=access_key=...`):
-      reads each file in the mount directory as a key-value pair
     """
     if not isinstance(config_data, dict):
         return
@@ -1129,29 +1351,42 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
 
         label = f'{parent_key}.{key}' if parent_key else key
 
-        secret_file_path = value.get('secret_file')
-        if secret_file_path:
+        if 'secret_file' in value:
+            secret_file_path = value['secret_file']
+            if (not isinstance(secret_file_path, str)
+                    or not secret_file_path.strip()):
+                raise ValueError(
+                    f'{label}: secret_file must be a non-empty string')
+            real_root = os.path.realpath(SECRETS_ROOT)
+            real_path = os.path.realpath(secret_file_path)
+            if os.path.commonpath((real_root, real_path)) != real_root:
+                raise ValueError(
+                    f'{label}: secret_file must resolve below the mounted '
+                    'Kubernetes Secret root')
             _resolve_single_secret(
                 config_data, key, value, secret_file_path, label)
             continue
 
-        secret_name = value.get('secretName')
-        if secret_name:
+        if 'secretName' in value and 'secretKey' in value:
+            secret_name = value['secretName']
+            if not isinstance(secret_name, str) or not secret_name.strip():
+                raise ValueError(
+                    f'{label}: secretName must be a non-empty string')
             secret_dir = os.path.join(SECRETS_ROOT, secret_name)
-            explicit_key = value.get('secretKey')
-            if explicit_key:
-                _resolve_single_secret(
-                    config_data, key, value,
-                    os.path.join(secret_dir, explicit_key), label)
-            else:
-                # Backward compatible: prefer cred.yaml if present,
-                # otherwise treat the mount as --from-literal fields.
-                default_path = os.path.join(secret_dir, 'cred.yaml')
-                if os.path.isfile(default_path):
-                    _resolve_single_secret(
-                        config_data, key, value, default_path, label)
-                else:
-                    _resolve_secret_directory(value, secret_dir, label)
+            explicit_key = value['secretKey']
+            if (not isinstance(explicit_key, str)
+                    or not explicit_key.strip()):
+                raise ValueError(
+                    f'{label}: secretKey must be a non-empty string')
+            real_root = os.path.realpath(SECRETS_ROOT)
+            candidate = os.path.join(secret_dir, explicit_key)
+            if os.path.commonpath((real_root, os.path.realpath(candidate))) != real_root:
+                raise ValueError(
+                    f'{label}: Secret reference must resolve below the mounted '
+                    'Kubernetes Secret root')
+            _resolve_single_secret(
+                config_data, key, value,
+                os.path.join(secret_dir, explicit_key), label)
             continue
 
         _resolve_secret_file_references(value, label)
@@ -1171,9 +1406,7 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
         with open(secret_file_path, encoding='utf-8') as secret_file:
             content = secret_file.read()
     except OSError as error:
-        logging.error('Failed to read secret file %s for %s: %s',
-                      secret_file_path, path_label, error)
-        return
+        raise ValueError(f'{path_label}: mounted Secret file is unreadable') from error
 
     try:
         secret_data = json.loads(content)
@@ -1181,14 +1414,19 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
         try:
             secret_data = yaml.safe_load(content)
         except yaml.YAMLError as error:
-            logging.error('Failed to parse secret file %s for %s: %s',
-                          secret_file_path, path_label, error)
-            return
+            problem_mark = getattr(error, 'problem_mark', None)
+            location = ''
+            if problem_mark is not None:
+                location = (
+                    f' at line {problem_mark.line + 1}, '
+                    f'column {problem_mark.column + 1}')
+            raise ValueError(
+                f'{path_label}: mounted Secret file contains invalid YAML{location}') from error
 
     if not isinstance(secret_data, dict):
-        logging.error('Secret file %s for %s does not contain a mapping',
-                      secret_file_path, path_label)
-        return
+        raise ValueError(
+            f'{path_label}: mounted Secret file must contain a mapping')
+    _validate_non_empty_secret_payload(secret_data, path_label)
 
     if 'value' in secret_data and len(secret_data) == 1:
         parent_dict[key] = secret_data['value']
@@ -1217,6 +1455,7 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                 'username': username,
                 'auth': password,
             }
+            _validate_non_empty_secret_payload(extracted, path_label)
             current_value.pop('secret_file', None)
             current_value.pop('secretName', None)
             current_value.pop('secretKey', None)
@@ -1232,38 +1471,26 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
     logging.info('Loaded credentials for %s from secret file', path_label)
 
 
-def _resolve_secret_directory(current_value: Dict[str, Any],
-                              dir_path: str, path_label: str) -> None:
-    """Load each file in a Secret mount directory as a credential field.
-
-    Used when a K8s Secret was created with `--from-literal` (one file per
-    field) rather than `--from-file=cred.yaml=...` (a single YAML file).
-    Skips kubelet internals (`..data` symlink and the timestamped directory
-    it points to) and strips trailing newlines from each value.
-    """
-    fields: Dict[str, str] = {}
-    try:
-        for entry in os.listdir(dir_path):
-            if entry.startswith('..'):
-                continue
-            file_path = os.path.join(dir_path, entry)
-            if not os.path.isfile(file_path):
-                continue
-            with open(file_path, encoding='utf-8') as field_file:
-                fields[entry] = field_file.read().rstrip('\n')
-    except OSError as error:
-        logging.error('Failed to read secret directory %s for %s: %s',
-                      dir_path, path_label, error)
+def _validate_non_empty_secret_payload(
+    value: Any, path_label: str, *, root: bool = True,
+) -> None:
+    """Reject empty material supplied by an explicit Secret reference."""
+    if value is None:
+        raise ValueError(f'{path_label}: mounted Secret value is empty')
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError(f'{path_label}: mounted Secret value is empty')
         return
-
-    if not fields:
-        logging.error('No secret fields found in %s for %s',
-                      dir_path, path_label)
+    if isinstance(value, dict):
+        if not value and root:
+            raise ValueError(f'{path_label}: mounted Secret mapping is empty')
+        for child_key, child_value in value.items():
+            _validate_non_empty_secret_payload(
+                child_value, f'{path_label}.{child_key}', root=False)
         return
-
-    current_value.pop('secret_file', None)
-    current_value.pop('secretName', None)
-    current_value.pop('secretKey', None)
-    current_value.update(fields)
-    logging.info('Loaded %d secret fields for %s from %s',
-                 len(fields), path_label, dir_path)
+    if isinstance(value, list):
+        if not value and root:
+            raise ValueError(f'{path_label}: mounted Secret list is empty')
+        for index, child_value in enumerate(value):
+            _validate_non_empty_secret_payload(
+                child_value, f'{path_label}[{index}]', root=False)

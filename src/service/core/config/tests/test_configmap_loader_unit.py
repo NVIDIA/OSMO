@@ -22,7 +22,6 @@ import base64
 import copy
 import datetime
 import json
-import logging
 import os
 import tempfile
 import threading
@@ -43,6 +42,18 @@ from src.utils import auth, configmap_state, connectors
 
 _DEFAULT_SERVICE_AUTH_CONFIG: Dict[str, Any] | None = None
 
+_DEFAULT_ROLES = {
+    'osmo-default': {
+        'description': 'Default test role',
+        'policies': [{
+            'effect': 'Allow',
+            'actions': ['system:Health'],
+            'resources': ['*'],
+        }],
+        'external_roles': [],
+    },
+}
+
 
 def _service_auth_config() -> Dict[str, Any]:
     global _DEFAULT_SERVICE_AUTH_CONFIG  # pylint: disable=global-statement
@@ -58,6 +69,10 @@ def _service_auth_config() -> Dict[str, Any]:
 
 def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
     config = copy.deepcopy(config)
+    for section in configmap_loader._EXPECTED_CONFIG_KEYS:
+        config.setdefault(section, {})
+    if not config['roles']:
+        config['roles'] = copy.deepcopy(_DEFAULT_ROLES)
     config.setdefault('service', {})['service_auth'] = _service_auth_config()
     return config
 
@@ -67,6 +82,7 @@ def _postgres_with_service_auth(
     postgres = mock.MagicMock()
     postgres.get_service_auth.return_value = auth.AuthenticationConfig.model_validate(
         service_auth if service_auth is not None else _service_auth_config())
+    postgres.execute_fetch_command.return_value = []
     return postgres
 
 
@@ -86,13 +102,10 @@ class TestConfigmapGuard(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 409)
         self.assertIn('ConfigMap', str(context.exception))
 
-    def test_allow_when_configmap_mode_inactive(self):
-        configmap_guard.reject_if_configmap_mode('some-user')
-
-    def test_bypass_for_configmap_sync_user(self):
-        configmap_state.set_configmap_mode(True)
-        configmap_guard.reject_if_configmap_mode(
-            configmap_guard.CONFIGMAP_SYNC_USERNAME)
+    def test_reject_when_runtime_state_is_not_yet_active(self):
+        with self.assertRaises(osmo_errors.OSMOUserError) as context:
+            configmap_guard.reject_if_configmap_mode('some-user')
+        self.assertEqual(context.exception.status_code, 409)
 
     def test_is_configmap_mode(self):
         self.assertFalse(configmap_guard.is_configmap_mode())
@@ -139,7 +152,6 @@ class TestServiceAuthSecretManagement(unittest.TestCase):
 
     def test_service_config_response_omits_external_identity(self):
         postgres = mock.MagicMock()
-        postgres.service_auth_is_external = True
         postgres.get_service_configs.return_value = connectors.ServiceConfig(
             service_auth=auth.AuthenticationConfig.generate_default())
 
@@ -150,22 +162,6 @@ class TestServiceAuthSecretManagement(unittest.TestCase):
 
         assert isinstance(response, responses.JSONResponse)
         self.assertNotIn('service_auth', json.loads(response.body))
-
-    def test_service_config_response_preserves_legacy_identity(self):
-        postgres = mock.MagicMock()
-        postgres.service_auth_is_external = False
-        service_configs = connectors.ServiceConfig(
-            service_auth=auth.AuthenticationConfig.generate_default())
-        postgres.get_service_configs.return_value = service_configs
-
-        with mock.patch.object(
-            connectors.PostgresConnector, 'get_instance', return_value=postgres,
-        ):
-            response = config_service.read_service_configs()
-
-        assert isinstance(response, connectors.ServiceConfig)
-        self.assertIs(response, service_configs)
-        self.assertIn('service_auth', response.model_dump())
 
     def test_explicit_service_auth_patch_is_rejected_before_database_access(self):
         postgres = mock.MagicMock()
@@ -223,7 +219,9 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                     },
                 },
             }
-            configmap_loader._resolve_secret_file_references(config_data)
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                configmap_loader._resolve_secret_file_references(config_data)
 
             credential = config_data['buckets']['primary']['default_credential']
             self.assertEqual(credential['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
@@ -241,11 +239,31 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                 },
             },
         }
-        with self.assertLogs(level=logging.ERROR):
+        with self.assertRaisesRegex(ValueError, 'Secret root'):
             configmap_loader._resolve_secret_file_references(config_data)
         # secret_file key still present (not corrupted)
         credential = config_data['buckets']['primary']['default_credential']
         self.assertIn('secret_file', credential)
+
+    def test_malformed_secret_yaml_log_does_not_include_secret_content(self):
+        secret_canary = 'SECRET_CANARY_MUST_NOT_BE_LOGGED'
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
+            secret_file.write(f'access_key: [{secret_canary}')
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'alerts': {
+                    'secret_file': secret_path,
+                },
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                with self.assertRaisesRegex(ValueError, 'invalid YAML') as context:
+                    configmap_loader._resolve_secret_file_references(config_data)
+            self.assertNotIn(secret_canary, str(context.exception))
+        finally:
+            os.unlink(secret_path)
 
     def test_resolve_simple_string_secret(self):
         secret_data = {'value': 'xoxb-slack-token'}
@@ -259,17 +277,69 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                     'slack_token': {'secret_file': secret_path},
                 },
             }
-            configmap_loader._resolve_secret_file_references(config_data)
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                configmap_loader._resolve_secret_file_references(config_data)
             self.assertEqual(
                 config_data['alerts']['slack_token'], 'xoxb-slack-token')
         finally:
             os.unlink(secret_path)
 
+    def test_rejects_empty_simple_secret_value(self):
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
+            yaml.safe_dump({'value': ''}, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data = {
+                'alerts': {
+                    'slack_token': {'secret_file': secret_path},
+                },
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                with self.assertRaisesRegex(ValueError, 'value is empty'):
+                    configmap_loader._resolve_secret_file_references(config_data)
+        finally:
+            os.unlink(secret_path)
+
+    def test_rejects_empty_secret_mapping(self):
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
+            yaml.safe_dump({}, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data = {
+                'workflow_data': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                with self.assertRaisesRegex(ValueError, 'mapping is empty'):
+                    configmap_loader._resolve_secret_file_references(config_data)
+        finally:
+            os.unlink(secret_path)
+
+    def test_rejects_empty_explicit_secret_reference(self):
+        for reference in (
+                {'secretName': '', 'secretKey': 'cred.yaml'},
+                {'secret_file': ''},
+        ):
+            with self.subTest(reference=reference):
+                with self.assertRaisesRegex(ValueError, 'non-empty string'):
+                    configmap_loader._resolve_secret_file_references({
+                        'credential': reference,
+                    })
+
     def test_resolve_secret_name_converted_to_path(self):
         config_data: Dict[str, Any] = {
-            'credential': {'secretName': 'my-cred'},
+            'credential': {
+                'secretName': 'my-cred',
+                'secretKey': 'cred.yaml',
+            },
         }
-        with self.assertLogs(level=logging.ERROR):
+        with self.assertRaisesRegex(ValueError, 'unreadable'):
             configmap_loader._resolve_secret_file_references(config_data)
 
     def test_resolve_dockerconfigjson_prefers_password(self):
@@ -298,7 +368,9 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                     'credential': {'secret_file': secret_path},
                 },
             }
-            configmap_loader._resolve_secret_file_references(config_data)
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                configmap_loader._resolve_secret_file_references(config_data)
 
             credential = config_data['backend_images']['credential']
             self.assertEqual(credential['registry'], 'nvcr.io')
@@ -328,7 +400,9 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                     'credential': {'secret_file': secret_path},
                 },
             }
-            configmap_loader._resolve_secret_file_references(config_data)
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', os.path.dirname(secret_path)):
+                configmap_loader._resolve_secret_file_references(config_data)
 
             credential = config_data['backend_images']['credential']
             self.assertEqual(credential['auth'], 'fallback-token')
@@ -355,7 +429,10 @@ class TestResolveSecretFileReferences(unittest.TestCase):
                     'credential': {'secret_file': secret_path},
                 },
             }
-            configmap_loader._resolve_secret_file_references(config_data)
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT',
+                    os.path.dirname(secret_path)):
+                configmap_loader._resolve_secret_file_references(config_data)
 
             credential = config_data['backend_images']['credential']
             self.assertEqual(credential['registry'], 'nvcr.io')
@@ -365,125 +442,36 @@ class TestResolveSecretFileReferences(unittest.TestCase):
             os.unlink(secret_path)
 
 
-class TestResolveSecretDirectory(unittest.TestCase):
-    """Tests for per-field Secret mount support (--from-literal)."""
+class TestNamedSecretReferenceBoundary(unittest.TestCase):
+    """OSMO config references must not consume workload Secret fields."""
 
-    def _write_field(self, directory: str, name: str, value: str) -> None:
-        with open(os.path.join(directory, name), 'w', encoding='utf-8') as fh:
-            fh.write(value)
+    def test_bare_workload_secret_name_is_not_resolved(self):
+        config_data: Dict[str, Any] = {
+            'pod_template': {
+                'spec': {
+                    'volumes': [{
+                        'name': 'workload-credentials',
+                        'secret': {'secretName': 'backend-only-secret'},
+                    }],
+                },
+            },
+        }
 
-    def test_per_field_mount_loads_all_fields(self):
-        """Secret created with --from-literal loads each file as a field."""
-        with tempfile.TemporaryDirectory() as secret_dir:
-            self._write_field(secret_dir, 'access_key_id', 'AKIAEXAMPLE')
-            self._write_field(
-                secret_dir, 'access_key', 'wJalrXUtnFEMI/EXAMPLE')
-            self._write_field(secret_dir, 'region', 'us-west-2')
+        configmap_loader._resolve_secret_file_references(config_data)
 
-            config_data: Dict[str, Any] = {'credential': {}}
-            configmap_loader._resolve_secret_directory(
-                config_data['credential'], secret_dir, 'credential')
-
-            credential = config_data['credential']
-            self.assertEqual(credential['access_key_id'], 'AKIAEXAMPLE')
-            self.assertEqual(credential['access_key'], 'wJalrXUtnFEMI/EXAMPLE')
-            self.assertEqual(credential['region'], 'us-west-2')
-
-    def test_per_field_mount_strips_trailing_newlines(self):
-        with tempfile.TemporaryDirectory() as secret_dir:
-            self._write_field(secret_dir, 'token', 'abc123\n')
-
-            config_data: Dict[str, Any] = {'credential': {}}
-            configmap_loader._resolve_secret_directory(
-                config_data['credential'], secret_dir, 'credential')
-
-            self.assertEqual(config_data['credential']['token'], 'abc123')
-
-    def test_per_field_mount_skips_kubelet_internals(self):
-        """..data and timestamped ..YYYY_MM_DD... entries must be ignored."""
-        with tempfile.TemporaryDirectory() as secret_dir:
-            # Real kubelet mount: actual file + a ..data symlink to a
-            # timestamped hidden dir. We only care that `..`-prefixed
-            # entries are skipped, regardless of type.
-            self._write_field(secret_dir, 'access_key', 'real-value')
-            self._write_field(secret_dir, '..data', 'should-be-ignored')
-            os.makedirs(os.path.join(secret_dir, '..2024_01_01_00_00_00'))
-
-            config_data: Dict[str, Any] = {'credential': {}}
-            configmap_loader._resolve_secret_directory(
-                config_data['credential'], secret_dir, 'credential')
-
-            credential = config_data['credential']
-            self.assertEqual(credential, {'access_key': 'real-value'})
-
-    def test_per_field_mount_removes_reference_fields(self):
-        """secretName/secretKey keys are stripped after resolution."""
-        with tempfile.TemporaryDirectory() as secret_dir:
-            self._write_field(secret_dir, 'access_key', 'value')
-
-            current = {'secretName': 'my-cred'}
-            configmap_loader._resolve_secret_directory(
-                current, secret_dir, 'credential')
-
-            self.assertNotIn('secretName', current)
-            self.assertNotIn('secretKey', current)
-            self.assertEqual(current['access_key'], 'value')
-
-    def test_per_field_mount_empty_directory_logs_error(self):
-        with tempfile.TemporaryDirectory() as secret_dir:
-            current: Dict[str, Any] = {}
-            with self.assertLogs(level=logging.ERROR):
-                configmap_loader._resolve_secret_directory(
-                    current, secret_dir, 'credential')
-
-    def test_secret_name_falls_back_to_per_field(self):
-        """secretName with no cred.yaml loads per-field files from the mount."""
-        with tempfile.TemporaryDirectory() as tmp_root:
-            secret_dir = os.path.join(tmp_root, 'my-cred')
-            os.makedirs(secret_dir)
-            self._write_field(secret_dir, 'access_key_id', 'AKIA')
-            self._write_field(secret_dir, 'access_key', 'SECRET')
-
-            config_data: Dict[str, Any] = {
-                'credential': {'secretName': 'my-cred'},
-            }
-            with mock.patch.object(
-                    configmap_loader, 'SECRETS_ROOT', tmp_root):
-                configmap_loader._resolve_secret_file_references(config_data)
-
-            credential = config_data['credential']
-            self.assertEqual(credential['access_key_id'], 'AKIA')
-            self.assertEqual(credential['access_key'], 'SECRET')
-            self.assertNotIn('secretName', credential)
-
-    def test_secret_name_prefers_cred_yaml_when_present(self):
-        """With both cred.yaml and per-field files, cred.yaml wins."""
-        with tempfile.TemporaryDirectory() as tmp_root:
-            secret_dir = os.path.join(tmp_root, 'my-cred')
-            os.makedirs(secret_dir)
-            self._write_field(secret_dir, 'access_key_id', 'stale-value')
-            with open(os.path.join(secret_dir, 'cred.yaml'),
-                      'w', encoding='utf-8') as fh:
-                yaml.dump({'access_key_id': 'fresh-value'}, fh)
-
-            config_data: Dict[str, Any] = {
-                'credential': {'secretName': 'my-cred'},
-            }
-            with mock.patch.object(
-                    configmap_loader, 'SECRETS_ROOT', tmp_root):
-                configmap_loader._resolve_secret_file_references(config_data)
-
-            self.assertEqual(
-                config_data['credential']['access_key_id'], 'fresh-value')
+        self.assertEqual(
+            config_data['pod_template']['spec']['volumes'][0]['secret'],
+            {'secretName': 'backend-only-secret'})
 
     def test_secretkey_explicit_does_not_fall_back(self):
-        """Explicit secretKey uses the single-file path (no directory scan)."""
+        """An explicit missing key fails instead of scanning the directory."""
         with tempfile.TemporaryDirectory() as tmp_root:
             secret_dir = os.path.join(tmp_root, 'my-cred')
             os.makedirs(secret_dir)
-            # Per-field files exist but should be ignored because
-            # secretKey is explicit and points to a (missing) single file.
-            self._write_field(secret_dir, 'access_key_id', 'value')
+            with open(
+                    os.path.join(secret_dir, 'access_key_id'),
+                    'w', encoding='utf-8') as field_file:
+                field_file.write('value')
 
             config_data: Dict[str, Any] = {
                 'credential': {
@@ -493,7 +481,7 @@ class TestResolveSecretDirectory(unittest.TestCase):
             }
             with mock.patch.object(
                     configmap_loader, 'SECRETS_ROOT', tmp_root):
-                with self.assertLogs(level=logging.ERROR):
+                with self.assertRaisesRegex(ValueError, 'unreadable'):
                     configmap_loader._resolve_secret_file_references(
                         config_data)
 
@@ -522,18 +510,126 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn('pod_templates', errors[0])
 
-    def test_unknown_keys_logged(self):
+    def test_unknown_keys_rejected(self):
         configs: Dict[str, Any] = {
             'unknown_section': {'config': {}},
         }
-        with self.assertLogs(level=logging.WARNING) as log_context:
-            configmap_loader._validate_configs(configs)
-        self.assertTrue(
-            any('Unknown config key' in msg for msg in log_context.output))
+        errors = configmap_loader._validate_configs(configs)
+        self.assertEqual(len(errors), 1)
+        self.assertIn('unknown_section: unknown config section', errors[0])
 
     def test_empty_configs_valid(self):
         errors = configmap_loader._validate_configs({})
         self.assertEqual(errors, [])
+
+    def test_runtime_document_requires_exact_nine_sections(self):
+        errors = configmap_loader._validate_required_sections({})
+        self.assertEqual(len(errors), 9)
+
+    def test_runtime_document_rejects_empty_roles(self):
+        configs: Dict[str, Any] = {
+            section: {} for section in configmap_loader._EXPECTED_CONFIG_KEYS
+        }
+        errors = configmap_loader._validate_required_sections(configs)
+        self.assertEqual(
+            errors, ['roles: required 6.4 config section must not be empty'])
+
+    def test_role_sync_mode_is_rejected(self):
+        errors = configmap_loader._validate_configs({
+            'roles': {
+                'legacy-role': {
+                    'description': 'Legacy DB role',
+                    'policies': [],
+                    'sync_mode': 'force',
+                },
+            },
+        })
+        self.assertTrue(any('sync_mode is not used' in error for error in errors))
+
+    def test_role_action_object_contract_matches_authz_loader(self):
+        errors = configmap_loader._validate_configs({
+            'roles': {
+                'compatible-role': {
+                    'description': '6.3-compatible action encodings',
+                    'policies': [{
+                        'actions': [
+                            {'action': 'workflow:Read'},
+                            {
+                                'base': 'http',
+                                'path': '/api/workflow/*',
+                                'method': 'GET',
+                            },
+                        ],
+                    }],
+                },
+            },
+        })
+        self.assertEqual(errors, [])
+
+    def test_dangling_configmap_references_are_rejected(self):
+        configs: Dict[str, Any] = {
+            section: {} for section in configmap_loader._EXPECTED_CONFIG_KEYS
+        }
+        configs['pools'] = {
+            'pool-a': {
+                'backend': 'missing-backend',
+                'common_pod_template': ['missing-template'],
+                'platforms': {},
+            },
+        }
+        errors = configmap_loader._validate_cross_references(configs)
+        self.assertTrue(any('missing backend' in error for error in errors))
+        self.assertTrue(any('missing pod template' in error for error in errors))
+
+    def test_pool_default_platform_must_exist(self):
+        configs: Dict[str, Any] = {
+            section: {} for section in configmap_loader._EXPECTED_CONFIG_KEYS
+        }
+        configs['backends']['backend-a'] = {'k8s_namespace': 'backend-a'}
+        configs['pools']['pool-a'] = {
+            'backend': 'backend-a',
+            'default_platform': 'missing',
+            'platforms': {'gpu': {}},
+        }
+        errors = configmap_loader._validate_cross_references(configs)
+        self.assertEqual(errors, [
+            'pools.pool-a.default_platform: references missing platform missing',
+        ])
+
+    def test_group_template_requires_runtime_identity_fields(self):
+        invalid_templates = (
+            ({'kind': 'ConfigMap', 'metadata': {'name': 'example'}},
+             'apiVersion'),
+            ({'apiVersion': 'v1', 'metadata': {'name': 'example'}},
+             'kind'),
+            ({'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {}},
+             'metadata.name'),
+            ({
+                'apiVersion': 'v1',
+                'kind': 'ConfigMap',
+                'metadata': {'name': 'example', 'namespace': 'forbidden'},
+            }, 'metadata.namespace'),
+        )
+        for template, expected_error in invalid_templates:
+            with self.subTest(expected_error=expected_error):
+                errors = configmap_loader._validate_configs({
+                    'group_templates': {'example': template},
+                })
+                self.assertTrue(any(
+                    expected_error in error for error in errors), errors)
+
+    def test_active_workflow_references_must_remain_in_snapshot(self):
+        postgres = mock.Mock()
+        postgres.execute_fetch_command.return_value = [{
+            'workflow_id': 'workflow-1',
+            'pool': 'removed-pool',
+            'backend': 'removed-backend',
+        }]
+        errors = configmap_loader._validate_active_workflow_references(
+            postgres, {'pools': {}, 'backends': {}})
+        self.assertEqual(errors, [
+            'active workflow workflow-1: pool removed-pool is missing',
+        ])
 
     def test_validates_nested_workflow_labels_config(self):
         errors = configmap_loader._validate_configs({
@@ -601,6 +697,16 @@ class TestValidationErrorFormatting(unittest.TestCase):
         self.assertIn('Extra inputs are not permitted', formatted)
         self.assertIn('input_type=str', formatted)
         self.assertNotIn('anything', formatted)
+
+    def test_backend_shape_error_includes_safe_reason(self):
+        errors = configmap_loader._validate_configs({
+            'backends': {'invalid-backend': []},
+        })
+
+        self.assertEqual(
+            errors,
+            ['backends.invalid-backend: backend entry must be a mapping'],
+        )
 
     def test_input_type_reflects_actual_python_type(self):
         """A non-string input should be reported with its Python type."""
@@ -681,13 +787,11 @@ class TestConfigMapWatcherStart(unittest.TestCase):
         with self.assertRaises(RuntimeError) as context:
             watcher.start()
         self.assertIn('ConfigMap load failed', str(context.exception))
-        # Watcher must not have been started before the raise
-        self.assertIsNone(watcher._observer)
         # ConfigMap mode must not be left half-activated
         self.assertFalse(configmap_guard.is_configmap_mode())
 
     def test_start_succeeds_on_valid_configmap(self):
-        """Valid ConfigMap at startup: activates mode, starts watcher."""
+        """Valid ConfigMap at startup activates an immutable snapshot."""
         config: Dict[str, Any] = {
             'pod_templates': {'default_ctrl': {'spec': {'containers': []}}},
         }
@@ -700,12 +804,11 @@ class TestConfigMapWatcherStart(unittest.TestCase):
                 path, _postgres_with_service_auth())
             watcher.start()
             self.assertTrue(configmap_guard.is_configmap_mode())
-            self.assertIsNotNone(watcher._observer)
             watcher.stop()
         finally:
             os.unlink(path)
 
-    def test_start_ignores_stale_dataset_config(self):
+    def test_start_rejects_stale_dataset_config(self):
         config: Dict[str, Any] = {
             'dataset': {
                 'default_bucket': 'legacy',
@@ -724,14 +827,8 @@ class TestConfigMapWatcherStart(unittest.TestCase):
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, _postgres_with_service_auth())
-            try:
+            with self.assertRaisesRegex(RuntimeError, 'malformed or invalid'):
                 watcher.start()
-                snapshot = configmap_guard.get_snapshot()
-                self.assertIsNotNone(snapshot)
-                assert snapshot is not None
-                self.assertNotIn('dataset', snapshot)
-            finally:
-                watcher.stop()
         finally:
             os.unlink(path)
 
@@ -868,6 +965,7 @@ class TestConfigMapEventRecorder(unittest.TestCase):
         """Default mock: ConfigMap fetch returns a UID."""
         fake_configmap = mock.MagicMock()
         fake_configmap.metadata.uid = uid
+        fake_configmap.metadata.annotations = {}
         mock_api.read_namespaced_config_map.return_value = fake_configmap
 
     @classmethod
@@ -915,6 +1013,58 @@ class TestConfigMapEventRecorder(unittest.TestCase):
         recorder.emit_reload_failed('second')
         recorder.emit_reload_failed('third')
         self.assertEqual(mock_api.read_namespaced_config_map.call_count, 1)
+
+    def test_reconciliation_checkpoint_round_trip_uses_annotation(self):
+        mock_api = mock.MagicMock()
+        recorder = self._build_recorder(mock_api)
+        state = {
+            'format_version': 1,
+            'backends': {
+                'backend-a': {
+                    'k8s_namespace': 'runtime-a',
+                    'queue_hash': 'abc',
+                    'test_hash': 'def',
+                },
+            },
+        }
+
+        recorder.save_reconciliation_state(state)
+
+        args = mock_api.patch_namespaced_config_map.call_args.args
+        self.assertEqual(args[:2], ('osmo-service-configs', 'osmo'))
+        encoded = args[2]['metadata']['annotations'][
+            configmap_events.RECONCILIATION_STATE_ANNOTATION]
+        configmap = mock.MagicMock()
+        configmap.metadata.annotations = {
+            configmap_events.RECONCILIATION_STATE_ANNOTATION: encoded,
+        }
+        mock_api.read_namespaced_config_map.return_value = configmap
+        self.assertEqual(recorder.load_reconciliation_state(), state)
+
+    def test_malformed_reconciliation_checkpoint_fails_closed(self):
+        mock_api = mock.MagicMock()
+        recorder = self._build_recorder(mock_api)
+        configmap = mock.MagicMock()
+        configmap.metadata.annotations = {
+            configmap_events.RECONCILIATION_STATE_ANNOTATION: 'not-json',
+        }
+        mock_api.read_namespaced_config_map.return_value = configmap
+
+        with self.assertRaisesRegex(RuntimeError, 'malformed'):
+            recorder.load_reconciliation_state()
+
+    def test_file_reconciliation_checkpoint_round_trip_is_atomic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint_path = os.path.join(directory, 'reconciliation.json')
+            store = configmap_events.FileReconciliationStateStore(
+                checkpoint_path)
+            state = {'format_version': 1, 'backends': {}}
+
+            self.assertIsNone(store.load_reconciliation_state())
+            store.save_reconciliation_state(state)
+
+            self.assertEqual(store.load_reconciliation_state(), state)
+            self.assertEqual(os.listdir(directory), ['reconciliation.json'])
 
     def test_event_emitted_even_if_configmap_uid_fetch_fails(self):
         """If fetching the ConfigMap UID fails, still emit the event (with
@@ -1028,6 +1178,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         configmap_state.set_parsed_configs(None)
 
     def _write_config_file(self, config: Dict[str, Any]) -> str:
+        config = copy.deepcopy(config)
+        for section in configmap_loader._EXPECTED_CONFIG_KEYS:
+            config.setdefault(section, {})
+        if not config['roles']:
+            config['roles'] = copy.deepcopy(_DEFAULT_ROLES)
         with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.yaml', delete=False) as temp:
             yaml.dump(config, temp)
@@ -1038,8 +1193,34 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         config_file_path: str,
         **kwargs: Any,
     ) -> configmap_loader.ConfigMapWatcher:
+        if (kwargs.get('enable_reconciliation') and
+                'reconciliation_state_store' not in kwargs):
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = None
+            kwargs['reconciliation_state_store'] = state_store
         return configmap_loader.ConfigMapWatcher(
             config_file_path, _postgres_with_service_auth(), **kwargs)
+
+    def test_reconciliation_checkpoint_is_non_secret_and_uses_full_digests(self):
+        snapshot = {
+            'service': {'database_encryption_key': 'do-not-persist-this'},
+            'backends': {
+                'backend-a': {
+                    'k8s_namespace': 'runtime-ns-a',
+                    'scheduler_settings': {'scheduler_type': 'kai'},
+                    'tests': [],
+                },
+            },
+            'pools': {},
+            'backend_tests': {},
+        }
+
+        state = configmap_loader._build_reconciliation_state(snapshot)
+
+        self.assertNotIn('do-not-persist-this', json.dumps(state))
+        backend_state = state['backends']['backend-a']
+        self.assertEqual(len(backend_state['queue_hash']), 64)
+        self.assertEqual(len(backend_state['test_hash']), 64)
 
     def _wire_reconciliation_callbacks(
         self,
@@ -1142,9 +1323,13 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             untyped_postgres._service_auth = (
                 auth.load_authentication_config_file(service_auth_path))
             untyped_postgres._runtime_service_auth_login_info = None
+            def operational_reads_only(command, *_args, **_kwargs):
+                if 'FROM workflows' in command:
+                    return []
+                raise AssertionError('must not read service_auth from database')
+
             untyped_postgres.execute_fetch_command = mock.Mock(
-                side_effect=AssertionError(
-                    'must not read service_auth from database'))
+                side_effect=operational_reads_only)
             untyped_postgres.execute_commit_command = mock.Mock(
                 side_effect=AssertionError(
                     'must not write service_auth to database'))
@@ -1172,7 +1357,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     stable_service_auth.canonical_json(include_login_info=False),
                 )
                 generate_default.assert_not_called()
-                untyped_postgres.execute_fetch_command.assert_not_called()
+                untyped_postgres.execute_fetch_command.assert_called_once()
+                self.assertIn(
+                    'FROM workflows',
+                    untyped_postgres.execute_fetch_command.call_args.args[0])
                 untyped_postgres.execute_commit_command.assert_not_called()
             finally:
                 os.unlink(path)
@@ -1195,12 +1383,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             with open(path, 'w', encoding='utf-8') as config_file:
-                yaml.dump({
+                yaml.dump(_with_service_auth({
                     'service': {
                         'service_auth': configmap_auth,
                         'max_pod_restart_limit': '45m',
                     },
-                }, config_file)
+                }), config_file)
             result = watcher._load_and_apply()
             self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
@@ -1385,6 +1573,62 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_api_reconcile_prefix_change_cleans_old_prefix_after_restart(self):
+        config: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': ['test-a'],
+                    'node_conditions': {'prefix': 'new.example.com/'},
+                    'k8s_namespace': 'runtime-ns-a',
+                },
+            },
+            'backend_tests': {
+                'test-a': {
+                    'name': 'test-a',
+                    'description': 'test',
+                    'cron_schedule': '*/5 * * * *',
+                    'common_pod_template': ['tmpl-a'],
+                    'node_conditions': ['Ready'],
+                },
+            },
+            'pod_templates': {
+                'tmpl-a': {'spec': {'containers': []}},
+            },
+        }
+        previous = copy.deepcopy(config)
+        previous['backends']['backend-a']['node_conditions']['prefix'] = (
+            'old.example.com/')
+        path = self._write_config_file(_with_service_auth(config))
+        try:
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = (
+                configmap_loader._build_reconciliation_state(previous))
+            watcher = self._watcher(
+                path, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
+
+            with mock.patch(
+                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+            ) as sync_tests:
+                self._wire_reconciliation_callbacks(
+                    watcher, test_updater=sync_tests)
+                result = watcher._load_and_apply()
+
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
+            self.assertEqual(sync_tests.call_count, 2)
+            cleanup_call, apply_call = sync_tests.call_args_list
+            self.assertEqual(
+                cleanup_call.args[:3],
+                ('backend-a', {}, 'old.example.com/'))
+            self.assertEqual(apply_call.args[0], 'backend-a')
+            self.assertIn('test-a', apply_call.args[1])
+            self.assertEqual(apply_call.args[2], 'new.example.com/')
+            self.assertNotEqual(
+                cleanup_call.kwargs['job_id'], apply_call.kwargs['job_id'])
+            state_store.save_reconciliation_state.assert_called_once()
+        finally:
+            os.unlink(path)
+
     def test_non_api_reload_does_not_reconcile_backend_tests(self):
         config: Dict[str, Any] = {
             'backends': {
@@ -1454,9 +1698,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         }
         path = self._write_config_file(_with_service_auth(new_config))
         try:
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = (
+                configmap_loader._build_reconciliation_state(old_snapshot))
             watcher = self._watcher(
-                path, enable_reconciliation=True)
-            watcher._last_reconciled_snapshot = old_snapshot
+                path, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
@@ -1483,6 +1730,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                              'runtime-ns-a')
             self.assertIn(
                 'backend-a-modify-queues-configmap-', kwargs['job_id'])
+            state_store.save_reconciliation_state.assert_called_once()
         finally:
             os.unlink(path)
 
@@ -1540,9 +1788,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             'scheduler_timeout'] = 60
         path = self._write_config_file(_with_service_auth(new_config))
         try:
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = (
+                configmap_loader._build_reconciliation_state(old_snapshot))
             watcher = self._watcher(
-                path, enable_reconciliation=True)
-            watcher._last_reconciled_snapshot = old_snapshot
+                path, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
@@ -1565,6 +1816,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             self.assertEqual(kwargs['prev_backend'].name, 'backend-a')
             self.assertIn(
                 'backend-a-modify-queues-configmap-', kwargs['job_id'])
+            state_store.save_reconciliation_state.assert_called_once()
         finally:
             os.unlink(path)
 
@@ -1942,7 +2194,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_api_reconcile_failure_does_not_fail_reload(self):
+    def test_api_reconcile_failure_keeps_snapshot_unready(self):
         config: Dict[str, Any] = {
             'backends': {
                 'backend-a': {
@@ -1965,8 +2217,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         }
         path = self._write_config_file(_with_service_auth(config))
         try:
-            watcher = self._watcher(
-                path, enable_reconciliation=True)
+            postgres = _postgres_with_service_auth()
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = None
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, postgres, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_tests_cronjobs',
@@ -1976,10 +2232,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     watcher, test_updater=mock_sync_tests)
                 result = watcher._load_and_apply()
 
-            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
-            snapshot = configmap_state.get_snapshot()
-            assert snapshot is not None
-            self.assertIn('backend-a', snapshot['backends'])
+            self.assertEqual(
+                result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
+            postgres.execute_commit_command.assert_not_called()
         finally:
             os.unlink(path)
 
@@ -2017,7 +2273,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                     watcher, test_updater=mock_sync_tests)
                 self.assertEqual(
                     watcher._load_and_apply(),
-                    configmap_loader.LoadResult.SUCCESS)
+                    configmap_loader.LoadResult.TRANSIENT_FAILURE)
                 self.assertEqual(
                     watcher._load_and_apply(),
                     configmap_loader.LoadResult.SUCCESS)
@@ -2027,46 +2283,36 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_api_user_role_reconcile_failure_retries_without_failing_reload(self):
-        path = self._write_config_file(_with_service_auth({
-            'roles': {
-                'current-role': {'description': 'current', 'policies': []},
+    def test_api_checkpoint_failure_keeps_snapshot_unready(self):
+        config: Dict[str, Any] = {
+            'backends': {
+                'backend-a': {
+                    'tests': [],
+                    'k8s_namespace': 'runtime-ns-a',
+                },
             },
-        }))
+        }
+        path = self._write_config_file(_with_service_auth(config))
         try:
-            postgres = _postgres_with_service_auth()
-            postgres.execute_commit_command.side_effect = [
-                RuntimeError('database unavailable'), None]
-            watcher = configmap_loader.ConfigMapWatcher(
-                path, postgres, enable_reconciliation=True,
-                backend_queue_updater=mock.MagicMock(return_value=True),
-                backend_test_updater=mock.MagicMock(return_value=True))
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = None
+            state_store.save_reconciliation_state.side_effect = RuntimeError(
+                'apiserver unavailable')
+            watcher = self._watcher(
+                path, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
+            self._wire_reconciliation_callbacks(watcher)
+
+            result = watcher._load_and_apply()
 
             self.assertEqual(
-                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
-            self.assertIsNone(watcher._last_reconciled_snapshot)
-            self.assertEqual(
-                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
-            self.assertIsNotNone(watcher._last_reconciled_snapshot)
-            self.assertEqual(postgres.execute_commit_command.call_count, 2)
+                result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
+            postgres = watcher._postgres
+            assert postgres is not None
+            postgres.execute_commit_command.assert_not_called()
         finally:
             os.unlink(path)
-
-    def test_user_role_reconcile_normalizes_invalid_role_keys(self):
-        postgres = mock.MagicMock()
-
-        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
-            {'roles': {None: {}, 1: {}, 'current-role': {}}}, postgres))
-        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
-            {'roles': None}, postgres))
-        self.assertTrue(configmap_loader._reconcile_user_role_assignments(
-            {}, postgres))
-
-        calls = postgres.execute_commit_command.call_args_list
-        self.assertEqual(calls[0].args[1], (['current-role'],))
-        self.assertEqual(calls[1].args[1], ([],))
-        self.assertEqual(calls[2].args[1], ([],))
-        self.assertIn('%s::text[]', calls[0].args[0])
 
     def test_api_reconcile_removed_backend_queues_cleanup(self):
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -2105,13 +2351,16 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         new_config: Dict[str, Any] = {
             'backends': {},
             'pools': {},
-            'backend_tests': old_snapshot['backend_tests'],
+            'backend_tests': {},
         }
         path = self._write_config_file(_with_service_auth(new_config))
         try:
+            state_store = mock.MagicMock()
+            state_store.load_reconciliation_state.return_value = (
+                configmap_loader._build_reconciliation_state(old_snapshot))
             watcher = self._watcher(
-                path, enable_reconciliation=True)
-            watcher._last_reconciled_snapshot = old_snapshot
+                path, enable_reconciliation=True,
+                reconciliation_state_store=state_store)
 
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
@@ -2134,6 +2383,10 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             test_args, _ = mock_sync_tests.call_args
             self.assertEqual(test_args[:3], (
                 'backend-a', {}, 'example.com/'))
+            state_store.save_reconciliation_state.assert_called_once_with({
+                'format_version': 1,
+                'backends': {},
+            })
         finally:
             os.unlink(path)
 
@@ -2577,6 +2830,11 @@ class TestResolvePoolComputedFields(unittest.TestCase):
     def test_load_and_apply_resolves_pool_fields(self):
         """End-to-end: _load_and_apply resolves pool computed fields."""
         config: Dict[str, Any] = {
+            'backends': {
+                'default': {
+                    'k8s_namespace': 'default',
+                },
+            },
             'pod_templates': {
                 'user_tmpl': {
                     'spec': {
@@ -2625,46 +2883,6 @@ class TestResolvePoolComputedFields(unittest.TestCase):
             configmap_state.set_parsed_configs(None)
 
 
-class TestConfigFileEventHandler(unittest.TestCase):
-    """Tests for the watchdog event handler."""
-
-    def test_ignores_unrelated_events(self):
-        callback = mock.MagicMock()
-        handler = configmap_loader.ConfigFileEventHandler(
-            'config.yaml', callback)
-
-        event = mock.MagicMock()
-        event.src_path = '/some/other/file.txt'
-        handler.on_any_event(event)
-
-        callback.assert_not_called()
-
-    def test_reacts_to_config_file_events(self):
-        callback = mock.MagicMock()
-        handler = configmap_loader.ConfigFileEventHandler(
-            'config.yaml', callback)
-        handler._debounce_delay = 0.01  # speed up test
-
-        event = mock.MagicMock()
-        event.src_path = '/etc/osmo/config/config.yaml'
-        handler.on_any_event(event)
-
-        # Timer should be set
-        self.assertIsNotNone(handler._debounce_timer)
-
-    def test_reacts_to_data_symlink_events(self):
-        callback = mock.MagicMock()
-        handler = configmap_loader.ConfigFileEventHandler(
-            'config.yaml', callback)
-        handler._debounce_delay = 0.01
-
-        event = mock.MagicMock()
-        event.src_path = '/etc/osmo/config/..data'
-        handler.on_any_event(event)
-
-        self.assertIsNotNone(handler._debounce_timer)
-
-
 class TestStartConfigWatcher(unittest.TestCase):
     """Tests for the start_config_watcher convenience helper."""
 
@@ -2676,11 +2894,39 @@ class TestStartConfigWatcher(unittest.TestCase):
         configmap_state.set_configmap_mode(False)
         configmap_state.set_parsed_configs(None)
 
-    def test_returns_none_when_config_file_unset(self):
-        watcher = configmap_loader.start_config_watcher(
-            None, is_api_service=True)
-        self.assertIsNone(watcher)
+    def test_rejects_unset_config_file(self):
+        with self.assertRaisesRegex(RuntimeError, 'OSMO_CONFIG_FILE is required'):
+            configmap_loader.start_config_watcher(None, is_api_service=True)
         self.assertFalse(configmap_state.is_configmap_mode())
+
+    def test_out_of_cluster_api_uses_explicit_file_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint_path = os.path.join(directory, 'reconciliation.json')
+            environment = {
+                'KUBERNETES_SERVICE_HOST': '',
+                'POD_NAMESPACE': '',
+                'OSMO_CONFIGMAP_NAME': '',
+                'OSMO_RECONCILIATION_STATE_FILE': checkpoint_path,
+            }
+            with mock.patch.dict(os.environ, environment), mock.patch.object(
+                    configmap_loader.ConfigMapWatcher, 'start'):
+                watcher = configmap_loader.start_config_watcher(
+                    '/tmp/config.yaml', is_api_service=True)
+
+            self.assertIsInstance(
+                watcher._reconciliation_state_store,
+                configmap_events.FileReconciliationStateStore)
+
+    def test_in_cluster_api_requires_configmap_identity(self):
+        environment = {
+            'KUBERNETES_SERVICE_HOST': '10.0.0.1',
+            'POD_NAMESPACE': '',
+            'OSMO_CONFIGMAP_NAME': '',
+        }
+        with mock.patch.dict(os.environ, environment):
+            with self.assertRaisesRegex(RuntimeError, 'POD_NAMESPACE'):
+                configmap_loader.start_config_watcher(
+                    '/etc/osmo/config.yaml', is_api_service=True)
 
     def test_non_api_service_hydrates_auth_without_event_recorder(self):
         """All services hydrate auth; non-API replicas skip K8s events."""
@@ -2756,7 +3002,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                     configmap_loader.start_config_watcher(
                         missing_path, is_api_service=False)
                 self.assertIn('failed at startup', str(ctx.exception))
-                self.assertIn('never became readable', str(ctx.exception))
+                self.assertIn('startup dependency never became ready', str(ctx.exception))
 
     def test_cold_start_fails_fast_on_permanent_error(self):
         """Bad YAML must not consume the full retry deadline."""

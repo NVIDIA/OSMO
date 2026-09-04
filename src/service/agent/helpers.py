@@ -22,7 +22,6 @@ import json
 import logging
 import time
 from typing import Dict
-from urllib.parse import urlparse
 
 import fastapi
 import kombu  # type: ignore
@@ -65,36 +64,28 @@ def get_task_info(postgres: connectors.PostgresConnector, workflow_uuid: str, ta
 def create_backend(postgres: connectors.PostgresConnector,
                    name: str,
                    message: backend_messages.InitBody):
-    # Initialize router_address with hostname from config if available
-    router_address = ''
-    if postgres.config.service_hostname:
-        parsed_url = urlparse(postgres.config.service_hostname)
-        if parsed_url.hostname:
-            router_address = f'wss://{parsed_url.hostname}'
-        else:
-            router_address = f'wss://{postgres.config.service_hostname}'
+    configured_backend = connectors.Backend.fetch_from_db(postgres, name)
+    if message.k8s_namespace != configured_backend.k8s_namespace:
+        raise osmo_errors.OSMOBackendError(
+            f'Backend {name} registered namespace {message.k8s_namespace!r}, '
+            f'but the ConfigMap requires {configured_backend.k8s_namespace!r}.')
+    configured_prefix = configured_backend.node_conditions.prefix
+    if message.node_condition_prefix != configured_prefix:
+        raise osmo_errors.OSMOBackendError(
+            f'Backend {name} registered node condition prefix '
+            f'{message.node_condition_prefix!r}, but the ConfigMap requires '
+            f'{configured_prefix!r}.')
 
-        logging.info('Initializing router_address for backend %s to: %s',
-                     name, router_address)
-
+    # Persist only runtime identity/state. Configuration remains immutable in
+    # the ConfigMap snapshot and is never copied back into PostgreSQL.
     insert_cmd = '''
-        WITH input_rows(name, k8s_uid, k8s_namespace, dashboard_url, grafana_url,
-            scheduler_settings,
-            last_heartbeat, created_date,
-            description, router_address,
-            version) AS (
+        WITH input_rows(name, k8s_uid, version, last_heartbeat, created_date) AS (
             VALUES
-                (text %s, text %s, text %s, text %s, text %s, text %s,
-                 timestamp %s,
-                 timestamp %s, text %s,
-                 text %s, text %s)
+                (text %s, text %s, text %s, timestamp %s, timestamp %s)
             )
         , new_row AS (
-            INSERT INTO backends (name, k8s_uid, k8s_namespace,
-                dashboard_url, grafana_url,
-                scheduler_settings,
-                last_heartbeat, created_date, description, router_address,
-                version)
+            INSERT INTO backends
+                (name, k8s_uid, version, last_heartbeat, created_date)
             SELECT * FROM input_rows
             ON CONFLICT (name) DO NOTHING
             RETURNING name, k8s_uid, true as is_new
@@ -105,76 +96,27 @@ def create_backend(postgres: connectors.PostgresConnector,
         JOIN backends b USING (name)
         WHERE NOT EXISTS (SELECT 1 FROM new_row);
     '''
+    now = common.current_time()
     k8s_info = postgres.execute_fetch_command(
         insert_cmd,
-        (name, message.k8s_uid, message.k8s_namespace, '',
-         '',
-         connectors.BackendSchedulerSettings().model_dump_json(),
-         common.current_time(), common.current_time(), '', router_address,
-         message.version))
+        (name, message.k8s_uid, message.version, now, now))
     if k8s_info[0].k8s_uid != message.k8s_uid:
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '
                                            'different cluster')
 
-    # Snapshot pre-UPDATE; passed to update_backend_queues below so it can
-    # clean up old scheduler resources on scheduler_type / namespace changes.
-    previous_backend = connectors.Backend.fetch_from_db(postgres, name)
-
-    # Update node_conditions column to set the prefix while preserving existing values
+    # Version is runtime state and may change when the same cluster reconnects.
     update_cmd = '''
-        WITH old_values AS (
-            SELECT k8s_namespace as old_k8s_namespace,
-                   version as old_version,
-                   COALESCE(node_conditions->>'prefix', '') as old_prefix
-            FROM backends WHERE name = %s
-        )
-        UPDATE backends SET k8s_namespace = %s, version = %s,
-        node_conditions = jsonb_set(
-            COALESCE(node_conditions,
-                     '{"rules": {"Ready": "True"}}'::jsonb
-                     ),
-            '{prefix}',
-            to_jsonb(%s::text)
-        )
-        WHERE name = %s
-        RETURNING
-            (
-                (SELECT old_k8s_namespace FROM old_values) IS DISTINCT FROM %s OR
-                (SELECT old_version FROM old_values) IS DISTINCT FROM %s OR
-                (SELECT old_prefix FROM old_values) IS DISTINCT FROM %s
-            ) as did_update;
+        UPDATE backends SET version = %s
+        WHERE name = %s AND k8s_uid = %s;
     '''
-    update_result = postgres.execute_fetch_command(update_cmd,
-                                                   (name,
-                                                    message.k8s_namespace,
-                                                    message.version, message.node_condition_prefix,
-                                                    name,
-                                                    message.k8s_namespace,
-                                                    message.version, message.node_condition_prefix))
+    postgres.execute_commit_command(
+        update_cmd, (message.version, name, message.k8s_uid))
 
-    # MUST run after the UPDATE above: queue names embed k8s_namespace
-    # (`osmo-pool-<ns>-<pool>`), so the fetched backend has to reflect the
-    # just-written namespace. previous_backend (snapshot pre-UPDATE) lets
-    # update_backend_queues clean up old scheduler resources on
-    # scheduler_type / namespace transitions. Idempotent on every reconnect:
-    # the worker no-ops unchanged specs.
+    runtime_backend = connectors.Backend.fetch_from_db(postgres, name)
     config_helpers.update_backend_queues(
-        connectors.Backend.fetch_from_db(postgres, name),
-        previous_backend,
+        runtime_backend,
+        configured_backend,
     )
-
-    # Only create a single history entry for the backend creation or update
-    if k8s_info[0].is_new:
-        config_helpers.create_backend_config_history_entry(
-            postgres, name, 'system', f'Create backend {name}', [])
-    elif update_result[0].did_update:
-        config_helpers.create_backend_config_history_entry(
-            postgres,
-            name,
-            'system',
-            f'Update backend {name}: k8s_namespace, version, or node_conditions prefix changed',
-            []
-        )
 
 def queue_update_group_job(postgres: connectors.PostgresConnector,
                            message: backend_messages.UpdatePodBody):

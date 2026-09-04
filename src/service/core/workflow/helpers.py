@@ -29,7 +29,7 @@ from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, priority as wf_priority, validation
 from src.utils.job import workflow, task
 from src.service.core.workflow import objects
-from src.utils import connectors
+from src.utils import configmap_state, connectors
 
 
 _WORKFLOW_LABEL_GLOB_ESCAPE = '#'
@@ -310,31 +310,54 @@ def get_resource_node_hash(resource_node: List[Tuple[str, str]]):
 def get_pool_resources(pools: List[str] | None = None,
                        platforms: List[str] | None = None) -> objects.PoolResourcesResponse:
     context = objects.WorkflowServiceContext.get()
+    configured_pools = configmap_state.require_snapshot().get('pools', {})
+    selected_pool_names = set(pools) if pools is not None else None
+    selected_platforms = (
+        set(platforms) if pools is not None and platforms is not None else None)
 
-    conditions = []
-    query_params = []
-    if pools:
-        conditions.append('pools.name IN %s')
-        query_params.append(tuple(pools))
-        if platforms:
-            conditions.append('keys IN %s')
-            query_params.append(tuple(platforms))
+    configured_entries = []
+    for pool_name in sorted(configured_pools):
+        if selected_pool_names is not None and pool_name not in selected_pool_names:
+            continue
+        pool_config = configured_pools[pool_name]
+        for platform_name in sorted(pool_config.get('platforms', {})):
+            if selected_platforms is not None and platform_name not in selected_platforms:
+                continue
+            configured_entries.append((
+                pool_name,
+                platform_name,
+                pool_config.get('backend', ''),
+                pool_config.get('enable_maintenance', False),
+            ))
+
+    if not configured_entries:
+        return objects.PoolResourcesResponse(pools=[])
+
+    configured_values = ', '.join(
+        ['(%s, %s, %s, %s::boolean)'] * len(configured_entries))
+    query_params = tuple(value for entry in configured_entries for value in entry)
     fetch_cmd = f'''
-        SELECT pools.name, keys as platform,
-            pools.backend, backends.last_heartbeat, pools.enable_maintenance,
+        WITH configured_pools(name, platform, backend, enable_maintenance) AS (
+            VALUES {configured_values}
+        )
+        SELECT configured_pools.name, configured_pools.platform,
+            configured_pools.backend, backends.last_heartbeat,
+            configured_pools.enable_maintenance,
             json_agg(resources.usage_fields) as usage_fields,
-            json_agg(resources.allocatable_fields) as allocatable_fields from pools
-        CROSS JOIN LATERAL jsonb_object_keys(pools.platforms) AS keys(key)
-        LEFT JOIN backends ON backends.name = pools.backend
-        LEFT JOIN resource_platforms ON pools.name = resource_platforms.pool
-            AND keys = resource_platforms.platform
+            json_agg(resources.allocatable_fields) as allocatable_fields
+        FROM configured_pools
+        LEFT JOIN backends ON backends.name = configured_pools.backend
+        LEFT JOIN resource_platforms ON configured_pools.name = resource_platforms.pool
+            AND configured_pools.platform = resource_platforms.platform
+            AND configured_pools.backend = resource_platforms.backend
         LEFT JOIN resources ON resource_platforms.resource_name = resources.name
             AND resource_platforms.backend = resources.backend
-        {f'WHERE {' AND '.join(conditions)}' if conditions else ''}
-        group by pools.name, keys, backends.last_heartbeat
-        order by pools.name, keys
+        GROUP BY configured_pools.name, configured_pools.platform,
+            configured_pools.backend, configured_pools.enable_maintenance,
+            backends.last_heartbeat
+        ORDER BY configured_pools.name, configured_pools.platform
         '''
-    pool_rows = context.database.execute_fetch_command(fetch_cmd, tuple(query_params),
+    pool_rows = context.database.execute_fetch_command(fetch_cmd, query_params,
                                                        return_raw=True)
     pool_response = []
     for pool_row in pool_rows:

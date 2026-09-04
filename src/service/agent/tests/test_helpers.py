@@ -51,8 +51,7 @@ INIT_BODY = {
 class _FakePostgres:
     """PostgresConnector double that replays queued fetch results."""
 
-    def __init__(self, fetch_results: List[Any] | None = None, service_hostname: str = ''):
-        self.config = types.SimpleNamespace(service_hostname=service_hostname)
+    def __init__(self, fetch_results: List[Any] | None = None):
         self._fetch_results = list(fetch_results) if fetch_results else []
         self.fetch_calls: List[Any] = []
         self.commit_calls: List[Any] = []
@@ -199,9 +198,9 @@ class _FakeNodeConditions:
         return {'rules': self._rules, 'prefix': 'osmo.nvidia.com/'}
 
 
-def _postgres(fetch_results: List[Any] | None = None, service_hostname: str = '') -> Any:
+def _postgres(fetch_results: List[Any] | None = None) -> Any:
     """Builds a PostgresConnector double."""
-    return _FakePostgres(fetch_results=fetch_results, service_hostname=service_hostname)
+    return _FakePostgres(fetch_results=fetch_results)
 
 
 def _websocket(messages: List[Any] | None = None,
@@ -214,11 +213,6 @@ def _websocket(messages: List[Any] | None = None,
 def _k8s_rows(k8s_uid: str = 'k8s-uid-1', is_new: bool = True) -> List[Any]:
     """Builds the row list returned by the backend upsert query."""
     return [types.SimpleNamespace(k8s_uid=k8s_uid, is_new=is_new)]
-
-
-def _update_rows(did_update: bool = False) -> List[Any]:
-    """Builds the row list returned by the backend update query."""
-    return [types.SimpleNamespace(did_update=did_update)]
 
 
 def _task_row(**overrides) -> Dict[str, Any]:
@@ -304,39 +298,68 @@ class GetTaskInfoTest(PatchingTestCase):
 
 
 class CreateBackendTest(PatchingTestCase):
-    """Covers create_backend router address derivation and history entries."""
+    """Covers the ConfigMap/runtime boundary for backend registration."""
 
     def setUp(self):
-        self.fetched_backend = types.SimpleNamespace(name=BACKEND_NAME)
-        self.start_patch(connectors.Backend, 'fetch_from_db',
-                         mock.Mock(return_value=self.fetched_backend))
+        self.configured_backend = types.SimpleNamespace(
+            name=BACKEND_NAME,
+            k8s_namespace=INIT_BODY['k8s_namespace'],
+            node_conditions=types.SimpleNamespace(
+                prefix=INIT_BODY['node_condition_prefix']),
+        )
+        self.runtime_backend = types.SimpleNamespace(name=BACKEND_NAME)
+        self.fetch_backend = self.start_patch(
+            connectors.Backend,
+            'fetch_from_db',
+            mock.Mock(side_effect=[self.configured_backend, self.runtime_backend]),
+        )
         self.update_queues = self.start_patch(config_helpers, 'update_backend_queues', mock.Mock())
-        self.create_history = self.start_patch(
-            config_helpers, 'create_backend_config_history_entry', mock.Mock())
         self.init_body = backend_messages.InitBody(**INIT_BODY)
 
-    def test_derives_the_router_address_from_the_service_hostname_url(self):
-        postgres = _postgres(fetch_results=[_k8s_rows(), _update_rows()],
-                             service_hostname='https://osmo.example.com/api')
+    def test_writes_only_runtime_identity_and_state(self):
+        postgres = _postgres(fetch_results=[_k8s_rows()])
 
         agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
 
-        self.assertEqual(postgres.fetch_calls[0][1][9], 'wss://osmo.example.com')
+        insert_query, parameters, _ = postgres.fetch_calls[0]
+        self.assertIn(
+            '(name, k8s_uid, version, last_heartbeat, created_date)', insert_query)
+        for config_column in (
+            'k8s_namespace', 'dashboard_url', 'grafana_url', 'scheduler_settings',
+            'description', 'router_address', 'node_conditions', 'tests',
+        ):
+            self.assertNotIn(config_column, insert_query)
+        self.assertEqual(parameters[:3],
+                         (BACKEND_NAME, INIT_BODY['k8s_uid'], INIT_BODY['version']))
+        self.assertEqual(len(parameters), 5)
+        update_query, update_parameters = postgres.commit_calls[0]
+        self.assertIn('SET version = %s', update_query)
+        self.assertEqual(
+            update_parameters,
+            (INIT_BODY['version'], BACKEND_NAME, INIT_BODY['k8s_uid']),
+        )
 
-    def test_derives_the_router_address_from_a_bare_service_hostname(self):
-        postgres = _postgres(fetch_results=[_k8s_rows(), _update_rows()],
-                             service_hostname='osmo-internal')
+    def test_rejects_namespace_that_disagrees_with_configmap(self):
+        postgres = _postgres()
+        message = self.init_body.model_copy(update={'k8s_namespace': 'wrong'})
 
-        agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
+        with self.assertRaisesRegex(osmo_errors.OSMOBackendError,
+                                    'ConfigMap requires'):
+            agent_helpers.create_backend(postgres, BACKEND_NAME, message)
 
-        self.assertEqual(postgres.fetch_calls[0][1][9], 'wss://osmo-internal')
+        self.assertEqual(postgres.fetch_calls, [])
+        self.assertEqual(postgres.commit_calls, [])
 
-    def test_leaves_the_router_address_empty_without_a_service_hostname(self):
-        postgres = _postgres(fetch_results=[_k8s_rows(), _update_rows()])
+    def test_rejects_prefix_that_disagrees_with_configmap(self):
+        postgres = _postgres()
+        message = self.init_body.model_copy(update={'node_condition_prefix': 'wrong/'})
 
-        agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
+        with self.assertRaisesRegex(osmo_errors.OSMOBackendError,
+                                    'ConfigMap requires'):
+            agent_helpers.create_backend(postgres, BACKEND_NAME, message)
 
-        self.assertEqual(postgres.fetch_calls[0][1][9], '')
+        self.assertEqual(postgres.fetch_calls, [])
+        self.assertEqual(postgres.commit_calls, [])
 
     def test_raises_backend_error_when_another_cluster_owns_the_name(self):
         postgres = _postgres(fetch_results=[_k8s_rows(k8s_uid='other-uid')])
@@ -346,36 +369,13 @@ class CreateBackendTest(PatchingTestCase):
 
         self.assertIn('is already being used by a different cluster', context.exception.message)
 
-    def test_records_a_create_history_entry_for_a_new_backend(self):
-        postgres = _postgres(fetch_results=[_k8s_rows(is_new=True), _update_rows()])
+    def test_updates_backend_queues_from_configmap_snapshot(self):
+        postgres = _postgres(fetch_results=[_k8s_rows()])
 
         agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
 
-        self.create_history.assert_called_once_with(
-            postgres, BACKEND_NAME, 'system', f'Create backend {BACKEND_NAME}', [])
-
-    def test_records_an_update_history_entry_when_the_backend_changed(self):
-        postgres = _postgres(
-            fetch_results=[_k8s_rows(is_new=False), _update_rows(did_update=True)])
-
-        agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
-
-        self.assertIn('Update backend test-backend', self.create_history.call_args[0][3])
-
-    def test_skips_the_history_entry_when_nothing_changed(self):
-        postgres = _postgres(
-            fetch_results=[_k8s_rows(is_new=False), _update_rows(did_update=False)])
-
-        agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
-
-        self.create_history.assert_not_called()
-
-    def test_updates_the_backend_queues_with_the_pre_update_snapshot(self):
-        postgres = _postgres(fetch_results=[_k8s_rows(), _update_rows()])
-
-        agent_helpers.create_backend(postgres, BACKEND_NAME, self.init_body)
-
-        self.update_queues.assert_called_once_with(self.fetched_backend, self.fetched_backend)
+        self.update_queues.assert_called_once_with(
+            self.runtime_backend, self.configured_backend)
 
 
 class QueueUpdateGroupJobTest(PatchingTestCase):

@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import enum
+import json
 import re
 from enum import Enum
 from typing import Any, Dict, List
@@ -62,6 +63,22 @@ class PolicyEffect(str, Enum):
     DENY = 'Deny'
 
 
+class LegacyRoleAction(pydantic.BaseModel):
+    """Legacy path-based role action retained for 6.3 ConfigMap compatibility."""
+
+    model_config = pydantic.ConfigDict(extra='forbid')
+
+    base: str = ''
+    path: str = ''
+    method: str = ''
+
+    @pydantic.model_validator(mode='after')
+    def validate_non_empty(self) -> 'LegacyRoleAction':
+        if not (self.base or self.path or self.method):
+            raise ValueError('Legacy role action must set base, path, or method')
+        return self
+
+
 class RolePolicy(pydantic.BaseModel):
     """
     Single Role Policy Entry.
@@ -74,27 +91,49 @@ class RolePolicy(pydantic.BaseModel):
     compatibility with the Go authz_sidecar.
     """
     effect: PolicyEffect = PolicyEffect.ALLOW
-    actions: List[str]
+    actions: List[str | LegacyRoleAction]
     # Resources this policy applies to (e.g., ["*"], ["pool/production"], ["bucket/*"])
     # If empty or not specified, the policy applies to all resources ("*")
     resources: List[str] = pydantic.Field(default_factory=list)
 
     @pydantic.field_validator('actions', mode='before')
     @classmethod
-    def validate_actions(cls, value) -> List[str]:
+    def validate_actions(cls, value) -> List[str | Dict[str, str]]:
         """Parse and validate actions from various input formats."""
         if isinstance(value, str):
             value = [value]
-        return [validate_semantic_action(action) for action in value]
+        normalized_actions: List[str | Dict[str, str]] = []
+        for action in value:
+            if isinstance(action, str):
+                normalized_actions.append(validate_semantic_action(action))
+            elif isinstance(action, dict) and 'action' in action:
+                semantic_action = action.get('action')
+                if not isinstance(semantic_action, str):
+                    raise ValueError('Semantic role action must be a string')
+                normalized_actions.append(
+                    validate_semantic_action(semantic_action))
+            elif isinstance(action, dict):
+                LegacyRoleAction.model_validate(action)
+                normalized_actions.append(action)
+            else:
+                raise ValueError(
+                    'Role actions must be semantic strings or action mappings')
+        return normalized_actions
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert to dict. Actions emitted as list of strings (Go accepts
         strings or legacy objects).
         """
+        actions = [
+            action if isinstance(action, str) else action.model_dump(
+                exclude_defaults=True)
+            for action in self.actions
+        ]
         result: Dict[str, Any] = {
             'effect': self.effect.value,
-            'actions': sorted(self.actions)
+            'actions': sorted(
+                actions, key=lambda action: json.dumps(action, sort_keys=True))
         }
         if self.resources:
             result['resources'] = self.resources

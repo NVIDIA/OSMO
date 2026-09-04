@@ -584,7 +584,11 @@ class MekLifecycle:
     @staticmethod
     def _database_is_fresh(connection) -> bool:
         with connection.cursor() as cursor:
-            for table in ("users", "ueks", "configs"):
+            # Configuration is no longer PostgreSQL-owned in 6.4.  Freshness
+            # is about encrypted/identity state only; consulting the legacy
+            # configs table here would make an otherwise ConfigMap-only
+            # installation depend on stale configuration rows.
+            for table in ("users", "ueks"):
                 cursor.execute("SELECT to_regclass(%s);", (f"public.{table}",))
                 if cursor.fetchone()[0] is None:
                     continue

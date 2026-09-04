@@ -31,7 +31,7 @@ import threading
 import time
 import typing
 from functools import wraps
-from typing import Any, Callable, Dict, Generator, List, Literal, Mapping, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Generator, List, Literal, Mapping, Optional, Tuple
 from urllib.parse import urlparse
 
 import fastapi
@@ -39,7 +39,6 @@ import psycopg2  # type: ignore
 import psycopg2.extras  # type: ignore
 import psycopg2.pool  # type: ignore
 import pydantic
-import yaml
 from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
 
@@ -68,16 +67,21 @@ class ConfigType(enum.Enum):
     WORKFLOW = 'WORKFLOW'
 
 
+def reject_db_config_mutation() -> typing.NoReturn:
+    """Service configuration is immutable and ConfigMap-owned in 6.4."""
+    raise osmo_errors.OSMOUserError(
+        'Service configuration is ConfigMap-only; update Helm values and redeploy.',
+        status_code=409)
+
+
 # Increment whenever a new database location can persist ciphertext encrypted directly by a MEK.
 # UEK-encrypted credential and workflow payloads are covered transitively by the UEK wrapper row.
 MEK_PERSISTENCE_REGISTRY_VERSION = 1
 MEK_PERSISTENCE_REGISTRY = {
     'ueks.keys.*': 'uek-wrapper-jwe',
-    'configs.value.<DynamicConfig.SecretStr>': 'direct-mek-jwe',
 }
 MEK_RECONCILE_BATCH_SIZE = 100
 MEK_MAX_UEK_ROWS = 1000
-MEK_MAX_CONFIG_ROWS = 1000
 MEK_REWRAP_DEADLINE_SECONDS = 300
 
 
@@ -183,9 +187,7 @@ class PostgresConfig(pydantic.BaseModel):
         json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
     service_auth_file: str | None = pydantic.Field(
         default=None,
-        description=(
-            'Path to canonical service auth JSON. An absent path retains the '
-            'legacy chart database mode until that deployment path is retired.'),
+        description='Path to the required canonical service auth JSON.',
         json_schema_extra={
             'command_line': 'service_auth_file',
             'env': 'OSMO_SERVICE_AUTH_FILE',
@@ -451,21 +453,9 @@ class PostgresConnector:
         self._init_tables()
         logging.debug('Tables initialized')
 
-        # Startup is the rollout acknowledgement boundary. Before this process
-        # can become ready, authenticate every registered MEK persistence
-        # domain with the startup-only keyring. This prevents a replacement
-        # pod from joining a rollout with a keyring that cannot read existing
-        # data, without introducing lifecycle tables or triggers.
+        # Startup authenticates operational UEK persistence only. Legacy
+        # ConfigMap-owned rows are deliberately outside the 6.4 runtime.
         self._assert_mek_inventory('startup')
-
-        logging.debug('Initializing configs')
-        self._init_configs()
-        logging.debug('Configs initialized')
-
-        # Default SecretStr values are inserted under the mounted MEK. Verify
-        # those writes, plus any concurrent initializer's winners, before this
-        # process can become ready.
-        self._assert_mek_inventory('post-initialization')
 
         # Recreate pool with search_path set to the pgroll versioned schema
         if self.config.schema_version != 'public':
@@ -624,17 +614,13 @@ class PostgresConnector:
     @retry
     def assign_user_role(self, user_id: str, role_name: str, assigned_by: str,
                          assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
+        roles = configmap_state.require_snapshot().get('roles', {})
+        if role_name not in roles:
+            return []
         with self._get_connection() as conn:
             cur = None
             try:
                 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cur.execute(
-                    'SELECT name FROM roles WHERE name = %s FOR KEY SHARE;',
-                    (role_name,))
-                if not cur.fetchone():
-                    conn.commit()
-                    return []
-
                 cur.execute('''
                     INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
                     VALUES (%s, %s, %s, %s)
@@ -715,55 +701,8 @@ class PostgresConnector:
 
     def get_configs(self, config_type: ConfigType):
         """ Get all the config values. """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            return self._get_configs_from_snapshot(
-                config_type, snapshot)
-
-        uses_external_service_auth = (
-            config_type == ConfigType.SERVICE and self.service_auth_is_external)
-        cmd = 'SELECT * FROM configs WHERE type = %s;'
-        if uses_external_service_auth:
-            cmd = "SELECT * FROM configs WHERE type = %s AND key != 'service_auth';"
-        result = self.execute_fetch_command(cmd, (config_type.value,))
-        if not result:
-            raise osmo_errors.OSMODatabaseError('Configs are not found.')
-
-        result_dicts = {}
-        primative_types = {str, int, float, pydantic.SecretStr}
-
-        config_class: Type[DynamicConfig]
-        if config_type == ConfigType.SERVICE:
-            hints = typing.get_type_hints(ServiceConfig)
-            config_class = ServiceConfig
-        elif config_type == ConfigType.WORKFLOW:
-            hints = typing.get_type_hints(WorkflowConfig)
-            config_class = WorkflowConfig
-        else:
-            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
-
-        for model in result:
-            if model.key not in hints:
-                continue
-            if uses_external_service_auth and model.key == 'service_auth':
-                continue
-            item_type = hints[model.key]
-            if item_type in primative_types:
-                result_dicts[model.key] = model.value
-            else:
-                result_dicts[model.key] = json.loads(model.value)
-        runtime_overrides = None
-        if uses_external_service_auth:
-            runtime_overrides = {'service_auth': self.get_service_auth()}
-        dynamic_config = config_class.deserialize(
-            result_dicts, self, runtime_overrides=runtime_overrides)
-        if (config_type == ConfigType.SERVICE
-                and self._runtime_service_auth_login_info is not None):
-            dynamic_config.service_auth = dynamic_config.service_auth.model_copy(
-                deep=True,
-                update={'login_info': self._runtime_service_auth_login_info},
-            )
-        return dynamic_config
+        snapshot = configmap_state.require_snapshot()
+        return self._get_configs_from_snapshot(config_type, snapshot)
 
     def _get_configs_from_snapshot(self, config_type: ConfigType,
                                    snapshot: dict):
@@ -779,36 +718,16 @@ class PostgresConnector:
     def get_service_configs(self) -> 'ServiceConfig':
         return self.get_configs(ConfigType.SERVICE)
 
-    @property
-    def service_auth_is_external(self) -> bool:
-        """Whether this process uses the mounted identity instead of legacy DB mode."""
-        return bool(self.config.service_auth_file)
-
     def set_runtime_service_auth_login_info(self, login_info: auth.LoginInfo) -> None:
         """Overlay deployment-derived login endpoints without persisting them."""
         self._runtime_service_auth_login_info = login_info.model_copy(deep=True)
 
     def get_service_auth(self) -> auth.AuthenticationConfig:
-        """Return the mounted identity, or the unmodified legacy-chart DB identity."""
-        if self._service_auth is not None:
-            service_auth = self._service_auth.model_copy(deep=True)
-        else:
-            rows = self.execute_fetch_command(
-                'SELECT value FROM configs '
-                "WHERE key = 'service_auth' AND type = 'SERVICE';",
-                (),
-                return_raw=True,
-            )
-            if not rows or not isinstance(rows[0]['value'], str):
-                raise osmo_errors.OSMODatabaseError('Service auth is not found.')
-            try:
-                service_auth_data = json.loads(rows[0]['value'])
-                service_auth = ServiceConfig.deserialize(
-                    {'service_auth': service_auth_data}, self).service_auth
-                service_auth.validate_key_pairs()
-            except (JWException, json.JSONDecodeError, pydantic.ValidationError, ValueError):
-                raise osmo_errors.OSMODatabaseError(
-                    'Persisted service auth is invalid.') from None
+        """Return the required Kubernetes Secret-backed service identity."""
+        if self._service_auth is None:
+            raise osmo_errors.OSMOUserError(
+                'The service-auth Secret mount is required in 6.4.')
+        service_auth = self._service_auth.model_copy(deep=True)
 
         if self._runtime_service_auth_login_info is not None:
             service_auth = service_auth.model_copy(
@@ -816,12 +735,6 @@ class PostgresConnector:
                 update={'login_info': self._runtime_service_auth_login_info},
             )
         return service_auth
-
-    def prepare_service_auth_history_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Exclude externally managed service auth from configuration history."""
-        history_data = copy.deepcopy(data)
-        history_data.pop('service_auth', None)
-        return history_data
 
     def get_workflow_configs(self) -> 'WorkflowConfig':
         return self.get_configs(ConfigType.WORKFLOW)
@@ -866,14 +779,12 @@ class PostgresConnector:
         return result
 
     def set_config(self, key: str, value: str | None, config_type: ConfigType):
-        """ Set the config value for the given key. """
-        if (key == 'service_auth' and config_type == ConfigType.SERVICE
-                and self.service_auth_is_external):
-            raise osmo_errors.OSMOUserError(
-                'service_auth is managed outside PostgreSQL.',
-                status_code=409)
-        cmd = 'UPDATE configs SET value = %s WHERE key = %s and type = %s;'
-        return self.execute_commit_command(cmd, (value, key, config_type.value))
+        """Reject obsolete PostgreSQL configuration writes before SQL."""
+        del key, value, config_type
+        raise osmo_errors.OSMOUserError(
+            'Service configuration is ConfigMap-owned; update it through GitOps.',
+            status_code=409,
+        )
 
     @classmethod
     def encode_hstore(cls, key_val_data: Dict) -> str:
@@ -887,26 +798,10 @@ class PostgresConnector:
         return {tp[0]: tp[1] for tp in re.findall(f'"({field_regex})"=>"({field_regex})"',
                 hstore_data)}
 
-    def _set_default_config(self, key: str, value: str, config_type: ConfigType):
-        """ Set the default config value for the given key. """
-        cmd = 'INSERT INTO configs (key, value, type) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;'
-        return self.execute_commit_command(cmd, (str(key), str(value), config_type.value))
-
     def _init_tables(self):
         """ Initializes tables if not exist. """
         # Install hstore extension
         create_cmd = 'CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public;'
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for dynamic configs.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS configs (
-                key TEXT,
-                value TEXT,
-                type TEXT,
-                PRIMARY KEY (key, type)
-            );
-        '''
         self.execute_commit_command(create_cmd, ())
 
         # Creates table for roles
@@ -939,85 +834,15 @@ class PostgresConnector:
         """
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for dynamic configs.
+        # Backend configuration is ConfigMap-owned. PostgreSQL stores only
+        # agent runtime identity and liveness state.
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS backends (
-                name TEXT,
-                description TEXT,
+                name TEXT PRIMARY KEY,
                 k8s_uid TEXT,
-                k8s_namespace TEXT,
-                dashboard_url TEXT,
-                grafana_url TEXT,
-                scheduler_settings TEXT,
-                tests TEXT[] DEFAULT ARRAY[]::text[],
                 last_heartbeat TIMESTAMP,
                 created_date TIMESTAMP,
-                router_address TEXT,
-                version TEXT DEFAULT '',
-                node_conditions JSONB DEFAULT '{
-                    "rules": {"Ready": "True"},
-                    "prefix": "osmo.nvidia.com/"
-                }'::jsonb,
-                PRIMARY KEY (name)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for dynamic configs.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS resource_validations (
-                name TEXT,
-                resource_validations JSONB[],
-                PRIMARY KEY (name)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for dynamic configs.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS pod_templates (
-                name TEXT,
-                pod_template JSONB,
-                PRIMARY KEY (name)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for group templates.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS group_templates (
-                name TEXT,
-                group_template JSONB,
-                PRIMARY KEY (name)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-        # Creates table for dynamic configs.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS pools (
-                name TEXT,
-                description TEXT,
-                backend TEXT,
-                download_type TEXT,
-                default_platform TEXT,
-                platforms JSONB,
-                default_exec_timeout TEXT,
-                default_queue_timeout TEXT,
-                max_exec_timeout TEXT,
-                max_queue_timeout TEXT,
-                default_exit_actions JSONB,
-                common_default_variables JSONB,
-                common_resource_validations TEXT[],
-                parsed_resource_validations JSONB,
-                common_pod_template TEXT[],
-                parsed_pod_template JSONB,
-                common_group_templates TEXT[],
-                parsed_group_templates JSONB,
-                enable_maintenance BOOLEAN,
-                resources JSONB,
-                topology_keys JSONB,
-                PRIMARY KEY (name)
+                version TEXT DEFAULT ''
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1437,189 +1262,6 @@ class PostgresConnector:
         """
         self.execute_autocommit_command(index_cmd, ())
 
-        # Creates table for test configs.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS backend_tests (
-                name TEXT,
-                description TEXT,
-                cron_schedule TEXT,
-                test_timeout TEXT,
-                common_pod_template TEXT[],
-                parsed_pod_template JSONB,
-                node_conditions TEXT[],
-                PRIMARY KEY (name)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
-
-    def _init_default_configs(self):
-        """Insert missing defaults with every SecretStr already MEK-encrypted."""
-        service_configs = ServiceConfig()
-        workflow_configs = WorkflowConfig()
-
-        def set_default_values(configs: 'DynamicConfig', config_type: ConfigType):
-            for key, value in configs.serialize(self, exclude_unset=False).items():
-                if (key == 'service_auth' and config_type == ConfigType.SERVICE
-                        and self.service_auth_is_external):
-                    continue
-                if isinstance(value, str):
-                    self._set_default_config(key, value, config_type)
-                else:
-                    self._set_default_config(key, json.dumps(value), config_type)
-
-        set_default_values(service_configs, ConfigType.SERVICE)
-        set_default_values(workflow_configs, ConfigType.WORKFLOW)
-
-    def _init_configs(self):
-        """ Initializes configs table. """
-        self._init_default_configs()
-
-        self.create_default_roles()
-
-        # For each config type, insert the current config into the
-        # config history table if there is not a config history entry for it
-        for config_type in [
-            ConfigHistoryType.SERVICE,
-            ConfigHistoryType.WORKFLOW,
-            ConfigHistoryType.BACKEND,
-            ConfigHistoryType.POOL,
-            ConfigHistoryType.POD_TEMPLATE,
-            ConfigHistoryType.GROUP_TEMPLATE,
-            ConfigHistoryType.RESOURCE_VALIDATION,
-            ConfigHistoryType.BACKEND_TEST,
-            ConfigHistoryType.ROLE,
-        ]:
-            fetch_cmd = """
-                SELECT 1 FROM config_history WHERE config_type = %s LIMIT 1;
-            """
-            data = self.execute_fetch_command(fetch_cmd,
-                                              (config_type.value.lower(),),
-                                              return_raw=True)
-            if data:
-                continue
-
-            if config_type == ConfigHistoryType.SERVICE:
-                data = self.get_service_configs().plaintext_dict(
-                    exclude_unset=True, by_alias=True
-                )
-            elif config_type == ConfigHistoryType.WORKFLOW:
-                data = self.get_workflow_configs().plaintext_dict(
-                    exclude_unset=True, by_alias=True
-                )
-            elif config_type == ConfigHistoryType.BACKEND:
-                data = [
-                    backend.model_dump(by_alias=True, exclude_unset=True)
-                    for backend in Backend.list_from_db(self)
-                ]
-            elif config_type == ConfigHistoryType.POOL:
-                data = fetch_editable_pool_config(self)
-            elif config_type == ConfigHistoryType.POD_TEMPLATE:
-                data = PodTemplate.list_from_db(self)
-            elif config_type == ConfigHistoryType.GROUP_TEMPLATE:
-                data = GroupTemplate.list_from_db(self)
-            elif config_type == ConfigHistoryType.RESOURCE_VALIDATION:
-                data = ResourceValidation.list_from_db(self)
-            elif config_type == ConfigHistoryType.BACKEND_TEST:
-                data = BackendTests.list_from_db(self)
-            elif config_type == ConfigHistoryType.ROLE:
-                data = Role.list_from_db(self)
-            else:
-                raise ValueError(
-                    f'Invalid config type when initializing config history: {config_type}'
-                )
-
-            if (config_type == ConfigHistoryType.SERVICE
-                    and self.service_auth_is_external and isinstance(data, dict)):
-                data = self.prepare_service_auth_history_data(data)
-
-            insert_cmd = """
-                INSERT INTO config_history
-                    (config_type, revision, name, username, created_at, tags, description, data)
-                SELECT %s, 1, %s, %s, NOW(), %s, %s, %s
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM config_history WHERE config_type = %s
-                );
-            """
-            self.execute_commit_command(
-                insert_cmd,
-                (
-                    config_type.value.lower(),  # config_type
-                    '',                         # name
-                    'system',                   # username
-                    ['initial-config'],         # tags
-                    'Initial configuration',    # description
-                    json.dumps(data, default=common.pydantic_encoder),  # data
-                    config_type.value.lower(),  # for WHERE NOT EXISTS
-                ),
-            )
-
-    def create_default_roles(self):
-        """
-        Populate the database with default roles or update existing default roles.
-
-        This method ensures that all default roles exist in the database and that
-        any new actions defined in DEFAULT_ROLES are added to existing roles.
-        """
-        roles = Role.list_from_db(self)
-        updated_roles = False
-
-        role_objects = {r.name: r for r in roles}
-        for default_role_name, default_role_object in DEFAULT_ROLES.items():
-            if default_role_name not in role_objects:
-                default_role_object.insert_into_db(self, force=True)
-            else:
-                existing_role = role_objects[default_role_name]
-                if merge_default_role_policies(existing_role, default_role_object):
-                    existing_role.insert_into_db(self, force=True)
-                    updated_roles = True
-
-        if updated_roles:
-            data = Role.list_from_db(self)
-
-            self.create_config_history_entry(
-                config_type=ConfigHistoryType.ROLE,
-                name='',
-                username='system',
-                data=data,
-                description='Updated roles',
-            )
-
-    @staticmethod
-    def _jwe_header(value: str) -> Mapping[str, Any] | None:
-        if value.count('.') != 4:
-            return None
-        token = jwe.JWE()
-        token.deserialize(value)
-        return token.jose_header
-
-    @classmethod
-    def _walk_jwe_values(
-            cls, value: Any, path: str = '') -> Generator[Tuple[str, str], None, None]:
-        if isinstance(value, dict):
-            for key, child in value.items():
-                child_path = f'{path}.{key}' if path else str(key)
-                yield from cls._walk_jwe_values(child, child_path)
-        elif isinstance(value, list):
-            for index, child in enumerate(value):
-                yield from cls._walk_jwe_values(child, f'{path}[{index}]')
-        elif isinstance(value, str) and cls._jwe_header(value) is not None:
-            yield path, value
-
-    @classmethod
-    def _walk_registered_secrets(cls, value: Any, path: str = '') \
-            -> Generator[Tuple[str, str], None, None]:
-        """Walk Pydantic-coerced config values using SecretStr as the registry contract."""
-        if isinstance(value, pydantic.SecretStr):
-            yield path, value.get_secret_value()
-        elif isinstance(value, dict):
-            for key, child in value.items():
-                child_path = f'{path}.{key}' if path else str(key)
-                yield from cls._walk_registered_secrets(child, child_path)
-        elif isinstance(value, list):
-            for index, child in enumerate(value):
-                yield from cls._walk_registered_secrets(child, f'{path}[{index}]')
-
     def _scan_mek_references(
             self, deadline: float | None = None) -> Tuple[Dict[str, int], List[str]]:
         """Authenticate every registered ciphertext location within bounded resources."""
@@ -1653,92 +1295,6 @@ class PostgresConnector:
                 break
             cursor_uid, cursor_key = uek_rows[-1]['uid'], uek_rows[-1]['key']
 
-        config_rows: List[Dict[str, Any]] = []
-        cursor_type, cursor_key = '', ''
-        while len(config_rows) <= MEK_MAX_CONFIG_ROWS:
-            if deadline is not None and time.monotonic() >= deadline:
-                return counts, blockers + ['inventory: deadline exceeded']
-            batch = self.execute_fetch_command('''
-                SELECT key, type, value FROM configs
-                WHERE (type, key) > (%s, %s)
-                ORDER BY type, key
-                LIMIT %s;
-            ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
-            config_rows.extend(batch)
-            if len(batch) < MEK_RECONCILE_BATCH_SIZE:
-                break
-            cursor_type, cursor_key = batch[-1]['type'], batch[-1]['key']
-        if len(config_rows) > MEK_MAX_CONFIG_ROWS:
-            return counts, ['configs: row limit exceeded']
-        rows_by_type: Dict[str, Dict[str, Any]] = {}
-        raw_by_type: Dict[str, Dict[str, Any]] = {}
-        for row in config_rows:
-            try:
-                try:
-                    parsed_value = json.loads(row['value'])
-                except (json.JSONDecodeError, TypeError):
-                    parsed_value = row['value']
-                rows_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
-                raw_by_type.setdefault(row['type'], {})[row['key']] = parsed_value
-            except (ValueError, TypeError):
-                config_type = row['type']
-                config_key = row['key']
-                blockers.append(f'configs/{config_type}/{config_key}: value cannot be parsed')
-
-        config_models: Dict[str, Type[DynamicConfig]] = {
-            ConfigType.SERVICE.value: ServiceConfig,
-            ConfigType.WORKFLOW.value: WorkflowConfig,
-        }
-        for config_type, config_values in rows_by_type.items():
-            model_class = config_models.get(config_type)
-            if model_class is None:
-                for config_key, raw_value in raw_by_type[config_type].items():
-                    try:
-                        for path, _ in self._walk_jwe_values(raw_value, config_key):
-                            blockers.append(
-                                f'configs/{config_type}/{path}: unregistered compact JWE')
-                    except (JWException, ValueError, TypeError):
-                        blockers.append(
-                            f'configs/{config_type}/{config_key}: malformed compact JWE')
-                continue
-            unknown_keys = set(config_values) - set(model_class.model_fields)
-            if unknown_keys:
-                blockers.append(
-                    f'configs/{config_type}: unregistered fields {sorted(unknown_keys)}')
-                continue
-            try:
-                model = model_class.from_db(config_values)
-                registered_values = list(self._walk_registered_secrets(
-                    model.model_dump(exclude_unset=True, by_alias=True)))
-                registered_paths = {path for path, _ in registered_values}
-                for path, encrypted_value in registered_values:
-                    try:
-                        key_id = self.secret_manager.authenticate_mek_encrypted(encrypted_value)
-                        counts[key_id] += 1
-                    except (KeyError, osmo_errors.OSMOError):
-                        try:
-                            header = self._jwe_header(encrypted_value) or {}
-                            failed_key_id = header.get('kid')
-                        except (JWException, ValueError, TypeError):
-                            failed_key_id = None
-                        key_context = (
-                            f' (kid={failed_key_id})'
-                            if isinstance(failed_key_id, str) else '')
-                        blockers.append(
-                            f'configs/{config_type}/{path}: authentication failed'
-                            f'{key_context}')
-                for config_key, raw_value in raw_by_type[config_type].items():
-                    try:
-                        for path, _ in self._walk_jwe_values(raw_value, config_key):
-                            if path not in registered_paths:
-                                blockers.append(
-                                    f'configs/{config_type}/{config_key}: '
-                                    'unregistered compact JWE')
-                    except (JWException, ValueError, TypeError):
-                        blockers.append(
-                            f'configs/{config_type}/{config_key}: malformed compact JWE')
-            except (pydantic.ValidationError, ValueError, TypeError):
-                blockers.append(f'configs/{config_type}: config schema validation failed')
         return counts, blockers
 
     def _assert_mek_inventory(self, boundary: str) -> None:
@@ -1783,141 +1339,6 @@ class PostgresConnector:
             cursor_uid, cursor_key = rows[-1]['uid'], rows[-1]['key']
         raise osmo_errors.OSMOError('UEK rewrap row limit exceeded.')
 
-    def _rewrap_config_value(
-            self, value: Any, registered_paths: frozenset[str], snapshot: Keyring,
-            path: str = ''
-    ) -> Tuple[Any, bool]:
-        changed = False
-        if isinstance(value, dict):
-            result = {}
-            for key, child in value.items():
-                child_path = f'{path}.{key}' if path else str(key)
-                result[key], child_changed = self._rewrap_config_value(
-                    child, registered_paths, snapshot, child_path)
-                changed = changed or child_changed
-            return result, changed
-        if isinstance(value, list):
-            result_list = []
-            for index, child in enumerate(value):
-                result, child_changed = self._rewrap_config_value(
-                    child, registered_paths, snapshot, f'{path}[{index}]')
-                result_list.append(result)
-                changed = changed or child_changed
-            return result_list, changed
-        if not isinstance(value, str):
-            return value, False
-        if path not in registered_paths:
-            return value, False
-        try:
-            header = self._jwe_header(value)
-        except (JWException, ValueError, TypeError):
-            logging.error(
-                'Config MEK rewrap found a malformed compact JWE at %s.', path)
-            raise osmo_errors.OSMOError(
-                'A persisted config ciphertext is malformed; inspect service logs.'
-            ) from None
-        if header is None or header.get('kid') not in self.secret_manager.meks:
-            return value, False
-        try:
-            rewrap_result = self.secret_manager.rewrap_direct_mek(value, snapshot)
-        except (JWException, osmo_errors.OSMOError, UnicodeError, ValueError, TypeError) as error:
-            logging.error(
-                'Config MEK rewrap authentication failed at %s.', path)
-            raise osmo_errors.OSMOError(
-                'A persisted config ciphertext failed authentication; inspect service logs.'
-            ) from error
-        return rewrap_result.value, rewrap_result.status == 'rewrapped'
-
-    def _registered_config_rewrap_paths(
-            self, rows: List[Dict[str, Any]]
-    ) -> Dict[Tuple[str, str], frozenset[str]]:
-        """Resolve exact per-row SecretStr paths from the versioned config models."""
-        rows_by_type: Dict[str, Dict[str, Any]] = {}
-        for row in rows:
-            try:
-                parsed = json.loads(row['value'])
-            except (json.JSONDecodeError, TypeError):
-                parsed = row['value']
-            rows_by_type.setdefault(row['type'], {})[row['key']] = parsed
-        config_models: Dict[str, Type[DynamicConfig]] = {
-            ConfigType.SERVICE.value: ServiceConfig,
-            ConfigType.WORKFLOW.value: WorkflowConfig,
-        }
-        result: Dict[Tuple[str, str], set[str]] = {}
-        for config_type, config_values in rows_by_type.items():
-            model_class = config_models.get(config_type)
-            if model_class is None or set(config_values) - set(model_class.model_fields):
-                continue
-            try:
-                model = model_class.from_db(config_values)
-                for full_path, _ in self._walk_registered_secrets(
-                        model.model_dump(exclude_unset=True, by_alias=True)):
-                    row_key, separator, relative_path = full_path.partition('.')
-                    if row_key in config_values:
-                        result.setdefault((config_type, row_key), set()).add(
-                            relative_path if separator else '')
-            except (pydantic.ValidationError, ValueError, TypeError):
-                continue
-        return {key: frozenset(paths) for key, paths in result.items()}
-
-    def _rewrap_configs(self, snapshot: Keyring, deadline: float | None = None) -> bool:
-        """Rewrap all registered direct-MEK config values without durable cursors."""
-        cursor_type, cursor_key = '', ''
-        rows: List[Dict[str, Any]] = []
-        while len(rows) <= MEK_MAX_CONFIG_ROWS:
-            if deadline is not None and time.monotonic() >= deadline:
-                raise osmo_errors.OSMOError('Config rewrap deadline exceeded.')
-            batch = self.execute_fetch_command('''
-                SELECT key, type, value FROM configs
-                WHERE (type, key) > (%s, %s)
-                ORDER BY type, key
-                LIMIT %s;
-            ''', (cursor_type, cursor_key, MEK_RECONCILE_BATCH_SIZE), return_raw=True)
-            rows.extend(batch)
-            if len(rows) > MEK_MAX_CONFIG_ROWS:
-                raise osmo_errors.OSMOError('Config rewrap row limit exceeded.')
-            if len(batch) < MEK_RECONCILE_BATCH_SIZE:
-                break
-            cursor_type, cursor_key = batch[-1]['type'], batch[-1]['key']
-        registered_paths = self._registered_config_rewrap_paths(rows)
-        for row in rows:
-            allowed_paths = registered_paths.get((row['type'], row['key']), frozenset())
-            if not allowed_paths:
-                continue
-            original = row['value']
-            for _ in range(3):
-                try:
-                    parsed = json.loads(original)
-                    encoded_as_json = True
-                except (json.JSONDecodeError, TypeError):
-                    parsed = original
-                    encoded_as_json = False
-                replacement, changed = self._rewrap_config_value(
-                    parsed, allowed_paths, snapshot)
-                if not changed:
-                    break
-                serialized = json.dumps(replacement) if encoded_as_json else replacement
-                command = '''
-                    UPDATE configs SET value = %s
-                    WHERE key = %s AND type = %s AND value = %s;
-                '''
-                if self.execute_commit_command(
-                        command, (serialized, row['key'], row['type'], original)) == 1:
-                    break
-                current_rows = self.execute_fetch_command('''
-                    SELECT value FROM configs WHERE key = %s AND type = %s;
-                ''', (row['key'], row['type']), return_raw=True)
-                if not current_rows:
-                    break
-                original = current_rows[0]['value']
-            else:
-                config_type = row['type']
-                config_key = row['key']
-                raise osmo_errors.OSMOError(
-                    'Concurrent config updates repeatedly blocked MEK rewrap for '
-                    f'{config_type}/{config_key}.')
-        return True
-
     def rewrap_mek_references(
             self, deadline_seconds: int = MEK_REWRAP_DEADLINE_SECONDS,
             expected_generation: str = '', expected_current_kid: str = '',
@@ -1946,7 +1367,6 @@ class PostgresConnector:
             try:
                 while time.monotonic() < deadline:
                     self._rewrap_ueks(snapshot, deadline)
-                    self._rewrap_configs(snapshot, deadline)
                     counts, blockers = self._scan_mek_references(deadline)
                     if blockers:
                         for blocker in blockers:
@@ -2123,7 +1543,7 @@ class PostgresConnector:
         description: str,
         tags: List[str] | None = None,
     ):
-        """Create a new entry in the config history table.
+        """Reject writes to obsolete DB-backed configuration history.
 
         Args:
             config_type: Type of config being modified (service, workflow, etc)
@@ -2133,33 +1553,8 @@ class PostgresConnector:
             description: Description of what changed
             tags: Optional list of tags to associate with this change
         """
-        if (config_type == ConfigHistoryType.SERVICE
-                and self.service_auth_is_external and isinstance(data, dict)):
-            data = self.prepare_service_auth_history_data(data)
-        # Insert the history entry with calculated revision
-        insert_cmd = """
-            WITH next_rev AS (
-                SELECT COALESCE(MAX(revision), 0) + 1 as next_revision
-                FROM config_history
-                WHERE config_type = %s
-            )
-            INSERT INTO config_history
-            (config_type, revision, name, username, created_at, tags, description, data)
-            SELECT %s, next_revision, %s, %s, NOW(), %s, %s, %s
-            FROM next_rev;
-        """
-        self.execute_commit_command(
-            insert_cmd,
-            (
-                config_type.value.lower(),  # For the WITH clause
-                config_type.value.lower(),  # For the INSERT
-                name,
-                username,
-                tags,
-                description,
-                json.dumps(data, default=common.pydantic_encoder),
-            ),
-        )
+        del config_type, name, username, data, description, tags
+        reject_db_config_mutation()
 
     def fetch_user_names(self, user_names: List[str]) -> List[str]:
         """Resolve requested names to current user identities.
@@ -2250,8 +1645,7 @@ class UserProfile(pydantic.BaseModel):
             values.append(value)
 
         if 'pool' in setting:
-            postgres = PostgresConnector.get_instance()
-            Pool.fetch_from_db(postgres, setting['pool'])
+            Pool.fetch_from_configmap(setting['pool'])
 
         insert_cmd = f'''
             INSERT INTO profile ({','.join(fields)})
@@ -2707,8 +2101,8 @@ class BackendResource(pydantic.BaseModel):
                     curr_platform_config = curr_pool_config.platforms[platform]
                     # Prefer the accounting copy where osmo-ctrl resource
                     # templates have been Jinja-rendered with default
-                    # variables; fall back to parsed_pod_template when
-                    # the loader didn't populate it (e.g. DB mode).
+                    # variables. The plain parsed template is retained as a
+                    # defensive fallback for directly constructed test data.
                     accounting_template = (
                         curr_platform_config.parsed_pod_template_for_accounting
                         or curr_platform_config.parsed_pod_template)
@@ -2875,26 +2269,61 @@ class BackendResource(pydantic.BaseModel):
                      platforms: List[str] | None = None,
                      resource_name: str | None = None) \
         -> List['BackendResource']:
-        pool_filter_clause = ''
-        query_params: List[Tuple | str] = []
-        # Need to update to filter based on backend
-        if backends or pools or resource_name:
-            pool_filter_clause = 'WHERE '
-            conditions = []
-            if backends:
-                conditions.append('r.backend IN %s')
-                query_params.append(tuple(backends))
-            if pools:
-                conditions.append('t2.pool IN %s')
-                query_params.append(tuple(pools))
-                if platforms:
-                    conditions.append('t2.platform IN %s')
-                    query_params.append(tuple(platforms))
-            if resource_name:
-                conditions.append('t2.resource_name = %s')
-                query_params.append(resource_name)
-            pool_filter_clause += ' AND '.join(conditions)
+        snapshot = configmap_state.require_snapshot()
+        configured_backends = set(snapshot.get('backends', {}))
+        requested_backends = (
+            set(backends) if backends is not None else configured_backends)
+        selected_backends = sorted(configured_backends & requested_backends)
+        if not selected_backends:
+            return []
+
+        requested_pools = set(pools) if pools is not None else None
+        requested_platforms = (
+            set(platforms)
+            if pools is not None and platforms is not None else None)
+        configured_pool_platforms = []
+        for pool_name, pool_config in snapshot.get('pools', {}).items():
+            if not isinstance(pool_config, dict):
+                continue
+            if requested_pools is not None and pool_name not in requested_pools:
+                continue
+            backend_name = pool_config.get('backend')
+            if backend_name not in selected_backends:
+                continue
+            for platform_name in pool_config.get('platforms', {}):
+                if (requested_platforms is not None and
+                        platform_name not in requested_platforms):
+                    continue
+                configured_pool_platforms.append(
+                    (pool_name, platform_name, backend_name))
+
+        if requested_pools is not None and not configured_pool_platforms:
+            return []
+
+        if configured_pool_platforms:
+            values_clause = ', '.join(
+                ['(%s, %s, %s)'] * len(configured_pool_platforms))
+            configured_pool_platforms_query = f'VALUES {values_clause}'
+        else:
+            configured_pool_platforms_query = (
+                'SELECT NULL::text, NULL::text, NULL::text WHERE FALSE')
+
+        query_params: List[Any] = []
+        for pool_name, platform_name, backend_name in configured_pool_platforms:
+            query_params.extend((pool_name, platform_name, backend_name))
+        conditions = ['r.backend IN %s']
+        query_params.append(tuple(selected_backends))
+        if requested_pools is not None:
+            conditions.append('t2.pool IS NOT NULL')
+        if resource_name:
+            conditions.append('r.name = %s')
+            query_params.append(resource_name)
+        resource_filter_clause = 'WHERE ' + ' AND '.join(conditions)
+
         select_cmd = f'''
+            WITH configured_pool_platforms(pool, platform, backend) AS (
+                {configured_pool_platforms_query}
+            )
             SELECT t1.*,
                 COALESCE(sub.pool_platform_labels, ARRAY[]::text[]) AS pool_platform_labels,
                 resource_type
@@ -2903,24 +2332,30 @@ class BackendResource(pydantic.BaseModel):
                 (SELECT
                     r.name,
                     r.backend,
-                    array_agg(t2.pool || '/' || t2.platform) AS pool_platform_labels,
+                    COALESCE(
+                        array_remove(
+                            array_agg(t2.pool || '/' || t2.platform), NULL),
+                        ARRAY[]::text[]
+                    ) AS pool_platform_labels,
                     CASE
-                        WHEN pools.count = 1 THEN 'RESERVED'
-                        WHEN pools.count is NULL THEN 'UNUSED'
+                        WHEN COUNT(DISTINCT t2.pool) = 1 THEN 'RESERVED'
+                        WHEN COUNT(DISTINCT t2.pool) = 0 THEN 'UNUSED'
                         ELSE 'SHARED'
                     END AS resource_type
                 FROM
                     resources r
                 LEFT JOIN
-                    resource_platforms t2 ON r.name = t2.resource_name and r.backend = t2.backend
-                LEFT JOIN (
-                    SELECT resource_name, COUNT(DISTINCT pool) AS count, backend
-                    FROM resource_platforms
-                    GROUP BY resource_name, backend
-                ) pools ON t2.resource_name = pools.resource_name and t2.backend = pools.backend
-                {pool_filter_clause}
+                    (SELECT resource_platforms.*
+                     FROM resource_platforms
+                     JOIN configured_pool_platforms
+                       ON configured_pool_platforms.pool = resource_platforms.pool
+                      AND configured_pool_platforms.platform = resource_platforms.platform
+                      AND configured_pool_platforms.backend = resource_platforms.backend
+                    ) t2
+                  ON r.name = t2.resource_name AND r.backend = t2.backend
+                {resource_filter_clause}
                 GROUP BY
-                    r.name, r.backend, pools.count
+                    r.name, r.backend
                 ) sub
             ON t1.name = sub.name AND t1.backend = sub.backend
             ORDER BY t1.backend ASC, t1.name ASC;
@@ -3022,7 +2457,7 @@ class Backend(pydantic.BaseModel):
     tests: List[str]
     scheduler_settings: BackendSchedulerSettings
     node_conditions: BackendNodeConditions
-    last_heartbeat: datetime.datetime
+    last_heartbeat: datetime.datetime | None
     created_date: datetime.datetime
     router_address: str
     online: bool
@@ -3032,36 +2467,11 @@ class Backend(pydantic.BaseModel):
                       name: str) -> 'Backend':
         """Fetch a backend by name.
 
-        In ConfigMap mode: config fields from in-memory snapshot,
-        runtime fields (heartbeat, k8s_uid) from DB.
+        Configuration fields come from the immutable snapshot; operational
+        fields (heartbeat, k8s_uid) come from PostgreSQL.
         """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            return cls._fetch_from_snapshot(database, name, snapshot)
-
-        fetch_cmd = 'SELECT * FROM backends WHERE name = %s;'
-        backend_rows = database.execute_fetch_command(fetch_cmd, (name,))
-        try:
-            backend_row = backend_rows[0]
-        except IndexError as err:
-            raise osmo_errors.OSMOBackendError(
-                f'Backend {name} is not found.') from err
-
-        return Backend(name=name,
-                       description=backend_row.description,
-                       version=backend_row.version,
-                       k8s_uid=backend_row.k8s_uid,
-                       k8s_namespace=backend_row.k8s_namespace,
-                       dashboard_url=backend_row.dashboard_url,
-                       grafana_url=backend_row.grafana_url,
-                       tests=backend_row.tests,
-                       scheduler_settings=BackendSchedulerSettings(
-                           **yaml.safe_load(backend_row.scheduler_settings)),
-                       node_conditions=BackendNodeConditions(**backend_row.node_conditions),
-                       last_heartbeat=backend_row.last_heartbeat,
-                       created_date=backend_row.created_date,
-                       router_address=backend_row.router_address,
-                       online=common.heartbeat_online(backend_row.last_heartbeat))
+        snapshot = configmap_state.require_snapshot()
+        return cls._fetch_from_snapshot(database, name, snapshot)
 
     @classmethod
     def _fetch_from_snapshot(cls, database: PostgresConnector,
@@ -3075,7 +2485,7 @@ class Backend(pydantic.BaseModel):
 
         # Runtime fields from DB (agent writes these)
         runtime_cmd = (
-            'SELECT k8s_uid, k8s_namespace, version, '
+            'SELECT k8s_uid, version, '
             'last_heartbeat, created_date '
             'FROM backends WHERE name = %s;')
         runtime_rows = database.execute_fetch_command(
@@ -3085,7 +2495,6 @@ class Backend(pydantic.BaseModel):
             row = runtime_rows[0]
             runtime = {
                 'k8s_uid': row['k8s_uid'],
-                'k8s_namespace': row['k8s_namespace'],
                 'version': row['version'],
                 'last_heartbeat': row['last_heartbeat'],
                 'created_date': row['created_date'],
@@ -3094,8 +2503,8 @@ class Backend(pydantic.BaseModel):
             # Agent hasn't connected yet — defaults
             now = common.current_time()
             runtime = {
-                'k8s_uid': '', 'k8s_namespace': '',
-                'version': '', 'last_heartbeat': now,
+                'k8s_uid': '',
+                'version': '', 'last_heartbeat': None,
                 'created_date': now,
             }
 
@@ -3106,7 +2515,7 @@ class Backend(pydantic.BaseModel):
             description=config.get('description', ''),
             version=runtime['version'],
             k8s_uid=runtime['k8s_uid'],
-            k8s_namespace=runtime['k8s_namespace'],
+            k8s_namespace=config.get('k8s_namespace', ''),
             dashboard_url=config.get('dashboard_url', ''),
             grafana_url=config.get('grafana_url', ''),
             tests=config.get('tests', []),
@@ -3115,68 +2524,34 @@ class Backend(pydantic.BaseModel):
             last_heartbeat=runtime['last_heartbeat'],
             created_date=runtime['created_date'],
             router_address=config.get('router_address', ''),
-            online=common.heartbeat_online(runtime['last_heartbeat']),
+            online=(runtime['last_heartbeat'] is not None
+                    and common.heartbeat_online(runtime['last_heartbeat'])),
         )
 
     @classmethod
     def list_names_from_db(cls, database: PostgresConnector) -> List[str]:
         """List all backend names."""
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('backends', {})
-            return sorted(items.keys())
-
-        fetch_cmd = 'SELECT name FROM backends ORDER BY name;'
-        backend_rows = database.execute_fetch_command(fetch_cmd, ())
-        return [backend_row.name for backend_row in backend_rows]
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('backends', {})
+        return sorted(items.keys())
 
     @classmethod
     def list_from_db(cls, database: PostgresConnector) -> List['Backend']:
         """List all backends.
 
-        In ConfigMap mode: iterates snapshot backends, merging
-        runtime data from DB for each.
+        Iterate snapshot backends, merging operational PostgreSQL data for each.
         """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('backends', {})
-            backends = []
-            for name in sorted(items.keys()):
-                try:
-                    backends.append(
-                        cls._fetch_from_snapshot(database, name, snapshot))
-                except (osmo_errors.OSMOError, pydantic.ValidationError) as error:
-                    logging.warning(
-                        'Skipping backend %s: %s', name, error)
-            return backends
-
-        fetch_cmd = 'SELECT * FROM backends ORDER BY name;'
-        backend_rows = database.execute_fetch_command(fetch_cmd, ())
-
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('backends', {})
         backends = []
-        for backend_row in backend_rows:
+        for name in sorted(items.keys()):
             try:
-                backend = Backend(
-                    name=backend_row.name,
-                    description=backend_row.description,
-                    version=backend_row.version,
-                    k8s_uid=backend_row.k8s_uid,
-                    k8s_namespace=backend_row.k8s_namespace,
-                    dashboard_url=backend_row.dashboard_url,
-                    grafana_url=backend_row.grafana_url,
-                    tests=backend_row.tests,
-                    scheduler_settings=BackendSchedulerSettings(
-                        **yaml.safe_load(backend_row.scheduler_settings)),
-                    node_conditions=BackendNodeConditions(
-                        **backend_row.node_conditions),
-                    last_heartbeat=backend_row.last_heartbeat,
-                    created_date=backend_row.created_date,
-                    router_address=backend_row.router_address,
-                    online=common.heartbeat_online(backend_row.last_heartbeat))
-                backends.append(backend)
-            except pydantic.ValidationError as e:
-                raise ValueError(
-                    f"Failed to load backend '{backend_row.name}': {e}") from e
+                backends.append(
+                    cls._fetch_from_snapshot(database, name, snapshot))
+            except (osmo_errors.OSMOError, pydantic.ValidationError) as error:
+                logging.warning(
+                    'Skipping backend %s: %s', name, error)
         return backends
 
 
@@ -3234,7 +2609,7 @@ class DataConfig(ExtraArgBaseModel):
 
 
 class DynamicConfig(ExtraArgBaseModel):
-    """ Manages the dynamic configs for the postgres database. """
+    """Base model for ConfigMap-owned service configuration."""
 
     model_config = pydantic.ConfigDict(validate_assignment=True)
 
@@ -3268,8 +2643,8 @@ class DynamicConfig(ExtraArgBaseModel):
             This helper function decrypts any SecretStr values found within `encrypted_data`.
             The decrypted secrets are stored in `result_data`, which is a copy of `encrypted_data`.
             `top_level_key` is the field in DynamicConfig where `encrypted_data` comes from.
-            If `encrypted_data` get updated, `top_level_key` is added to a set and `deserialize`
-            will update `top_level_key` in db configs table.
+            If `encrypted_data` is re-encrypted, `top_level_key` is added to a set so callers can
+            identify that conversion while deserializing retained historical data.
 
             Args:
                 encrypted_data: Data that may contain SecretStr
@@ -3341,21 +2716,6 @@ class DynamicConfig(ExtraArgBaseModel):
         decrypted_dict.update(runtime_overrides)
         dynamic_config = cls(**decrypted_dict)
 
-        # Encrypt updated secrets
-        for key in encrypt_keys:
-            old_value = (config_dict[key] if isinstance(config_dict[key], str)
-                         else json.dumps(config_dict[key]))
-            new_value = (encrypted_dict[key] if isinstance(encrypted_dict[key], str)
-                         else json.dumps(encrypted_dict[key]))
-            cmd = '''
-                UPDATE configs SET value = %s
-                WHERE key = %s AND type = %s AND value = %s;
-            '''
-            if postgres.execute_commit_command(
-                    cmd, (new_value, key, dynamic_config.get_type().value, old_value)) != 1:
-                logging.warning(
-                    'Concurrent config update deferred config encryption for %s/%s.',
-                    dynamic_config.get_type().value, key)
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
@@ -3692,95 +3052,31 @@ class ResourceValidation(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> Dict[str, List[ResourceAssertion]]:
         """ Fetches the list of resource validations from the resource validation table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('resource_validations', {})
-            if names:
-                items = {k: v for k, v in items.items() if k in names}
-            return items
-
-        list_of_names = ''
-        fetch_input: Tuple = ()
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('resource_validations', {})
         if names:
-            list_of_names = 'WHERE name in %s'
-            fetch_input = (tuple(names),)
-        fetch_cmd = f'SELECT * FROM resource_validations {list_of_names} ORDER BY name;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
-
-        return {
-            spec_row['name']: [
-                item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
-                for item in spec_row['resource_validations']
-            ]
-            for spec_row in spec_rows
-        }
+            items = {k: v for k, v in items.items() if k in names}
+        return items
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> List[ResourceAssertion]:
         """ Fetches the resource validations from the resource validation table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('resource_validations', {})
-            if name not in items:
-                raise osmo_errors.OSMOUserError(f'Resource Validation {name} does not exist.')
-            return items[name]
-
-        fetch_cmd = 'SELECT * FROM resource_validations WHERE name = %s;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
-        if not spec_rows:
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('resource_validations', {})
+        if name not in items:
             raise osmo_errors.OSMOUserError(f'Resource Validation {name} does not exist.')
-
-        spec_row = spec_rows[0]
-
-        return [
-            item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
-            for item in spec_row['resource_validations']
-        ]
-
-    @classmethod
-    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
-        fetch_cmd = '''
-            SELECT name
-            FROM pools
-            WHERE %s=ANY(common_resource_validations)
-            OR EXISTS (
-                SELECT 1
-                FROM jsonb_each(platforms) as top_level_keys
-                WHERE top_level_keys.value->'resource_validations' @> %s
-            );
-            '''
-        return database.execute_fetch_command(fetch_cmd, (name, f'"{name}"'), True)
+        return items[name]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
-        pools = cls.get_pools(database, name)
-        if pools:
-            raise osmo_errors.OSMOUserError(f'Resource Validation {name} is used in pools ' +\
-                                            f'{', '.join([pool['name'] for pool in pools])}')
-
-        delete_cmd = '''
-            DELETE FROM resource_validations WHERE name = %s;
-            '''
-        database.execute_commit_command(delete_cmd, (name,))
+        del database, name
+        reject_db_config_mutation()
 
     def insert_into_db(self, database: PostgresConnector, name: str):
-        """ Create/update an entry in the pools table """
-        insert_cmd = '''
-            INSERT INTO resource_validations
-            (name, resource_validations)
-            VALUES (%s, %s::jsonb[])
-            ON CONFLICT (name)
-            DO UPDATE SET
-                resource_validations = EXCLUDED.resource_validations;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (name,
-             [json.dumps(validation.model_dump())
-              for validation in self.resource_validations]))
-
-        for pool_info in ResourceValidation.get_pools(database, name):
-            Pool.update_resource_validations(database, pool_info['name'])
+        del database, name
+        reject_db_config_mutation()
 
 
 class PodTemplate(pydantic.BaseModel):
@@ -3791,100 +3087,62 @@ class PodTemplate(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> Dict[str, Dict]:
         """ Fetches the list of pod templates from the pod template table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('pod_templates', {})
-            if names:
-                items = {k: v for k, v in items.items() if k in names}
-            return items
-
-        list_of_names = ''
-        fetch_input: Tuple = ()
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('pod_templates', {})
         if names:
-            list_of_names = 'WHERE name in %s'
-            fetch_input = (tuple(names),)
-        fetch_cmd = f'SELECT * FROM pod_templates {list_of_names} ORDER BY name;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
-
-        return {spec_row['name']: spec_row['pod_template'] for spec_row in spec_rows}
+            items = {k: v for k, v in items.items() if k in names}
+        return items
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict:
         """ Fetches the pod template from the pod template table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('pod_templates', {})
-            if name not in items:
-                raise osmo_errors.OSMOUserError(
-                    f'Pod Template {name} does not exist.')
-            return items[name]
-
-        fetch_cmd = 'SELECT * FROM pod_templates WHERE name = %s;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
-        if not spec_rows:
-            raise osmo_errors.OSMOUserError(f'Pod Template {name} does not exist.')
-
-        spec_row = spec_rows[0]
-
-        return spec_row['pod_template']
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('pod_templates', {})
+        if name not in items:
+            raise osmo_errors.OSMOUserError(
+                f'Pod Template {name} does not exist.')
+        return items[name]
 
     @classmethod
     def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
-        fetch_cmd = '''
-            SELECT name
-            FROM pools
-            WHERE %s=ANY(common_pod_template)
-            OR EXISTS (
-                SELECT 1
-                FROM jsonb_each(platforms) as top_level_keys
-                WHERE top_level_keys.value->'override_pod_template' @> %s
-            );
-            '''
-        return database.execute_fetch_command(fetch_cmd, (name, f'"{name}"'), True)
+        del database
+        pools = configmap_state.require_snapshot().get('pools', {})
+        matches = []
+        for pool_name, pool in pools.items():
+            if not isinstance(pool, dict):
+                continue
+            referenced = name in pool.get('common_pod_template', [])
+            platforms = pool.get('platforms', {})
+            if isinstance(platforms, dict):
+                referenced = referenced or any(
+                    isinstance(platform, dict)
+                    and name in platform.get('override_pod_template', [])
+                    for platform in platforms.values()
+                )
+            if referenced:
+                matches.append({'name': pool_name})
+        return matches
 
     @classmethod
     def get_tests(cls, database: PostgresConnector, name: str) -> List[Dict]:
-        fetch_cmd = '''
-            SELECT name
-            FROM backend_tests
-            WHERE %s=ANY(common_pod_template)
-        '''
-        return database.execute_fetch_command(fetch_cmd, (name,), True)
-
-
+        del database
+        tests = configmap_state.require_snapshot().get('backend_tests', {})
+        return [
+            {'name': test_name}
+            for test_name, test in tests.items()
+            if isinstance(test, dict)
+            and name in test.get('common_pod_template', [])
+        ]
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
-        pools = cls.get_pools(database, name)
-        if pools:
-            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in pools ' +\
-                                            f'{', '.join([pool['name'] for pool in pools])}')
-        tests = cls.get_tests(database, name)
-        if tests:
-            raise osmo_errors.OSMOUserError(f'Pod template {name} is used in tests ' +\
-                                            f'{', '.join([test['name'] for test in tests])}')
-
-        delete_cmd = '''
-            DELETE FROM pod_templates WHERE name = %s;
-            '''
-        database.execute_commit_command(delete_cmd, (name,))
+        del database, name
+        reject_db_config_mutation()
 
     def insert_into_db(self, database: PostgresConnector, name: str):
-        """ Create/update an entry in the pools table """
-        insert_cmd = '''
-            INSERT INTO pod_templates
-            (name, pod_template)
-            VALUES (%s, %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                pod_template = EXCLUDED.pod_template;
-            '''
-        database.execute_commit_command(insert_cmd, (name, json.dumps(self.pod_template)))
-
-        for pool_info in PodTemplate.get_pools(database, name):
-            Pool.update_pod_template(database, pool_info['name'])
-
-        for test_info in PodTemplate.get_tests(database, name):
-            BackendTests.update_pod_template(database, test_info['name'])
+        del database, name
+        reject_db_config_mutation()
 
 
 class GroupTemplate(pydantic.BaseModel):
@@ -3895,92 +3153,32 @@ class GroupTemplate(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: List[str] | None = None) \
         -> Dict[str, Dict[str, Any]]:
         """ Fetches the list of group templates from the group template table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('group_templates', {})
-            if names:
-                items = {k: v for k, v in items.items() if k in names}
-            return items
-
-        name_filter_clause = ''
-        fetch_input: Tuple = ()
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('group_templates', {})
         if names:
-            name_filter_clause = 'WHERE name in %s'
-            fetch_input = (tuple(names),)
-        fetch_cmd = f'SELECT * FROM group_templates {name_filter_clause} ORDER BY name;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
-
-        return {spec_row['name']: spec_row['group_template'] for spec_row in spec_rows}
+            items = {k: v for k, v in items.items() if k in names}
+        return items
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict[str, Any]:
         """ Fetches the group template from the group template table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('group_templates', {})
-            if name not in items:
-                raise osmo_errors.OSMOUserError(
-                    f'Group Template {name} does not exist.')
-            return items[name]
-
-        fetch_cmd = 'SELECT * FROM group_templates WHERE name = %s;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
-        if not spec_rows:
-            raise osmo_errors.OSMOUserError(f'Group Template {name} does not exist.')
-
-        spec_row = spec_rows[0]
-
-        return spec_row['group_template']
-
-    @classmethod
-    def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict[str, Any]]:
-        """ Fetches pools that reference this group template by name. """
-        fetch_cmd = '''
-            SELECT name
-            FROM pools
-            WHERE %s=ANY(common_group_templates);
-            '''
-        return database.execute_fetch_command(fetch_cmd, (name,), True)
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('group_templates', {})
+        if name not in items:
+            raise osmo_errors.OSMOUserError(
+                f'Group Template {name} does not exist.')
+        return items[name]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str) -> None:
-        pools = cls.get_pools(database, name)
-        if pools:
-            pool_names = ', '.join(pool['name'] for pool in pools)
-            raise osmo_errors.OSMOUserError(
-                f'Group template {name} is used in pools {pool_names}')
-
-        delete_cmd = '''
-            DELETE FROM group_templates WHERE name = %s;
-            '''
-        database.execute_commit_command(delete_cmd, (name,))
+        del database, name
+        reject_db_config_mutation()
 
     def insert_into_db(self, database: PostgresConnector, name: str) -> None:
-        """ Create/update an entry in the group templates table """
-        # Basic validation
-        if 'apiVersion' not in self.group_template:
-            raise osmo_errors.OSMOUserError('Group template must have "apiVersion" field.')
-        if 'kind' not in self.group_template:
-            raise osmo_errors.OSMOUserError('Group template must have "kind" field.')
-        if 'metadata' not in self.group_template or 'name' not in self.group_template['metadata']:
-            raise osmo_errors.OSMOUserError('Group template must have "metadata.name" field.')
-        if self.group_template.get('metadata', {}).get('namespace'):
-            raise osmo_errors.OSMOUserError(
-                'Group template must not have "metadata.namespace" set. '
-                'The namespace is assigned by OSMO at runtime.')
-
-        insert_cmd = '''
-            INSERT INTO group_templates
-            (name, group_template)
-            VALUES (%s, %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                group_template = EXCLUDED.group_template;
-            '''
-        database.execute_commit_command(insert_cmd, (name, json.dumps(self.group_template)))
-
-        for pool_info in GroupTemplate.get_pools(database, name):
-            Pool.update_group_templates(database, pool_info['name'])
+        del database, name
+        reject_db_config_mutation()
 
 
 class Toleration(pydantic.BaseModel):
@@ -4028,24 +3226,12 @@ class Platform(PlatformMinimal):
     override_pod_template: List[str] = []
     parsed_pod_template: Dict = {}
     # Pod template with Jinja in osmo-ctrl resources pre-rendered using
-    # pool/platform default variables. Populated by the ConfigMap loader;
-    # falls back to parsed_pod_template when absent (DB mode).
+    # pool/platform default variables. Populated by the ConfigMap loader.
     parsed_pod_template_for_accounting: Dict = {}
 
     def insert_into_db(self, database: PostgresConnector, pool_name: str, platform_name: str):
-        """ Create/update an entry in the pools table """
-        pool_info = Pool.fetch_from_db(database, pool_name)
-        pool_info.platforms[platform_name] = self
-
-        pool_info.calculate_platforms_pod_template(database, platform_name)
-        pool_info.calculate_platforms_resource_validations(database, platform_name)
-
-        insert_cmd = '''
-            UPDATE pools SET platforms = %s where name = %s;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (json.dumps(pool_info.platforms, default=common.pydantic_encoder), pool_name))
+        del database, pool_name, platform_name
+        reject_db_config_mutation()
 
 
 class Quota(pydantic.BaseModel):
@@ -4119,65 +3305,30 @@ class Pool(PoolBase, extra='ignore'):
 
     @classmethod
     def update_pod_template(cls, database: PostgresConnector, name: str):
-        """ Updates pod_templates """
-        pool_info = cls.fetch_from_db(database, name)
-        pool_info.calculate_pod_template(database)
-
-        insert_cmd = '''
-            UPDATE pools
-            SET platforms = %s, parsed_pod_template = %s
-            WHERE name = %s;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (json.dumps(pool_info.platforms, default=common.pydantic_encoder),
-             json.dumps(pool_info.parsed_pod_template),
-             name))
-
+        del database, name
+        reject_db_config_mutation()
 
     @classmethod
     def update_resource_validations(cls, database: PostgresConnector, name: str):
-        """ Update resource_validations """
-        pool_info = cls.fetch_from_db(database, name)
-        pool_info.calculate_resource_validations(database)
-
-        insert_cmd = '''
-            UPDATE pools
-            SET platforms = %s, parsed_resource_validations = %s
-            WHERE name = %s;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (json.dumps(pool_info.platforms, default=common.pydantic_encoder),
-             json.dumps(pool_info.parsed_resource_validations, default=common.pydantic_encoder),
-             name))
+        del database, name
+        reject_db_config_mutation()
 
     @classmethod
     def update_group_templates(cls, database: PostgresConnector, name: str) -> None:
-        """ Updates group_templates """
-        pool_info = cls.fetch_from_db(database, name)
-        pool_info.calculate_group_templates(database)
-
-        insert_cmd = '''
-            UPDATE pools
-            SET parsed_group_templates = %s
-            WHERE name = %s;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (json.dumps(pool_info.parsed_group_templates),
-             name))
+        del database, name
+        reject_db_config_mutation()
 
     @classmethod
-    def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Pool':
-        """ Fetches a pool from the pools table """
-        pool_rows = cls.fetch_rows_from_db(database, pools=[name])
+    def fetch_from_configmap(cls, name: str) -> 'Pool':
+        """Fetch one pool definition from the active ConfigMap snapshot."""
+        pool_rows = cls.fetch_rows_from_configmap(pools=[name])
         if not pool_rows:
             raise osmo_errors.OSMOUserError(f'Pool {name} not found.')
 
         pool_info = Pool(**pool_rows[0])
 
-        workflow_configs = database.get_workflow_configs()
+        workflow_configs = WorkflowConfig(
+            **configmap_state.require_snapshot().get('workflow', {}))
         if not pool_info.default_exec_timeout:
             pool_info.default_exec_timeout = workflow_configs.default_exec_timeout
         if not pool_info.default_queue_timeout:
@@ -4201,94 +3352,51 @@ class Pool(PoolBase, extra='ignore'):
 
     @classmethod
     def rename(cls, database: PostgresConnector, old_name: str, new_name: str):
-        """ Renames a pool from the pools table """
-        update_cmd = 'UPDATE pools SET name = %s WHERE name = %s;'
-        database.execute_commit_command(update_cmd, (new_name, old_name))
+        del database, old_name, new_name
+        reject_db_config_mutation()
 
     @classmethod
     def rename_platform(cls, database: PostgresConnector, name: str, platform_name: str,
                         new_platform_name):
-        """ Renames a platform in a pool from the pools table """
-        update_cmd = '''
-            UPDATE pools SET platforms = jsonb_set(
-                platforms - %s, %s,
-                platforms->%s
-            )
-            WHERE name = %s and platforms ? %s;
-        '''
-        database.execute_commit_command(update_cmd,
-                                        (platform_name, f'{{{new_platform_name}}}',
-                                         platform_name, name, platform_name))
+        del database, name, platform_name, new_platform_name
+        reject_db_config_mutation()
 
     @classmethod
-    def fetch_platform_from_db(cls, database: PostgresConnector, name: str,
-                               platform_name: str) -> Platform:
-        """ Fetches a pool from the pools table """
-        platforms = Pool.fetch_from_db(database, name).platforms
-        if platform_name not in platforms:
-            raise osmo_errors.OSMOUserError(
-                f'Platform name {platform_name} not found in pool {name}.')
-        return platforms[platform_name]
+    def fetch_rows_from_configmap(
+        cls,
+        backend: str | None = None,
+        pools: List[str] | None = None,
+        all_pools: bool = True,
+    ) -> List[dict]:
+        """Build pool rows exclusively from the active ConfigMap snapshot."""
+        items = configmap_state.require_snapshot().get('pools', {})
+        selected_pool_names = set(pools or [])
+        result = []
+        for name in sorted(items):
+            pool_data = items[name]
+            if not isinstance(pool_data, dict):
+                continue
+            pool_backend = pool_data.get('backend', '')
+            if backend and pool_backend != backend:
+                continue
+            if (selected_pool_names or not all_pools) and name not in selected_pool_names:
+                continue
+            result.append({**pool_data, 'name': name})
+        return result
 
     @classmethod
-    def fetch_rows_from_db(cls, database: PostgresConnector,
-                           backend: str | None = None,
-                           pools: List[str] | None = None,
-                           all_pools: bool = True) -> Any:
-        """ Fetches the list of pools from the pools table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            return cls._fetch_pool_rows_from_snapshot(
-                database, snapshot, backend, pools, all_pools)
-
-        params : List[str | Tuple] = []
-        conditions = []
-
-        if not pools:
-            pools = []
-
-        if backend:
-            conditions.append('pools.backend = %s')
-            params.append(backend)
-
-        if pools or not all_pools:
-            conditions.append('pools.name IN %s')
-            params.append(tuple(pools))
-
-        conditions_clause = '' if not params \
-            else f'WHERE {' AND '.join(conditions)}'
-        fetch_cmd = 'SELECT pools.*, backends.last_heartbeat ' \
-                    'FROM pools LEFT JOIN backends ' \
-                    'ON pools.backend = backends.name ' \
-                    f'{conditions_clause} ORDER BY pools.name'
-        pool_rows = database.execute_fetch_command(
-            fetch_cmd, tuple(params), True)
-        for pool_row in pool_rows:
-            if pool_row.get('enable_maintenance', False):
-                pool_row['status'] = PoolStatus.MAINTENANCE
-            else:
-                if pool_row.get('last_heartbeat', None) and \
-                    common.heartbeat_online(pool_row['last_heartbeat']):
-                    pool_row['status'] = PoolStatus.ONLINE
-                else:
-                    pool_row['status'] = PoolStatus.OFFLINE
-        return pool_rows
-
-    @classmethod
-    def _fetch_pool_rows_from_snapshot(
-        cls, database: PostgresConnector, snapshot: dict,
+    def fetch_runtime_rows(
+        cls, database: PostgresConnector,
         backend: str | None, pools: List[str] | None,
         all_pools: bool,
     ) -> List[dict]:
-        """Build pool rows from snapshot + DB heartbeats."""
-        items = snapshot.get('pools', {})
-        if not pools:
-            pools = []
+        """Add DB-backed heartbeat status to ConfigMap-owned pool definitions."""
+        configured_rows = cls.fetch_rows_from_configmap(
+            backend=backend, pools=pools, all_pools=all_pools)
 
         # Batch-fetch heartbeats for all referenced backends
         backend_names = {
-            v.get('backend', '') for v in items.values()
-            if isinstance(v, dict)
+            row.get('backend', '') for row in configured_rows
         }
         heartbeat_map: Dict[str, datetime.datetime | None] = {}
         if backend_names:
@@ -4302,19 +3410,10 @@ class Pool(PoolBase, extra='ignore'):
             }
 
         result = []
-        for name in sorted(items.keys()):
-            pool_data = items[name]
-            if not isinstance(pool_data, dict):
-                continue
+        for pool_data in configured_rows:
             pool_backend = pool_data.get('backend', '')
-
-            if backend and pool_backend != backend:
-                continue
-            if (pools or not all_pools) and name not in pools:
-                continue
-
             heartbeat = heartbeat_map.get(pool_backend)
-            row = {**pool_data, 'name': name,
+            row = {**pool_data,
                    'last_heartbeat': heartbeat,
                    'status': cls._compute_pool_status(
                        pool_data, heartbeat)}
@@ -4322,20 +3421,34 @@ class Pool(PoolBase, extra='ignore'):
         return result
 
     @classmethod
-    def get_all_pool_names(cls) -> List[str]:
-        """Fetch all pool names from the database."""
-        database = PostgresConnector.get_instance()
-        return [pool['name'] for pool in cls.fetch_rows_from_db(database)]
+    def fetch_runtime_from_configmap(
+        cls, database: PostgresConnector, name: str,
+    ) -> 'Pool':
+        """Fetch a ConfigMap-owned pool with DB-backed heartbeat status."""
+        pool_info = cls.fetch_from_configmap(name)
+        hb_cmd = (
+            'SELECT name, last_heartbeat FROM backends '
+            'WHERE name = %s;')
+        hb_rows = database.execute_fetch_command(
+            hb_cmd, (pool_info.backend,), True)
+        heartbeat = next((
+            row['last_heartbeat'] for row in hb_rows
+            if row['name'] == pool_info.backend
+        ), None)
+        pool_info.last_heartbeat = heartbeat
+        pool_info.status = cls._compute_pool_status(
+            pool_info.model_dump(), heartbeat)
+        return pool_info
+
+    @classmethod
+    def get_all_configured_pool_names(cls) -> List[str]:
+        """Return sorted pool names from the active ConfigMap snapshot."""
+        return [pool['name'] for pool in cls.fetch_rows_from_configmap()]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
-        delete_cmd = '''
-            BEGIN;
-            DELETE FROM pools WHERE name = %s;
-            DELETE FROM resource_platforms WHERE pool = %s;
-            COMMIT;
-        '''
-        database.execute_commit_command(delete_cmd, (name, name))
+        del database, name
+        reject_db_config_mutation()
 
     def get_default_mounts(self, pod_template: Dict) -> List[str]:
         ''' Fetch default mounts from pod template. '''
@@ -4472,80 +3585,8 @@ class Pool(PoolBase, extra='ignore'):
         self.parsed_group_templates = list(merged_templates.values())
 
     def insert_into_db(self, database: PostgresConnector, name: str):
-        """ Create/update an entry in the pools table """
-        self.calculate_pod_template(database)
-        self.calculate_resource_validations(database)
-        self.calculate_group_templates(database)
-
-        if self.default_platform and self.default_platform not in self.platforms:
-            raise osmo_errors.OSMOUsageError(
-                f'Default platform {self.default_platform} not in platforms')
-
-        # Validate topology_keys is only set for schedulers that support it
-        if self.topology_keys:
-            # Import inside function to avoid circular dependency:
-            # connectors/__init__.py -> postgres.py -> kb_objects.py -> connectors
-            from src.utils.job import kb_objects  # type: ignore  # pylint: disable=import-outside-toplevel
-            backend = Backend.fetch_from_db(database, self.backend)
-            factory = kb_objects.get_k8s_object_factory(backend)
-            if not factory.topology_supported():
-                scheduler_type = backend.scheduler_settings.scheduler_type
-                raise osmo_errors.OSMOUsageError(
-                    f'Topology keys cannot be set for pool "{name}" because backend '
-                    f'"{self.backend}" uses scheduler "{scheduler_type}" '
-                    f'which does not support topology constraints')
-
-        insert_cmd = '''
-            INSERT INTO pools
-            (name, description, backend, download_type, default_platform, platforms,
-             default_exec_timeout, default_queue_timeout,
-             max_exec_timeout, max_queue_timeout, default_exit_actions,
-             common_default_variables, common_resource_validations, parsed_resource_validations,
-             common_pod_template, parsed_pod_template,
-             common_group_templates, parsed_group_templates,
-             enable_maintenance, resources, topology_keys)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                description = EXCLUDED.description,
-                backend = EXCLUDED.backend,
-                download_type = EXCLUDED.download_type,
-                default_platform = EXCLUDED.default_platform,
-                platforms = EXCLUDED.platforms,
-                default_exec_timeout = EXCLUDED.default_exec_timeout,
-                default_queue_timeout = EXCLUDED.default_queue_timeout,
-                max_exec_timeout = EXCLUDED.max_exec_timeout,
-                max_queue_timeout = EXCLUDED.max_queue_timeout,
-                default_exit_actions = EXCLUDED.default_exit_actions,
-                common_default_variables = EXCLUDED.common_default_variables,
-                common_resource_validations = EXCLUDED.common_resource_validations,
-                parsed_resource_validations = EXCLUDED.parsed_resource_validations,
-                common_pod_template = EXCLUDED.common_pod_template,
-                parsed_pod_template = EXCLUDED.parsed_pod_template,
-                common_group_templates = EXCLUDED.common_group_templates,
-                parsed_group_templates = EXCLUDED.parsed_group_templates,
-                enable_maintenance = EXCLUDED.enable_maintenance,
-                resources = EXCLUDED.resources,
-                topology_keys = EXCLUDED.topology_keys;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (name, self.description, self.backend,
-             self.download_type.value if self.download_type else None,
-             self.default_platform,
-             json.dumps(self.platforms, default=common.pydantic_encoder),
-             self.default_exec_timeout, self.default_queue_timeout,
-             self.max_exec_timeout, self.max_queue_timeout,
-             json.dumps(self.default_exit_actions),
-             json.dumps(self.common_default_variables),
-             self.common_resource_validations,
-             json.dumps(self.parsed_resource_validations,
-                        default=common.pydantic_encoder),
-             self.common_pod_template, json.dumps(self.parsed_pod_template),
-             self.common_group_templates, json.dumps(self.parsed_group_templates),
-             self.enable_maintenance,
-             json.dumps(self.resources, default=common.pydantic_encoder),
-             json.dumps(self.topology_keys, default=common.pydantic_encoder)))
+        del database, name
+        reject_db_config_mutation()
 
 
 class VerbosePoolConfig(pydantic.BaseModel):
@@ -4573,10 +3614,8 @@ def fetch_verbose_pool_config(database: PostgresConnector,
                               backend: str | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> VerbosePoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
-                                        pools=pools,
-                                        all_pools=all_pools)
+    pool_rows = Pool.fetch_runtime_rows(
+        database, backend, pools, all_pools)
     return VerbosePoolConfig(
         pools={pool_row['name']: Pool(**pool_row) for pool_row in pool_rows})
 
@@ -4585,10 +3624,8 @@ def fetch_minimal_pool_config(database: PostgresConnector,
                               backend: str | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> MinimalPoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
-                                        pools=pools,
-                                        all_pools=all_pools)
+    pool_rows = Pool.fetch_runtime_rows(
+        database, backend, pools, all_pools)
     return MinimalPoolConfig(
         pools={pool_row['name']: PoolMinimal(**pool_row) for pool_row in pool_rows})
 
@@ -4597,10 +3634,8 @@ def fetch_editable_pool_config(database: PostgresConnector,
                               backend: str | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> EditablePoolConfig:
-    pool_rows = Pool.fetch_rows_from_db(database,
-                                        backend=backend,
-                                        pools=pools,
-                                        all_pools=all_pools)
+    pool_rows = Pool.fetch_runtime_rows(
+        database, backend, pools, all_pools)
     return EditablePoolConfig(
         pools={pool_row['name']: PoolEditable(**pool_row) for pool_row in pool_rows})
 
@@ -4608,10 +3643,9 @@ def fetch_editable_pool_config(database: PostgresConnector,
 def fetch_platform_config(
     name: str,
     pool_type: PoolType,
-    database: PostgresConnector,
 ) -> Mapping[str, Platform | PlatformEditable | PlatformMinimal]:
 
-    platforms = Pool.fetch_from_db(database, name).platforms
+    platforms = Pool.fetch_from_configmap(name).platforms
     if pool_type == PoolType.VERBOSE:
         return platforms
     elif pool_type == PoolType.EDITABLE:
@@ -5028,13 +4062,13 @@ class BackendTests(BackendTestBase):
 
     @classmethod
     def get_backends(cls, database: PostgresConnector, name: str) -> List[Dict]:
-        """Get backends that use this test in their backend configuration."""
-        fetch_cmd = '''
-            SELECT name
-            FROM backends
-            WHERE %s=ANY(tests)
-        '''
-        return database.execute_fetch_command(fetch_cmd, (name,), True)
+        del database
+        backends = configmap_state.require_snapshot().get('backends', {})
+        return [
+            {'name': backend_name}
+            for backend_name, backend in backends.items()
+            if isinstance(backend, dict) and name in backend.get('tests', [])
+        ]
 
     def calculate_pod_template(self, database: PostgresConnector):
         ''' Construct Pool pod_template '''
@@ -5052,479 +4086,101 @@ class BackendTests(BackendTestBase):
 
     @classmethod
     def update_pod_template(cls, database: PostgresConnector, name: str):
-        """ Updates pod_templates """
-        test_info = cls.fetch_from_db(database, name)
-        test_info.calculate_pod_template(database)
-
-        insert_cmd = '''
-            UPDATE backend_tests
-            SET parsed_pod_template = %s
-            WHERE name = %s;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (json.dumps(test_info.parsed_pod_template),
-             name))
+        del database, name
+        reject_db_config_mutation()
 
     @classmethod
     def list_from_db(cls, database: 'PostgresConnector', name: str | None = None
                      ) -> Dict[str, dict]:
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('backend_tests', {})
-            if name:
-                items = {k: v for k, v in items.items() if k == name}
-            return items
-
-        list_of_names = ''
-        fetch_input: Tuple = ()
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('backend_tests', {})
         if name:
-            list_of_names = 'WHERE name = %s'
-            fetch_input = (name,)
-        fetch_cmd = f'SELECT * FROM backend_tests {list_of_names} ORDER BY name;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
-        return {spec_row['name']: spec_row for spec_row in spec_rows}
+            items = {k: v for k, v in items.items() if k == name}
+        return items
 
     @classmethod
     def fetch_from_db(cls, database: 'PostgresConnector', name: str) -> 'BackendTests':
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('backend_tests', {})
-            if name not in items:
-                raise osmo_errors.OSMOUserError(
-                    f'Test config {name} does not exist.')
-            return cls(**items[name])
-
-        fetch_cmd = 'SELECT * FROM backend_tests WHERE name = %s;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
-        if not spec_rows:
-            raise osmo_errors.OSMOUserError(f'Test config {name} does not exist.')
-        return cls(**spec_rows[0])
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('backend_tests', {})
+        if name not in items:
+            raise osmo_errors.OSMOUserError(
+                f'Test config {name} does not exist.')
+        return cls(**items[name])
 
     @classmethod
     def delete_from_db(cls, database: 'PostgresConnector', name: str):
-        backends = cls.get_backends(database, name)
-        if backends:
-            raise osmo_errors.OSMOUserError(
-                f'Test {name} is used in Backends ' +\
-                f'{', '.join([backend['name'] for backend in backends])}'
-            )
-        delete_cmd = 'DELETE FROM backend_tests WHERE name = %s;'
-        database.execute_commit_command(delete_cmd, (name,))
+        del database, name
+        reject_db_config_mutation()
 
     def insert_into_db(self, database: 'PostgresConnector', name: str):
-        self.calculate_pod_template(database)
-        insert_cmd = '''
-            INSERT INTO backend_tests
-            (name, description, cron_schedule, test_timeout,
-            common_pod_template, parsed_pod_template, node_conditions)
-            VALUES (%s, %s, %s, %s,
-            %s, %s, %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                description = EXCLUDED.description,
-                cron_schedule = EXCLUDED.cron_schedule,
-                test_timeout = EXCLUDED.test_timeout,
-                common_pod_template = EXCLUDED.common_pod_template,
-                parsed_pod_template = EXCLUDED.parsed_pod_template,
-                node_conditions = EXCLUDED.node_conditions;
-            '''
-        database.execute_commit_command(
-            insert_cmd,
-            (name, self.description, self.cron_schedule, self.test_timeout,
-             self.common_pod_template, json.dumps(self.parsed_pod_template), self.node_conditions))
+        del database, name
+        reject_db_config_mutation()
 
 
 class Role(role.Role):
-    """
-    Single Role Entry.
-
-    Note: Authorization checking is now handled by the authz_sidecar (Go service).
-    This Python class is only used for role CRUD operations.
-    """
+    """ConfigMap-owned role definition used by read and validation APIs."""
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> List['Role']:
-        """ Fetches the list of roles from the roles table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('roles', {})
-            result = []
-            for role_name, role_data in sorted(items.items()):
-                if names and role_name not in names:
-                    continue
-                if not isinstance(role_data, dict):
-                    continue
-                result.append(cls(
-                    name=role_name, **role_data))
-            return result
-
-        list_of_names = ''
-        fetch_input: Tuple = ()
-        if names:
-            list_of_names = 'WHERE name in %s'
-            fetch_input = (tuple(names),)
-        fetch_cmd = f'SELECT * FROM roles {list_of_names} ORDER BY name;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
-
-        if not spec_rows:
-            return []
-
-        # Batch fetch all external role mappings for these roles (avoid N+1 queries)
-        role_names = [row['name'] for row in spec_rows]
-        external_roles_map = cls._batch_fetch_external_roles(database, role_names)
-
-        roles = []
-        for spec_row in spec_rows:
-            spec_row['external_roles'] = external_roles_map.get(spec_row['name'], [])
-            roles.append(cls(**spec_row))
-
-        return roles
+        """Return ConfigMap-owned role definitions."""
+        del database
+        snapshot = configmap_state.require_snapshot()
+        items = snapshot.get('roles', {})
+        return [
+            cls(name=role_name, **role_data)
+            for role_name, role_data in sorted(items.items())
+            if (not names or role_name in names) and isinstance(role_data, dict)
+        ]
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Role':
-        """ Fetches the role from the role table """
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            items = snapshot.get('roles', {})
-            if name not in items:
-                raise osmo_errors.OSMOUserError(
-                    f'Role {name} does not exist.')
-            return cls(name=name, **items[name])
-
-        fetch_cmd = 'SELECT * FROM roles WHERE name = %s;'
-        spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
-        if not spec_rows:
+        """Return one ConfigMap-owned role definition."""
+        del database
+        items = configmap_state.require_snapshot().get('roles', {})
+        if name not in items or not isinstance(items[name], dict):
             raise osmo_errors.OSMOUserError(f'Role {name} does not exist.')
-
-        # Fetch external roles for this role
-        spec_row = spec_rows[0]
-        external_roles = cls._fetch_external_roles(database, name)
-        spec_row['external_roles'] = external_roles
-
-        return cls(**spec_row)
-
-    @classmethod
-    def _fetch_external_roles(cls, database: PostgresConnector, role_name: str) -> List[str]:
-        """ Fetches external role mappings for a given role """
-        return cls._batch_fetch_external_roles(database, [role_name]).get(role_name, [])
-
-    @classmethod
-    def _batch_fetch_external_roles(cls, database: PostgresConnector,
-                                    role_names: List[str]) -> Dict[str, List[str]]:
-        """
-        Batch fetches external role mappings for multiple roles.
-        Returns a dict mapping role_name -> list of external roles.
-        """
-        if not role_names:
-            return {}
-
-        fetch_cmd = '''
-            SELECT role_name, external_role FROM role_external_mappings
-            WHERE role_name = ANY(%s)
-            ORDER BY role_name, external_role;
-        '''
-        rows = database.execute_fetch_command(fetch_cmd, (role_names,), True)
-
-        # Group mappings by role_name
-        external_roles_map: Dict[str, List[str]] = {}
-        for row in rows:
-            external_roles_map.setdefault(row['role_name'], []).append(row['external_role'])
-
-        return external_roles_map
+        return cls(name=name, **items[name])
 
     @classmethod
     def get_roles_by_external_roles(cls, database: PostgresConnector,
                                     external_roles: List[str]) -> List[str]:
-        """
-        Fetches all OSMO role names that map to any of the given external roles.
-        Used during auth to map external roles from headers to OSMO roles.
-        """
+        """Resolve external role names from the ConfigMap snapshot."""
+        del database
         if not external_roles:
             return []
+        requested_roles = set(external_roles)
+        snapshot = configmap_state.require_snapshot()
 
-        snapshot = configmap_state.get_snapshot()
-        if snapshot is not None:
-            requested_roles = set(external_roles)
+        def mapped_external_roles(role_name: str,
+                                  role_data: Dict[str, Any]) -> List[str]:
+            configured_roles = role_data.get('external_roles')
+            if isinstance(configured_roles, list):
+                return configured_roles
+            return [role_name]
 
-            def mapped_external_roles(role_name: str,
-                                      role_data: Dict[str, Any]) -> List[str]:
-                configured_roles = role_data.get('external_roles')
-                if isinstance(configured_roles, list) and configured_roles:
-                    return configured_roles
-                return [role_name]
-
-            return sorted(
-                role_name
-                for role_name, role_data in snapshot.get('roles', {}).items()
-                if isinstance(role_data, dict)
-                and requested_roles.intersection(
-                    mapped_external_roles(role_name, role_data))
-            )
-
-        fetch_cmd = '''
-            SELECT DISTINCT role_name FROM role_external_mappings
-            WHERE external_role = ANY(%s)
-            ORDER BY role_name;
-        '''
-        rows = database.execute_fetch_command(fetch_cmd, (external_roles,), True)
-        return [row['role_name'] for row in rows]
+        return sorted(
+            role_name
+            for role_name, role_data in snapshot.get('roles', {}).items()
+            if isinstance(role_data, dict)
+            and requested_roles.intersection(
+                mapped_external_roles(role_name, role_data))
+        )
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
-        cls.fetch_from_db(database, name)
-
-        database.execute_commit_commands([
-            ('SELECT name FROM roles WHERE name = %s FOR UPDATE;', (name,)),
-            ('DELETE FROM user_roles WHERE role_name = %s;', (name,)),
-            ('DELETE FROM roles WHERE name = %s;', (name,)),
-        ])
+        del database, name
+        reject_db_config_mutation()
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
-        """
-        Create/update an entry in the roles table and sync external role mappings.
+        """Reject runtime changes to ConfigMap-owned role definitions."""
+        del database, force
+        reject_db_config_mutation()
 
-        This is a single atomic operation that:
-        1. Inserts/updates the role in the roles table
-        2. Synchronizes external role mappings based on external_roles value:
-           - None: Don't modify mappings (preserve existing), except for new roles
-           - []: Explicitly clear all mappings
-           - ['role1', ...]: Replace with specified mappings
-           For new roles with external_roles=None, creates a default mapping to the role name.
-        """
-        check_immutable = 'WHERE roles.immutable = false' if not force else ''
-
-        # Determine sync parameters:
-        # - external_roles_provided: True if self.external_roles is not None
-        # - external_roles_list: the list to use
-        #   (empty if None, to be replaced by default for new roles)
-        external_roles_provided = self.external_roles is not None
-        external_roles_list = self.external_roles if external_roles_provided else []
-
-        # Use CTEs to perform all operations atomically in a single transaction.
-        # The sync logic:
-        # - should_sync = external_roles_provided OR is_new_role
-        # - roles_to_map = external_roles_list if external_roles_provided else [role_name] (default)
-        insert_cmd = f'''
-            WITH role_upsert AS (
-                INSERT INTO roles
-                (name, description, policies, immutable, sync_mode)
-                VALUES (%s, %s, %s::jsonb[], %s, %s)
-                ON CONFLICT (name)
-                DO UPDATE SET
-                    description = EXCLUDED.description,
-                    policies = EXCLUDED.policies,
-                    sync_mode = EXCLUDED.sync_mode
-                {check_immutable}
-                RETURNING policies, immutable, (xmax = 0) AS is_new_role
-            ),
-            sync_config AS (
-                SELECT
-                    -- should_sync: True if external_roles explicitly provided OR if new role
-                    (%s OR (SELECT is_new_role FROM role_upsert)) AS should_sync,
-                    -- The roles to map: use provided list if external_roles was set,
-                    -- otherwise use default (role name) for new roles
-                    CASE
-                        WHEN %s THEN %s::text[]
-                        ELSE ARRAY[%s]::text[]
-                    END AS roles_to_map,
-                    (SELECT is_new_role FROM role_upsert) AS is_new_role
-            ),
-            delete_mappings AS (
-                DELETE FROM role_external_mappings
-                WHERE role_name = %s
-                AND (SELECT should_sync FROM sync_config)
-                RETURNING 1
-            ),
-            insert_mappings AS (
-                INSERT INTO role_external_mappings (role_name, external_role)
-                SELECT %s, unnest((SELECT roles_to_map FROM sync_config))
-                WHERE (SELECT should_sync FROM sync_config)
-                AND array_length((SELECT roles_to_map FROM sync_config), 1) > 0
-                ON CONFLICT (role_name, external_role) DO NOTHING
-                RETURNING 1
-            )
-            SELECT policies, immutable, is_new_role FROM role_upsert;
-            '''
-
-        result = database.execute_fetch_command(
-            insert_cmd,
-            (
-                # role_upsert params
-                self.name,
-                self.description,
-                [json.dumps(policy.to_dict()) for policy in self.policies],
-                False,
-                self.sync_mode.value,
-                # sync_config params
-                external_roles_provided,  # first %s in sync_config (should_sync)
-                external_roles_provided,  # WHEN %s in CASE
-                external_roles_list,      # THEN %s::text[]
-                self.name,                # ELSE ARRAY[%s] (default mapping)
-                # delete_mappings params
-                self.name,                # WHERE role_name = %s
-                # insert_mappings params
-                self.name,                # SELECT %s, unnest(...)
-            ),
-            True
-        )
-
-        # No result means that immutable was true and nothing was updated
-        if not force and (result and result[0].get('immutable') and \
-            result[0].get('policies', []) != [policy.to_dict() for policy in self.policies]):
-            raise osmo_errors.OSMOUserError(f'Role {self.name} is immutable.')
-
-
-def _role_policy_scope_key(policy: role.RolePolicy) -> Tuple[role.PolicyEffect, Tuple[str, ...]]:
-    resources = policy.resources or ['*']
-    return policy.effect, tuple(sorted(set(resources)))
-
-
-def merge_default_role_policies(existing_role: Role, default_role: Role) -> bool:
-    """
-    Append missing default role policies/actions into an existing role.
-
-    Default-role updates should add newly introduced actions only to a policy with
-    the same effect and resource scope. Existing policies and actions are
-    preserved exactly, including operator-added grants.
-    """
-    if not existing_role.policies:
-        if not default_role.policies:
-            return False
-        existing_role.policies = copy.deepcopy(default_role.policies)
-        return True
-
-    default_actions_by_scope: Dict[
-        Tuple[role.PolicyEffect, Tuple[str, ...]], set[str]
-    ] = {}
-    for default_policy in default_role.policies:
-        policy_scope_key = _role_policy_scope_key(default_policy)
-        default_actions = default_actions_by_scope.setdefault(policy_scope_key, set())
-        for action_str in default_policy.actions:
-            role.validate_semantic_action(action_str)
-            default_actions.add(action_str)
-
-    existing_policies_by_scope: Dict[
-        Tuple[role.PolicyEffect, Tuple[str, ...]], role.RolePolicy
-    ] = {}
-    did_update = False
-    for existing_policy in existing_role.policies:
-        policy_scope_key = _role_policy_scope_key(existing_policy)
-        existing_policies_by_scope.setdefault(policy_scope_key, existing_policy)
-        for action_str in existing_policy.actions:
-            role.validate_semantic_action(action_str)
-
-    for default_policy in default_role.policies:
-        policy_scope_key = _role_policy_scope_key(default_policy)
-        matching_policy = existing_policies_by_scope.get(policy_scope_key)
-        if matching_policy is None:
-            existing_role.policies.append(copy.deepcopy(default_policy))
-            existing_policies_by_scope[policy_scope_key] = existing_role.policies[-1]
-            did_update = True
-            continue
-
-        for action_str in default_policy.actions:
-            role.validate_semantic_action(action_str)
-            if action_str not in matching_policy.actions:
-                matching_policy.actions.append(action_str)
-                did_update = True
-
-    return did_update
-
-
-# Default roles using semantic action format.
-# Authorization is now handled by the authz_sidecar (Go service).
-# These roles are seeded into the database on startup.
-DEFAULT_ROLES: Dict[str, Role] = {
-    'osmo-admin': Role(
-        name='osmo-admin',
-        description='Administrator with full access except internal endpoints',
-        policies=[
-            role.RolePolicy(
-                actions=['*:*'],
-                resources=['*']
-            ),
-            role.RolePolicy(
-                actions=[
-                    # Deny internal actions (handled via authz_sidecar deny logic)
-                    # Note: Deny is implicit - admin doesn't get internal:* actions
-                ],
-                resources=[]
-            )
-        ],
-        immutable=True
-    ),
-    'osmo-user': Role(
-        name='osmo-user',
-        description='Standard user role',
-        policies=[
-            role.RolePolicy(
-                actions=[
-                    'app:*',
-                    'auth:Token',
-                    'credentials:*',
-                    'pool:List',
-                    'profile:Read',
-                    'profile:Update',
-                    'resources:Read',
-                    'user:List',
-                    'workflow:List',
-                    'workflow:Read',
-                ],
-                resources=['*']
-            ),
-            role.RolePolicy(
-                actions=[
-                    'workflow:*',
-                ],
-                resources=['pool/default']
-            )
-        ]
-    ),
-    'osmo-backend': Role(
-        name='osmo-backend',
-        description='For backend agents',
-        policies=[
-            role.RolePolicy(
-                actions=[
-                    'internal:Operator',
-                    'pool:List',
-                    'config:Read',
-                ],
-                resources=['backend/*', 'pool/*', 'config/backend']
-            )
-        ],
-        immutable=True
-    ),
-    'osmo-ctrl': Role(
-        name='osmo-ctrl',
-        description='For workflow pods',
-        policies=[
-            role.RolePolicy(
-                actions=[
-                    'internal:Logger',
-                    'internal:Router',
-                ],
-                resources=['*']
-            )
-        ],
-        immutable=True
-    ),
-    'osmo-default': Role(
-        name='osmo-default',
-        description='Default role all users have access to',
-        policies=[
-            role.RolePolicy(
-                actions=[
-                    'system:Health',
-                    'system:Version',
-                    'auth:Login',
-                    'auth:Refresh',
-                    'profile:*',
-                ],
-                resources=['*']
-            )
-        ],
-        immutable=True
-    ),
-}
+    @classmethod
+    def replace_all_in_db(
+        cls, database: PostgresConnector, roles: List['Role'],
+    ) -> None:
+        del database, roles
+        reject_db_config_mutation()

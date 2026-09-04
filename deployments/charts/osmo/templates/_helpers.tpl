@@ -393,6 +393,7 @@ data:
 {{/* Collect the Kubernetes Secrets referenced by the rendered configuration. */}}
 {{- define "osmo.configuration.secretReferences" -}}
 {{- $secretReferences := dict -}}
+{{- if eq .Values.configuration.snapshot nil -}}
 {{- $commonSecretName := include "osmo.objectStorage.secretName" . -}}
 {{- if $commonSecretName -}}
 {{- $keys := dict .Values.secrets.objectStorage.keys.credentials true -}}
@@ -417,7 +418,12 @@ data:
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- $workflow := .Values.configuration.workflow | default dict -}}
+{{- end -}}
+{{- $runtimeConfiguration := .Values.configuration -}}
+{{- if ne .Values.configuration.snapshot nil -}}
+{{- $runtimeConfiguration = .Values.configuration.snapshot -}}
+{{- end -}}
+{{- $workflow := $runtimeConfiguration.workflow | default dict -}}
 {{- if kindIs "map" $workflow -}}
 {{- $backendImages := get $workflow "backend_images" | default dict -}}
 {{- if kindIs "map" $backendImages -}}
@@ -438,6 +444,17 @@ data:
 {{- $_ := set $secretReferences $secretName $secretReference -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $index, $secretRef := .Values.configuration.secretRefs -}}
+{{- $secretName := $secretRef.secretName -}}
+{{- if $secretName -}}
+{{- $secretReference := get $secretReferences $secretName | default (dict
+      "allKeys" true
+      "keys" (dict)
+      "volumeName" (printf "config-secret-%d" $index)) -}}
+{{- $_ := set $secretReference "allKeys" true -}}
+{{- $_ := set $secretReferences $secretName $secretReference -}}
 {{- end -}}
 {{- end -}}
 {{- toYaml $secretReferences -}}

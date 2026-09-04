@@ -361,6 +361,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         Returns:
             WorkflowSpec: The parsed workflow spec.
         """
+        del database
         for task_obj in self.tasks:
             self.groups.append(task.TaskGroupSpec(name=f'{task_obj.name}-group', tasks=[task_obj]))
         self.tasks = []
@@ -372,8 +373,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             for task_obj in group.tasks:
                 task_obj.backend = backend
 
-        database = connectors.PostgresConnector.get_instance()
-        pool_info = connectors.Pool.fetch_from_db(database, self.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(self.pool)
         for name, resource in self.resources.items():
             if not resource.platform:
                 if not pool_info.default_platform or \
@@ -435,8 +435,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             bool: Represents whether or not there exists a resource that satisfies the resource
                   spec's requirements
         """
-        database = connectors.PostgresConnector.get_instance()
-        pool_info = connectors.Pool.fetch_from_db(database, self.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(self.pool)
 
         # Validate topology requirements early (before async job creation)
         topology_keys = [
@@ -1051,7 +1050,7 @@ class Workflow(pydantic.BaseModel):
 
         backend = workflow_spec.backend
 
-        pool_info = connectors.Pool.fetch_from_db(database, workflow_spec.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(workflow_spec.pool)
 
         workflow_spec.timeout.fill_defaults(workflow_config, pool_info)
 

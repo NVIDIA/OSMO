@@ -27,9 +27,10 @@ class ApiChecks(SmokeFixture):
     def test_list_workflows(self):
         # /api/workflow rejects requests without a pool with HTTP 400
         # ("No pool selected!"). Pass the env's pool explicitly so the
-        # endpoint can scope the listing.
+        # endpoint can scope the listing. Do not depend on another test having
+        # created the dev-login user first.
         self.http("GET", "/api/workflow") \
-            .params(limit=5, pool=self.config.pool) \
+            .params(limit=5, pools=self.config.pool, all_users=True) \
             .expect_ok()
 
     def test_list_pools(self):

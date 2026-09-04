@@ -51,81 +51,24 @@ const (
 // AuthzServer implements Envoy External Authorization service
 type AuthzServer struct {
 	envoy_service_auth_v3.UnimplementedAuthorizationServer
-	pgClient      *postgres.PostgresClient
-	roleCache     *roles.RoleCache
-	poolNameCache *roles.PoolNameCache
-	fileStore     *roles.FileRoleStore // when set, reads from ConfigMap file instead of DB
-	logger        *slog.Logger
+	fileStore *roles.FileRoleStore
+	pgClient  *postgres.PostgresClient
+	logger    *slog.Logger
 }
 
-// NewAuthzServer creates a new authorization server backed by PostgreSQL
-func NewAuthzServer(
-	pgClient *postgres.PostgresClient,
-	roleCache *roles.RoleCache,
-	poolNameCache *roles.PoolNameCache,
-	logger *slog.Logger,
-) *AuthzServer {
-	return &AuthzServer{
-		pgClient:      pgClient,
-		roleCache:     roleCache,
-		poolNameCache: poolNameCache,
-		logger:        logger,
-	}
-}
-
-// NewFileBackedAuthzServer creates a server that reads roles from a
-// ConfigMap-mounted file instead of PostgreSQL. No DB connection needed.
-// No caches needed — FileRoleStore is already in-memory.
+// NewFileBackedAuthzServer creates a server with ConfigMap-owned role and pool
+// definitions. PostgreSQL is used only for runtime workflow placement and
+// explicitly assigned user-role state.
 func NewFileBackedAuthzServer(
 	fileStore *roles.FileRoleStore,
+	pgClient *postgres.PostgresClient,
 	logger *slog.Logger,
 ) *AuthzServer {
 	return &AuthzServer{
 		fileStore: fileStore,
+		pgClient:  pgClient,
 		logger:    logger,
 	}
-}
-
-// MigrateRoles converts all legacy roles to semantic format and updates the database.
-// This should be called at startup to ensure all roles are in semantic format.
-// Skipped when using file-backed roles (file always has semantic format).
-func (s *AuthzServer) MigrateRoles(ctx context.Context) error {
-	if s.fileStore != nil {
-		s.logger.Info("skipping role migration (file-backed mode)")
-		return nil
-	}
-	// Get all role names from the database
-	allRoleNames, err := roles.GetAllRoleNames(ctx, s.pgClient)
-	if err != nil {
-		return fmt.Errorf("failed to get all role names: %w", err)
-	}
-
-	if len(allRoleNames) == 0 {
-		s.logger.Warn("no roles found in database")
-		return nil
-	}
-
-	// Fetch all roles from database
-	allRoles, err := roles.GetRoles(ctx, s.pgClient, allRoleNames, s.logger)
-	if err != nil {
-		return fmt.Errorf("failed to get roles: %w", err)
-	}
-
-	// Convert all roles to semantic format
-	convertedRoles := roles.ConvertRolesToSemantic(allRoles)
-
-	// Update each role in the database with converted policies
-	for _, role := range convertedRoles {
-		if err := roles.UpdateRolePolicies(ctx, s.pgClient, role, s.logger); err != nil {
-			return fmt.Errorf("failed to update role %s: %w", role.Name, err)
-		}
-	}
-
-	s.logger.Info("migrated roles to semantic format",
-		slog.Int("total_roles", len(convertedRoles)),
-	)
-
-	return nil
 }
 
 // RegisterAuthzService registers the authorization service with gRPC server
@@ -170,30 +113,23 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		}
 	}
 
-	roleNames = append(roleNames, defaultRole)
-
 	parseDone := time.Now()
 
-	// Map external IDP roles to OSMO roles.
-	// In file-backed mode: pure in-memory lookup from ConfigMap data.
-	// In DB mode: sync user_roles table via SQL (legacy).
-	// Skip for access tokens and workflow requests (roles already resolved).
+	// Map external IDP roles to OSMO roles directly from the immutable ConfigMap.
+	// Human headers contain external identity-provider claims, so only their
+	// configured mappings may grant internal roles. Access-token and workflow
+	// headers already contain internal role assignments resolved by the service.
 	if user != "" && tokenName == "" && workflowID == "" {
-		if s.fileStore != nil {
-			resolved := s.fileStore.ResolveExternalRoles(roleNames)
-			roleNames = append(roleNames, resolved...)
-		} else {
-			dbRoleNames, err := roles.SyncUserRoles(ctx, s.pgClient, user, roleNames, s.logger)
-			if err != nil {
-				s.logger.Error("failed to sync user roles",
-					slog.String("user", user),
-					slog.String("error", err.Error()),
-				)
-			}
-			roleNames = append(roleNames, dbRoleNames...)
+		roleNames = s.fileStore.ResolveExternalRoles(roleNames)
+		manualRoles, err := s.getManualUserRoles(ctx, user)
+		if err != nil {
+			s.logger.Error("failed to resolve manual user roles",
+				slog.String("user", user), slog.String("error", err.Error()))
+			return s.denyResponse(codes.Internal, "internal error resolving roles"), nil
 		}
-
+		roleNames = append(roleNames, manualRoles...)
 	}
+	roleNames = append(roleNames, defaultRole)
 
 	syncDone := time.Now()
 
@@ -206,7 +142,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		slog.Any("roles", roleNames),
 	)
 
-	// Fetch user roles from cache/DB
+	// Resolve only roles present in the immutable ConfigMap snapshot.
 	userRoles, err := s.resolveRoles(ctx, roleNames)
 	if err != nil {
 		s.logger.Error("error resolving roles",
@@ -278,26 +214,9 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	return s.allowResponse(responseHeaders), nil
 }
 
-// resolveRoles fetches role objects for the given role names.
-// File-backed mode: direct in-memory lookup (no cache needed).
-// DB mode: LRU cache with DB fallback.
-func (s *AuthzServer) resolveRoles(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
-	if s.fileStore != nil {
-		return s.fileStore.GetRoles(roleNames), nil
-	}
-
-	cachedRoles, missingNames := s.roleCache.Get(roleNames)
-	if len(missingNames) > 0 {
-		dbRoles, err := roles.GetRoles(ctx, s.pgClient, missingNames, s.logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch roles: %w", err)
-		}
-		if len(dbRoles) > 0 {
-			s.roleCache.Set(dbRoles)
-			cachedRoles = append(cachedRoles, dbRoles...)
-		}
-	}
-	return cachedRoles, nil
+// resolveRoles fetches role objects from the immutable ConfigMap snapshot.
+func (s *AuthzServer) resolveRoles(_ context.Context, roleNames []string) ([]*roles.Role, error) {
+	return s.fileStore.GetRoles(roleNames), nil
 }
 
 // checkAccess verifies if the given roles have access to the path and method.
@@ -308,29 +227,44 @@ func (s *AuthzServer) checkAccess(
 	return result
 }
 
-// computeAllowedPools evaluates role policies to determine which pools the
-// user can access, respecting deny rules. Uses the pool name cache to avoid
-// hitting the database on every request.
-func (s *AuthzServer) computeAllowedPools(
-	ctx context.Context, user string, userRoles []*roles.Role) []string {
-	var allPoolNames []string
-	if s.fileStore != nil {
-		allPoolNames = s.fileStore.GetPoolNames()
-	} else {
-		var ok bool
-		allPoolNames, ok = s.poolNameCache.Get()
-		if !ok {
-			var err error
-			allPoolNames, err = roles.GetAllPoolNames(ctx, s.pgClient)
-			if err != nil {
-				s.logger.Error("failed to get pool names for allowed pools computation",
-					slog.String("user", user),
-					slog.String("error", err.Error()))
-				return []string{}
-			}
-			s.poolNameCache.Set(allPoolNames)
-		}
+// getManualUserRoles returns operator-assigned role names only. Historical
+// idp-sync rows are derived configuration state and cannot grant authority in
+// 6.4. Definitions are still resolved exclusively through FileRoleStore.
+func (s *AuthzServer) getManualUserRoles(
+	ctx context.Context, user string,
+) ([]string, error) {
+	if s.pgClient == nil {
+		return nil, nil
 	}
+	rows, err := s.pgClient.Pool().Query(ctx, `
+		SELECT role_name
+		FROM user_roles
+		WHERE user_id = $1 AND assigned_by <> 'idp-sync'
+		ORDER BY role_name`, user)
+	if err != nil {
+		return nil, fmt.Errorf("query manual user roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roleNames []string
+	for rows.Next() {
+		var roleName string
+		if err := rows.Scan(&roleName); err != nil {
+			return nil, fmt.Errorf("scan manual user role: %w", err)
+		}
+		roleNames = append(roleNames, roleName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate manual user roles: %w", err)
+	}
+	return roleNames, nil
+}
+
+// computeAllowedPools evaluates role policies to determine which pools the
+// user can access, respecting deny rules. Pool names come only from ConfigMap.
+func (s *AuthzServer) computeAllowedPools(
+	_ context.Context, user string, userRoles []*roles.Role) []string {
+	allPoolNames := s.fileStore.GetPoolNames()
 	allowed := roles.GetAllowedPools(userRoles, allPoolNames)
 
 	s.logger.Info("computed allowed pools",

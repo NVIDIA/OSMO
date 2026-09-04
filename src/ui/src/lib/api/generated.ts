@@ -140,7 +140,7 @@ export interface Backend {
   tests: string[];
   scheduler_settings: BackendSchedulerSettings;
   node_conditions: BackendNodeConditions;
-  last_heartbeat: string;
+  last_heartbeat: string | null;
   created_date: string;
   router_address: string;
   online: boolean;
@@ -6490,7 +6490,7 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
 }
 
 /**
- * List history of all configs
+ * List DB-backed role history.
  * @summary Get Configs History
  */
 export const getConfigsHistoryApiConfigsHistoryGet = async (params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: RequestInit): Promise<GetConfigsHistoryResponse> => {
@@ -6603,7 +6603,7 @@ export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
 }
 
 /**
- * Roll back a config to a particular revision.
+ * Roll back DB-backed roles to a particular revision.
  * @summary Rollback Config
  */
 export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfigRequest: RollbackConfigRequest, options?: RequestInit): Promise<unknown> => {

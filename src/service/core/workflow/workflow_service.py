@@ -325,7 +325,7 @@ def get_pool_quotas(all_pools: bool = True,
         offset += FETCH_TASK_LIMIT
 
     resources_response = objects.get_resources(
-        pools=[] if all_pools else pools,
+        pools=None if all_pools else pools,
         platforms=None,
     )
 
@@ -987,10 +987,19 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
                     fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None)) -> \
     objects.ResourcesResponse | objects.PoolResourcesResponse:
     """ Returns the information of resources available in different pools. """
-    pools_arg = pools if pools else []
-    if not pools or all_pools:
-        pools_arg = login.parse_allowed_pools(allowed_pools_header) if not all_pools \
-            else connectors.Pool.get_all_pool_names()
+    configured_pools = set(connectors.Pool.get_all_configured_pool_names())
+    allowed_pools = set(login.parse_allowed_pools(allowed_pools_header))
+    authorized_pools = configured_pools & allowed_pools
+    selected_pools = authorized_pools
+    if pools and not all_pools:
+        selected_pools &= set(pools)
+
+    if not selected_pools:
+        if concise:
+            return objects.PoolResourcesResponse(pools=[])
+        return objects.ResourcesResponse(resources=[])
+
+    pools_arg = sorted(selected_pools)
 
     if not concise:
         return objects.get_resources(
@@ -1004,9 +1013,17 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
     '/api/resources/{name}',
     response_model=objects.ResourcesResponse,
 )
-def get_one_resource(name: str) -> objects.ResourcesResponse:
+def get_one_resource(
+    name: str,
+    allowed_pools_header: Optional[str] = fastapi.Header(
+        alias=login.OSMO_ALLOWED_POOLS, default=None),
+) -> objects.ResourcesResponse:
     """ Returns the request resource's information. """
-    result = objects.get_resources(resource_name=name)
+    allowed_pools = set(login.parse_allowed_pools(allowed_pools_header))
+    configured_pools = set(connectors.Pool.get_all_configured_pool_names())
+    selected_pools = sorted(allowed_pools & configured_pools)
+    result = objects.get_resources(
+        pools=selected_pools, resource_name=name)
     if len(result.resources) == 0:
         raise osmo_errors.OSMONotFoundError(f'Resource {name} does not exist!')
     return result

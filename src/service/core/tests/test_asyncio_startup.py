@@ -91,6 +91,7 @@ class AsyncioStartupTestCase(unittest.TestCase):
             mock.patch.object(logger.LoggerServiceConfig, 'load', return_value=config),
             mock.patch.object(logger.src.lib.utils.logging, 'init_logger'),
             mock.patch.object(logger.connectors, 'PostgresConnector'),
+            mock.patch.object(logger.configmap_loader, 'start_config_watcher'),
             mock.patch.object(
                 logger.progress,
                 'ProgressWriter',
@@ -129,6 +130,8 @@ class AsyncioStartupTestCase(unittest.TestCase):
                 return_value=object(),
             ),
             mock.patch.object(agent_service.connectors, 'RedisConnector'),
+            mock.patch.object(
+                agent_service.configmap_loader, 'start_config_watcher'),
             mock.patch.object(
                 agent_service.metrics,
                 'MetricCreator',

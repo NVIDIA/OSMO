@@ -32,11 +32,10 @@ osmo_py_test(
     name = "test_config_history",
     srcs = ["test_config_history.py"],
     deps = [
-        "//src/service/core/tests:fixture",
-        "//src/tests/common",
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/config:config",
     ],
-    size = "large",
-    tags = ["requires-network"],
+    size = "small",
     visibility = ["//visibility:public"],
 )
 

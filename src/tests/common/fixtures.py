@@ -39,6 +39,7 @@ __all__ = [
     "SslProxyFixture",
     "SwiftStorageFixture",
     "S3StorageFixture",
+    "create_configmap_file",
     "create_service_auth_file",
 ]
 
@@ -52,6 +53,23 @@ def create_service_auth_file() -> IO[str]:
             include_login_info=False))
     service_auth_file.flush()
     return service_auth_file
+
+
+def create_configmap_file() -> IO[str]:
+    """Create the minimum complete 6.4 runtime configuration document."""
+    config_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
+        mode="w+", encoding="utf-8")
+    config_file.write(
+        "service: {}\n"
+        "workflow: {}\n"
+        "pools: {}\n"
+        "pod_templates: {}\n"
+        "resource_validations: {}\n"
+        "backends: {}\n"
+        "backend_tests: {}\n"
+        "group_templates: {}\n")
+    config_file.flush()
+    return config_file
 
 
 class OsmoTestFixture(ReaperFixture, NetworkFixture):

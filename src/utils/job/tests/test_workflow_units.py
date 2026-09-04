@@ -139,7 +139,7 @@ class WorkflowSpecParseTest(unittest.TestCase):
                pool_info: connectors.Pool) -> workflow.WorkflowSpec:
         with mock.patch.object(connectors.PostgresConnector, 'get_instance',
                                return_value=_mock_database()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info):
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info):
             return spec.parse(_mock_database(), 'backend', 'pool', {})
 
     def test_parse_assigns_pool_default_platform_to_resource(self):
@@ -256,7 +256,7 @@ class WorkflowSpecValidateResourcesTest(unittest.TestCase):
                   resources: dict) -> None:
         with mock.patch.object(connectors.PostgresConnector, 'get_instance',
                                return_value=_mock_database()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info):
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info):
             spec.validate_resources(resources)
 
     def test_validate_resources_rejects_task_without_any_platform(self):
@@ -906,7 +906,7 @@ class WorkflowFromWorkflowSpecTest(unittest.TestCase):
         database = _mock_database()
         uuids = {'group': common.generate_unique_id(),
                  'task': common.generate_unique_id()}
-        with mock.patch.object(connectors.Pool, 'fetch_from_db',
+        with mock.patch.object(connectors.Pool, 'fetch_from_configmap',
                                return_value=_pool()):
             return workflow.Workflow.from_workflow_spec(
                 database, 'wf', 'a' * 32, 'alice', spec, '', uuids,

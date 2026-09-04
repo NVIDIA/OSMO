@@ -18,47 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 
 package roles
 
-import (
-	"context"
-	"fmt"
-
-	"go.corp.nvidia.com/osmo/utils/postgres"
-)
-
 var poolResourcePrefix = string(ResourceTypePool) + "/"
 
-// GetAllPoolNames retrieves all pool names from the database.
-func GetAllPoolNames(ctx context.Context, client *postgres.PostgresClient) ([]string, error) {
-	query := `SELECT name FROM pools ORDER BY name`
-
-	rows, err := client.Pool().Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query pool names: %w", err)
-	}
-	defer rows.Close()
-
-	var names []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("failed to scan pool name: %w", err)
-		}
-		names = append(names, name)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating pool names: %w", err)
-	}
-
-	return names, nil
-}
-
-// GetAllowedPools evaluates role policies to determine which pools the user
-// can access based on the ActionWorkflowCreate action scoped to pool resources.
-//
-// Roles are independent: a Deny in one role does NOT override an Allow from
-// another role. Within a single role, Deny takes precedence over Allow.
-// A pool is accessible if at least one role grants ActionWorkflowCreate on it.
+// GetAllowedPools evaluates ConfigMap-owned role policies against the
+// ConfigMap-owned pool list. Deny overrides Allow within one role; another
+// role may independently grant the same pool.
 func GetAllowedPools(userRoles []*Role, allPoolNames []string) []string {
 	var allowed []string
 	for _, poolName := range allPoolNames {
