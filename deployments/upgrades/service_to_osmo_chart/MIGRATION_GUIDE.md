@@ -13,6 +13,10 @@ particular, credentials must move from arbitrary Vault-injected files to typed
 Kubernetes Secrets. Storage endpoints that already exist only in Kubernetes
 Secrets can remain there when separate per-location Secret references are used.
 
+This guide and the umbrella chart's bundled database migrations assume the
+source database already has the OSMO 6.3 schema. The supported path here is
+6.3 to 6.4; migrations for older baselines are intentionally not bundled.
+
 On 2026-09-03, read-only staging inspection established that all three staging
 locations use Swift. This migration branch extends the umbrella chart to accept
 Swift locations and to reuse separate existing credential Secrets without
@@ -314,10 +318,11 @@ meaningful.
   file before changing ownership. Never bootstrap a new MEK against the
   retained database.
 - The umbrella chart provides `databaseMigration` for the legacy pgroll
-  lifecycle. It packages the ordered migrations, reads the typed PostgreSQL
-  Secret, and runs as a Helm pre-install/pre-upgrade or Argo PreSync hook before
-  the service-auth migration. Enable it for SQA or staging when their legacy
-  values enable `services.migration`; production currently leaves it disabled.
+  lifecycle. It packages the five ordered OSMO 6.4 migrations, reads the typed
+  PostgreSQL Secret, and runs as a Helm pre-install/pre-upgrade or Argo PreSync
+  hook before the service-auth migration. Enable it for SQA or staging when
+  their legacy values enable `services.migration`; production currently leaves
+  it disabled.
 - Core images, HPA metric types, HPA bounds, and the numbers of Deployments,
   Services, HPAs, Ingresses, NetworkPolicies, and PodMonitors are otherwise
   preserved by the converted values. The new chart adds read-only-root and
@@ -434,9 +439,10 @@ create or modify Azure resources and cannot perform this live verification.
    to `false`; when the parent `argocd/` Application reconciles it, confirm the
    generated `staging-osmo` Application has no automated sync while SQA and
    production retain it. Do not migrate against moving `main`/`HEAD` refs.
-2. Take a tested database, MEK, service-auth, and credential backup. For
-   releases that used the legacy migration, enable `databaseMigration` and
-   verify its PostgreSQL Secret key, scheduling, and GitHub egress.
+2. Confirm the source database is already on the OSMO 6.3 schema, then take a
+   tested database, MEK, service-auth, and credential backup. Enable
+   `databaseMigration` for the 6.3-to-6.4 upgrade and verify its PostgreSQL
+   Secret key, scheduling, and GitHub egress.
 3. Inventory endpoint key presence without printing values. Reuse all three
    existing credential Secrets through `credentialSecretRefs`; when the
    endpoints remain in those Secrets, leave all three explicit location values

@@ -279,8 +279,11 @@ class _Converter:
 
     def unsupported(self, path: str, message: str) -> None:
         value = _pop(self.source, path)
-        if value is not MISSING:
-            self.issue(path, message)
+        if value is MISSING:
+            return
+        if isinstance(value, (dict, list)) and not value:
+            return
+        self.issue(path, message)
 
     def convert_global(self) -> None:
         location = _pop(self.source, 'global.osmoImageLocation')
@@ -535,7 +538,12 @@ class _Converter:
                 ('router', 'router'), ('logger', 'logger'), ('agent', 'agent')):
             _component(self.source, self.output, old_name, new_name)
         for component in ('worker', 'api', 'router', 'logger', 'agent'):
-            _set(self.output, f'services.{component}.autoscaling.enabled', True)
+            autoscaling = _get(
+                self.output, f'services.{component}.autoscaling')
+            if (not isinstance(autoscaling, dict)
+                    or 'enabled' not in autoscaling):
+                _set(self.output,
+                     f'services.{component}.autoscaling.enabled', True)
         _set(self.output, 'services.api.serviceAccount.create',
              self.service_account_create)
         for component in ('worker', 'api', 'router', 'logger'):
@@ -704,7 +712,10 @@ class _Converter:
         _move(self.source, self.output, f'{old_root}.scaling',
               f'{new_root}.autoscaling', _autoscaling)
         if name in ('envoy', 'oauth2Proxy', 'authz'):
-            _set(self.output, f'{new_root}.autoscaling.enabled', True)
+            autoscaling = _get(self.output, f'{new_root}.autoscaling')
+            if (not isinstance(autoscaling, dict)
+                    or 'enabled' not in autoscaling):
+                _set(self.output, f'{new_root}.autoscaling.enabled', True)
         if name == 'envoy':
             _set(self.output, f'{new_root}.podDisruptionBudget.enabled', False)
         for old_field, new_field in (
@@ -847,6 +858,7 @@ class _Converter:
                                    str(alb.pop('groupOrder', '10')))
             annotations.setdefault('alb.ingress.kubernetes.io/certificate-arn',
                                    alb.pop('sslCertArn', ''))
+            _set(self.output, 'ingress.annotations', annotations)
         for path in _leaf_paths(alb, 'gateway.envoy.ingress.albAnnotations'):
             self.issue(path, 'no umbrella-chart mapping')
         for path in _leaf_paths(ingress, 'gateway.envoy.ingress'):
