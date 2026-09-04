@@ -351,7 +351,9 @@ meaningful.
 
 - Enable `databaseMigration` with `targetSchema: public`. The pgroll Job uses
   `osmo-postgresql-credentials/db-password`, retains the service-node selector
-  and toleration, and runs at Argo wave `-25` before service-auth at `-10`. It
+  and toleration. Set `databaseMigration.annotations` to Argo wave `-26` in
+  staging so both pgroll resources run before service-auth at `-10`; the base
+  chart deliberately does not select an environment-specific wave. The Job
   downloads pgroll `v0.16.1` at runtime, so verify outbound GitHub HTTPS before
   the maintenance window.
 - The selected values use the existing service-auth migration path with
