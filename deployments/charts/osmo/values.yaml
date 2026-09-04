@@ -237,7 +237,7 @@ monitoring:
       enabled: false
     labels: {}
     annotations: {}
-    interval: 30s
+    interval: 15s
     scrapeTimeout: 10s
     scheme: http
     tlsConfig: {}
