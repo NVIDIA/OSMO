@@ -29,7 +29,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D3 | Internal TLS | Services stop generating process-local self-signed certificates and instead use generated CA/leaf Secrets with upstream certificate verification. A bootstrap hook and seven TLS Secrets are added. | First-sync ordering and retained Secret ownership must work; a bad CA/SAN configuration can break all internal calls. | **Allow / migration procedure:** use chart-generated TLS, permit initial generation once, verify it, and then restore fail-if-missing behavior. |
 | D4 | MCP authentication boundary | Current main uses FastMCP's built-in OIDC proxy, but the converted values omit its required settings and the chart initially expects one combined OIDC/Valkey Secret while ESO provides separate typed Secrets. | The staging umbrella render fails without the values; accepting chart defaults would also change the Redis database and session-key prefix. | **Fix chart / values:** consume the effective Valkey Secret separately and preserve all 19 legacy MCP settings. |
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
-| D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / pending:** preserve legacy resources and probes; decide the hardening changes separately. |
+| D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Pending** |
 | D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
 | D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
@@ -416,10 +416,40 @@ exactly. Leave the base chart's general-purpose `/health` default unchanged.
 - Render the complete staging release and compare every application-container
   liveness, readiness, and startup probe after normalizing the API rename.
 
-### Remaining decisions
+### Pod hardening
 
-- Decide whether to accept the umbrella chart's pod seccomp, service-account
-  token automount, read-only-root-filesystem, and writable-volume hardening.
+#### Evidence
+
+- All 11 umbrella Deployments set the pod seccomp profile to
+  `RuntimeDefault`; none of the legacy Deployments sets a pod seccomp profile.
+- The umbrella API retains its service-account token because it uses the
+  Kubernetes API. All ten non-API Deployments explicitly disable token
+  automounting. MCP already disabled it in the legacy render, so this removes
+  the implicit token from nine additional workloads.
+- API, agent, delayed-job-monitor, Envoy, logger, router, UI, and worker add
+  `readOnlyRootFilesystem: true`. Authz, OAuth proxy, and MCP retain their
+  previous setting.
+- The chart supplies writable `emptyDir` mounts at `/tmp` and/or
+  `/var/run/osmo` for the hardened services with known runtime writes. Envoy
+  and UI do not receive writable mounts because they are not expected to write
+  to their root filesystems.
+
+#### Decision
+
+**Allow.** Accept the umbrella chart's seccomp, service-account-token, and
+read-only-root-filesystem hardening unchanged. Do not add staging overrides or
+weaken the base chart security defaults.
+
+#### Actions
+
+- Keep API token automounting enabled and require it to retain its expected
+  Kubernetes access after cutover.
+- Require all 11 Deployments to become Ready and inspect startup/runtime logs
+  for permission-denied or read-only-filesystem errors before declaring the
+  migration healthy.
+- Exercise API, agent, logger, router, worker, UI, and Envoy paths that can
+  write temporary or progress data, confirming the provided writable mounts
+  cover their runtime behavior.
 
 ## Decisions log
 
@@ -432,4 +462,5 @@ exactly. Leave the base chart's general-purpose `/health` default unchanged.
 | 2026-09-04 | D5 | Restore the legacy soft spread intent and correct worker to count worker pods rather than API pods. | Add per-component zone constraints for API, agent, logger, router, and worker, plus hostname and zone constraints for UI. No chart change. | The full staging release renders; all six workloads use matching Deployment selectors, and all eight normalized HPA specs match the legacy render. |
 | 2026-09-04 | D6 resources | Preserve the legacy requests, limits, and resulting HPA utilization baseline during migration. | Set explicit legacy resources for agent, logger, delayed-job-monitor, and Envoy in staging values. | The full staging release renders; all application-container resource blocks and all eight normalized HPA specs match the legacy render. |
 | 2026-09-04 | D6 readiness | Keep the legacy authenticated workflow-list readiness check in staging. | Override the API readiness probe in staging values; leave the base chart default unchanged. | The full staging release renders; all normalized application-container probe specs match the legacy render. |
+| 2026-09-04 | D6 hardening | Accept the umbrella chart's seccomp, service-account-token, read-only-root-filesystem, and writable-volume defaults. | No chart or values change. Add cutover health and runtime-write checks. | The render has 11 `RuntimeDefault` seccomp profiles, ten non-API token opt-outs, eight read-only application roots, and the expected writable paths. Live behavior remains a cutover check. |
 | 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `d04632d1aa6f04c745979cb93b71fc22c9416f63` and values commit `5cd89de190b5f255c2221afe4087a893c2cf80e9`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
