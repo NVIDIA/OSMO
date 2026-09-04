@@ -657,10 +657,12 @@ services:
     ##
     ## Only four values have no default: services.mcp.resourceUrl, oidc.configUrl,
     ## oidc.clientId, and a Secret holding the client secret. Secret file paths
-    ## follow existingSecret.mountPath; Redis host, port and TLS come from
-    ## services.redis; accessTokenIssuer is needed only for a provider whose
-    ## access tokens are issued from somewhere its discovery document does not
-    ## advertise, as an application configured for v1-format tokens is.
+    ## follow existingSecret.mountPath. Redis host, port, TLS, and password come
+    ## from the chart's effective Valkey configuration; redisPasswordKey remains
+    ## available for compatibility with a Secret that combines the OIDC client
+    ## and Redis credentials. accessTokenIssuer is needed only for a provider
+    ## whose access tokens are issued from somewhere its discovery document does
+    ## not advertise, as an application configured for v1-format tokens is.
     ##
     oidcProxy:
       oidc:
@@ -681,6 +683,9 @@ services:
         name: ''
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
+        # Optional compatibility mode for a combined OIDC and Redis Secret.
+        # Empty mounts secrets.valkey.keys.password from the effective Valkey
+        # Secret at /etc/osmo/mcp-valkey instead.
         redisPasswordKey: ''
     service:
       labels: {}

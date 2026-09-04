@@ -28,6 +28,9 @@
 {{- $secretMountPath := trimSuffix "/" $oidcProxy.existingSecret.mountPath }}
 {{- $oidcClientSecretFile := $oidcProxy.oidc.clientSecretFile }}
 {{- $redisPasswordFile := "" }}
+{{- $redisPasswordSecretName := "" }}
+{{- $redisPasswordKey := "" }}
+{{- $redisPasswordMountPath := "/etc/osmo/mcp-valkey" }}
 {{- if $secretName }}
 {{- $oidcClientSecretFile = printf "%s/%s" $secretMountPath (required "services.mcp.oidcProxy.existingSecret.clientSecretKey is required" $oidcProxy.existingSecret.clientSecretKey) }}
 {{- if $oidcProxy.existingSecret.redisPasswordKey }}
@@ -36,6 +39,11 @@
 {{- end }}
 {{- if not $oidcClientSecretFile }}
 {{- fail "services.mcp.oidcProxy needs existingSecret.name, or oidc.clientSecretFile when the secret arrives another way" }}
+{{- end }}
+{{- if not $redisPasswordFile }}
+{{- $redisPasswordSecretName = required "an effective Valkey Secret is required when MCP is enabled" (include "osmo.valkey.secretName" .) }}
+{{- $redisPasswordKey = required "secrets.valkey.keys.password is required when MCP is enabled" .Values.secrets.valkey.keys.password }}
+{{- $redisPasswordFile = printf "%s/%s" $redisPasswordMountPath $redisPasswordKey }}
 {{- end }}
 {{- /* Redis host, port and TLS come from the same valkey the rest of the chart
 uses; only the logical database is chosen here, to isolate proxy state. */ -}}
@@ -72,7 +80,10 @@ spec:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" $mcp "componentName" "mcp") | nindent 8 }}
       annotations:
-        {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp) | nindent 8 }}
+        {{- $secretRolloutAnnotations := dict
+              "osmo.nvidia.com/oauth-client-secret-rollout" .Values.secrets.oauthClientSecret.rolloutNonce
+              "osmo.nvidia.com/valkey-secret-rollout" .Values.secrets.valkey.rolloutNonce -}}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp "protectedAnnotations" $secretRolloutAnnotations) | nindent 8 }}
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
     spec:
       automountServiceAccountToken: {{ $mcp.serviceAccount.automountServiceAccountToken }}
@@ -161,7 +172,7 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if or .Values.gateway.tls.enabled $secretName }}
+        {{- if or .Values.gateway.tls.enabled $secretName $redisPasswordSecretName }}
         volumeMounts:
         {{- if .Values.gateway.tls.enabled }}
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 8 }}
@@ -169,6 +180,11 @@ spec:
         {{- if $secretName }}
         - name: mcp-oidc-proxy
           mountPath: {{ $secretMountPath }}
+          readOnly: true
+        {{- end }}
+        {{- if $redisPasswordSecretName }}
+        - name: mcp-valkey
+          mountPath: {{ $redisPasswordMountPath }}
           readOnly: true
         {{- end }}
         {{- end }}
@@ -185,7 +201,7 @@ spec:
           {{- . | nindent 10 }}
         {{- end }}
       {{- include "osmo.pod.extraContainers" $mcp | nindent 6 }}
-      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes $secretName }}
+      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes $secretName $redisPasswordSecretName }}
       volumes:
       {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 6 }}
       {{- if $secretName }}
@@ -199,6 +215,14 @@ spec:
           - key: {{ . }}
             path: {{ . }}
           {{- end }}
+      {{- end }}
+      {{- if $redisPasswordSecretName }}
+      - name: mcp-valkey
+        secret:
+          secretName: {{ $redisPasswordSecretName | quote }}
+          items:
+          - key: {{ $redisPasswordKey | quote }}
+            path: {{ $redisPasswordKey | quote }}
       {{- end }}
       {{- include "osmo.pod.extraVolumes" $mcp | nindent 6 }}
       {{- end }}

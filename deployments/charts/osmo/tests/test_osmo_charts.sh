@@ -4752,6 +4752,22 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "value: \"/etc/osmo/mcp-auth/client-secret\""
+    resource_document "$TEST_DIRECTORY/osmo-mcp.yaml" Deployment osmo-mcp \
+        >"$TEST_DIRECTORY/osmo-mcp-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        "name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'value: "/etc/osmo/mcp-valkey/redis-password"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'secretName: "external-valkey-secret"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'key: "redis-password"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'mountPath: /etc/osmo/mcp-valkey'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'osmo.nvidia.com/oauth-client-secret-rollout: ""'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'osmo.nvidia.com/valkey-secret-rollout: ""'
     # The MCP audience joins the provider whose issuer it authenticates against.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "issuer: https://issuer.example.com"
@@ -4763,6 +4779,24 @@ EOF
         "image: nvcr.io/nvidia/osmo/mcp-self-hosted:latest"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 11
+
+    helm_template mcp-combined-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set-string services.mcp.oidcProxy.existingSecret.redisPasswordKey=combined-redis-password \
+        >"$TEST_DIRECTORY/mcp-combined-secret.yaml"
+    resource_document "$TEST_DIRECTORY/mcp-combined-secret.yaml" Deployment \
+        mcp-combined-secret-osmo-mcp \
+        >"$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'value: "/etc/osmo/mcp-auth/combined-redis-password"'
+    require_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'key: combined-redis-password'
+    require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        '/etc/osmo/mcp-valkey'
+    require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'secretName: "external-valkey-secret"'
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
