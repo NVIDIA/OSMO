@@ -1910,10 +1910,12 @@ test_control_umbrella() {
         '--fail-if-missing'
     local upstream_identity
     for upstream_identity in \
-            osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do
+            osmo-api osmo-router-headless osmo-agent osmo-logger; do
         require_contains "$rendered" 'match_typed_subject_alt_names:'
         require_contains "$rendered" "exact: \"$upstream_identity\""
     done
+    require_no_resource "$rendered" Service osmo-logger-headless
+    require_not_contains "$rendered" "address: osmo-logger-headless"
 
     helm_template existingtls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -4556,7 +4558,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "address: review-release-osmo-agent"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
-        "address: review-release-osmo-logger-headless"
+        "address: review-release-osmo-logger"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "name: review-release-osmo-otel-monitor"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \

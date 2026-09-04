@@ -14,7 +14,7 @@
       (dict "component" "api" "dns" (.Values.gateway.upstreams.api.host | default (include "osmo.api.fullname" .)))
       (dict "component" "router" "dns" (.Values.gateway.upstreams.router.host | default (printf "%s-headless" $routerName)))
       (dict "component" "agent" "dns" (.Values.gateway.upstreams.agent.host | default (include "osmo.component.fullname" (dict "root" . "suffix" "agent"))))
-      (dict "component" "logger" "dns" (.Values.gateway.upstreams.logger.host | default (printf "%s-headless" $loggerName))) -}}
+      (dict "component" "logger" "dns" (.Values.gateway.upstreams.logger.host | default $loggerName)) -}}
 {{- if .Values.services.mcp.enabled }}
 {{- $leaves = append $leaves (dict "component" "mcp" "dns" (include "osmo.component.fullname" (dict "root" . "suffix" "mcp"))) -}}
 {{- end }}

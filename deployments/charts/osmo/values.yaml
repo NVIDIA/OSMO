@@ -1448,7 +1448,7 @@ gateway:
     logger:
       enabled: true
       host: ''
-      port: 8000
+      port: 80
 
   # Optional OIDC login/session proxy. Enable it only after configuring an
   # identity provider and the required existing Secrets.

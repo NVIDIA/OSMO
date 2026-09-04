@@ -36,7 +36,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $uiHost := $gw.upstreams.ui.host | default (include "osmo.component.fullname" (dict "root" . "suffix" "ui")) }}
 {{- $agentHost := $gw.upstreams.agent.host | default (include "osmo.component.fullname" (dict "root" . "suffix" "agent")) }}
 {{- $loggerName := include "osmo.component.fullname" (dict "root" . "suffix" "logger") }}
-{{- $loggerHost := $gw.upstreams.logger.host | default (printf "%s-headless" $loggerName) }}
+{{- $loggerHost := $gw.upstreams.logger.host | default $loggerName }}
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
