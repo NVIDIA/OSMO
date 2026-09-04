@@ -27,13 +27,13 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D1 | Workload identity and replacement | Ten same-named Deployments change immutable selectors; `osmo-service` is replaced by `osmo-api`. Service selectors and HPA targets change with them. | A normal Argo apply cannot patch the ten immutable selectors. | **Migration procedure:** accept a traffic interruption and explicitly delete/recreate the Deployments. |
 | D2 | Secret and authentication delivery | Every live OSMO pod currently receives Vault Agent init and sidecar containers. The proposed deployment removes Vault injection and consumes Kubernetes Secrets synchronized separately, including a one-time service-auth migration. | Incorrect ordering, stale synchronized Secrets, or lost token continuity can prevent startup or authentication. Secret rotation behavior changes from live file updates to Secret-triggered rollouts. | **Allow / fix chart:** retain ESO ownership and typed delivery; preserve the existing Kubernetes Secret mount paths, including adding the missing backend-image credential projection. |
 | D3 | Internal TLS | Services stop generating process-local self-signed certificates and instead use generated CA/leaf Secrets with upstream certificate verification. A bootstrap hook and seven TLS Secrets are added. | First-sync ordering and retained Secret ownership must work; a bad CA/SAN configuration can break all internal calls. | **Allow / migration procedure:** use chart-generated TLS, permit initial generation once, verify it, and then restore fail-if-missing behavior. |
-| D4 | MCP authentication boundary | Current main now uses FastMCP's built-in OIDC proxy and a four-value configuration contract. The converted staging values predate that merge and omit required OIDC settings. | The staging umbrella render now fails before producing manifests; after values are supplied, clients may still see different token, refresh, origin, and failure behavior. | **Pending; render blocker** |
+| D4 | MCP authentication boundary | Current main uses FastMCP's built-in OIDC proxy, but the converted values omit its required settings and the chart initially expects one combined OIDC/Valkey Secret while ESO provides separate typed Secrets. | The staging umbrella render fails without the values; accepting chart defaults would also change the Redis database and session-key prefix. | **Fix chart / values:** consume the effective Valkey Secret separately and preserve all 19 legacy MCP settings. |
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Pending** |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Pending** |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Pending** |
 | D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
 | D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
-| D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refreshed after the D2 chart change. |
+| D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
 
 ## D1: Workload identity and replacement
 
@@ -233,6 +233,71 @@ Secrets must stop the sync rather than silently create a new trust identity.
 - Do not remove these Secrets during rollback. Use the chart's documented leaf
   nonce and phased CA rotation procedure for future rotations.
 
+## D4: MCP authentication boundary
+
+### Evidence
+
+- The legacy MCP Deployment already uses FastMCP's built-in OIDC proxy. Its 19
+  managed `OSMO_MCP_*` and gateway environment settings define the resource
+  URL, allowed browser origins, OIDC client and issuer, token lifetimes, Redis
+  session store, and timeouts.
+- Current main makes those settings first-class chart values. The converted
+  staging file predates that contract: its `authorizationServers` and `scopes`
+  fields are obsolete, while required OIDC values are absent, so the chart
+  does not render.
+- The legacy Redis session database is `14` and its key prefix is
+  `staging:mcp-fastmcp`. The new chart defaults are database `1` and prefix
+  `osmo:mcp-fastmcp`; accepting them could strand existing sessions and mix
+  staging's keys with another consumer.
+- ESO already owns `osmo-oauth-credentials/client_secret` and
+  `osmo-valkey-credentials/redis-password`. They contain the same Vault
+  properties used by the old MCP Vault Agent files. The chart initially allows
+  only one combined Secret for both files.
+- The existing Envoy JWT provider for the legacy access-token issuer already
+  covers the MCP resource audience. The chart can append that audience without
+  introducing another authentication boundary.
+
+### Options
+
+1. **Consume the existing OAuth and Valkey Secrets separately (selected).**
+   Keep the MCP-specific OIDC Secret reference and source its Redis password
+   from the chart's effective Valkey Secret. Preserve compatibility for users
+   that already keep both keys in one Secret.
+2. **Add another ESO target Secret combining both values.** This fits the
+   original chart input but duplicates credentials and changes the ESO
+   resources that were explicitly accepted in D2.
+3. **Use the chart defaults or omit Redis authentication.** This changes the
+   session namespace and cannot connect reliably to the protected staging
+   Valkey service.
+
+### Decision
+
+**Fix chart / values.** Keep MCP's existing FastMCP OIDC authentication model.
+Leave ESO unchanged. Mount the OIDC client key from `osmo-oauth-credentials`
+and the Redis password key from `osmo-valkey-credentials`, while retaining the
+chart's combined-Secret compatibility path. Preserve all legacy non-secret MCP
+settings exactly.
+
+### Actions
+
+- Make the chart source the MCP Redis password from the effective Valkey
+  Secret when `services.mcp.oidcProxy.existingSecret.redisPasswordKey` is
+  empty. Retain the combined-Secret behavior when that key is configured.
+- Add the OAuth-client and Valkey rollout nonces to the MCP Pod template so a
+  deliberate Secret rotation restarts MCP.
+- Configure staging's OIDC discovery URL, client ID, v1 access-token issuer,
+  required scope, token lifetimes, timeouts, allowed origins, Redis database
+  `14`, and `staging:mcp-fastmcp` prefix from the legacy Deployment.
+- Point the OIDC client reference at
+  `osmo-oauth-credentials/client_secret`; use the already configured effective
+  Valkey reference `osmo-valkey-credentials/redis-password`.
+- Render the full staging release and compare all 19 managed MCP environment
+  settings with the legacy Deployment, normalizing only the accepted typed
+  Secret file paths.
+- During cutover, verify protected-resource and authorization-server metadata,
+  browser-origin rejection, access-token and refresh-token flows, and Redis
+  session continuity across an MCP restart.
+
 ## Decisions log
 
 | Date | ID | Decision | Required changes | Verification |
@@ -240,4 +305,5 @@ Secrets must stop the sync rather than silently create a new trust identity.
 | 2026-09-03 | D1 | Use explicit Deployment replacement; a brief traffic interruption is accepted. No chart compatibility mode. | Add the maintenance-window delete/sync/rollback sequence. | Confirm all 11 Deployments are available, every Service has endpoints, and all eight HPAs target the expected Deployment/container. |
 | 2026-09-04 | D2 | Use ESO unchanged with target Secrets owned by ESO. Preserve existing Kubernetes Secret mount paths; accept typed env/file delivery in place of Vault-rendered files. | Add the missing backend-image credential Secret projection to the umbrella chart. Keep `creationPolicy: Owner` and use a two-phase ESO-then-OSMO cutover. | Confirm all five ExternalSecrets are Ready without reading values; compare old/new configuration, storage, MEK, and backend-image mount paths; exercise controlled `rolloutNonce` rotation. |
 | 2026-09-04 | D3 | Use chart-generated internal TLS and allow initial generation once. | Keep the first-sync gate enabled, verify all seven retained Secrets and TLS consumers, then disable the gate and resync in fail-if-missing mode. | Check Secret key names, exact upstream DNS SANs, Deployment health, and API/MCP traffic through Envoy without certificate-validation errors. |
-| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin the staging chart to `d16c1980b48e1ae825b5c679964fa78b34971b9e` and its values/ESO sources to rebased commit `985e55045420a9334e33ad182109f06306351b2c`. | Chart tests and the typed ESO render test pass; full staging rendering remains blocked on pending D4. |
+| 2026-09-04 | D4 | Preserve the legacy FastMCP authentication and session behavior using separate existing OAuth and Valkey Secrets. | Fix the chart's default Redis Secret source and configure the complete staging OIDC/Redis contract. Do not change ESO. | The full staging release renders; all 19 managed settings match after normalizing typed Secret file paths. Cutover still requires live metadata, token, origin, and session tests. |
+| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `d04632d1aa6f04c745979cb93b71fc22c9416f63` and values commit `1768bce7ca8bebe1f6060a05f7705e54af05b478`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
