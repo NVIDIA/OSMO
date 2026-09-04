@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+planes:
+  control:
+    enabled: true
+  compute:
+    enabled: false
+
+fullnameOverride: ''
+externalUrl: https://osmo.example.com
+
+embeddedDependencies:
+  postgresql:
+    enabled: false
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
+
+externalDependencies:
+  postgresql:
+    host: external-postgresql
+    database: osmo
+    username: postgres
+  valkey:
+    host: external-valkey
+    database: 0
+    tls:
+      enabled: true
+  objectStorage:
+    authentication:
+      type: static
+    locations:
+      workflows: swift://swift.example.com/AUTH_osmo/workflows/data
+      logs: swift://swift.example.com/AUTH_osmo/workflows/logs
+      apps: swift://swift.example.com/AUTH_osmo/workflows/apps
+    s3:
+      region: ''
+      overrideUrl: ''
+configuration:
+  workflow:
+    workflow_data:
+      base_url: https://swift.example.com/v1/AUTH_osmo/workflows
+
+secrets:
+  postgresql:
+    existingSecret: external-postgresql-secret
+  valkey:
+    generate: false
+    existingSecret: external-valkey-secret
+  objectStorage:
+    generate: false
+    existingSecret: ''
+    credentialSecretRefs:
+      workflows:
+        name: workflow-data-credential
+        key: ''
+      logs:
+        name: workflow-log-credential
+        key: ''
+      apps:
+        name: workflow-app-credential
+        key: ''
+  backendApiTokens:
+    enabled: false
+    credentials: []
+  masterEncryptionKey:
+    managementMode: external
+    existingSecret:
+      name: external-master-encryption-key-secret
+      key: mek.yaml
+    bootstrap:
+      enabled: false
+  oauthClientSecret:
+    existingSecret: oauth-secrets
+  oauthCookieSecret:
+    generate: false
+    existingSecret: oauth-secrets
+
+services:
+  api:
+    image:
+      repository: nvidia/osmo/service
+  mcp:
+    enabled: false
+
+gateway:
+  envoy:
+    service:
+      extraPorts:
+      - name: https
+        port: 443
+        targetPort: envoy-http
+        protocol: TCP
+  oauth2Proxy:
+    enabled: true
+    oidcIssuerUrl: https://identity.example.com
+    clientId: osmo
+    redisDatabase: 3

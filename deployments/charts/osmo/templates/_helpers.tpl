@@ -376,14 +376,82 @@ data:
 {{- end }}
 {{- end -}}
 
+{{- define "osmo.objectStorage.credentialSecretRef" -}}
+{{- $reference := get .root.Values.secrets.objectStorage.credentialSecretRefs .name -}}
+{{- if $reference.name -}}
+{{- toYaml $reference -}}
+{{- else -}}
+{{- $secretName := include "osmo.objectStorage.secretName" .root -}}
+{{- if $secretName -}}
+{{- toYaml (dict "name" $secretName "key" .root.Values.secrets.objectStorage.keys.credentials) -}}
+{{- else -}}
+{{- toYaml dict -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Collect the Kubernetes Secrets referenced by the rendered configuration. */}}
+{{- define "osmo.configuration.secretReferences" -}}
+{{- $secretReferences := dict -}}
+{{- $commonSecretName := include "osmo.objectStorage.secretName" . -}}
+{{- if $commonSecretName -}}
+{{- $keys := dict .Values.secrets.objectStorage.keys.credentials true -}}
+{{- $_ := set $secretReferences $commonSecretName (dict
+      "allKeys" false
+      "keys" $keys
+      "volumeName" "object-storage-credentials") -}}
+{{- else -}}
+{{- range $locationName := list "workflows" "logs" "apps" -}}
+{{- $reference := include "osmo.objectStorage.credentialSecretRef" (dict "root" $ "name" $locationName) | fromYaml -}}
+{{- if $reference.name -}}
+{{- $secretReference := get $secretReferences $reference.name | default (dict
+      "allKeys" false
+      "keys" (dict)
+      "volumeName" (printf "object-storage-credentials-%s" ($reference.name | sha256sum | trunc 8))) -}}
+{{- if $reference.key -}}
+{{- $_ := set $secretReference.keys $reference.key true -}}
+{{- else -}}
+{{- $_ := set $secretReference "allKeys" true -}}
+{{- end -}}
+{{- $_ := set $secretReferences $reference.name $secretReference -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $workflow := .Values.configuration.workflow | default dict -}}
+{{- if kindIs "map" $workflow -}}
+{{- $backendImages := get $workflow "backend_images" | default dict -}}
+{{- if kindIs "map" $backendImages -}}
+{{- $credential := get $backendImages "credential" | default dict -}}
+{{- if kindIs "map" $credential -}}
+{{- $secretName := get $credential "secretName" | default "" -}}
+{{- if $secretName -}}
+{{- $secretReference := get $secretReferences $secretName | default (dict
+      "allKeys" false
+      "keys" (dict)
+      "volumeName" (printf "configuration-secret-%s" ($secretName | sha256sum | trunc 8))) -}}
+{{- $secretKey := get $credential "secretKey" | default "" -}}
+{{- if $secretKey -}}
+{{- $_ := set $secretReference.keys $secretKey true -}}
+{{- else -}}
+{{- $_ := set $secretReference "allKeys" true -}}
+{{- end -}}
+{{- $_ := set $secretReferences $secretName $secretReference -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml $secretReferences -}}
+{{- end -}}
+
 {{- define "osmo.configuration.volumeMounts" -}}
 {{- if .Values.configuration.enabled }}
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
-{{- with (include "osmo.objectStorage.secretName" .) }}
-- name: object-storage-credentials
-  mountPath: /etc/osmo/secrets/{{ . }}
+{{- $secretReferences := include "osmo.configuration.secretReferences" . | fromYaml }}
+{{- range $secretName, $secretReference := $secretReferences }}
+- name: {{ $secretReference.volumeName }}
+  mountPath: /etc/osmo/secrets/{{ $secretName }}
   readOnly: true
 {{- end }}
 {{- end }}
@@ -394,13 +462,18 @@ data:
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
-{{- with (include "osmo.objectStorage.secretName" .) }}
-- name: object-storage-credentials
+{{- $secretReferences := include "osmo.configuration.secretReferences" . | fromYaml }}
+{{- range $secretName, $secretReference := $secretReferences }}
+- name: {{ $secretReference.volumeName }}
   secret:
-    secretName: {{ . | quote }}
+    secretName: {{ $secretName | quote }}
+{{- if not $secretReference.allKeys }}
     items:
-    - key: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
-      path: {{ $.Values.secrets.objectStorage.keys.credentials | quote }}
+{{- range $key, $_ := $secretReference.keys }}
+    - key: {{ $key | quote }}
+      path: {{ $key | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -703,6 +776,10 @@ osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.
 {{- end -}}
 
 {{- define "osmo.externalDependencies.connectionSecretEnv" -}}
+{{- if .Values.databaseMigration.enabled }}
+- name: OSMO_SCHEMA_VERSION
+  value: {{ .Values.databaseMigration.targetSchema | quote }}
+{{- end }}
 {{- with (include "osmo.postgresql.secretName" .) }}
 - name: OSMO_POSTGRES_PASSWORD
   valueFrom:

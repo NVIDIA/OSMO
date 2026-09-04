@@ -216,28 +216,6 @@ spec:
 
 ---
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $name }}-headless
-  labels:
-    {{- include "osmo.service.labels" (dict "root" . "component" "logger" "service" .Values.services.logger.service) | nindent 4 }}
-  {{- with (include "osmo.metadata.annotations" (dict "root" . "annotations" .Values.services.logger.service.annotations)) }}
-  annotations:
-    {{- . | nindent 4 }}
-  {{- end }}
-spec:
-  clusterIP: None
-  ports:
-    - port: 80
-      targetPort: 8000
-      protocol: TCP
-      name: http
-  selector:
-    {{- include "osmo.component.selectorLabels" (dict "root" . "component" "logger") | nindent 4 }}
-
----
-
 {{- if .Values.services.logger.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

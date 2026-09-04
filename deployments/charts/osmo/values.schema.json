@@ -13,6 +13,7 @@
       "required": ["control", "compute"]
     },
     "compute": { "$ref": "#/definitions/compute" },
+    "databaseMigration": { "$ref": "#/definitions/databaseMigration" },
     "embeddedDependencies": {
       "type": "object",
       "properties": {
@@ -108,12 +109,47 @@
       }
     }
   },
-  "required": ["planes", "compute", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "databaseMigration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "targetSchema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z_][a-z0-9_]*$"
+        },
+        "pgrollVersion": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "pod": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "labels": { "$ref": "#/definitions/stringMap" },
+            "annotations": { "$ref": "#/definitions/stringMap" },
+            "nodeSelector": { "$ref": "#/definitions/stringMap" },
+            "tolerations": { "type": "array" },
+            "affinity": { "type": "object" }
+          },
+          "required": ["labels", "annotations", "nodeSelector", "tolerations", "affinity"]
+        },
+        "resources": { "type": "object" }
+      },
+      "required": ["enabled", "targetSchema", "pgrollVersion", "image", "backoffLimit", "ttlSecondsAfterFinished", "annotations", "pod", "resources"]
     },
     "compute": {
       "type": "object",
@@ -584,6 +620,37 @@
         "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "nodePort": { "type": ["integer", "null"], "minimum": 1, "maximum": 65535 },
+        "extraPorts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "allOf": [{ "pattern": "[a-z]" }]
+              },
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "targetPort": {
+                "oneOf": [
+                  { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 15,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "allOf": [{ "pattern": "[a-z]" }]
+                  }
+                ]
+              },
+              "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] }
+            },
+            "required": ["name", "port", "targetPort", "protocol"]
+          }
+        },
         "labels": { "$ref": "#/definitions/stringMap" },
         "annotations": { "$ref": "#/definitions/stringMap" },
         "loadBalancerClass": { "type": "string" },
@@ -593,7 +660,7 @@
         },
         "externalTrafficPolicy": { "type": "string", "enum": ["Cluster", "Local"] }
       },
-      "required": ["type", "port", "labels", "annotations", "loadBalancerClass", "loadBalancerSourceRanges", "externalTrafficPolicy"]
+      "required": ["type", "port", "extraPorts", "labels", "annotations", "loadBalancerClass", "loadBalancerSourceRanges", "externalTrafficPolicy"]
     },
     "imagePullSecrets": {
       "type": "array",
@@ -1096,6 +1163,7 @@
         "scope": { "type": "string" },
         "passAccessToken": { "type": "boolean" },
         "redisSessionStore": { "type": "boolean" },
+        "redisDatabase": { "type": ["integer", "null"], "minimum": 0 },
         "extraArgs": { "type": "array" },
         "resources": { "type": "object" },
         "service": { "$ref": "#/definitions/serviceMetadata" },
@@ -1253,15 +1321,15 @@
           "properties": {
             "workflows": {
               "type": "string",
-              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?|swift://[^/\\s]+/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
             },
             "logs": {
               "type": "string",
-              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?|swift://[^/\\s]+/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
             },
             "apps": {
               "type": "string",
-              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
+              "pattern": "^$|^(s3://[^/\\s]+(?:/[^\\s]*)?|azure://[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?|swift://[^/\\s]+/[^/\\s]+/[^/\\s]+(?:/[^\\s]*)?)$"
             }
           }
         },
@@ -1477,9 +1545,28 @@
           "additionalProperties": false,
           "properties": { "credentials": { "type": "string", "minLength": 1 } },
           "required": ["credentials"]
+        },
+        "credentialSecretRefs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workflows": { "$ref": "#/definitions/optionalSecretKeyReference" },
+            "logs": { "$ref": "#/definitions/optionalSecretKeyReference" },
+            "apps": { "$ref": "#/definitions/optionalSecretKeyReference" }
+          },
+          "required": ["workflows", "logs", "apps"]
         }
       },
-      "required": ["generate", "existingSecret", "rolloutNonce", "keys"]
+      "required": ["generate", "existingSecret", "rolloutNonce", "keys", "credentialSecretRefs"]
+    },
+    "optionalSecretKeyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string" }
+      },
+      "required": ["name", "key"]
     },
     "adminSecretReference": {
       "type": "object",

@@ -1,0 +1,128 @@
+{{- if and .Values.planes.control.enabled .Values.databaseMigration.enabled -}}
+{{- $migration := .Values.databaseMigration -}}
+{{- $component := "database-migration" -}}
+{{- $jobName := include "osmo.component.fullname" (dict "root" . "suffix" "pgroll-migration") -}}
+{{- $configMapName := include "osmo.component.fullname" (dict "root" . "suffix" "pgroll-migrations") -}}
+{{- $configMapHookAnnotations := dict
+      "helm.sh/hook" "pre-install,pre-upgrade"
+      "helm.sh/hook-weight" "-26"
+      "helm.sh/hook-delete-policy" "before-hook-creation"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation" -}}
+{{- $jobHookAnnotations := dict
+      "helm.sh/hook" "pre-install,pre-upgrade"
+      "helm.sh/hook-weight" "-25"
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
+      "argocd.argoproj.io/hook" "PreSync"
+      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded" -}}
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configMapName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "annotations" $migration.annotations "protectedAnnotations" $configMapHookAnnotations) | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "migrations/*" }}
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $jobName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "annotations" $migration.annotations "protectedAnnotations" $jobHookAnnotations) | nindent 4 }}
+spec:
+  backoffLimit: {{ $migration.backoffLimit }}
+  ttlSecondsAfterFinished: {{ $migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.standardLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- with $migration.pod.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $migration.pod.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with $migration.pod.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $migration.pod.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $migration.pod.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: pgroll-migrate
+        image: {{ include "osmo.image" (dict "root" . "image" $migration.image "useSharedRegistry" false "useSharedTag" false) }}
+        imagePullPolicy: {{ $migration.image.pullPolicy }}
+        command:
+        - bash
+        - -c
+        - |
+          set -eu
+          apk add --no-cache curl >/dev/null
+          case "$(uname -m)" in
+            x86_64) pgroll_arch=amd64 ;;
+            aarch64|arm64) pgroll_arch=arm64 ;;
+            *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/xataio/pgroll/releases/download/{{ $migration.pgrollVersion }}/pgroll.linux.${pgroll_arch}" \
+            --output /usr/local/bin/pgroll
+          chmod +x /usr/local/bin/pgroll
+          bash /pgroll/run_migrations.sh {{ $migration.targetSchema | quote }}
+        env:
+        - name: OSMO_POSTGRES_HOST
+          value: {{ include "osmo.postgresql.host" . | quote }}
+        - name: OSMO_POSTGRES_PORT
+          value: {{ include "osmo.postgresql.port" . | quote }}
+        - name: OSMO_POSTGRES_DATABASE_NAME
+          value: {{ include "osmo.postgresql.database" . | quote }}
+        - name: OSMO_POSTGRES_USER
+          value: {{ include "osmo.postgresql.username" . | quote }}
+        - name: OSMO_POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "osmo.postgresql.secretName" . | quote }}
+              key: {{ include "osmo.postgresql.passwordKey" . | quote }}
+        - name: PGSSLMODE
+          value: {{ include "osmo.postgresql.sslMode" . | quote }}
+        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+        - name: PGSSLROOTCERT
+          value: /etc/osmo/ca/postgresql/ca.crt
+        {{- end }}
+        volumeMounts:
+        - name: pgroll-migrations
+          mountPath: /pgroll
+          readOnly: true
+        {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 8 }}
+        {{- with $migration.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: pgroll-migrations
+        configMap:
+          name: {{ $configMapName | quote }}
+      {{- include "osmo.externalDependencies.caVolumes" . | nindent 6 }}
+{{- end }}

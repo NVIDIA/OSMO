@@ -91,6 +91,25 @@ require_occurrences() {
         fail "expected '$expected' $count times in $file, found $actual"
 }
 
+require_secret_projection_key() {
+    local file=$1
+    local secret_name=$2
+    local secret_key=$3
+    awk -v secret_name="$secret_name" -v secret_key="$secret_key" '
+        /^      - name: / { matching_secret = 0 }
+        $0 == "          secretName: " secret_name ||
+                $0 == "          secretName: \"" secret_name "\"" {
+            matching_secret = 1
+            next
+        }
+        matching_secret && ($0 == "          - key: " secret_key ||
+                $0 == "          - key: \"" secret_key "\"") {
+            found = 1
+        }
+        END { exit !found }
+    ' "$file" || fail "expected Secret '$secret_name' to project key '$secret_key' in $file"
+}
+
 require_empty_dir_volume() {
     local file=$1
     local volume_name=$2
@@ -1202,6 +1221,181 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
         "osmo-backend-token"
 
+    helm_template external-swift "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        >"$TEST_DIRECTORY/external-swift.yaml"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" ConfigMap \
+        "external-swift-osmo-api-config" \
+        >"$TEST_DIRECTORY/external-swift-config.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "swift://swift.example.com/AUTH_osmo/workflows/data"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "base_url: https://swift.example.com/v1/AUTH_osmo/workflows"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretName: workflow-app-credential"
+    require_not_contains "$TEST_DIRECTORY/external-swift-config.yaml" \
+        "secretKey: object-storage.yaml"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Deployment \
+        "external-swift-osmo-api" \
+        >"$TEST_DIRECTORY/external-swift-api.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-app-credential"
+
+    helm_template secret-only-swift "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string externalDependencies.objectStorage.locations.workflows= \
+        --set-string externalDependencies.objectStorage.locations.logs= \
+        --set-string externalDependencies.objectStorage.locations.apps= \
+        >"$TEST_DIRECTORY/secret-only-swift.yaml"
+    resource_document "$TEST_DIRECTORY/secret-only-swift.yaml" ConfigMap \
+        "secret-only-swift-osmo-api-config" \
+        >"$TEST_DIRECTORY/secret-only-swift-config.yaml"
+    require_not_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "endpoint:"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-app-credential"
+    resource_document "$TEST_DIRECTORY/secret-only-swift.yaml" Deployment \
+        "secret-only-swift-osmo-api" \
+        >"$TEST_DIRECTORY/secret-only-swift-api.yaml"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-app-credential"
+
+    if helm_template partial-secret-only-swift "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string externalDependencies.objectStorage.locations.workflows= \
+            >"$TEST_DIRECTORY/partial-secret-only-swift.out" 2>&1; then
+        fail "expected partially empty object-storage locations to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/partial-secret-only-swift.out" \
+        "locations must configure workflows, logs, and apps together"
+
+    helm_template backend-image-credential "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string configuration.workflow.backend_images.credential.secretName=imagepullsecret \
+        --set-string configuration.workflow.backend_images.credential.secretKey=.dockerconfigjson \
+        >"$TEST_DIRECTORY/backend-image-credential.yaml"
+    local configuration_consumer
+    for configuration_consumer in api worker logger agent; do
+        resource_document "$TEST_DIRECTORY/backend-image-credential.yaml" Deployment \
+            "backend-image-credential-osmo-$configuration_consumer" \
+            >"$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            "mountPath: /etc/osmo/secrets/imagepullsecret"
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'secretName: "imagepullsecret"' 1
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'key: ".dockerconfigjson"' 1
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'path: ".dockerconfigjson"' 1
+    done
+
+    helm_template keyed-swift-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string configuration.workflow.backend_images.credential.secretName=shared-storage-credentials \
+        --set-string configuration.workflow.backend_images.credential.secretKey=.dockerconfigjson \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.key=workflows.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.key=logs.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.key=workflows.yaml \
+        >"$TEST_DIRECTORY/keyed-swift-secret.yaml"
+    resource_document "$TEST_DIRECTORY/keyed-swift-secret.yaml" Deployment \
+        "keyed-swift-secret-osmo-api" \
+        >"$TEST_DIRECTORY/keyed-swift-secret-api.yaml"
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'secretName: "shared-storage-credentials"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: "workflows.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: "workflows.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: "logs.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: "logs.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: ".dockerconfigjson"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: ".dockerconfigjson"' 1
+
+    helm_template mixed-key-swift-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string secrets.objectStorage.credentialSecretRefs.workflows.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.logs.key=logs.yaml \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.name=shared-storage-credentials \
+        --set-string secrets.objectStorage.credentialSecretRefs.apps.key=apps.yaml \
+        >"$TEST_DIRECTORY/mixed-key-swift-secret.yaml"
+    resource_document "$TEST_DIRECTORY/mixed-key-swift-secret.yaml" Deployment \
+        "mixed-key-swift-secret-osmo-api" \
+        >"$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml"
+    require_occurrences "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'secretName: "shared-storage-credentials"' 1
+    require_not_contains "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'key: "logs.yaml"'
+    require_not_contains "$TEST_DIRECTORY/mixed-key-swift-secret-api.yaml" \
+        'key: "apps.yaml"'
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Deployment \
+        "external-swift-osmo-gateway-oauth2-proxy" \
+        >"$TEST_DIRECTORY/external-swift-oauth.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-oauth.yaml" \
+        "--redis-connection-url=rediss://external-valkey:6379/3"
+    require_not_contains "$TEST_DIRECTORY/external-swift-oauth.yaml" \
+        "SSL_CERT_FILE"
+    resource_document "$TEST_DIRECTORY/external-swift.yaml" Service \
+        "external-swift-osmo-gateway" \
+        >"$TEST_DIRECTORY/external-swift-gateway-service.yaml"
+    require_contains "$TEST_DIRECTORY/external-swift-gateway-service.yaml" \
+        "name: https"
+    require_contains "$TEST_DIRECTORY/external-swift-gateway-service.yaml" \
+        "port: 443"
+
+    if helm_template partial-swift-secrets "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string secrets.objectStorage.credentialSecretRefs.apps.name= \
+            >"$TEST_DIRECTORY/partial-swift-secrets.out" 2>&1; then
+        fail "expected partial per-location object-storage Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/partial-swift-secrets.out" \
+        "credentialSecretRefs must configure workflows, logs, and apps together"
+
+    if helm_template mixed-swift-secrets "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string secrets.objectStorage.existingSecret=shared-object-storage \
+            >"$TEST_DIRECTORY/mixed-swift-secrets.out" 2>&1; then
+        fail "expected shared and per-location object-storage Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/mixed-swift-secrets.out" \
+        "configure either secrets.objectStorage.existingSecret or credentialSecretRefs"
+
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/quickstart-gateway-service.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-gateway-service.yaml" \
@@ -1668,8 +1862,14 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/charts/backend-operator"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
-    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
-    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/run_migrations.sh"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/008_v6_4_0_configmap_user_roles.json"
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/004_v6_2_0_data.json"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/templates/database-migration.yaml"
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1677,6 +1877,8 @@ test_control_umbrella() {
         >"$rendered"
     require_no_resource_with_hash_suffix "$rendered" Job \
         "service-auth-bootstrap"
+    require_no_resource "$rendered" ConfigMap "osmo-pgroll-migrations"
+    require_no_resource "$rendered" Job "osmo-pgroll-migration"
 
     resource_document "$rendered" List osmo-internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
@@ -1773,10 +1975,12 @@ test_control_umbrella() {
         '--fail-if-missing'
     local upstream_identity
     for upstream_identity in \
-            osmo-api osmo-router-headless osmo-agent osmo-logger-headless; do
+            osmo-api osmo-router-headless osmo-agent osmo-logger; do
         require_contains "$rendered" 'match_typed_subject_alt_names:'
         require_contains "$rendered" "exact: \"$upstream_identity\""
     done
+    require_no_resource "$rendered" Service osmo-logger-headless
+    require_not_contains "$rendered" "address: osmo-logger-headless"
 
     helm_template existingtls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1927,6 +2131,125 @@ test_control_umbrella() {
     require_deployment "$rendered" "osmo-delayed-job-monitor"
     require_deployment "$rendered" "osmo-ui"
     require_deployment "$rendered" "osmo-gateway-envoy"
+
+    helm_template database-migration "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set databaseMigration.targetSchema=public_v6_4_0 \
+        --set-string 'databaseMigration.pod.nodeSelector.kubernetes\.io/arch=amd64' \
+        --set gateway.authz.enabled=true \
+        --set secrets.serviceAuth.migration.enabled=true \
+        >"$TEST_DIRECTORY/database-migration.yaml"
+    require_resource "$TEST_DIRECTORY/database-migration.yaml" ConfigMap \
+        "database-migration-osmo-pgroll-migrations"
+    require_resource "$TEST_DIRECTORY/database-migration.yaml" Job \
+        "database-migration-osmo-pgroll-migration"
+    resource_document "$TEST_DIRECTORY/database-migration.yaml" ConfigMap \
+        "database-migration-osmo-pgroll-migrations" \
+        >"$TEST_DIRECTORY/database-migration-configmap.yaml"
+    resource_document "$TEST_DIRECTORY/database-migration.yaml" Job \
+        "database-migration-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/database-migration-job.yaml"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'helm.sh/hook-weight: "-26"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'argocd.argoproj.io/sync-wave:'
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "run_migrations.sh: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "set -euo pipefail"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'for migration_file in "$SCRIPT_DIR"/0*.json; do'
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "005_v6_4_0_workflow_labels.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "008_v6_4_0_configmap_user_roles.json: |"
+    require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "004_v6_2_0_data.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'helm.sh/hook-weight: "-25"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'argocd.argoproj.io/sync-wave:'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "image: postgres:15-alpine"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "pgroll.linux.\${pgroll_arch}"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'bash /pgroll/run_migrations.sh "public_v6_4_0"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'name: "external-postgresql-secret"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'key: "external-db-password"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "name: PGSSLMODE"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'value: "disable"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "name: PGSSLROOTCERT"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "kubernetes.io/arch: amd64"
+    require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
+        "name: OSMO_SCHEMA_VERSION" 7
+    require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
+        'value: "public_v6_4_0"' 7
+    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-20"'
+    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-10"'
+
+    helm_template database-migration-tls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
+        >"$TEST_DIRECTORY/database-migration-tls.yaml"
+    resource_document "$TEST_DIRECTORY/database-migration-tls.yaml" Job \
+        "database-migration-tls-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/database-migration-tls-job.yaml"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "name: PGSSLMODE"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        'value: "verify-full"'
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "name: PGSSLROOTCERT"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "secretName: postgresql-ca"
+
+    if helm_template invalid-compute-database-migration "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            --set compute.backendName=test-backend \
+            --set compute.authentication.existingSecret=osmo-backend-token \
+            --set databaseMigration.enabled=true \
+            >"$TEST_DIRECTORY/invalid-compute-database-migration.out" 2>&1; then
+        fail "expected database migration without a control plane to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-compute-database-migration.out" \
+        "databaseMigration.enabled requires planes.control.enabled=true"
+
+    if helm_template invalid-embedded-database-migration "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+            --set databaseMigration.enabled=true \
+            >"$TEST_DIRECTORY/invalid-embedded-database-migration.out" 2>&1; then
+        fail "expected embedded PostgreSQL database migration to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-embedded-database-migration.out" \
+        "databaseMigration.enabled requires external PostgreSQL"
+
+    if helm_template invalid-database-migration-schema "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set databaseMigration.enabled=true \
+            --set-string databaseMigration.targetSchema='public;drop schema public' \
+            >"$TEST_DIRECTORY/invalid-database-migration-schema.out" 2>&1; then
+        fail "expected an invalid migration target schema to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-database-migration-schema.out" \
+        "databaseMigration.targetSchema"
 
     helm_template managed-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -2650,7 +2973,7 @@ EOF
     done <<'EOF'
 missing-location|--set-string externalDependencies.objectStorage.locations.workflows=|externalDependencies.objectStorage.locations.workflows is required
 mixed-schemes|--set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs|externalDependencies.objectStorage locations must use one storage URI scheme
-azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for Azure locations
+azure-s3-settings|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest/osmo-workflows/workflows --set-string externalDependencies.objectStorage.locations.logs=azure://osmotest/osmo-workflows/logs --set-string externalDependencies.objectStorage.locations.apps=azure://osmotest/osmo-workflows/apps|externalDependencies.objectStorage.s3 must be empty for non-S3 locations
 account-only-azure|--set-string externalDependencies.objectStorage.locations.workflows=azure://osmotest|match pattern
 legacy-endpoint|--set-string externalDependencies.objectStorage.endpoint=https://legacy.example.com|
 legacy-buckets|--set-string externalDependencies.objectStorage.buckets.workflows=legacy-workflows|
@@ -2706,6 +3029,37 @@ EOF
         "targetPort: envoy-http" 1
     require_not_contains "$rendered" "kind: Ingress"
     require_not_contains "$rendered" "kind: HTTPRoute"
+
+    local invalid_gateway_extra_port_case
+    local invalid_gateway_extra_port_settings
+    local invalid_gateway_extra_port_path
+    while IFS='|' read -r invalid_gateway_extra_port_case \
+            invalid_gateway_extra_port_settings \
+            invalid_gateway_extra_port_path; do
+        if helm_template "invalid-gateway-extra-port-$invalid_gateway_extra_port_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string gateway.envoy.service.extraPorts[0].name=metrics \
+                --set gateway.envoy.service.extraPorts[0].port=443 \
+                --set gateway.envoy.service.extraPorts[0].targetPort=8443 \
+                --set-string gateway.envoy.service.extraPorts[0].protocol=TCP \
+                $invalid_gateway_extra_port_settings \
+                >"$TEST_DIRECTORY/invalid-gateway-extra-port-$invalid_gateway_extra_port_case.out" 2>&1; then
+            fail "expected invalid gateway extra port case $invalid_gateway_extra_port_case to fail"
+        fi
+        require_schema_path \
+            "$TEST_DIRECTORY/invalid-gateway-extra-port-$invalid_gateway_extra_port_case.out" \
+            "$invalid_gateway_extra_port_path"
+    done <<'EOF'
+name-syntax|--set-string gateway.envoy.service.extraPorts[0].name=bad_name|gateway.envoy.service.extraPorts.0.name
+name-length|--set-string gateway.envoy.service.extraPorts[0].name=abcdefghijklmnop|gateway.envoy.service.extraPorts.0.name
+name-numeric|--set-string gateway.envoy.service.extraPorts[0].name=1234|gateway.envoy.service.extraPorts.0.name
+target-port-low|--set gateway.envoy.service.extraPorts[0].targetPort=0|gateway.envoy.service.extraPorts.0.targetPort
+target-port-high|--set gateway.envoy.service.extraPorts[0].targetPort=65536|gateway.envoy.service.extraPorts.0.targetPort
+target-port-name|--set-string gateway.envoy.service.extraPorts[0].targetPort=bad_name|gateway.envoy.service.extraPorts.0.targetPort
+target-port-numeric-name|--set-string gateway.envoy.service.extraPorts[0].targetPort=1234|gateway.envoy.service.extraPorts.0.targetPort
+EOF
 
     helm_template ingress-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -4419,7 +4773,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "address: review-release-osmo-agent"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
-        "address: review-release-osmo-logger-headless"
+        "address: review-release-osmo-logger"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
         "name: review-release-osmo-otel-monitor"
     require_contains "$TEST_DIRECTORY/osmo-review.yaml" \
@@ -4615,6 +4969,22 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "value: \"/etc/osmo/mcp-auth/client-secret\""
+    resource_document "$TEST_DIRECTORY/osmo-mcp.yaml" Deployment osmo-mcp \
+        >"$TEST_DIRECTORY/osmo-mcp-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        "name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE"
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'value: "/etc/osmo/mcp-valkey/redis-password"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'secretName: "external-valkey-secret"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'key: "redis-password"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'mountPath: /etc/osmo/mcp-valkey'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'osmo.nvidia.com/oauth-client-secret-rollout: ""'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-deployment.yaml" \
+        'osmo.nvidia.com/valkey-secret-rollout: ""'
     # The MCP audience joins the provider whose issuer it authenticates against.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "issuer: https://issuer.example.com"
@@ -4626,6 +4996,27 @@ EOF
         "image: nvcr.io/nvidia/osmo/mcp-self-hosted:latest"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 11
+
+    helm_template mcp-combined-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set-string services.mcp.oidcProxy.existingSecret.redisPasswordKey=combined-redis-password \
+        >"$TEST_DIRECTORY/mcp-combined-secret.yaml"
+    resource_document "$TEST_DIRECTORY/mcp-combined-secret.yaml" Deployment \
+        mcp-combined-secret-osmo-mcp \
+        >"$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'value: "/etc/osmo/mcp-auth/combined-redis-password"'
+    require_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'key: combined-redis-password'
+    require_secret_projection_key \
+        "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        mcp-oidc-proxy-secrets combined-redis-password
+    require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        '/etc/osmo/mcp-valkey'
+    require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        'secretName: "external-valkey-secret"'
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -5481,6 +5872,7 @@ EOF
 case "$MODE" in
     osmo|all)
         test_yaml_helpers
+        bash "$CHARTS_ROOT/osmo/tests/test_migration_runner.sh"
         require_clean_osmo_sources
         test_control_umbrella
         ;;

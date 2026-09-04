@@ -200,6 +200,9 @@ spec:
     {{- if and $service.nodePort (or (eq $service.type "LoadBalancer") (eq $service.type "NodePort")) }}
     nodePort: {{ $service.nodePort }}
     {{- end }}
+  {{- with $service.extraPorts }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
   selector:
     {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "envoy" "context" .) | nindent 4 }}
 
@@ -347,8 +350,12 @@ spec:
           - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
           {{- $valkeyHost := include "osmo.valkey.host" $ }}
           {{- if $gw.oauth2Proxy.redisSessionStore }}
+          {{- $redisDatabase := include "osmo.valkey.database" $ }}
+          {{- if not (kindIs "invalid" $gw.oauth2Proxy.redisDatabase) }}
+          {{- $redisDatabase = $gw.oauth2Proxy.redisDatabase }}
+          {{- end }}
           - --session-store-type=redis
-          - --redis-connection-url={{ if eq (include "osmo.valkey.tlsEnabled" $) "true" }}rediss{{ else }}redis{{ end }}://{{ $valkeyHost }}:{{ include "osmo.valkey.port" $ }}/{{ include "osmo.valkey.database" $ }}
+          - --redis-connection-url={{ if eq (include "osmo.valkey.tlsEnabled" $) "true" }}rediss{{ else }}redis{{ end }}://{{ $valkeyHost }}:{{ include "osmo.valkey.port" $ }}/{{ $redisDatabase }}
           {{- end }}
           - --upstream=static://200
           - --redirect-url={{ trimSuffix "/" $.Values.externalUrl }}/oauth2/callback

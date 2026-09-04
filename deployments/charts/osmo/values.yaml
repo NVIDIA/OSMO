@@ -91,7 +91,8 @@ embeddedDependencies:
           memory: 128Mi
 
 # Connection details for dependencies owned outside this release. Each
-# endpoint is required only when its embedded dependency is disabled.
+# endpoint is required only when its embedded dependency is disabled, except
+# that per-location object-storage Secrets may supply their own endpoints.
 externalDependencies:
   # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
   # server certificate is signed by a private CA.
@@ -237,7 +238,7 @@ monitoring:
       enabled: false
     labels: {}
     annotations: {}
-    interval: 30s
+    interval: 15s
     scrapeTimeout: 10s
     scheme: http
     tlsConfig: {}
@@ -245,6 +246,34 @@ monitoring:
     podTargetLabels: []
     relabelings: []
     metricRelabelings: []
+
+# Ordered PostgreSQL schema migrations for control-plane upgrades. The hook
+# runs before OSMO workloads and the service-auth database migration. Keep this
+# enabled while services use a versioned targetSchema so OSMO_SCHEMA_VERSION is
+# injected into every PostgreSQL consumer.
+# Applies the bundled OSMO 6.3-to-6.4 migrations to an external database.
+# Databases from earlier releases must first apply the legacy service-chart
+# migrations through 6.3.
+databaseMigration:
+  enabled: false
+  targetSchema: public
+  pgrollVersion: v0.16.1
+  image:
+    registry: ''
+    repository: postgres
+    tag: 15-alpine
+    digest: ''
+    pullPolicy: IfNotPresent
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  annotations: {}
+  pod:
+    labels: {}
+    annotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+  resources: {}
 
 # References to Kubernetes Secrets. Inline credentials are not accepted.
 # Embedded PostgreSQL credentials are owned by
@@ -277,6 +306,21 @@ secrets:
     rolloutNonce: ''
     keys:
       credentials: object-storage.yaml
+    # Use one per-location Secret reference only when existing credentials are
+    # already stored as separate Kubernetes Secrets. Empty key values load the
+    # Secret's individual data keys; a non-empty key loads one YAML document.
+    # Leave every reference empty when existingSecret supplies one shared
+    # credentials document.
+    credentialSecretRefs:
+      workflows:
+        name: ''
+        key: ''
+      logs:
+        name: ''
+        key: ''
+      apps:
+        name: ''
+        key: ''
   # Backend compute-plane authentication. Each credential selects exactly one
   # Kubernetes Secret source. Managed Secrets are generated and retained by a
   # short-lived Helm hook without placing token material in rendered manifests
@@ -642,10 +686,12 @@ services:
     ##
     ## Only four values have no default: services.mcp.resourceUrl, oidc.configUrl,
     ## oidc.clientId, and a Secret holding the client secret. Secret file paths
-    ## follow existingSecret.mountPath; Redis host, port and TLS come from
-    ## services.redis; accessTokenIssuer is needed only for a provider whose
-    ## access tokens are issued from somewhere its discovery document does not
-    ## advertise, as an application configured for v1-format tokens is.
+    ## follow existingSecret.mountPath. Redis host, port, TLS, and password come
+    ## from the chart's effective Valkey configuration; redisPasswordKey remains
+    ## available for compatibility with a Secret that combines the OIDC client
+    ## and Redis credentials. accessTokenIssuer is needed only for a provider
+    ## whose access tokens are issued from somewhere its discovery document does
+    ## not advertise, as an application configured for v1-format tokens is.
     ##
     oidcProxy:
       oidc:
@@ -666,6 +712,9 @@ services:
         name: ''
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
+        # Optional compatibility mode for a combined OIDC and Redis Secret.
+        # Empty mounts secrets.valkey.keys.password from the effective Valkey
+        # Secret at /etc/osmo/mcp-valkey instead.
         redisPasswordKey: ''
     service:
       labels: {}
@@ -1306,6 +1355,9 @@ gateway:
       type: NodePort
       port: 80
       nodePort: 30080
+      # Additional Service ports that target the existing Envoy listener.
+      # Useful for retaining a legacy 443 alias behind edge TLS termination.
+      extraPorts: []
       labels: {}
       annotations: {}
       loadBalancerClass: ''
@@ -1425,7 +1477,7 @@ gateway:
     logger:
       enabled: true
       host: ''
-      port: 8000
+      port: 80
 
   # Optional OIDC login/session proxy. Enable it only after configuring an
   # identity provider and the required existing Secrets.
@@ -1458,6 +1510,10 @@ gateway:
     scope: openid email profile
     passAccessToken: false
     redisSessionStore: true
+    # Null shares externalDependencies.valkey.database. Set an integer only
+    # when OAuth sessions intentionally use another database on the same
+    # Valkey endpoint.
+    redisDatabase: null
     extraArgs: []
     resources:
       requests:

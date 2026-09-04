@@ -521,6 +521,36 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
+### Database migrations
+
+For an upgrade backed by an existing external PostgreSQL database, enable the
+pgroll hook in the environment values:
+
+```yaml
+databaseMigration:
+  enabled: true
+  targetSchema: public
+```
+
+The chart loads the ordered OSMO 6.4 migration JSON files from `migrations/`
+and runs them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job
+before OSMO workloads start. The source database must already have the OSMO
+6.3 schema; upgrades from earlier releases must first use the applicable legacy
+service-chart migrations. The migration reads the same PostgreSQL Secret key
+as the services and runs before the service-auth database migration. It
+downloads the pinned pgroll release from GitHub at runtime, so the Job requires
+outbound HTTPS access to GitHub.
+
+Argo CD sync waves are environment-owned. Set
+`databaseMigration.annotations.argocd.argoproj.io/sync-wave` in environment
+values when the migration must be ordered relative to other environment hooks.
+
+Use `public` to migrate the base schema in place. A versioned target such as
+`public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;
+keep `databaseMigration.enabled` set while those workloads use that schema.
+Migration hooks are not supported with embedded PostgreSQL because Helm
+pre-install hooks run before the embedded database cluster exists.
+
 ## Install a split compute plane
 
 The `split-plane-compute.yaml` profile installs only the backend listener,
@@ -758,6 +788,18 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
+
+External object-storage locations may use `s3://`, `azure://`, or `swift://`
+URIs, but all three locations must use the same scheme. The usual static
+credential form stores one YAML document in `secrets.objectStorage.existingSecret`.
+To reuse separate per-location Secrets, leave `existingSecret` empty and set
+all three `secrets.objectStorage.credentialSecretRefs`. An empty reference
+`key` loads the Secret's individual data keys; a non-empty key selects one YAML
+credential document. When every referenced Secret supplies its own `endpoint`,
+all three `externalDependencies.objectStorage.locations` may be empty; the
+rendered configuration then takes the endpoints only from the Secrets. Either
+configure all three locations or leave all three empty. Do not configure both
+Secret forms.
 
 Generated backend-token, MEK, and service-auth Secrets are intentionally
 retained because replacing them can disconnect the compute plane, make
@@ -1031,6 +1073,15 @@ For direct-Helm development only, set
 `secrets.oauthCookieSecret.generate: true` and clear its `existingSecret`.
 Production and GitOps installations must use an existing Secret because
 generated values are stored in Helm release state.
+
+By default, OAuth sessions use `externalDependencies.valkey.database`. Set
+`gateway.oauth2Proxy.redisDatabase` only when the proxy intentionally uses a
+different database on the same Valkey endpoint and credential.
+
+Use `gateway.envoy.service.extraPorts` to retain additional in-cluster Service
+ports that target Envoy's existing listener. In particular, older service-chart
+releases expose port 443 as a plaintext alias behind edge TLS termination; an
+`extraPorts` entry can preserve that endpoint without enabling Envoy edge TLS.
 
 Cookie rotation invalidates browser sessions and must not leave replicas using
 different keys. Suspend the OAuth2 Proxy HPA, scale its Deployment to zero and
