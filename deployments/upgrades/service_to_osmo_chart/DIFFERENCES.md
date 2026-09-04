@@ -32,7 +32,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / values / allow:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and use only the regular logger Service. |
 | D8 | Database and Argo lifecycle | The initial umbrella render omitted the legacy pgroll migration lifecycle. New TLS and service-auth hooks/RBAC also appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema and service-auth migrations must finish before workloads start, and hook/app synchronization must be explicitly ordered. | **Fix chart / values / migration procedure:** add pgroll ahead of service-auth and use one paused, controlled manual sync with prune-last behavior. |
-| D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
+| D9 | Configuration and storage representation | The generated service configuration retains every shared non-empty value, but prunes empty fields, drops one empty-but-addressable platform, and initially rendered storage endpoints outside the existing Secrets. | A workflow explicitly selecting the removed platform would fail, and duplicating storage endpoints creates two sources of truth. | **Fix chart / values / allow:** source endpoints only from the existing Secrets, restore the missing platform, and allow omissions of fields that normalize to empty maps. |
 | D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
 
 ## D1: Workload identity and replacement
@@ -674,6 +674,62 @@ disabled and the second manual verification sync succeeds.
   manually sync the pinned legacy chart/values. Retain ESO credentials, the MEK,
   service-auth identity, and generated TLS Secrets through the rollback window.
 
+## D9: Configuration and storage representation
+
+### Evidence
+
+- The legacy `osmo-service-configs` and umbrella `osmo-api-config` ConfigMaps
+  contain the same top-level sections and every shared non-empty leaf value.
+  Both mount `config.yaml` at `/etc/osmo/configs/config.yaml` in each
+  configuration consumer.
+- The umbrella render omits 16 `default_exit_actions: {}` fields. `PoolBase`
+  defaults an absent value to an empty map, so the in-memory configuration is
+  unchanged.
+- The umbrella render omits 68 `default_variables: {}` fields. The ConfigMap
+  loader explicitly normalizes every absent or non-map platform
+  `default_variables` value to an empty map before resolving templates and
+  validations.
+- The legacy `default` pool also contains an entire `platforms.default: {}`
+  entry that the converted values omitted. Unlike an empty field, an empty
+  platform is addressable: the loader expands it with the pool's common
+  defaults. The pool's automatic `default_platform` remains `ovx-a40`, but a
+  workflow that explicitly selects platform `default` would change from
+  accepted to rejected.
+- The initial umbrella render added an explicit `endpoint` beside each of the
+  three existing per-location `secretName` references. The legacy render has
+  only `secretName`; at runtime the loader reads all fields from the mounted
+  Secret directory and removes the reference metadata.
+- Staging retains the same three externally managed Secrets and exact legacy
+  mount paths. The endpoint should therefore remain solely in those Secrets,
+  without a second copy in values or the rendered ConfigMap.
+
+### Decision
+
+**Fix chart / values / allow.** Permit external object-storage locations to be
+empty only when all three per-location credential Secret references are
+configured, and omit `endpoint` from the rendered credentials in that mode.
+Set all three staging locations to empty so the existing Secrets remain the
+sole endpoint source. Restore `pools.default.platforms.default: {}`. Allow the
+omitted empty `default_exit_actions` and `default_variables` fields because the
+runtime normalizes them to the same values.
+
+### Actions
+
+- Change the umbrella chart to render `endpoint` only for a non-empty location.
+  Preserve the requirement that workflows, logs, and apps are either all
+  configured or all Secret-only; reject partial location sets.
+- Keep explicit locations mandatory for deployments without all three
+  per-location Secret references. Do not infer an S3 region or override URL
+  when the storage scheme is supplied by Secrets.
+- Set staging's `externalDependencies.objectStorage.locations.workflows`,
+  `logs`, and `apps` values to empty strings while keeping the accepted
+  `credentialSecretRefs` unchanged.
+- Restore `configuration.pools.default.platforms.default: {}` in staging.
+- Compare the legacy and umbrella `config.yaml` documents again. The remaining
+  content differences should be limited to the approved empty-field pruning.
+- During cutover, exercise workflow data upload/download, log persistence and
+  retrieval, and app upload/download without reading credential Secret values.
+
 ## Decisions log
 
 | Date | ID | Decision | Required changes | Verification |
@@ -691,4 +747,5 @@ disabled and the second manual verification sync succeeds.
 | 2026-09-04 | D7 gateway | Use only regular `osmo-logger` for logger traffic; retain the router's affinity-required headless Service. | Remove the unused logger headless Service, make Envoy and TLS default to `osmo-logger:80`, and update staging's explicit port. | The complete chart suite and focused comparisons pass; the render has matching logger address/SNI/SAN/leaf identity and no logger headless Service. |
 | 2026-09-04 | D8 pgroll | Restore the legacy pgroll lifecycle and run it before service-auth migration using the typed PostgreSQL Secret. | Add the migration assets, ConfigMap, Job, values/schema contract, hook ordering, and schema env propagation to the umbrella chart; enable staging with its legacy scheduling and `public` target. | The complete chart suite and Helm lint pass; the staging render uses the expected Secret key and hook order `-30`, `-29`, `-26`, `-25`, `-20`, `-10`. Live hook execution remains a cutover check. |
 | 2026-09-04 | D8 Argo | Use one paused, controlled manual sync with prune-last behavior. | Remove automated sync from staging through its ApplicationSet generator value; verify prerequisites, delete all 11 legacy Deployments, sync manually, disable one-time settings, verify again, then restore automation separately. | Static ApplicationSet validation requires staging manual and SQA/production automated. Before cutover, verify the generated live Applications after the parent `argocd/` reconciliation. |
-| 2026-09-04 | D10 | Refresh both repositories after the pgroll decision. | Pin staging to chart commit `c4f3f14e9da92f455cc6d723ed09d28430aaf596` and values commit `05796ae40e2eb0367d8ac3d2aab564542b292bcd`; retain the unchanged ESO source pin. | The complete chart tests, Helm lint, and staging render pass. |
+| 2026-09-04 | D9 | Keep storage endpoints exclusively in the three existing per-location Secrets, restore the legacy empty `default` platform, and allow empty-field pruning. | Add a guarded Secret-only location mode to the umbrella chart; empty all three staging location values and add `configuration.pools.default.platforms.default: {}`. | Chart tests must prove no endpoints render while all Secret names and mounts remain. The staging `config.yaml` diff must contain only normalized empty-field omissions; storage data/log/app behavior remains a cutover smoke test. |
+| 2026-09-04 | D10 | Refresh both repositories after the Secret-only storage decision. | Pin staging to chart commit `13f58d570db333c188b0de213013b94702e9532c` and values commit `9531a23d587a6a880c118266a6941c99002b6a60`; retain the unchanged ESO source pin. | The complete chart tests and Helm lint pass. The staging render has no storage endpoints, retains all three Secret names and mounts, restores the legacy empty platform, and otherwise differs only by normalized empty fields. |

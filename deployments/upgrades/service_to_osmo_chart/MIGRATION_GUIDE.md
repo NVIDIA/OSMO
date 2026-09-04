@@ -10,13 +10,13 @@ The migration is **not currently a values-only, drop-in change**. The supplied
 converter preserves settings that have a proven equivalent, but every current
 environment still needs operator input before its output is deployable. In
 particular, credentials must move from arbitrary Vault-injected files to typed
-Kubernetes Secrets, and storage endpoints referenced only through Kubernetes
-Secrets must be recovered from the live environment.
+Kubernetes Secrets. Storage endpoints that already exist only in Kubernetes
+Secrets can remain there when separate per-location Secret references are used.
 
 On 2026-09-03, read-only staging inspection established that all three staging
 locations use Swift. This migration branch extends the umbrella chart to accept
-Swift locations and reuse separate existing credential Secrets, resolving the
-values-only storage gap without copying credential material.
+Swift locations and to reuse separate existing credential Secrets without
+rendering duplicate endpoints or copying credential material.
 
 Do not commit converted environment values or rendered manifests to this public
 repository. They contain internal topology and may contain secret references.
@@ -90,7 +90,7 @@ derived from an override file alone.
 | `services.redis` | `embeddedDependencies.valkey`, `externalDependencies.valkey`, `secrets.valkey` | Endpoint fields map. Legacy TLS defaults on; public-CA endpoints use the system trust store and private CAs use `caExistingSecret`. |
 | `services.configs` | `configuration` | Supported configuration sections are copied. Storage subtrees are handled separately. |
 | `extraConfigMaps` | `configuration.extraConfigMaps` | Direct. |
-| `services.configs.workflow.workflow_{data,log,app}.credential` | `externalDependencies.objectStorage` + `secrets.objectStorage` | `s3://`, `azure://`, and `swift://` endpoints map. Existing per-location Secrets map to `credentialSecretRefs`; otherwise a shared credential document can be used. |
+| `services.configs.workflow.workflow_{data,log,app}.credential` | `externalDependencies.objectStorage` + `secrets.objectStorage` | `s3://`, `azure://`, and `swift://` endpoints map. Existing per-location Secrets map to `credentialSecretRefs` and may remain the sole endpoint source; otherwise configure explicit locations and a shared credential document. |
 | `services.service` | `services.api` | Component rename plus field conversion. Snake-case auth keys become camel-case. |
 | Component `scaling` | Component `autoscaling` | HPA bounds and metrics map; legacy always-on HPAs remain enabled. |
 | Component `nodeSelector`, tolerations, labels, annotations, volumes, and sidecars | Component `pod.*` and `extraVolumeMounts` | Structural move. |
@@ -302,9 +302,10 @@ meaningful.
   for a private CA.
 - The chart rewrites the three workflow credential subtrees while preserving
   sibling storage settings such as `base_url`, timeouts, and download mode. It
-  can consume one
-  shared object-storage credential document or three existing per-location
-  Secrets.
+  can consume one shared object-storage credential document with explicit
+  locations or three existing per-location Secrets. When all three referenced
+  Secrets contain their endpoints, leave all three location values empty so
+  the rendered ConfigMap does not duplicate them.
 - The stable service-auth JWT identity is now a required Secret mounted in all
   consumers. Use the umbrella chart's documented DB-to-Secret migration hook;
   generating a new identity would invalidate existing tokens.
@@ -378,7 +379,8 @@ meaningful.
   endpoints use `swift://` and that `osmo-workflow-data-cred`,
   `osmo-workflow-log-cred`, and `osmo-workflow-app-cred` contain the expected
   per-field credentials. The migration reuses those Secrets through
-  `secrets.objectStorage.credentialSecretRefs`.
+  `secrets.objectStorage.credentialSecretRefs` and leaves all three explicit
+  location values empty, preserving the legacy Secret-only endpoint source.
 - The OAuth2 Proxy currently uses Valkey database 3 while the control services
   use database 0. Preserve this with `gateway.oauth2Proxy.redisDatabase: 3`;
   moving sessions to database 0 would log users out.
@@ -435,10 +437,11 @@ create or modify Azure resources and cannot perform this live verification.
 2. Take a tested database, MEK, service-auth, and credential backup. For
    releases that used the legacy migration, enable `databaseMigration` and
    verify its PostgreSQL Secret key, scheduling, and GitHub egress.
-3. Recover storage endpoints from the mounted Secrets. Reuse all three existing
-   credential Secrets through `credentialSecretRefs`, or build one compatible
-   object-storage Secret per namespace, and validate access with least
-   privilege.
+3. Inventory endpoint key presence without printing values. Reuse all three
+   existing credential Secrets through `credentialSecretRefs`; when the
+   endpoints remain in those Secrets, leave all three explicit location values
+   empty. Otherwise configure all three locations and a compatible shared
+   object-storage Secret. Validate access with least privilege.
 4. Create typed PostgreSQL, Valkey, object-storage, OAuth client, OAuth cookie,
    and MEK Secrets. Add a Valkey CA Secret only for a private CA. Confirm secret
    keys match the chart contract.
