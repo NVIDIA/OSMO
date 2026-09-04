@@ -339,10 +339,31 @@ meaningful.
 
 ### Staging
 
-- MCP is enabled. The umbrella chart keeps the MCP Deployment, Service,
-  NetworkPolicy, and PodMonitor integration, but removes the legacy per-MCP
-  OIDC proxy and its authentication/Redis environment variables. Qualify the
-  endpoint-only authentication flow before migration.
+- The selected values use the existing service-auth migration path with
+  `secrets.serviceAuth.managementMode=external`,
+  `existingSecret.name=osmo-service-auth`,
+  `existingSecret.key=authentication-config.json`, bootstrap disabled, and
+  migration enabled. Before syncing `staging-osmo`, stop all legacy API
+  writers, confirm the `osmo-master-encryption-key` and PostgreSQL credential
+  Secrets are ready, and create the release-authorized empty placeholder:
+
+  ```bash
+  kubectl create secret generic osmo-service-auth -n default
+  kubectl annotate secret osmo-service-auth -n default \
+    osmo.nvidia.com/service-auth-db-migration-placeholder=staging-osmo
+  ```
+
+  The Argo CD `PreSync` hook then copies the stable DB-backed JWT identity into
+  `authentication-config.json`, preserving existing tokens. After the new API
+  is ready and token continuity is verified, set
+  `secrets.serviceAuth.migration.enabled=false`. Retain the legacy DB row and
+  MEK through the rollback window.
+- MCP is enabled. Current main uses FastMCP's built-in OIDC proxy and requires
+  `services.mcp.resourceUrl`, `oidcProxy.oidc.configUrl`,
+  `oidcProxy.oidc.clientId`, and an OIDC client Secret source. The converted
+  staging values predate that contract and do not render until those settings
+  are supplied. Map and qualify the legacy MCP OIDC/Redis behavior before
+  migration.
 - Read-only inspection on 2026-09-03 established that all three storage
   endpoints use `swift://` and that `osmo-workflow-data-cred`,
   `osmo-workflow-log-cred`, and `osmo-workflow-app-cred` contain the expected
