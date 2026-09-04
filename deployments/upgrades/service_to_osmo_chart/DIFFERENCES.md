@@ -28,7 +28,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D2 | Secret and authentication delivery | Every live OSMO pod currently receives Vault Agent init and sidecar containers. The proposed deployment removes Vault injection and consumes Kubernetes Secrets synchronized separately, including a one-time service-auth migration. | Incorrect ordering, stale synchronized Secrets, or lost token continuity can prevent startup or authentication. Secret rotation behavior changes from live file updates to Secret-triggered rollouts. | **Allow / fix chart:** retain ESO ownership and typed delivery; preserve the existing Kubernetes Secret mount paths, including adding the missing backend-image credential projection. |
 | D3 | Internal TLS | Services stop generating process-local self-signed certificates and instead use generated CA/leaf Secrets with upstream certificate verification. A bootstrap hook and seven TLS Secrets are added. | First-sync ordering and retained Secret ownership must work; a bad CA/SAN configuration can break all internal calls. | **Allow / migration procedure:** use chart-generated TLS, permit initial generation once, verify it, and then restore fail-if-missing behavior. |
 | D4 | MCP authentication boundary | Current main uses FastMCP's built-in OIDC proxy, but the converted values omit its required settings and the chart initially expects one combined OIDC/Valkey Secret while ESO provides separate typed Secrets. | The staging umbrella render fails without the values; accepting chart defaults would also change the Redis database and session-key prefix. | **Fix chart / values:** consume the effective Valkey Secret separately and preserve all 19 legacy MCP settings. |
-| D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Pending** |
+| D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Pending** |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Pending** |
 | D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
@@ -298,6 +298,60 @@ settings exactly.
   browser-origin rejection, access-token and refresh-token flows, and Redis
   session continuity across an MCP restart.
 
+## D5: Scheduling and availability
+
+### Evidence
+
+- The legacy API, agent, logger, router, and worker Deployments have a soft
+  zone topology spread constraint. The legacy UI has both soft hostname and
+  zone constraints. All use `maxSkew: 1` and
+  `whenUnsatisfiable: ScheduleAnyway`.
+- The initial staging umbrella render omits all six workloads' constraints
+  because the combined staging values do not inherit the split-plane control
+  profile's pod defaults.
+- The legacy worker constraint selects `app: osmo-service`, so it measures API
+  pods rather than the worker pods being scheduled. Preserving that selector
+  would not preserve useful worker-spreading behavior.
+- The eight HPA specs otherwise match after normalizing the deliberate API
+  rename from `osmo-service` to `osmo-api`, including replica bounds,
+  container targets, resource metrics, and 80-percent utilization targets.
+- The umbrella chart's topology helper accepts per-component constraints and
+  replaces their selectors with the same standard labels used by each
+  Deployment selector.
+
+### Options
+
+1. **Restore the legacy spread intent per component (selected).** Configure
+   the old topology keys and soft policy in staging values, allowing the chart
+   helper to generate component-correct selectors. This also repairs worker's
+   ineffective legacy selector.
+2. **Leave the constraints absent.** This simplifies the generated pod specs
+   but gives the scheduler no preference to distribute replicated control
+   services across zones or UI pods across hosts.
+3. **Use hard spreading.** Changing to `DoNotSchedule` would provide stronger
+   failure-domain guarantees, but it is a new availability policy that can
+   prevent scheduling when capacity or topology labels are constrained.
+
+### Decision
+
+**Fix values.** Restore soft zone spreading for API, agent, logger, router,
+and worker, and restore both soft hostname and zone spreading for UI. Keep
+`maxSkew: 1` and `ScheduleAnyway`. Use the umbrella chart's generated
+per-component selectors, intentionally correcting worker to count worker pods
+instead of API pods. Do not change the public chart.
+
+### Actions
+
+- Add per-component `pod.topologySpreadConstraints` to the internal staging
+  values for the six affected workloads.
+- Render the complete staging release and verify that each generated
+  constraint selector exactly matches its Deployment selector.
+- Compare all topology keys, skew values, and unsatisfiable policies with the
+  legacy render, treating worker's component-correct selector as the intended
+  fix.
+- Compare the eight old and new HPA specs after normalizing only the deliberate
+  API resource and container rename.
+
 ## Decisions log
 
 | Date | ID | Decision | Required changes | Verification |
@@ -306,4 +360,5 @@ settings exactly.
 | 2026-09-04 | D2 | Use ESO unchanged with target Secrets owned by ESO. Preserve existing Kubernetes Secret mount paths; accept typed env/file delivery in place of Vault-rendered files. | Add the missing backend-image credential Secret projection to the umbrella chart. Keep `creationPolicy: Owner` and use a two-phase ESO-then-OSMO cutover. | Confirm all five ExternalSecrets are Ready without reading values; compare old/new configuration, storage, MEK, and backend-image mount paths; exercise controlled `rolloutNonce` rotation. |
 | 2026-09-04 | D3 | Use chart-generated internal TLS and allow initial generation once. | Keep the first-sync gate enabled, verify all seven retained Secrets and TLS consumers, then disable the gate and resync in fail-if-missing mode. | Check Secret key names, exact upstream DNS SANs, Deployment health, and API/MCP traffic through Envoy without certificate-validation errors. |
 | 2026-09-04 | D4 | Preserve the legacy FastMCP authentication and session behavior using separate existing OAuth and Valkey Secrets. | Fix the chart's default Redis Secret source and configure the complete staging OIDC/Redis contract. Do not change ESO. | The full staging release renders; all 19 managed settings match after normalizing typed Secret file paths. Cutover still requires live metadata, token, origin, and session tests. |
-| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `d04632d1aa6f04c745979cb93b71fc22c9416f63` and values commit `1768bce7ca8bebe1f6060a05f7705e54af05b478`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
+| 2026-09-04 | D5 | Restore the legacy soft spread intent and correct worker to count worker pods rather than API pods. | Add per-component zone constraints for API, agent, logger, router, and worker, plus hostname and zone constraints for UI. No chart change. | The full staging release renders; all six workloads use matching Deployment selectors, and all eight normalized HPA specs match the legacy render. |
+| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `d04632d1aa6f04c745979cb93b71fc22c9416f63` and values commit `2f507a3dd47b42ddca02f58aa2950f9ad49ca27e`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
