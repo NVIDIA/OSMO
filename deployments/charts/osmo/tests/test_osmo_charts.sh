@@ -1805,8 +1805,12 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/charts/backend-operator"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/tests/"
-    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "osmo/migrations/"
-    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" "/migration-job.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/run_migrations.sh"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/008_v6_4_0_configmap_user_roles.json"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/templates/database-migration.yaml"
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -1814,6 +1818,8 @@ test_control_umbrella() {
         >"$rendered"
     require_no_resource_with_hash_suffix "$rendered" Job \
         "service-auth-bootstrap"
+    require_no_resource "$rendered" ConfigMap "osmo-pgroll-migrations"
+    require_no_resource "$rendered" Job "osmo-pgroll-migration"
 
     resource_document "$rendered" List osmo-internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
@@ -2066,6 +2072,94 @@ test_control_umbrella() {
     require_deployment "$rendered" "osmo-delayed-job-monitor"
     require_deployment "$rendered" "osmo-ui"
     require_deployment "$rendered" "osmo-gateway-envoy"
+
+    helm_template database-migration "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set databaseMigration.targetSchema=public_v6_4_0 \
+        --set-string 'databaseMigration.pod.nodeSelector.kubernetes\.io/arch=amd64' \
+        --set gateway.authz.enabled=true \
+        --set secrets.serviceAuth.migration.enabled=true \
+        >"$TEST_DIRECTORY/database-migration.yaml"
+    require_resource "$TEST_DIRECTORY/database-migration.yaml" ConfigMap \
+        "database-migration-osmo-pgroll-migrations"
+    require_resource "$TEST_DIRECTORY/database-migration.yaml" Job \
+        "database-migration-osmo-pgroll-migration"
+    resource_document "$TEST_DIRECTORY/database-migration.yaml" ConfigMap \
+        "database-migration-osmo-pgroll-migrations" \
+        >"$TEST_DIRECTORY/database-migration-configmap.yaml"
+    resource_document "$TEST_DIRECTORY/database-migration.yaml" Job \
+        "database-migration-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/database-migration-job.yaml"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'helm.sh/hook-weight: "-26"'
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'argocd.argoproj.io/sync-wave: "-26"'
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "run_migrations.sh: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "001_v6_0_0_data_prep.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "008_v6_4_0_configmap_user_roles.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'helm.sh/hook-weight: "-25"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'argocd.argoproj.io/sync-wave: "-25"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "image: postgres:15-alpine"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "pgroll.linux.\${pgroll_arch}"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'bash /pgroll/run_migrations.sh "public_v6_4_0"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'name: "external-postgresql-secret"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'key: "external-db-password"'
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "kubernetes.io/arch: amd64"
+    require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
+        "name: OSMO_SCHEMA_VERSION" 7
+    require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
+        'value: "public_v6_4_0"' 7
+    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-20"'
+    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/sync-wave: "-10"'
+
+    if helm_template invalid-compute-database-migration "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            --set compute.backendName=test-backend \
+            --set compute.authentication.existingSecret=osmo-backend-token \
+            --set databaseMigration.enabled=true \
+            >"$TEST_DIRECTORY/invalid-compute-database-migration.out" 2>&1; then
+        fail "expected database migration without a control plane to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-compute-database-migration.out" \
+        "databaseMigration.enabled requires planes.control.enabled=true"
+
+    if helm_template invalid-embedded-database-migration "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+            --set databaseMigration.enabled=true \
+            >"$TEST_DIRECTORY/invalid-embedded-database-migration.out" 2>&1; then
+        fail "expected embedded PostgreSQL database migration to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-embedded-database-migration.out" \
+        "databaseMigration.enabled requires external PostgreSQL"
+
+    if helm_template invalid-database-migration-schema "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set databaseMigration.enabled=true \
+            --set-string databaseMigration.targetSchema='public;drop schema public' \
+            >"$TEST_DIRECTORY/invalid-database-migration-schema.out" 2>&1; then
+        fail "expected an invalid migration target schema to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-database-migration-schema.out" \
+        "databaseMigration.targetSchema"
 
     helm_template managed-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

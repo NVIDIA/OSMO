@@ -521,6 +521,30 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 25m
 ```
 
+### Database migrations
+
+For an upgrade backed by an existing external PostgreSQL database, enable the
+pgroll hook in the environment values:
+
+```yaml
+databaseMigration:
+  enabled: true
+  targetSchema: public
+```
+
+The chart loads its ordered migration JSON files from `migrations/` and runs
+them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job before OSMO
+workloads start. The migration reads the same PostgreSQL Secret key as the
+services and runs before the service-auth database migration. It downloads the
+pinned pgroll release from GitHub at runtime, so the Job requires outbound HTTPS
+access to GitHub.
+
+Use `public` to migrate the base schema in place. A versioned target such as
+`public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;
+keep `databaseMigration.enabled` set while those workloads use that schema.
+Migration hooks are not supported with embedded PostgreSQL because Helm
+pre-install hooks run before the embedded database cluster exists.
+
 ## Install a split compute plane
 
 The `split-plane-compute.yaml` profile installs only the backend listener,

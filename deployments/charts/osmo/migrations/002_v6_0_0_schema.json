@@ -1,0 +1,11 @@
+{
+  "operations": [
+    { "drop_column": { "table": "backends", "column": "gpu_product_label" } },
+    { "drop_column": { "table": "backends", "column": "affinity" } },
+    { "drop_column": { "table": "backends", "column": "node_condition_prefix" } },
+    { "drop_column": { "table": "backends", "column": "config_nccl_test" } },
+    { "drop_column": { "table": "backends", "column": "support_nccl_test" } },
+    { "drop_column": { "table": "backends", "column": "cache_config" } },
+    { "drop_column": { "table": "pools", "column": "enable_nccl_test" } }
+  ]
+}

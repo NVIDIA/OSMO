@@ -56,6 +56,9 @@
     .Values.embeddedDependencies.objectStorage.enabled) -}}
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.databaseMigration.enabled (not .Values.planes.control.enabled) -}}
+{{- fail "databaseMigration.enabled requires planes.control.enabled=true" -}}
+{{- end -}}
 {{- if .Values.planes.control.enabled -}}
 {{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
 {{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
@@ -431,6 +434,9 @@
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
 {{- fail "secrets.postgresql.existingSecret is required for the control plane" -}}
+{{- end -}}
+{{- if and .Values.databaseMigration.enabled .Values.embeddedDependencies.postgresql.enabled -}}
+{{- fail "databaseMigration.enabled requires external PostgreSQL because pre-install hooks run before an embedded PostgreSQL cluster exists" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}

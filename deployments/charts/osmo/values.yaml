@@ -246,6 +246,31 @@ monitoring:
     relabelings: []
     metricRelabelings: []
 
+# Ordered PostgreSQL schema migrations for control-plane upgrades. The hook
+# runs before OSMO workloads and the service-auth database migration. Keep this
+# enabled while services use a versioned targetSchema so OSMO_SCHEMA_VERSION is
+# injected into every PostgreSQL consumer.
+databaseMigration:
+  enabled: false
+  targetSchema: public
+  pgrollVersion: v0.16.1
+  image:
+    registry: ''
+    repository: postgres
+    tag: 15-alpine
+    digest: ''
+    pullPolicy: IfNotPresent
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  annotations: {}
+  pod:
+    labels: {}
+    annotations: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+  resources: {}
+
 # References to Kubernetes Secrets. Inline credentials are not accepted.
 # Embedded PostgreSQL credentials are owned by
 # postgresql.cluster.initdb.secret.name. These Secret settings are external-only

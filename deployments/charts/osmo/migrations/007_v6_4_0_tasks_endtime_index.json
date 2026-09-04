@@ -1,0 +1,10 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "CREATE INDEX CONCURRENTLY IF NOT EXISTS tasks_endtime_idx ON public.tasks USING btree (end_time)",
+        "down": "DROP INDEX CONCURRENTLY IF EXISTS public.tasks_endtime_idx"
+      }
+    }
+  ]
+}

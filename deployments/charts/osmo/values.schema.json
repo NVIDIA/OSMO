@@ -13,6 +13,7 @@
       "required": ["control", "compute"]
     },
     "compute": { "$ref": "#/definitions/compute" },
+    "databaseMigration": { "$ref": "#/definitions/databaseMigration" },
     "embeddedDependencies": {
       "type": "object",
       "properties": {
@@ -108,12 +109,47 @@
       }
     }
   },
-  "required": ["planes", "compute", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "databaseMigration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "targetSchema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z_][a-z0-9_]*$"
+        },
+        "pgrollVersion": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "image": { "$ref": "#/definitions/componentImage" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "annotations": { "$ref": "#/definitions/stringMap" },
+        "pod": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "labels": { "$ref": "#/definitions/stringMap" },
+            "annotations": { "$ref": "#/definitions/stringMap" },
+            "nodeSelector": { "$ref": "#/definitions/stringMap" },
+            "tolerations": { "type": "array" },
+            "affinity": { "type": "object" }
+          },
+          "required": ["labels", "annotations", "nodeSelector", "tolerations", "affinity"]
+        },
+        "resources": { "type": "object" }
+      },
+      "required": ["enabled", "targetSchema", "pgrollVersion", "image", "backoffLimit", "ttlSecondsAfterFinished", "annotations", "pod", "resources"]
     },
     "compute": {
       "type": "object",

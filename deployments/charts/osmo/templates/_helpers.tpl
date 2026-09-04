@@ -776,6 +776,10 @@ osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.
 {{- end -}}
 
 {{- define "osmo.externalDependencies.connectionSecretEnv" -}}
+{{- if .Values.databaseMigration.enabled }}
+- name: OSMO_SCHEMA_VERSION
+  value: {{ .Values.databaseMigration.targetSchema | quote }}
+{{- end }}
 {{- with (include "osmo.postgresql.secretName" .) }}
 - name: OSMO_POSTGRES_PASSWORD
   valueFrom:
