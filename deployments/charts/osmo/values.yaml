@@ -91,7 +91,8 @@ embeddedDependencies:
           memory: 128Mi
 
 # Connection details for dependencies owned outside this release. Each
-# endpoint is required only when its embedded dependency is disabled.
+# endpoint is required only when its embedded dependency is disabled, except
+# that per-location object-storage Secrets may supply their own endpoints.
 externalDependencies:
   # PostgreSQL stores OSMO control-plane state. Set caExistingSecret when the
   # server certificate is signed by a private CA.

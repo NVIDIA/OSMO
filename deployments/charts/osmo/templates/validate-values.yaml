@@ -410,18 +410,30 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.externalDependencies.valkey.host) -}}
 {{- fail "externalDependencies.valkey.host is required for the control plane" -}}
 {{- end -}}
+{{- $credentialSecretRefs := .Values.secrets.objectStorage.credentialSecretRefs -}}
+{{- $hasWorkflowCredentialSecretRef := ne $credentialSecretRefs.workflows.name "" -}}
+{{- $hasLogCredentialSecretRef := ne $credentialSecretRefs.logs.name "" -}}
+{{- $hasAppCredentialSecretRef := ne $credentialSecretRefs.apps.name "" -}}
+{{- $hasAnyCredentialSecretRef := or $hasWorkflowCredentialSecretRef $hasLogCredentialSecretRef $hasAppCredentialSecretRef -}}
+{{- $hasAllCredentialSecretRefs := and $hasWorkflowCredentialSecretRef $hasLogCredentialSecretRef $hasAppCredentialSecretRef -}}
 {{- if not .Values.embeddedDependencies.objectStorage.enabled -}}
 {{- $externalLocations := .Values.externalDependencies.objectStorage.locations -}}
 {{- $externalS3 := .Values.externalDependencies.objectStorage.s3 -}}
-{{- if not $externalLocations.workflows -}}
+{{- $hasAnyExternalLocation := or $externalLocations.workflows $externalLocations.logs $externalLocations.apps -}}
+{{- $hasAllExternalLocations := and $externalLocations.workflows $externalLocations.logs $externalLocations.apps -}}
+{{- if and (not $externalLocations.workflows) (not $hasAllCredentialSecretRefs) -}}
 {{- fail "externalDependencies.objectStorage.locations.workflows is required for the control plane" -}}
 {{- end -}}
-{{- if not $externalLocations.logs -}}
+{{- if and (not $externalLocations.logs) (not $hasAllCredentialSecretRefs) -}}
 {{- fail "externalDependencies.objectStorage.locations.logs is required for the control plane" -}}
 {{- end -}}
-{{- if not $externalLocations.apps -}}
+{{- if and (not $externalLocations.apps) (not $hasAllCredentialSecretRefs) -}}
 {{- fail "externalDependencies.objectStorage.locations.apps is required for the control plane" -}}
 {{- end -}}
+{{- if and $hasAllCredentialSecretRefs $hasAnyExternalLocation (not $hasAllExternalLocations) -}}
+{{- fail "externalDependencies.objectStorage.locations must configure workflows, logs, and apps together or leave all three empty for credentialSecretRefs" -}}
+{{- end -}}
+{{- if $hasAllExternalLocations -}}
 {{- $azureLocations := and (hasPrefix "azure://" $externalLocations.workflows) (hasPrefix "azure://" $externalLocations.logs) (hasPrefix "azure://" $externalLocations.apps) -}}
 {{- $s3Locations := and (hasPrefix "s3://" $externalLocations.workflows) (hasPrefix "s3://" $externalLocations.logs) (hasPrefix "s3://" $externalLocations.apps) -}}
 {{- $swiftLocations := and (hasPrefix "swift://" $externalLocations.workflows) (hasPrefix "swift://" $externalLocations.logs) (hasPrefix "swift://" $externalLocations.apps) -}}
@@ -430,6 +442,9 @@
 {{- end -}}
 {{- if and (not $s3Locations) (or $externalS3.region $externalS3.overrideUrl) -}}
 {{- fail "externalDependencies.objectStorage.s3 must be empty for non-S3 locations" -}}
+{{- end -}}
+{{- else if or $externalS3.region $externalS3.overrideUrl -}}
+{{- fail "externalDependencies.objectStorage.s3 must be empty when locations are supplied by credentialSecretRefs" -}}
 {{- end -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.secrets.postgresql.existingSecret) -}}
@@ -441,12 +456,6 @@
 {{- if and (not .Values.embeddedDependencies.valkey.enabled) (not .Values.secrets.valkey.existingSecret) -}}
 {{- fail "secrets.valkey.existingSecret is required for the control plane" -}}
 {{- end -}}
-{{- $credentialSecretRefs := .Values.secrets.objectStorage.credentialSecretRefs -}}
-{{- $hasWorkflowCredentialSecretRef := ne $credentialSecretRefs.workflows.name "" -}}
-{{- $hasLogCredentialSecretRef := ne $credentialSecretRefs.logs.name "" -}}
-{{- $hasAppCredentialSecretRef := ne $credentialSecretRefs.apps.name "" -}}
-{{- $hasAnyCredentialSecretRef := or $hasWorkflowCredentialSecretRef $hasLogCredentialSecretRef $hasAppCredentialSecretRef -}}
-{{- $hasAllCredentialSecretRefs := and $hasWorkflowCredentialSecretRef $hasLogCredentialSecretRef $hasAppCredentialSecretRef -}}
 {{- if and .Values.embeddedDependencies.objectStorage.enabled $hasAnyCredentialSecretRef -}}
 {{- fail "secrets.objectStorage.credentialSecretRefs is supported only for external object storage" -}}
 {{- end -}}

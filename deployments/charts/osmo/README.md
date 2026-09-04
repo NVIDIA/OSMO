@@ -789,7 +789,11 @@ credential form stores one YAML document in `secrets.objectStorage.existingSecre
 To reuse separate per-location Secrets, leave `existingSecret` empty and set
 all three `secrets.objectStorage.credentialSecretRefs`. An empty reference
 `key` loads the Secret's individual data keys; a non-empty key selects one YAML
-credential document. Do not configure both forms.
+credential document. When every referenced Secret supplies its own `endpoint`,
+all three `externalDependencies.objectStorage.locations` may be empty; the
+rendered configuration then takes the endpoints only from the Secrets. Either
+configure all three locations or leave all three empty. Do not configure both
+Secret forms.
 
 Generated backend-token, MEK, and service-auth Secrets are intentionally
 retained because replacing them can disconnect the compute plane, make

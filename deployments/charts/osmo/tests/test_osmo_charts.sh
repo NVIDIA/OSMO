@@ -1231,6 +1231,44 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
         "mountPath: /etc/osmo/secrets/workflow-app-credential"
 
+    helm_template secret-only-swift "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string externalDependencies.objectStorage.locations.workflows= \
+        --set-string externalDependencies.objectStorage.locations.logs= \
+        --set-string externalDependencies.objectStorage.locations.apps= \
+        >"$TEST_DIRECTORY/secret-only-swift.yaml"
+    resource_document "$TEST_DIRECTORY/secret-only-swift.yaml" ConfigMap \
+        "secret-only-swift-osmo-api-config" \
+        >"$TEST_DIRECTORY/secret-only-swift-config.yaml"
+    require_not_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "endpoint:"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-config.yaml" \
+        "secretName: workflow-app-credential"
+    resource_document "$TEST_DIRECTORY/secret-only-swift.yaml" Deployment \
+        "secret-only-swift-osmo-api" \
+        >"$TEST_DIRECTORY/secret-only-swift-api.yaml"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-data-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-log-credential"
+    require_contains "$TEST_DIRECTORY/secret-only-swift-api.yaml" \
+        "mountPath: /etc/osmo/secrets/workflow-app-credential"
+
+    if helm_template partial-secret-only-swift "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+            --set-string externalDependencies.objectStorage.locations.workflows= \
+            >"$TEST_DIRECTORY/partial-secret-only-swift.out" 2>&1; then
+        fail "expected partially empty object-storage locations to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/partial-secret-only-swift.out" \
+        "locations must configure workflows, logs, and apps together"
+
     helm_template backend-image-credential "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \

@@ -55,7 +55,9 @@ data:
       {{- $overrideUrl := include "osmo.objectStorage.overrideUrl" . }}
       {{- $region := include "osmo.objectStorage.region" . }}
       {{- $workflowData := deepCopy (default (dict) $workflow.workflow_data) }}
-      {{- $workflowDataCredential := dict "endpoint" (include "osmo.objectStorage.location" (dict "root" . "name" "workflows")) }}
+      {{- $workflowDataLocation := include "osmo.objectStorage.location" (dict "root" . "name" "workflows") }}
+      {{- $workflowDataCredential := dict }}
+      {{- if $workflowDataLocation }}{{- $_ := set $workflowDataCredential "endpoint" $workflowDataLocation }}{{- end }}
       {{- $workflowDataSecret := include "osmo.objectStorage.credentialSecretRef" (dict "root" . "name" "workflows") | fromYaml }}
       {{- if $workflowDataSecret.name }}
       {{- $_ := set $workflowDataCredential "secretName" $workflowDataSecret.name }}
@@ -66,7 +68,9 @@ data:
       {{- $_ := set $workflowData "credential" $workflowDataCredential }}
       {{- $_ := set $workflow "workflow_data" $workflowData }}
       {{- $workflowLog := deepCopy (default (dict) $workflow.workflow_log) }}
-      {{- $workflowLogCredential := dict "endpoint" (include "osmo.objectStorage.location" (dict "root" . "name" "logs")) }}
+      {{- $workflowLogLocation := include "osmo.objectStorage.location" (dict "root" . "name" "logs") }}
+      {{- $workflowLogCredential := dict }}
+      {{- if $workflowLogLocation }}{{- $_ := set $workflowLogCredential "endpoint" $workflowLogLocation }}{{- end }}
       {{- $workflowLogSecret := include "osmo.objectStorage.credentialSecretRef" (dict "root" . "name" "logs") | fromYaml }}
       {{- if $workflowLogSecret.name }}
       {{- $_ := set $workflowLogCredential "secretName" $workflowLogSecret.name }}
@@ -77,7 +81,9 @@ data:
       {{- $_ := set $workflowLog "credential" $workflowLogCredential }}
       {{- $_ := set $workflow "workflow_log" $workflowLog }}
       {{- $workflowApp := deepCopy (default (dict) $workflow.workflow_app) }}
-      {{- $workflowAppCredential := dict "endpoint" (include "osmo.objectStorage.location" (dict "root" . "name" "apps")) }}
+      {{- $workflowAppLocation := include "osmo.objectStorage.location" (dict "root" . "name" "apps") }}
+      {{- $workflowAppCredential := dict }}
+      {{- if $workflowAppLocation }}{{- $_ := set $workflowAppCredential "endpoint" $workflowAppLocation }}{{- end }}
       {{- $workflowAppSecret := include "osmo.objectStorage.credentialSecretRef" (dict "root" . "name" "apps") | fromYaml }}
       {{- if $workflowAppSecret.name }}
       {{- $_ := set $workflowAppCredential "secretName" $workflowAppSecret.name }}
