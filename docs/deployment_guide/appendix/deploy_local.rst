@@ -384,6 +384,12 @@ credentials, workflow state, and all other quickstart data disappear when the
 cluster is deleted. Do not use this quickstart for production data or any
 long-lived environment.
 
+.. seealso::
+
+   For a persistent, highly available local or edge installation, use the
+   :ref:`Self-contained Deployment
+   <deploy_self_contained>` guide.
+
 Clean up resources
 ==================
 

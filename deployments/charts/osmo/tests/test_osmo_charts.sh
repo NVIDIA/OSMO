@@ -143,6 +143,9 @@ resource_names() {
         document_kind == kind && in_metadata && /^  name: / {
             name = $0
             sub(/^  name: /, "", name)
+            if (substr(name, 1, 1) == "\"") {
+                name = substr(name, 2, length(name) - 2)
+            }
             print name
             document_kind = ""
             in_metadata = 0
@@ -683,6 +686,10 @@ test_control_umbrella() {
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" \
         "osmo-gateway-authz"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
+        "osmo-api" >"$TEST_DIRECTORY/self-contained-api.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-api.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         "osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
     require_occurrences "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
@@ -726,6 +733,9 @@ test_control_umbrella() {
     require_contains \
         "$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml" \
         'image: "alpine/k8s@sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b"'
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "kubernetes.io/metadata.name: osmo"
@@ -777,11 +787,15 @@ test_control_umbrella() {
         "number: 1"
     require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
         "dataDurability: required"
+    require_contains "$TEST_DIRECTORY/self-contained-postgresql.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_resource "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
         "osmo-valkey"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" StatefulSet \
         "osmo-valkey" >"$TEST_DIRECTORY/self-contained-valkey.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-valkey.yaml" "replicas: 3"
+    require_contains "$TEST_DIRECTORY/self-contained-valkey.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
         "osmo-valkey-init-scripts" \
         >"$TEST_DIRECTORY/self-contained-valkey-init.yaml"
@@ -806,6 +820,8 @@ test_control_umbrella() {
         "topologyKey: kubernetes.io/hostname"
     require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" \
         "storage: 100Gi"
+    require_contains "$TEST_DIRECTORY/self-contained-rustfs.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" ConfigMap \
         "osmo-rustfs-config" >"$TEST_DIRECTORY/self-contained-rustfs-config.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-rustfs-config.yaml" \
@@ -823,10 +839,26 @@ test_control_umbrella() {
         "osmo-backend-token-bootstrap"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
+        Job mek-bootstrap >"$TEST_DIRECTORY/self-contained-mek-bootstrap.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-mek-bootstrap.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
         "service-auth-bootstrap"
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
+        Job service-auth-bootstrap \
+        >"$TEST_DIRECTORY/self-contained-service-auth-bootstrap.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-service-auth-bootstrap.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
         "object-storage-bootstrap"
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
+        Job object-storage-bootstrap \
+        >"$TEST_DIRECTORY/self-contained-object-storage-bootstrap.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-object-storage-bootstrap.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         "secretName: osmo-backend-token"
     require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
@@ -866,6 +898,8 @@ test_control_umbrella() {
         "init: nvcr.io/nvidia/osmo/init-container:6.3.1"
     require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
         "client: nvcr.io/nvidia/osmo/client:6.3.1"
+    require_occurrences "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "osmo.nvidia.com/node-pool: compute" 3
     require_not_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
         "development_auth"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
@@ -2146,7 +2180,12 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
         >"$TEST_DIRECTORY/mek-bootstrap.yaml"
+    resource_document_with_hash_suffix "$TEST_DIRECTORY/mek-bootstrap.yaml" \
+        Job mek-bootstrap >"$TEST_DIRECTORY/mek-bootstrap-job.yaml"
+    require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'command: ["mek-lifecycle"]'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '- "bootstrap"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '--service_auth_file'
@@ -3097,6 +3136,7 @@ EOF
     helm_template embedded-object-storage "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
         "${embedded_object_storage_settings[@]}" \
         >"$TEST_DIRECTORY/osmo-embedded-object-storage.yaml"
 
@@ -3155,6 +3195,8 @@ EOF
     resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         Job object-storage-bootstrap \
         >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "helm.sh/hook"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \

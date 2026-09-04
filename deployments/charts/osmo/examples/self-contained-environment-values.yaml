@@ -4,8 +4,32 @@
 # Non-secret, environment-specific values for the self-contained profile.
 externalUrl: https://osmo.example.com
 
+podDefaults:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
+secrets:
+  serviceAuth:
+    bootstrap:
+      nodeSelector:
+        osmo.nvidia.com/node-pool: control-plane
+
+configuration:
+  podTemplates:
+    default_ctrl:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+    default_user:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+    default_gpu_user:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+
 compute:
-  backendName: default
   workflowNetworkPolicy:
     clusterCIDRs:
     - 10.0.0.0/8
@@ -24,3 +48,28 @@ gateway:
         jwks_uri: https://idp.example.com/.well-known/jwks.json
         cluster: idp
         user_claim: preferred_username
+
+services:
+  api:
+    auth:
+      enabled: true
+      deviceEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/auth/device
+      deviceClientId: osmo-cli
+      browserEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/auth
+      browserClientId: osmo
+      tokenEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/token
+      logoutEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/logout
+
+postgresql:
+  cluster:
+    affinity:
+      nodeSelector:
+        osmo.nvidia.com/node-pool: control-plane
+
+valkey:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
+rustfs:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
