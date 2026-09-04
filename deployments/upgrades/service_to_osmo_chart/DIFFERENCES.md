@@ -583,9 +583,10 @@ controlled Argo cutover sequence.
   annotations, projected Vault token, or `osmo2` service account. Staging keeps
   the legacy `node_group: service` selector and `dedicated=osmo-service`
   toleration.
-- Helm hook weights and Argo sync waves now execute TLS placeholders at `-30`,
-  initial TLS bootstrap at `-29`, the pgroll ConfigMap at `-26`, pgroll Job at
-  `-25`, service-auth RBAC at `-20`, and service-auth migration Job at `-10`.
+- Helm hook weights execute the pgroll ConfigMap at `-26` and pgroll Job at
+  `-25`. Argo sync waves are environment-owned rather than embedded in the
+  reusable pgroll templates; staging places both pgroll resources at `-26`,
+  ahead of service-auth RBAC at `-20` and its migration Job at `-10`.
 - A non-`public` target schema is validated as a PostgreSQL identifier and is
   propagated as `OSMO_SCHEMA_VERSION` to every PostgreSQL-consuming workload.
   Staging uses `public`, matching the legacy render.
@@ -605,6 +606,8 @@ injection solely for the migration Job.
 
 - Keep the chart default disabled and enable `databaseMigration` only for
   upgrades that require the bundled migrations.
+- Set staging's `databaseMigration.annotations` sync wave to `-26`; do not put
+  an environment-specific Argo wave back into the base chart.
 - Before cutover, confirm `osmo-postgresql-credentials/db-password` exists
   without reading its value and confirm service nodes can reach GitHub over
   HTTPS.
