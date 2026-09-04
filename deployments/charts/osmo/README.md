@@ -532,12 +532,14 @@ databaseMigration:
   targetSchema: public
 ```
 
-The chart loads its ordered migration JSON files from `migrations/` and runs
-them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job before OSMO
-workloads start. The migration reads the same PostgreSQL Secret key as the
-services and runs before the service-auth database migration. It downloads the
-pinned pgroll release from GitHub at runtime, so the Job requires outbound HTTPS
-access to GitHub.
+The chart loads the ordered OSMO 6.4 migration JSON files from `migrations/`
+and runs them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job
+before OSMO workloads start. The source database must already have the OSMO
+6.3 schema; upgrades from earlier releases must first use the applicable legacy
+service-chart migrations. The migration reads the same PostgreSQL Secret key
+as the services and runs before the service-auth database migration. It
+downloads the pinned pgroll release from GitHub at runtime, so the Job requires
+outbound HTTPS access to GitHub.
 
 Use `public` to migrate the base schema in place. A versioned target such as
 `public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;

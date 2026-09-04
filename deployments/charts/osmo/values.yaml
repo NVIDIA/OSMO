@@ -251,6 +251,9 @@ monitoring:
 # runs before OSMO workloads and the service-auth database migration. Keep this
 # enabled while services use a versioned targetSchema so OSMO_SCHEMA_VERSION is
 # injected into every PostgreSQL consumer.
+# Applies the bundled OSMO 6.3-to-6.4 migrations to an external database.
+# Databases from earlier releases must first apply the legacy service-chart
+# migrations through 6.3.
 databaseMigration:
   enabled: false
   targetSchema: public

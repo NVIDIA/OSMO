@@ -23,9 +23,10 @@
 #                Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
 #                Defaults to "public" (no versioned schema, migrations apply to public directly).
 #
-# The script is idempotent: safe to run multiple times against any database state.
-# If the target versioned schema already exists, the script exits immediately (no-op).
-# Migrations that have already been applied or aren't applicable are skipped.
+# The script is idempotent: safe to run multiple times against a database whose
+# schema is already at OSMO 6.3. If the target versioned schema already exists,
+# the script exits immediately (no-op). Migrations that have already been
+# applied or aren't applicable are skipped.
 
 set -uo pipefail
 

@@ -1866,6 +1866,8 @@ test_control_umbrella() {
         "osmo/migrations/run_migrations.sh"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/migrations/008_v6_4_0_configmap_user_roles.json"
+    require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/004_v6_2_0_data.json"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/templates/database-migration.yaml"
 
@@ -2156,9 +2158,11 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "run_migrations.sh: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
-        "001_v6_0_0_data_prep.json: |"
+        "005_v6_4_0_workflow_labels.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "008_v6_4_0_configmap_user_roles.json: |"
+    require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "004_v6_2_0_data.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         'helm.sh/hook-weight: "-25"'
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
