@@ -64,3 +64,13 @@ osmo_py_test(
         requirement("kubernetes"),
     ],
 )
+
+osmo_py_test(
+    name = "test_embedded_dex_bootstrap",
+    srcs = ["test_embedded_dex_bootstrap.py"],
+    deps = [
+        "//src/utils:embedded_dex_bootstrap_lib",
+        requirement("bcrypt"),
+        requirement("kubernetes"),
+    ],
+)

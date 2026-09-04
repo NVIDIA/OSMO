@@ -28,11 +28,21 @@ This Quickstart is the fastest way to try the complete OSMO platform locally.
 It creates a multi-node Kubernetes-in-Docker cluster with KIND or ``nvkind``
 and deploys the unified ``osmo`` Helm chart.
 
+.. note::
+
+   The unified ``osmo`` chart now defaults to embedded Dex and requires a
+   browser/CLI-reachable ``externalUrl``. HTTP is supported for trusted local
+   development. The chart generates the administrator password in a retained
+   Kubernetes Secret; it does not support disabling authentication. See the
+   chart README quickstart for the current local flow.
+
 .. tip::
    **Perfect for evaluation** – Test your workflows, explore the platform, and assess fit for your robotics development needs before cloud deployment of OSMO.
 
 .. warning::
-   Local deployment is **not** recommended for production use as it lacks authentication and has limited features.
+   Local deployment is **not** recommended for production use because its HTTP
+   endpoint and development resource settings provide no transport security or
+   high availability.
 
 Why Deploy Locally?
 ===================

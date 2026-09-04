@@ -832,6 +832,7 @@ def _resolve_backend_test_computed_fields(managed_configs: Dict[str, Any]) -> No
 _EXPECTED_CONFIG_KEYS = {
     'service', 'workflow', 'resource_validations', 'pod_templates',
     'group_templates', 'backends', 'backend_tests', 'pools', 'roles',
+    'user_roles',
 }
 
 
@@ -919,6 +920,30 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
                 errors.append(f'{config_key}.{name}: {error}')
             except Exception as error:  # pylint: disable=broad-exception-caught
                 errors.append(f'{config_key}.{name}: {type(error).__name__}')
+
+    user_roles = managed_configs.get('user_roles')
+    roles = managed_configs.get('roles')
+    known_roles = set(roles) if isinstance(roles, dict) else set()
+    if user_roles is not None and not isinstance(user_roles, dict):
+        errors.append(
+            f'user_roles: must be a dict, got {type(user_roles).__name__}')
+    elif isinstance(user_roles, dict):
+        for user_id, role_names in user_roles.items():
+            if not isinstance(user_id, str) or not user_id:
+                errors.append('user_roles: user IDs must be non-empty strings')
+                continue
+            if not isinstance(role_names, list):
+                errors.append(
+                    f'user_roles.{user_id}: must be a list, got '
+                    f'{type(role_names).__name__}')
+                continue
+            for role_name in role_names:
+                if not isinstance(role_name, str):
+                    errors.append(
+                        f'user_roles.{user_id}: role names must be strings')
+                elif role_name not in known_roles:
+                    errors.append(
+                        f'user_roles.{user_id}: unknown role {role_name}')
 
     return errors
 

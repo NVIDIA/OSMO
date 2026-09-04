@@ -74,6 +74,7 @@ helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
+  --set-string externalUrl="$OSMO_URL" \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -94,6 +95,11 @@ helm upgrade osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
+Back up the retained Secrets before relying on the installation. In particular,
+restore the original embedded-Dex Secrets under their original names after a
+disaster; with initial generation disabled, a missing Secret makes the bootstrap
+Job fail rather than silently creating a new identity.
+
 Inspect the release without reading generated Secret values:
 
 ```bash
@@ -103,8 +109,8 @@ kubectl --namespace osmo get service osmo-gateway
 
 ### Open the UI and use the CLI
 
-The gateway exposes the UI and API on NodePort `30080`. Set `OSMO_URL` from a
-reachable node address, then open the same URL in a browser:
+The gateway exposes the UI and API on NodePort `30080`. Open the `OSMO_URL`
+selected during installation in a browser:
 
 ```bash
 export OSMO_NODE_ADDRESS="$(kubectl get nodes \
@@ -128,18 +134,30 @@ kubectl --namespace osmo \
   port-forward service/osmo-gateway 8080:80
 ```
 
-Then select the forwarded URL in the terminal where you use the CLI:
+Port-forwarding works only when the release was installed with the same public
+origin. If you selected that mode before installation, use:
 
 ```bash
 export OSMO_URL=http://127.0.0.1:8080
 ```
 
-Install the CLI if needed, log in with the development identity, and submit the
+The default embedded Dex account is `admin` (`admin@osmo.local`). Retrieve its
+random initial password only when you need to sign in. This intentionally writes
+the password to the terminal, so use a private terminal and do not paste it into
+shell history, issue trackers, or logs:
+
+```bash
+kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
+  --output jsonpath='{.data.password}' | base64 --decode
+printf '\n'
+```
+
+Install the CLI if needed, sign in through the browser OIDC flow, and submit the
 canonical smoke workflow:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-osmo login "$OSMO_URL" --method=dev --username=testuser
+osmo login "$OSMO_URL"
 osmo workflow submit deployments/workflows/verify-hello.yaml \
   --pool default \
   --format-type json
@@ -193,6 +211,8 @@ container. Ensure an eligible worker has at least 2 CPU, 2 GiB of memory, and
 2 GiB of ephemeral storage available for that workflow. The Quickstart disables
 MCP, optional gateway authentication and rate limiting, TLS, ingress,
 monitoring, autoscaling, disruption budgets, backups, and HA behavior.
+Embedded Dex, OAuth2 Proxy, and authorization remain enabled because
+control-plane authentication is mandatory.
 
 The Quickstart uses development authentication and exposes an administrator
 identity through a NodePort. It is not a production security or availability
@@ -202,7 +222,7 @@ long-lived environments.
 
 ## Single-plane external dependencies
 
-`profiles/single-plane.yaml` is a provider-neutral, converged base overlay for
+`profiles/single-plane.yaml` is an embedded-Dex-by-default, converged base overlay for
 one cluster that runs both the control and compute planes. It disables embedded
 PostgreSQL, Valkey, and object storage, while retaining the gateway as a
 `ClusterIP` Service. Layer a site-specific values file after it for the public
@@ -285,25 +305,14 @@ run Kubernetes 1.30 or newer and provide:
 - at least four schedulable nodes, with enough failure-domain capacity for
   three PostgreSQL pods, three Valkey pods, and four RustFS pods.
 
-Separately, register an OIDC client with an identity provider reachable by
-users and OSMO gateway workloads. The provider may run inside or outside the
-Kubernetes cluster. Its tokens must contain an array-valued `roles` claim.
-Create the `osmo-oauth2-proxy` Secret in the release namespace with
-`client_secret` and `cookie_secret` keys. The profile keeps the gateway as a
-ClusterIP Service; put an operator-managed edge in front of it to terminate
-public TLS and set `externalUrl` to that edge's URL. OAuth2 Proxy authenticates
-requests inside the release, Envoy strips client-supplied OSMO identity headers,
-and the OSMO authorization service enforces role policies. NetworkPolicies
-prevent in-cluster clients from bypassing Envoy to reach control-plane Services.
-Replace the example issuer, audience, JWKS URL, IDP host, and user claim with the
-OIDC client's actual values so Envoy validates the token before authorization.
-The roles claim name is fixed as `roles`. The built-in mappings grant the
-external `osmo-user` role workflow access and the external `osmo-admin` role
-full administrative access. Before exposing the service, assign at least one
-trusted operator `osmo-admin` in the IdP and assign normal workflow users
-`osmo-user`. This is the initial administrator bootstrap for the file-backed
-authorization service. A token without either mapped role receives only
-`osmo-default` and cannot use workflow or administrative APIs.
+The profile uses embedded Dex by default. The gateway remains a ClusterIP
+Service; put an operator-managed TLS edge in front of it and set `externalUrl`
+to that public URL. OAuth2 Proxy authenticates requests inside the release,
+Envoy strips client-supplied OSMO identity headers, and the OSMO authorization
+service enforces role policies. NetworkPolicies prevent in-cluster clients from
+bypassing Envoy to reach control-plane Services. See [Authentication providers
+and credential lifecycle](#authentication-providers-and-credential-lifecycle)
+to select `externalOidc` instead.
 Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
 creating the policy objects does not prove that the cluster enforces them.
 
@@ -387,7 +396,8 @@ kubectl --namespace osmo wait \
 kubectl --namespace osmo get pods,pvc,services,jobs,poddisruptionbudgets
 kubectl --namespace osmo get secret \
   osmo-backend-token osmo-master-encryption-key osmo-valkey-credentials \
-  osmo-rustfs-credentials osmo-service-auth
+  osmo-rustfs-credentials osmo-service-auth osmo-embedded-dex-admin \
+  osmo-embedded-dex-oauth
 ```
 
 The release creates the workflow, log, and app buckets and wires the RustFS
@@ -827,9 +837,9 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 | `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
 | `secrets.serviceAuth` | `authentication-config.json` | Stable JWT signing identity |
-| `secrets.defaultAdmin` | `password` | Optional administrator bootstrap |
-| `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
-| `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
+| `authentication.embeddedDex.adminSecretName` | `password`, `password-hash` | Retained embedded-Dex administrator credential |
+| `authentication.embeddedDex.oauthSecretName` | `browser-client-secret`, `cookie-secret` | Retained browser OAuth and session-cookie credentials |
+| `authentication.externalOidc.*Secret` | Configured key | Operator-owned external OIDC credentials |
 
 External object-storage locations may use `s3://`, `azure://`, or `swift://`
 URIs, but all three locations must use the same scheme. The usual static
@@ -1143,19 +1153,23 @@ consumers.
 
 ### OAuth credentials
 
-OAuth client credentials are always operator-owned. The client and cookie may
+In embedded-Dex mode, the bootstrap hooks create and retain the administrator,
+browser-client, and cookie credentials; see [Authentication providers and
+credential lifecycle](#authentication-providers-and-credential-lifecycle). In
+external-OIDC mode, client and cookie credentials are operator-owned and may
 share a Secret:
 
 ```yaml
-secrets:
-  oauthClientSecret:
-    existingSecret: oauth2-proxy-secrets
-    keys:
-      value: client_secret
-  oauthCookieSecret:
-    existingSecret: oauth2-proxy-secrets
-    keys:
-      value: cookie_secret
+authentication:
+  externalOidc:
+    browserClientSecret:
+      existingSecret: osmo-external-oidc
+      key: client_secret
+      rolloutNonce: ''
+    cookieSecret:
+      existingSecret: osmo-external-oidc
+      key: cookie_secret
+      rolloutNonce: ''
 ```
 
 For direct-Helm development only, set

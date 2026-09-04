@@ -11,6 +11,8 @@ fullnameOverride: ''
 externalUrl: ''
 
 embeddedDependencies:
+  dex:
+    enabled: true
   postgresql:
     enabled: false
   valkey:
@@ -160,23 +162,15 @@ gateway:
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
     service:
-      # Keep the unauthenticated in-cluster gateway behind an operator-managed,
-      # authenticating edge rather than provisioning a public load balancer.
+      # Put the authenticated in-cluster gateway behind an operator-managed
+      # edge rather than provisioning a public load balancer.
       type: ClusterIP
-    defaultIdentity:
-      user: ''
-      roles: ''
-      allowedPools: ''
     resources:
       requests:
         cpu: 200m
         memory: 128Mi
       limits:
         memory: 256Mi
-  oauth2Proxy:
-    enabled: false
-  authz:
-    enabled: false
   rateLimit:
     enabled: false
   tls:

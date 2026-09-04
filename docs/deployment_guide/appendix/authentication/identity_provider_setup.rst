@@ -23,6 +23,34 @@ Identity Provider (IdP) Setup
 
 This guide explains how to use OSMO with an external **identity provider (IdP)** so that users log in with your organization’s credentials (e.g., Microsoft Entra ID, Google Workspace, AWS IAM Identity Center). OSMO connects **directly** to the IdP; there is no Keycloak or other broker in the middle.
 
+.. note::
+
+   In the unified ``osmo`` chart, select
+   ``authentication.provider: externalOidc`` and disable
+   ``embeddedDependencies.dex.enabled``. Supply separate confidential browser
+   and public CLI clients, every endpoint, ``jwksHost``, user/role claim names,
+   scopes, and existing Secret references. HTTP endpoints are accepted for
+   trusted development only. HTTPS JWKS connections use the system CA bundle,
+   validate the exact ``jwksHost`` DNS name, and honor an explicit URI port.
+   See :doc:`migrating_to_embedded_dex` for the complete migration contract.
+
+Create browser-client and cookie Secrets without putting their values in shell
+history or process arguments:
+
+.. code-block:: bash
+
+   umask 077
+   OSMO_OIDC_SECRET_DIR=$(mktemp -d)
+   trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
+   read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET
+   printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
+     "$OSMO_OIDC_SECRET_DIR/client_secret"
+   unset OSMO_BROWSER_CLIENT_SECRET
+   openssl rand -base64 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
+   kubectl --namespace osmo create secret generic osmo-external-oidc \
+     --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
+     --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
+
 When to use an IdP
 ==================
 

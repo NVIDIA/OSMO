@@ -209,6 +209,136 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- regexReplaceAll "[:/].*$" $withoutScheme "" -}}
 {{- end -}}
 
+{{- define "osmo.authentication.embedded" -}}
+{{- eq .Values.authentication.provider "embeddedDex" -}}
+{{- end -}}
+
+{{- define "osmo.authentication.issuer" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- printf "%s/dex" (.Values.externalUrl | trimSuffix "/") -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.issuer -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.authorizationEndpoint" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- printf "%s/auth" (include "osmo.authentication.issuer" .) -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.authorizationEndpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.tokenEndpoint" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- printf "%s/token" (include "osmo.authentication.issuer" .) -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.tokenEndpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.deviceEndpoint" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- printf "%s/device/code" (include "osmo.authentication.issuer" .) -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.deviceEndpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.browserClientId" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- .Values.authentication.embeddedDex.browserClientId -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.browserClientId -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.cliClientId" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- .Values.authentication.embeddedDex.cliClientId -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.cliClientId -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.logoutEndpoint" -}}
+{{- if eq .Values.authentication.provider "externalOidc" -}}
+{{- .Values.authentication.externalOidc.logoutEndpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.rolesClaim" -}}
+{{- if eq .Values.authentication.provider "externalOidc" -}}
+{{- .Values.authentication.externalOidc.rolesClaim -}}
+{{- else -}}
+roles
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.browserSecretName" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- .Values.authentication.embeddedDex.oauthSecretName -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.browserClientSecret.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.browserSecretKey" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}browser-client-secret{{- else -}}{{- .Values.authentication.externalOidc.browserClientSecret.key -}}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.cookieSecretName" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- .Values.authentication.embeddedDex.oauthSecretName -}}
+{{- else -}}
+{{- .Values.authentication.externalOidc.cookieSecret.existingSecret -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.cookieSecretKey" -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}cookie-secret{{- else -}}{{- .Values.authentication.externalOidc.cookieSecret.key -}}{{- end -}}
+{{- end -}}
+
+{{- define "osmo.authentication.cookieSecure" -}}
+{{- hasPrefix "https://" (.Values.externalUrl | lower) -}}
+{{- end -}}
+
+{{- define "osmo.embeddedDex.config" -}}
+issuer: {{ include "osmo.authentication.issuer" . | quote }}
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+telemetry:
+  http: 0.0.0.0:5558
+expiry:
+  deviceRequests: {{ .Values.authentication.embeddedDex.expiry.deviceRequests | quote }}
+  signingKeys: {{ .Values.authentication.embeddedDex.expiry.signingKeys | quote }}
+  idTokens: {{ .Values.authentication.embeddedDex.expiry.idTokens | quote }}
+  refreshTokens:
+    reuseInterval: {{ .Values.authentication.embeddedDex.expiry.refreshTokens.reuseInterval | quote }}
+    validIfNotUsedFor: {{ .Values.authentication.embeddedDex.expiry.refreshTokens.validIfNotUsedFor | quote }}
+    absoluteLifetime: {{ .Values.authentication.embeddedDex.expiry.refreshTokens.absoluteLifetime | quote }}
+enablePasswordDB: true
+oauth2:
+  passwordConnector: local
+  skipApprovalScreen: true
+staticPasswords:
+- email: {{ .Values.authentication.embeddedDex.admin.email | quote }}
+  hashFromEnv: OSMO_DEX_ADMIN_PASSWORD_HASH
+  username: {{ .Values.authentication.embeddedDex.admin.username | quote }}
+  userID: 08a8684b-db88-4b73-90a9-3cd1661f5466
+staticClients:
+- id: {{ .Values.authentication.embeddedDex.browserClientId | quote }}
+  name: OSMO Browser
+  secretEnv: OSMO_DEX_BROWSER_CLIENT_SECRET
+  redirectURIs:
+  - {{ printf "%s/oauth2/callback" (.Values.externalUrl | trimSuffix "/") | quote }}
+- id: {{ .Values.authentication.embeddedDex.cliClientId | quote }}
+  name: OSMO CLI
+  public: true
+{{- end -}}
+
 {{- define "osmo.component.imagePullPolicy" -}}
 {{- .component.image.pullPolicy -}}
 {{- end -}}
@@ -671,15 +801,6 @@ osmo.nvidia.com/service-auth-rollout: {{ .Values.secrets.serviceAuth.rolloutNonc
 {{- include "osmo.valkey.generatedSecretName" . -}}
 {{- else -}}
 {{- .Values.secrets.valkey.existingSecret -}}
-{{- end -}}
-{{- end -}}
-
-{{/* Effective OAuth cookie Secret. */}}
-{{- define "osmo.oauthCookie.secretName" -}}
-{{- if .Values.secrets.oauthCookieSecret.generate -}}
-{{- printf "%s-oauth-cookie" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- required "secrets.oauthCookieSecret.existingSecret is required" .Values.secrets.oauthCookieSecret.existingSecret -}}
 {{- end -}}
 {{- end -}}
 

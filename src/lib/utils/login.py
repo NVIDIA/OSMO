@@ -99,14 +99,14 @@ def construct_pkce_authorization_url(browser_endpoint: str, client_id: str,
 
 
 def validate_oauth_endpoint(endpoint: str, endpoint_name: str) -> None:
-    """Require OAuth authorization and token endpoints to use HTTPS."""
+    """Require OAuth authorization and token endpoints to use HTTP or HTTPS."""
     if not isinstance(endpoint, str):
         raise osmo_errors.OSMOUserError(
-            f'The OAuth {endpoint_name} must use HTTPS')
+            f'The OAuth {endpoint_name} must use HTTP or HTTPS')
     parsed_endpoint = urlparse(endpoint)
-    if parsed_endpoint.scheme.lower() != 'https' or not parsed_endpoint.netloc:
+    if parsed_endpoint.scheme.lower() not in {'http', 'https'} or not parsed_endpoint.netloc:
         raise osmo_errors.OSMOUserError(
-            f'The OAuth {endpoint_name} must use HTTPS')
+            f'The OAuth {endpoint_name} must use HTTP or HTTPS')
 
 
 class LoginConfig(pydantic.BaseModel):

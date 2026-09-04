@@ -4,6 +4,44 @@
 
 {{ include "osmo.notes" . }}
 
+{{- if eq .Values.authentication.provider "embeddedDex" }}
+
+Authentication uses the embedded Dex provider at:
+
+  {{ include "osmo.authentication.issuer" . }}
+
+The initial administrator is {{ .Values.authentication.embeddedDex.admin.username }}
+({{ .Values.authentication.embeddedDex.admin.email }}). Retrieve its random
+password only in a private terminal; this prints sensitive material:
+
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ .Values.authentication.embeddedDex.adminSecretName }} --output jsonpath='{.data.password}' | base64 --decode; printf '\n'
+
+After the first successful install, back up {{ .Values.authentication.embeddedDex.adminSecretName }}
+and {{ .Values.authentication.embeddedDex.oauthSecretName }}, then set
+authentication.embeddedDex.bootstrap.allowInitialGeneration=false in the next
+Helm or GitOps sync. Retained Secrets are not restored by Helm rollback or
+deleted by Helm uninstall. Dex uses in-memory state, so a Dex restart invalidates
+active browser, refresh/offline, device, and authorization-code sessions.
+The pre-install/pre-upgrade Job reconciles credentials and conditionally deletes
+consumer Pods; the separate post-install/post-upgrade Job conditionally restarts
+Dex after Helm updates its config Secret. Applied identities stay on the
+hook-owned Secrets, so Helm-managed Deployments do not drift.
+
+{{- if hasPrefix "http://" .Values.externalUrl }}
+WARNING: HTTP is for trusted development networks only. Passwords, authorization
+codes, bearer tokens, and session cookies can be intercepted. Use HTTPS for
+production.
+{{- end }}
+{{- else }}
+
+Authentication uses the external OIDC issuer:
+
+  {{ .Values.authentication.externalOidc.issuer }}
+
+For an HTTPS JWKS URI, Envoy validates the certificate with its system CA bundle
+and requires the exact DNS SAN configured in authentication.externalOidc.jwksHost.
+{{- end }}
+
 {{- if .Values.embeddedDependencies.postgresql.enabled }}
 
 Embedded PostgreSQL is managed by CloudNativePG:

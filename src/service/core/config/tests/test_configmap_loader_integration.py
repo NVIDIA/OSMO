@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # pylint: disable=protected-access
 
+import datetime
 import os
 import tempfile
 from typing import Any, Dict
@@ -25,6 +26,7 @@ from typing import Any, Dict
 import yaml
 
 from src.lib.utils import osmo_errors
+from src.service.core.auth import auth_service
 from src.service.core.config import (
     config_service,
     configmap_loader,
