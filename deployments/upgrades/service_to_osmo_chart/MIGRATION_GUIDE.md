@@ -358,12 +358,13 @@ meaningful.
   is ready and token continuity is verified, set
   `secrets.serviceAuth.migration.enabled=false`. Retain the legacy DB row and
   MEK through the rollback window.
-- MCP is enabled. Current main uses FastMCP's built-in OIDC proxy and requires
-  `services.mcp.resourceUrl`, `oidcProxy.oidc.configUrl`,
-  `oidcProxy.oidc.clientId`, and an OIDC client Secret source. The converted
-  staging values predate that contract and do not render until those settings
-  are supplied. Map and qualify the legacy MCP OIDC/Redis behavior before
-  migration.
+- MCP is enabled. Current main uses FastMCP's built-in OIDC proxy. Preserve the
+  legacy OIDC discovery URL, client ID, v1 access-token issuer, scope, token
+  lifetimes, Redis database `14`, `staging:mcp-fastmcp` key prefix, timeouts,
+  and allowed origins. Use `osmo-oauth-credentials/client_secret` for the OIDC
+  client and the chart's effective
+  `osmo-valkey-credentials/redis-password` reference for Redis; do not combine
+  or duplicate them in ESO.
 - Read-only inspection on 2026-09-03 established that all three storage
   endpoints use `swift://` and that `osmo-workflow-data-cred`,
   `osmo-workflow-log-cred`, and `osmo-workflow-app-cred` contain the expected
