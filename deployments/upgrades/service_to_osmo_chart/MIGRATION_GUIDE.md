@@ -434,11 +434,11 @@ create or modify Azure resources and cannot perform this live verification.
 
 ## Migration sequence
 
-1. Freeze the Argo application definition, chart revision, and values revision
-   to reviewed commit hashes. Set staging's ApplicationSet `automatedSync` value
-   to `false`; when the parent `argocd/` Application reconciles it, confirm the
-   generated `staging-osmo` Application has no automated sync while SQA and
-   production retain it. Do not migrate against moving `main`/`HEAD` refs.
+1. Freeze the chart and values revisions to reviewed commit hashes. Retain the
+   ApplicationSet's existing shared automated-sync policy; do not add
+   environment-specific sync settings. Do not make the new staging desired
+   state visible to the parent `argocd/` Application until the remaining
+   prerequisites and cutover steps are ready.
 2. Confirm the source database is already on the OSMO 6.3 schema, then take a
    tested database, MEK, service-auth, and credential backup. Enable
    `databaseMigration` for the 6.3-to-6.4 upgrade and verify its PostgreSQL
@@ -461,16 +461,15 @@ create or modify Azure resources and cannot perform this live verification.
    workloads.
 8. Start the maintenance window. Delete the ten legacy Deployments whose
    selectors are replaced, plus `osmo-service` so no old API database writer
-   remains. Manually sync `staging-osmo` once with pruning enabled. Pgroll must
-   complete before the service-auth migration starts, and `PruneLast=true` must
-   leave obsolete resources until replacements are healthy. Verify every
-   rollout, HPA recreation, ALB health, login/token continuity, workflow
-   submit/log/data paths, router WebSockets, Authz, rate limiting, and the final
-   prune set.
-9. Disable the service-auth migration and one-time TLS generation flags,
-   manually sync, and verify again. Then restore staging `automatedSync: true`
-   in a separate reviewed commit. Retain the old DB identity, MEK, and
-   chart/value commits for the rollback window.
+   remains. Make the new pinned desired state visible and let `staging-osmo`
+   synchronize automatically with pruning enabled. Pgroll must complete before
+   the service-auth migration starts, and `PruneLast=true` must leave obsolete
+   resources until replacements are healthy. Verify every rollout, HPA
+   recreation, ALB health, login/token continuity, workflow submit/log/data
+   paths, router WebSockets, Authz, rate limiting, and the final prune set.
+9. Disable the service-auth migration and one-time TLS generation flags, let
+   the follow-up change reconcile automatically, and verify again. Retain the
+   old DB identity, MEK, and chart/value commits for the rollback window.
 10. Migrate one non-production environment first. Production remains blocked
     until its credential inventory, dataset, and log-rotation behavior have
     explicit resolutions.
