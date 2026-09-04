@@ -23,6 +23,14 @@ Authentication Flow
 
 This guide describes how authentication and authorization work in OSMO: how users and service accounts prove their identity and how OSMO determines what they are allowed to do.
 
+.. important::
+
+   Control-plane releases of the unified ``osmo`` chart always use OIDC:
+   embedded Dex by default or an explicit external provider. Embedded Dex is
+   routed at ``<externalUrl>/dex`` and its fixed administrator subject is bound
+   to ``osmo-admin``. The no-IdP/default-access-token flow below applies to
+   older deployment paths; see :doc:`migrating_to_embedded_dex`.
+
 Architecture components
 ========================
 

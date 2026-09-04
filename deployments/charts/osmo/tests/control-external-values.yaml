@@ -10,6 +10,8 @@ planes:
 fullnameOverride: ''
 
 embeddedDependencies:
+  dex:
+    enabled: false
   postgresql:
     enabled: false
   valkey:
@@ -18,6 +20,23 @@ embeddedDependencies:
     enabled: false
 
 externalUrl: http://osmo-gateway
+
+authentication:
+  provider: externalOidc
+  externalOidc:
+    issuer: https://idp.example.com
+    browserClientId: browser-client
+    cliClientId: device-client
+    authorizationEndpoint: https://idp.example.com/authorize
+    tokenEndpoint: https://idp.example.com/token
+    deviceEndpoint: https://idp.example.com/device
+    jwksUri: https://idp.example.com/keys
+    jwksHost: idp.example.com
+    logoutEndpoint: https://idp.example.com/logout
+    browserClientSecret:
+      existingSecret: oauth2-proxy-secrets
+    cookieSecret:
+      existingSecret: oauth2-proxy-secrets
 
 externalDependencies:
   postgresql:

@@ -4,10 +4,11 @@
 # Production converged profile for self-hosting OSMO on Kubernetes. The cluster
 # must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
 # StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
-# nodes for distributed RustFS. Register an OIDC client with an identity provider
-# reachable by users and the OSMO gateway; it may run inside or outside the
-# cluster. The OSMO release owns the control plane, compute plane, PostgreSQL
-# Cluster, replicated fixed-primary Valkey, and distributed RustFS.
+# nodes for distributed RustFS. The default embedded Dex provider is part of
+# this control-plane release. Use authentication.provider=externalOidc only
+# when integrating an operator-managed identity provider. The OSMO release owns
+# the control plane, compute plane, PostgreSQL Cluster, replicated fixed-primary
+# Valkey, and distributed RustFS.
 planes:
   control:
     enabled: true
@@ -25,6 +26,8 @@ imageTag: ''
 externalUrl: ''
 
 embeddedDependencies:
+  dex:
+    enabled: true
   postgresql:
     enabled: true
   valkey:
@@ -41,10 +44,6 @@ secrets:
   objectStorage:
     generate: true
     existingSecret: ''
-  oauthClientSecret:
-    existingSecret: osmo-oauth2-proxy
-  oauthCookieSecret:
-    existingSecret: osmo-oauth2-proxy
   backendApiTokens:
     enabled: true
     bootstrap:
@@ -177,10 +176,6 @@ services:
 gateway:
   envoy:
     replicas: 2
-    defaultIdentity:
-      user: ''
-      roles: ''
-      allowedPools: ''
     jwt:
       providers:
       # Keep OSMO-issued access tokens valid for in-cluster compute services.
@@ -199,10 +194,6 @@ gateway:
         memory: 128Mi
       limits:
         memory: 256Mi
-  oauth2Proxy:
-    enabled: true
-  authz:
-    enabled: true
   rateLimit:
     enabled: false
   tls:

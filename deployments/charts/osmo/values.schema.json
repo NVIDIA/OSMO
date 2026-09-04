@@ -17,6 +17,7 @@
     "embeddedDependencies": {
       "type": "object",
       "properties": {
+        "dex": { "$ref": "#/definitions/enabledBlock" },
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
         "objectStorage": { "$ref": "#/definitions/embeddedObjectStorage" }
@@ -25,6 +26,7 @@
     "valkey": { "type": "object" },
     "postgresql": { "type": "object" },
     "rustfs": { "type": "object" },
+    "dex": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
@@ -50,10 +52,11 @@
         { "maxLength": 0 },
         {
           "format": "uri",
-          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})*)*$"
+          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?/?$"
         }
       ]
     },
+    "authentication": { "$ref": "#/definitions/authentication" },
     "ingress": { "$ref": "#/definitions/ingress" },
     "httproute": { "$ref": "#/definitions/httpRoute" },
     "monitoring": { "$ref": "#/definitions/monitoring" },
@@ -74,9 +77,7 @@
         "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
         "serviceAuth": { "$ref": "#/definitions/serviceAuthReference" },
-        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
-        "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
-        "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
+        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" }
       }
     },
     "configuration": {
@@ -881,18 +882,6 @@
       },
       "required": ["domain", "descriptors"]
     },
-    "apiAuth": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "deviceEndpoint": { "type": "string" },
-        "deviceClientId": { "type": "string" },
-        "browserEndpoint": { "type": "string" },
-        "browserClientId": { "type": "string" },
-        "tokenEndpoint": { "type": "string" },
-        "logoutEndpoint": { "type": "string" }
-      }
-    },
     "autoscaling": {
       "type": "object",
       "properties": {
@@ -943,9 +932,9 @@
     },
     "envoyJwt": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "userHeader": { "type": "string" },
-        "allowMissing": { "type": "boolean" },
         "providers": { "type": "array" },
         "additionalProviders": { "type": "array" }
       }
@@ -980,7 +969,6 @@
         "hostname": { "type": "string" },
         "clientInstallUrl": { "type": "string" },
         "disableTaskMetrics": { "type": "boolean" },
-        "auth": { "$ref": "#/definitions/apiAuth" },
         "service": { "$ref": "#/definitions/serviceMetadata" },
         "livenessProbe": { "$ref": "#/definitions/probe" },
         "readinessProbe": { "$ref": "#/definitions/probe" },
@@ -1140,7 +1128,6 @@
         "hostname": { "type": "string" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "defaultIdentity": { "$ref": "#/definitions/gatewayDefaultIdentity" },
         "service": { "$ref": "#/definitions/gatewayService" },
         "ssl": { "$ref": "#/definitions/gatewaySsl" },
         "resources": { "type": "object" },

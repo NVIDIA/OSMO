@@ -114,20 +114,18 @@ spec:
         - --postgres_user
         - {{ . }}
         {{- end }}
-        {{- if .Values.services.api.auth.enabled }}
         - --device_endpoint
-        - {{ .Values.services.api.auth.deviceEndpoint }}
+        - {{ include "osmo.authentication.deviceEndpoint" . | quote }}
         - --device_client_id
-        - {{ .Values.services.api.auth.deviceClientId }}
+        - {{ include "osmo.authentication.cliClientId" . | quote }}
         - --browser_endpoint
-        - {{ .Values.services.api.auth.browserEndpoint }}
+        - {{ include "osmo.authentication.authorizationEndpoint" . | quote }}
         - --browser_client_id
-        - {{ .Values.services.api.auth.browserClientId }}
+        - {{ include "osmo.authentication.cliClientId" . | quote }}
         - --token_endpoint
-        - {{ .Values.services.api.auth.tokenEndpoint }}
+        - {{ include "osmo.authentication.tokenEndpoint" . | quote }}
         - --logout_endpoint
-        - {{ .Values.services.api.auth.logoutEndpoint }}
-        {{- end }}
+        - {{ include "osmo.authentication.logoutEndpoint" . | quote }}
         {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.hostname" .) }}
         {{- if $serviceHostname }}
         - --service_hostname

@@ -13,6 +13,8 @@ planes:
 fullnameOverride: ''
 
 embeddedDependencies:
+  dex:
+    enabled: false
   postgresql:
     enabled: false
   valkey:

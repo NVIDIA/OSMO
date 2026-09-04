@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Test-only public origin supplied because control-plane installs require an
+# environment-specific externally reachable URL.
+externalUrl: http://127.0.0.1:30080

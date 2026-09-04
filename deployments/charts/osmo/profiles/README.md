@@ -34,27 +34,27 @@ The self-contained profile is the production-converged path for environments
 that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version
 OSMO images, production service defaults, a synchronous three-instance
 PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed
-RustFS, OAuth2 authentication, semantic authorization, and network isolation.
-The profile creates and retains its workflow namespace. Register an OIDC client
-with an identity provider reachable by users and the OSMO gateway; the provider
-may run inside or outside Kubernetes. Its tokens must contain an array-valued
-`roles` claim; assign at least one trusted operator the external `osmo-admin`
-role before exposing the service. The split profiles contain example names and
-endpoints; copy them into an environment values file before installation.
+RustFS, embedded Dex, semantic authorization, and network isolation. The
+profile creates and retains its workflow namespace. Back up its retained
+embedded-Dex Secrets immediately after first installation, then set
+`authentication.embeddedDex.bootstrap.allowInitialGeneration: false` in the
+environment values before the next sync. External identity providers remain
+available through `authentication.provider: externalOidc`; their complete
+endpoint and existing-Secret contract belongs in an environment values file.
 Production operators must also provide and test backup and restore for the
-stateful volumes.
+stateful volumes and retained Secrets.
 
 `single-plane.yaml` enables both planes with externally managed dependencies.
-It is provider-neutral and is not directly installable: layer it before a
-site-specific values file that supplies the required dependency locations and
-connection details. Object storage defaults to static Secret authentication;
+It is not directly installable: layer it before a site-specific values file
+that supplies the required dependency locations, connection details, and public
+URL. It defaults to embedded Dex, or a site can deliberately select
+`authentication.provider: externalOidc` and supply the external IdP contract.
+Object storage defaults to static Secret authentication;
 sites using a cloud SDK identity can set
 `externalDependencies.objectStorage.authentication.type: sdkDefault` instead.
-The profile requires JWT authentication and configures the OSMO service's local
-JWKS endpoint as its provider. Its gateway is a ClusterIP and it creates no
-Ingress or HTTPRoute. Sites can replace or extend the local provider and enable
-authorization and TLS through their environment-specific authentication
-overlay before exposing the gateway.
+The gateway is a ClusterIP and the profile creates no Ingress or HTTPRoute.
+Authentication and authorization are mandatory for its control plane; sites
+configure public exposure and TLS through their environment-specific overlay.
 For example:
 
 ```bash

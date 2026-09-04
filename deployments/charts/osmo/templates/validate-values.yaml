@@ -56,7 +56,8 @@
   (or
     .Values.embeddedDependencies.postgresql.enabled
     .Values.embeddedDependencies.valkey.enabled
-    .Values.embeddedDependencies.objectStorage.enabled) -}}
+    .Values.embeddedDependencies.objectStorage.enabled
+    .Values.embeddedDependencies.dex.enabled) -}}
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
 {{- if and .Values.databaseMigration.enabled (not .Values.planes.control.enabled) -}}
@@ -406,8 +407,8 @@
 {{- if .Values.secrets.defaultAdmin.generate -}}
 {{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
-{{- if and .Values.secrets.oauthCookieSecret.generate .Values.secrets.oauthCookieSecret.existingSecret -}}
-{{- fail "secrets.oauthCookieSecret.generate and existingSecret are mutually exclusive" -}}
+{{- if or (hasKey .Values.secrets "oauthClientSecret") (hasKey .Values.secrets "oauthCookieSecret") -}}
+{{- fail "secrets.oauthClientSecret and secrets.oauthCookieSecret are no longer supported; configure authentication.externalOidc Secret references" -}}
 {{- end -}}
 {{- $autoscaledComponents := list
   (dict "path" "services.ui" "component" .Values.services.ui)
@@ -462,7 +463,7 @@
 {{- fail "components is not a supported value; configure services and gateway" -}}
 {{- end -}}
 {{- if or (hasKey .Values.gateway.oauth2Proxy "useKubernetesSecrets") (hasKey .Values.gateway.oauth2Proxy "secretName") (hasKey .Values.gateway.oauth2Proxy "clientSecretKey") (hasKey .Values.gateway.oauth2Proxy "cookieSecretKey") (hasKey .Values.gateway.oauth2Proxy "secretPaths") -}}
-{{- fail "gateway.oauth2Proxy legacy Secret values are not supported; configure secrets.oauthClientSecret and secrets.oauthCookieSecret" -}}
+{{- fail "gateway.oauth2Proxy legacy Secret values are not supported; configure authentication.externalOidc Secret references" -}}
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) (not .Values.externalDependencies.postgresql.host) -}}
 {{- fail "externalDependencies.postgresql.host is required for the control plane" -}}
