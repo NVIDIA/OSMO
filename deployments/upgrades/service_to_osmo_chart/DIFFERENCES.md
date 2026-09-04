@@ -30,7 +30,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D4 | MCP authentication boundary | Current main uses FastMCP's built-in OIDC proxy, but the converted values omit its required settings and the chart initially expects one combined OIDC/Valkey Secret while ESO provides separate typed Secrets. | The staging umbrella render fails without the values; accepting chart defaults would also change the Redis database and session-key prefix. | **Fix chart / values:** consume the effective Valkey Secret separately and preserve all 19 legacy MCP settings. |
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
-| D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / pending:** preserve the legacy 15-second scrape interval; decide resource identity and gateway changes separately. |
+| D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / allow / pending:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and decide gateway routing separately. |
 | D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
 | D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
 | D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
@@ -481,10 +481,45 @@ staging-only override.
 - Run the complete umbrella chart test suite and Helm lint.
 - Render staging and require all three PodMonitor endpoints to use `15s`.
 
+### Resource names and selectors
+
+#### Evidence
+
+- All 11 Services replace legacy `app` or gateway-specific selectors with the
+  umbrella chart's release-scoped standard labels. Each selector matches its
+  intended Deployment pod labels, including the two headless Services.
+- The API, router, and UI ingress NetworkPolicies are renamed to use umbrella
+  component names. MCP's policy keeps its name. All four policies select the
+  matching destination and allow TCP port 8000 only from the new gateway
+  Envoy selector.
+- The three PodMonitors gain the `osmo-` release-name prefix and replace
+  legacy selectors with standard labels. Together they select exactly agent,
+  API, worker, logger, delayed-job-monitor, Envoy, and OAuth proxy.
+- No repository configuration, dashboard, or alert directly references the
+  old NetworkPolicy or PodMonitor object names.
+- With `PruneLast=true`, renamed policies and monitors can coexist during the
+  Deployment replacement. Their old and new selectors target their respective
+  old and new pod identities rather than double-selecting the same pods.
+
+#### Decision
+
+**Allow.** Accept the release-scoped names and standard-label selectors. Do
+not add legacy-name or legacy-selector compatibility to the chart; these
+changes are consistent with the D1 Deployment replacement.
+
+#### Actions
+
+- During cutover, verify all 11 Services have endpoints after the new
+  Deployments become available.
+- Exercise gateway traffic to API, router, UI, and MCP to confirm all four
+  NetworkPolicies allow the intended path.
+- Confirm Prometheus discovers all seven intended workload targets through the
+  three new PodMonitors before pruning the legacy monitors.
+- Confirm Argo prunes the three renamed legacy NetworkPolicies and all three
+  legacy PodMonitors after the replacement is healthy.
+
 ### Remaining decisions
 
-- Decide whether to accept the release-scoped PodMonitor and NetworkPolicy
-  names and their standard-label selectors.
 - Confirm the renamed gateway upstreams and accepted D3 TLS behavior preserve
   all intended routes and ports.
 
@@ -501,4 +536,5 @@ staging-only override.
 | 2026-09-04 | D6 readiness | Keep the legacy authenticated workflow-list readiness check in staging. | Override the API readiness probe in staging values; leave the base chart default unchanged. | The full staging release renders; all normalized application-container probe specs match the legacy render. |
 | 2026-09-04 | D6 hardening | Accept the umbrella chart's seccomp, service-account-token, read-only-root-filesystem, and writable-volume defaults. | No chart or values change. Add cutover health and runtime-write checks. | The render has 11 `RuntimeDefault` seccomp profiles, ten non-API token opt-outs, eight read-only application roots, and the expected writable paths. Live behavior remains a cutover check. |
 | 2026-09-04 | D7 cadence | Preserve the legacy chart-wide 15-second metrics cadence. | Change the base umbrella PodMonitor interval default; do not add a staging override. | The complete chart test suite and Helm lint pass; all three staging PodMonitors render with `interval: 15s`. |
+| 2026-09-04 | D7 identity | Accept release-scoped Service, NetworkPolicy, and PodMonitor names and selectors. | No chart or values change. Add endpoint, policy-path, monitoring-target, and prune checks to cutover. | All 11 Services, four policies, and seven monitored workloads resolve to exactly the intended Deployment labels and ports. |
 | 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `629c676d5a3e270499b5ca61e096742364ccd9bb` and values commit `5cd89de190b5f255c2221afe4087a893c2cf80e9`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
