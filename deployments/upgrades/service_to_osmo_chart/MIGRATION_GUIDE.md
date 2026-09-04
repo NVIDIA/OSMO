@@ -428,7 +428,10 @@ create or modify Azure resources and cannot perform this live verification.
 ## Migration sequence
 
 1. Freeze the Argo application definition, chart revision, and values revision
-   to reviewed commit hashes. Do not migrate against moving `main`/`HEAD` refs.
+   to reviewed commit hashes. Set staging's ApplicationSet `automatedSync` value
+   to `false`; when the parent `argocd/` Application reconciles it, confirm the
+   generated `staging-osmo` Application has no automated sync while SQA and
+   production retain it. Do not migrate against moving `main`/`HEAD` refs.
 2. Take a tested database, MEK, service-auth, and credential backup. For
    releases that used the legacy migration, enable `databaseMigration` and
    verify its PostgreSQL Secret key, scheduling, and GitHub egress.
@@ -443,16 +446,22 @@ create or modify Azure resources and cannot perform this live verification.
    `--allow-unmapped` output alone.
 6. Render again with no placeholders. Perform the semantic comparison and run
    `helm lint` plus the umbrella chart tests.
-7. Follow the chart's database and service-auth migration procedures: stop old
-   API writers, create and authorize the service-auth placeholder Secret, and
-   enable both required hooks for the first upgrade. Pgroll must complete before
-   the service-auth migration starts.
-8. Enable first-upgrade internal-TLS generation once. Sync in a maintenance
-   window because the API Service/Deployment names change. Verify hook success,
-   every rollout, HPA recreation, ALB health, login/token continuity, workflow
-   submit/log/data paths, router WebSockets, Authz, and rate limiting.
-9. Disable the service-auth migration and one-time TLS generation flags. Retain
-   the old DB identity, MEK, and chart/value commits for the rollback window.
+7. Follow the chart's database and service-auth migration procedures: create
+   and authorize the service-auth placeholder Secret and enable both required
+   hooks for the first upgrade. Verify all other prerequisites before deleting
+   workloads.
+8. Start the maintenance window. Delete the ten legacy Deployments whose
+   selectors are replaced, plus `osmo-service` so no old API database writer
+   remains. Manually sync `staging-osmo` once with pruning enabled. Pgroll must
+   complete before the service-auth migration starts, and `PruneLast=true` must
+   leave obsolete resources until replacements are healthy. Verify every
+   rollout, HPA recreation, ALB health, login/token continuity, workflow
+   submit/log/data paths, router WebSockets, Authz, rate limiting, and the final
+   prune set.
+9. Disable the service-auth migration and one-time TLS generation flags,
+   manually sync, and verify again. Then restore staging `automatedSync: true`
+   in a separate reviewed commit. Retain the old DB identity, MEK, and
+   chart/value commits for the rollback window.
 10. Migrate one non-production environment first. Production remains blocked
     until its credential inventory, dataset, and log-rotation behavior have
     explicit resolutions.
