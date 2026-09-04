@@ -30,7 +30,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D4 | MCP authentication boundary | Current main uses FastMCP's built-in OIDC proxy, but the converted values omit its required settings and the chart initially expects one combined OIDC/Valkey Secret while ESO provides separate typed Secrets. | The staging umbrella render fails without the values; accepting chart defaults would also change the Redis database and session-key prefix. | **Fix chart / values:** consume the effective Valkey Secret separately and preserve all 19 legacy MCP settings. |
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
-| D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / allow / pending:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and decide gateway routing separately. |
+| D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / values / allow:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and use only the regular logger Service. |
 | D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
 | D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
 | D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
@@ -223,7 +223,7 @@ Secrets must stop the sync rather than silently create a new trust identity.
   Deployments. Confirm all seven retained Secrets exist and expose the expected
   key names without reading or logging their values.
 - Verify the rendered leaf identities match `osmo-api`,
-  `osmo-router-headless`, `osmo-agent`, `osmo-logger-headless`, and `osmo-mcp`.
+  `osmo-router-headless`, `osmo-agent`, `osmo-logger`, and `osmo-mcp`.
 - Wait for the API, router, agent, logger, MCP, and Envoy Deployments to become
   available. Exercise API and MCP requests through Envoy and check that Envoy
   reports no upstream certificate or SAN validation failures.
@@ -485,9 +485,9 @@ staging-only override.
 
 #### Evidence
 
-- All 11 Services replace legacy `app` or gateway-specific selectors with the
+- All remaining 10 Services replace legacy `app` or gateway-specific selectors with the
   umbrella chart's release-scoped standard labels. Each selector matches its
-  intended Deployment pod labels, including the two headless Services.
+  intended Deployment pod labels, including the router's headless Service.
 - The API, router, and UI ingress NetworkPolicies are renamed to use umbrella
   component names. MCP's policy keeps its name. All four policies select the
   matching destination and allow TCP port 8000 only from the new gateway
@@ -518,10 +518,43 @@ changes are consistent with the D1 Deployment replacement.
 - Confirm Argo prunes the three renamed legacy NetworkPolicies and all three
   legacy PodMonitors after the replacement is healthy.
 
-### Remaining decisions
+### Gateway upstreams
 
-- Confirm the renamed gateway upstreams and accepted D3 TLS behavior preserve
-  all intended routes and ports.
+#### Evidence
+
+- The gateway Ingress host, path, backend, annotations, and gateway Service
+  ports are preserved. Route matches, redirects, CLI/PyPI handling, and
+  destinations are also preserved after normalizing the API rename.
+- Short in-namespace DNS names replace equivalent fully qualified names. The
+  API and JWKS clusters follow the accepted `osmo-service` to `osmo-api`
+  rename, and upstream certificate validation follows D3.
+- Both the legacy chart and the initial umbrella chart create regular and
+  headless logger Services. No application or internal configuration consumes
+  the headless logger Service.
+- Legacy Envoy targets regular `osmo-logger` on Service port 80. The initial
+  umbrella chart instead targets `osmo-logger-headless` on container port
+  8000, despite using ordinary round-robin balancing and having no documented
+  need for direct pod discovery.
+- Router continues to require its headless Service so Envoy's ring-hash and
+  cookie-affinity policy can select individual router pods.
+
+#### Decision
+
+**Fix chart / values.** Remove the unused logger headless Service from the
+umbrella chart. Make regular `osmo-logger` on port 80 the base Envoy upstream
+and generated TLS DNS identity. Keep router headless behavior unchanged. Set
+staging's explicit logger upstream port to 80.
+
+#### Actions
+
+- Remove the logger headless Service template and update the Envoy and TLS
+  bootstrap defaults to regular `osmo-logger`.
+- Update the base logger upstream port from 8000 to 80 and make staging's
+  explicit value match.
+- Render staging and confirm the logger Envoy address, SNI, SAN matcher, and
+  generated leaf identity are all `osmo-logger`, using port 80.
+- Confirm no logger headless Service or Envoy address remains. Exercise logger
+  WebSocket traffic through the gateway during cutover.
 
 ## Decisions log
 
@@ -536,5 +569,6 @@ changes are consistent with the D1 Deployment replacement.
 | 2026-09-04 | D6 readiness | Keep the legacy authenticated workflow-list readiness check in staging. | Override the API readiness probe in staging values; leave the base chart default unchanged. | The full staging release renders; all normalized application-container probe specs match the legacy render. |
 | 2026-09-04 | D6 hardening | Accept the umbrella chart's seccomp, service-account-token, read-only-root-filesystem, and writable-volume defaults. | No chart or values change. Add cutover health and runtime-write checks. | The render has 11 `RuntimeDefault` seccomp profiles, ten non-API token opt-outs, eight read-only application roots, and the expected writable paths. Live behavior remains a cutover check. |
 | 2026-09-04 | D7 cadence | Preserve the legacy chart-wide 15-second metrics cadence. | Change the base umbrella PodMonitor interval default; do not add a staging override. | The complete chart test suite and Helm lint pass; all three staging PodMonitors render with `interval: 15s`. |
-| 2026-09-04 | D7 identity | Accept release-scoped Service, NetworkPolicy, and PodMonitor names and selectors. | No chart or values change. Add endpoint, policy-path, monitoring-target, and prune checks to cutover. | All 11 Services, four policies, and seven monitored workloads resolve to exactly the intended Deployment labels and ports. |
-| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `629c676d5a3e270499b5ca61e096742364ccd9bb` and values commit `5cd89de190b5f255c2221afe4087a893c2cf80e9`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
+| 2026-09-04 | D7 identity | Accept release-scoped Service, NetworkPolicy, and PodMonitor names and selectors. | No compatibility mode. Add endpoint, policy-path, monitoring-target, and prune checks to cutover. | All 10 retained Services, four policies, and seven monitored workloads resolve to exactly the intended Deployment labels and ports. |
+| 2026-09-04 | D7 gateway | Use only regular `osmo-logger` for logger traffic; retain the router's affinity-required headless Service. | Remove the unused logger headless Service, make Envoy and TLS default to `osmo-logger:80`, and update staging's explicit port. | The complete chart suite and focused comparisons pass; the render has matching logger address/SNI/SAN/leaf identity and no logger headless Service. |
+| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `ed75fdb5a9d1853c79302edb6561d98a51947bdf` and values commit `fb646f89e39205887cdbc75cbff9472b35d2ce12`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
