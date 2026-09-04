@@ -33,11 +33,12 @@ The proposed render used:
   `8b11894fd0254e1808dfd28917987db059469761`,
   `deployments/charts/osmo`.
 - Internal worktree commit
-  `6305ee7cc3673e18f54b47c50b9c8b7d18cfd559`.
-- `charts_value/osmo/stg/staging_osmo_values.yaml`, whose last modifying commit
-  and Argo-pinned values revision is
-  `9531a23d587a6a880c118266a6941c99002b6a60`. The worktree file is byte-identical
-  to that pinned revision.
+  `f7695d8c0c086b1107170861b6e45461c393d185`.
+- `charts_value/osmo/stg/staging_values.yaml`, `staging_configs.yaml`,
+  `staging_templates.yaml`, and `staging_pools.yaml`. Their last modifying
+  commit and Argo-pinned values revision is
+  `cc78f071b155e0378ae3bfa1ff2f5b1a3eeff5a1`; the worktree files are
+  byte-identical to that pinned revision.
 - Release `staging-osmo`, namespace `default`, Kubernetes version `1.30.0`.
 
 Both fresh `helm template` commands completed successfully.
