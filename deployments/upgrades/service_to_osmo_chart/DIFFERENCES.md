@@ -576,9 +576,12 @@ controlled Argo cutover sequence.
 - The initial umbrella chart had no equivalent. Its only database-related Job
   exported the legacy service-auth identity; it did not apply schema
   migrations.
-- The umbrella chart now contains the same nine ordered pgroll JSON migration
-  files and migration runner. `databaseMigration.enabled` is false by default,
-  and staging explicitly enables it with `targetSchema: public`.
+- The legacy render bundles nine pgroll JSON migrations. The umbrella chart
+  intentionally retains only the five OSMO 6.4 migrations (`005` through
+  `008`) and its migration runner because the supported source database already
+  includes migrations `001` through `004` as part of the OSMO 6.3 baseline.
+  `databaseMigration.enabled` is false by default, and staging explicitly
+  enables it with `targetSchema: public`.
 - The new Job consumes the same typed PostgreSQL Secret name and password key
   as the umbrella services. It therefore does not need the legacy Vault Agent
   annotations, projected Vault token, or `osmo2` service account. Staging keeps
@@ -748,4 +751,4 @@ runtime normalizes them to the same values.
 | 2026-09-04 | D8 pgroll | Restore the legacy pgroll lifecycle and run it before service-auth migration using the typed PostgreSQL Secret. | Add the migration assets, ConfigMap, Job, values/schema contract, hook ordering, and schema env propagation to the umbrella chart; enable staging with its legacy scheduling and `public` target. | The complete chart suite and Helm lint pass; the staging render uses the expected Secret key and hook order `-30`, `-29`, `-26`, `-25`, `-20`, `-10`. Live hook execution remains a cutover check. |
 | 2026-09-04 | D8 Argo | Use one paused, controlled manual sync with prune-last behavior. | Remove automated sync from staging through its ApplicationSet generator value; verify prerequisites, delete all 11 legacy Deployments, sync manually, disable one-time settings, verify again, then restore automation separately. | Static ApplicationSet validation requires staging manual and SQA/production automated. Before cutover, verify the generated live Applications after the parent `argocd/` reconciliation. |
 | 2026-09-04 | D9 | Keep storage endpoints exclusively in the three existing per-location Secrets, restore the legacy empty `default` platform, and allow empty-field pruning. | Add a guarded Secret-only location mode to the umbrella chart; empty all three staging location values and add `configuration.pools.default.platforms.default: {}`. | Chart tests must prove no endpoints render while all Secret names and mounts remain. The staging `config.yaml` diff must contain only normalized empty-field omissions; storage data/log/app behavior remains a cutover smoke test. |
-| 2026-09-04 | D10 | Refresh both repositories after the Secret-only storage decision. | Pin staging to chart commit `13f58d570db333c188b0de213013b94702e9532c` and values commit `9531a23d587a6a880c118266a6941c99002b6a60`; retain the unchanged ESO source pin. | The complete chart tests and Helm lint pass. The staging render has no storage endpoints, retains all three Secret names and mounts, restores the legacy empty platform, and otherwise differs only by normalized empty fields. |
+| 2026-09-04 | D10 | Refresh both repositories after the Secret-only storage and 6.3-to-6.4 migration-scope decisions. | Pin staging to chart commit `8b11894fd0254e1808dfd28917987db059469761` and values commit `9531a23d587a6a880c118266a6941c99002b6a60`; retain the unchanged ESO source pin. | The complete chart tests and Helm lint pass. The staging render has no storage endpoints, retains all three Secret names and mounts, restores the legacy empty platform, and bundles only the five required OSMO 6.4 migrations. |
