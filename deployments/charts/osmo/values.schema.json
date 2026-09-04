@@ -626,9 +626,26 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "name": { "type": "string", "minLength": 1 },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "allOf": [{ "pattern": "[a-z]" }]
+              },
               "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-              "targetPort": { "type": ["integer", "string"] },
+              "targetPort": {
+                "oneOf": [
+                  { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 15,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "allOf": [{ "pattern": "[a-z]" }]
+                  }
+                ]
+              },
               "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] }
             },
             "required": ["name", "port", "targetPort", "protocol"]

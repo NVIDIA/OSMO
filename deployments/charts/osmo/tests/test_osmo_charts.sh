@@ -91,6 +91,25 @@ require_occurrences() {
         fail "expected '$expected' $count times in $file, found $actual"
 }
 
+require_secret_projection_key() {
+    local file=$1
+    local secret_name=$2
+    local secret_key=$3
+    awk -v secret_name="$secret_name" -v secret_key="$secret_key" '
+        /^      - name: / { matching_secret = 0 }
+        $0 == "          secretName: " secret_name ||
+                $0 == "          secretName: \"" secret_name "\"" {
+            matching_secret = 1
+            next
+        }
+        matching_secret && ($0 == "          - key: " secret_key ||
+                $0 == "          - key: \"" secret_key "\"") {
+            found = 1
+        }
+        END { exit !found }
+    ' "$file" || fail "expected Secret '$secret_name' to project key '$secret_key' in $file"
+}
+
 require_empty_dir_volume() {
     local file=$1
     local volume_name=$2
@@ -2978,6 +2997,37 @@ EOF
     require_not_contains "$rendered" "kind: Ingress"
     require_not_contains "$rendered" "kind: HTTPRoute"
 
+    local invalid_gateway_extra_port_case
+    local invalid_gateway_extra_port_settings
+    local invalid_gateway_extra_port_path
+    while IFS='|' read -r invalid_gateway_extra_port_case \
+            invalid_gateway_extra_port_settings \
+            invalid_gateway_extra_port_path; do
+        if helm_template "invalid-gateway-extra-port-$invalid_gateway_extra_port_case" \
+                "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string gateway.envoy.service.extraPorts[0].name=metrics \
+                --set gateway.envoy.service.extraPorts[0].port=443 \
+                --set gateway.envoy.service.extraPorts[0].targetPort=8443 \
+                --set-string gateway.envoy.service.extraPorts[0].protocol=TCP \
+                $invalid_gateway_extra_port_settings \
+                >"$TEST_DIRECTORY/invalid-gateway-extra-port-$invalid_gateway_extra_port_case.out" 2>&1; then
+            fail "expected invalid gateway extra port case $invalid_gateway_extra_port_case to fail"
+        fi
+        require_schema_path \
+            "$TEST_DIRECTORY/invalid-gateway-extra-port-$invalid_gateway_extra_port_case.out" \
+            "$invalid_gateway_extra_port_path"
+    done <<'EOF'
+name-syntax|--set-string gateway.envoy.service.extraPorts[0].name=bad_name|gateway.envoy.service.extraPorts.0.name
+name-length|--set-string gateway.envoy.service.extraPorts[0].name=abcdefghijklmnop|gateway.envoy.service.extraPorts.0.name
+name-numeric|--set-string gateway.envoy.service.extraPorts[0].name=1234|gateway.envoy.service.extraPorts.0.name
+target-port-low|--set gateway.envoy.service.extraPorts[0].targetPort=0|gateway.envoy.service.extraPorts.0.targetPort
+target-port-high|--set gateway.envoy.service.extraPorts[0].targetPort=65536|gateway.envoy.service.extraPorts.0.targetPort
+target-port-name|--set-string gateway.envoy.service.extraPorts[0].targetPort=bad_name|gateway.envoy.service.extraPorts.0.targetPort
+target-port-numeric-name|--set-string gateway.envoy.service.extraPorts[0].targetPort=1234|gateway.envoy.service.extraPorts.0.targetPort
+EOF
+
     helm_template ingress-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -4927,6 +4977,9 @@ EOF
         'value: "/etc/osmo/mcp-auth/combined-redis-password"'
     require_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
         'key: combined-redis-password'
+    require_secret_projection_key \
+        "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
+        mcp-oidc-proxy-secrets combined-redis-password
     require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
         '/etc/osmo/mcp-valkey'
     require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
