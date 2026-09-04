@@ -1231,9 +1231,36 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/external-swift-api.yaml" \
         "mountPath: /etc/osmo/secrets/workflow-app-credential"
 
+    helm_template backend-image-credential "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string configuration.workflow.backend_images.credential.secretName=imagepullsecret \
+        --set-string configuration.workflow.backend_images.credential.secretKey=.dockerconfigjson \
+        >"$TEST_DIRECTORY/backend-image-credential.yaml"
+    local configuration_consumer
+    for configuration_consumer in api worker logger agent; do
+        resource_document "$TEST_DIRECTORY/backend-image-credential.yaml" Deployment \
+            "backend-image-credential-osmo-$configuration_consumer" \
+            >"$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            "mountPath: /etc/osmo/secrets/imagepullsecret"
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'secretName: "imagepullsecret"' 1
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'key: ".dockerconfigjson"' 1
+        require_occurrences \
+            "$TEST_DIRECTORY/backend-image-credential-$configuration_consumer.yaml" \
+            'path: ".dockerconfigjson"' 1
+    done
+
     helm_template keyed-swift-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \
+        --set-string configuration.workflow.backend_images.credential.secretName=shared-storage-credentials \
+        --set-string configuration.workflow.backend_images.credential.secretKey=.dockerconfigjson \
         --set-string secrets.objectStorage.credentialSecretRefs.workflows.name=shared-storage-credentials \
         --set-string secrets.objectStorage.credentialSecretRefs.workflows.key=workflows.yaml \
         --set-string secrets.objectStorage.credentialSecretRefs.logs.name=shared-storage-credentials \
@@ -1254,6 +1281,10 @@ test_control_umbrella() {
         'key: "logs.yaml"' 1
     require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
         'path: "logs.yaml"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'key: ".dockerconfigjson"' 1
+    require_occurrences "$TEST_DIRECTORY/keyed-swift-secret-api.yaml" \
+        'path: ".dockerconfigjson"' 1
 
     helm_template mixed-key-swift-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
