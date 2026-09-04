@@ -26,7 +26,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | --- | --- | --- | --- | --- |
 | D1 | Workload identity and replacement | Ten same-named Deployments change immutable selectors; `osmo-service` is replaced by `osmo-api`. Service selectors and HPA targets change with them. | A normal Argo apply cannot patch the ten immutable selectors. | **Migration procedure:** accept a traffic interruption and explicitly delete/recreate the Deployments. |
 | D2 | Secret and authentication delivery | Every live OSMO pod currently receives Vault Agent init and sidecar containers. The proposed deployment removes Vault injection and consumes Kubernetes Secrets synchronized separately, including a one-time service-auth migration. | Incorrect ordering, stale synchronized Secrets, or lost token continuity can prevent startup or authentication. Secret rotation behavior changes from live file updates to Secret-triggered rollouts. | **Allow / fix chart:** retain ESO ownership and typed delivery; preserve the existing Kubernetes Secret mount paths, including adding the missing backend-image credential projection. |
-| D3 | Internal TLS | Services stop generating process-local self-signed certificates and instead use generated CA/leaf Secrets with upstream certificate verification. A bootstrap hook and seven TLS Secrets are added. | First-sync ordering and retained Secret ownership must work; a bad CA/SAN configuration can break all internal calls. | **Pending** |
+| D3 | Internal TLS | Services stop generating process-local self-signed certificates and instead use generated CA/leaf Secrets with upstream certificate verification. A bootstrap hook and seven TLS Secrets are added. | First-sync ordering and retained Secret ownership must work; a bad CA/SAN configuration can break all internal calls. | **Allow / migration procedure:** use chart-generated TLS, permit initial generation once, verify it, and then restore fail-if-missing behavior. |
 | D4 | MCP authentication boundary | Current main now uses FastMCP's built-in OIDC proxy and a four-value configuration contract. The converted staging values predate that merge and omit required OIDC settings. | The staging umbrella render now fails before producing manifests; after values are supplied, clients may still see different token, refresh, origin, and failure behavior. | **Pending; render blocker** |
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Pending** |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Pending** |
@@ -173,10 +173,71 @@ file interfaces.
 - Keep the service-auth placeholder and database extraction as a separate
   one-time step coordinated under D8.
 
+## D3: Internal TLS
+
+### Evidence
+
+- The legacy services use process-local `--ssl_self_signed` certificates. The
+  umbrella chart instead mounts stable leaf Secrets and makes Envoy validate
+  each upstream certificate against a generated trust Secret and an exact DNS
+  subject alternative name.
+- With MCP enabled, the bootstrap hook manages seven retained Secrets:
+  `osmo-internal-tls-ca`, `osmo-internal-tls-trust`,
+  `osmo-internal-tls-api`, `osmo-internal-tls-router`,
+  `osmo-internal-tls-agent`, `osmo-internal-tls-logger`, and
+  `osmo-internal-tls-mcp`.
+- The hook's RBAC can update only those named Secrets. The bootstrap Job runs
+  before install or upgrade workloads and checks each TLS consumer Deployment.
+- Staging already sets `gateway.tls.enabled=true`, generated TLS enabled, and
+  `gateway.tls.generated.bootstrap.allowInitialGeneration=true`. The last
+  value prevents the first upgrade from failing merely because the stable
+  Secrets do not exist yet.
+- The generated Secrets use the keep resource policy, so rollback to the
+  legacy chart does not remove them. The legacy workloads ignore them.
+
+### Options
+
+1. **Use chart-generated stable internal TLS (selected).** Allow the bootstrap
+   to create the initial CA, trust bundle, and leaves once, then restore strict
+   missing-Secret failure for subsequent syncs.
+2. **Provision certificates externally.** Disable generated TLS and configure
+   a trust Secret plus one correctly signed leaf Secret per enabled upstream.
+   This is viable but adds a certificate operator and SAN provisioning task to
+   the staging migration.
+3. **Disable internal TLS.** This removes certificate bootstrap risk but is a
+   transport-security regression and does not preserve the legacy
+   process-local TLS behavior.
+
+### Decision
+
+**Allow / migration procedure.** Keep the proposed chart-generated TLS model.
+Use `allowInitialGeneration=true` only for the first umbrella sync. After all
+seven Secrets and consumers are healthy, set it to `false`; later missing
+Secrets must stop the sync rather than silently create a new trust identity.
+
+### Actions
+
+- Keep `gateway.tls.generated.bootstrap.allowInitialGeneration=true` through
+  the initial controlled sync.
+- Require the bootstrap hook to succeed before replacing the legacy
+  Deployments. Confirm all seven retained Secrets exist and expose the expected
+  key names without reading or logging their values.
+- Verify the rendered leaf identities match `osmo-api`,
+  `osmo-router-headless`, `osmo-agent`, `osmo-logger-headless`, and `osmo-mcp`.
+- Wait for the API, router, agent, logger, MCP, and Envoy Deployments to become
+  available. Exercise API and MCP requests through Envoy and check that Envoy
+  reports no upstream certificate or SAN validation failures.
+- Change `allowInitialGeneration` to `false` after the successful first sync
+  and sync again. Confirm the bootstrap runs in fail-if-missing mode and reuses
+  the retained Secrets.
+- Do not remove these Secrets during rollback. Use the chart's documented leaf
+  nonce and phased CA rotation procedure for future rotations.
+
 ## Decisions log
 
 | Date | ID | Decision | Required changes | Verification |
 | --- | --- | --- | --- | --- |
 | 2026-09-03 | D1 | Use explicit Deployment replacement; a brief traffic interruption is accepted. No chart compatibility mode. | Add the maintenance-window delete/sync/rollback sequence. | Confirm all 11 Deployments are available, every Service has endpoints, and all eight HPAs target the expected Deployment/container. |
 | 2026-09-04 | D2 | Use ESO unchanged with target Secrets owned by ESO. Preserve existing Kubernetes Secret mount paths; accept typed env/file delivery in place of Vault-rendered files. | Add the missing backend-image credential Secret projection to the umbrella chart. Keep `creationPolicy: Owner` and use a two-phase ESO-then-OSMO cutover. | Confirm all five ExternalSecrets are Ready without reading values; compare old/new configuration, storage, MEK, and backend-image mount paths; exercise controlled `rolloutNonce` rotation. |
+| 2026-09-04 | D3 | Use chart-generated internal TLS and allow initial generation once. | Keep the first-sync gate enabled, verify all seven retained Secrets and TLS consumers, then disable the gate and resync in fail-if-missing mode. | Check Secret key names, exact upstream DNS SANs, Deployment health, and API/MCP traffic through Envoy without certificate-validation errors. |
 | 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin the staging chart to `d16c1980b48e1ae825b5c679964fa78b34971b9e` and its values/ESO sources to rebased commit `985e55045420a9334e33ad182109f06306351b2c`. | Chart tests and the typed ESO render test pass; full staging rendering remains blocked on pending D4. |
