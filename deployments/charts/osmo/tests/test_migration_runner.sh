@@ -50,10 +50,12 @@ case "$command_name" in
         printf '{"status": "%s"}\n' "${FAKE_PGROLL_STATUS:-Complete}"
         ;;
     complete)
+        printf '%s\n' "${FAKE_PGROLL_COMPLETE_OUTPUT:-}" >&2
         exit "${FAKE_PGROLL_COMPLETE_EXIT:-0}"
         ;;
-    migrate)
-        exit "${FAKE_PGROLL_MIGRATE_EXIT:-0}"
+    start)
+        printf '%s\n' "${FAKE_PGROLL_START_OUTPUT:-}" >&2
+        exit "${FAKE_PGROLL_START_EXIT:-0}"
         ;;
     *)
         echo "unexpected pgroll command: $command_name" >&2
@@ -67,6 +69,9 @@ cat >"$FAKE_BIN/psql" <<'EOF'
 set -euo pipefail
 
 printf '%s\n' "$*" >>"$FAKE_CALL_DIRECTORY/psql"
+if [[ "$*" == *"SELECT EXISTS (SELECT 1 FROM pgroll.migrations"* ]]; then
+    printf '%s\n' "${FAKE_MIGRATION_APPLIED:-f}"
+fi
 exit "${FAKE_PSQL_EXIT:-0}"
 EOF
 
@@ -98,11 +103,8 @@ grep -Fq 'sslmode=disable' "$CALL_DIRECTORY/pgroll" || \
 if grep -Fq 'sslrootcert=' "$CALL_DIRECTORY/pgroll"; then
     fail "runner added sslrootcert without PGSSLROOTCERT"
 fi
-grep -Fq 'migrate ' "$CALL_DIRECTORY/pgroll" || \
-    fail "runner did not use pgroll migrate"
-if grep -Fq 'complete ' "$CALL_DIRECTORY/pgroll"; then
-    fail "runner completed a migration that was not in progress"
-fi
+grep -Fq 'start ' "$CALL_DIRECTORY/pgroll" || \
+    fail "runner did not use the per-file pgroll start loop"
 
 run_runner \
     PGSSLMODE=verify-full \
@@ -113,10 +115,21 @@ grep -Fq 'sslmode=verify-full' "$CALL_DIRECTORY/pgroll" || \
 grep -Fq 'sslrootcert=%2Fetc%2Fosmo%2Fca%2Fpostgresql%2Froot%20ca.crt' \
     "$CALL_DIRECTORY/pgroll" || fail "runner did not encode PGSSLROOTCERT"
 
-run_runner 'FAKE_PGROLL_STATUS=In progress' \
-    >"$TEST_DIRECTORY/in-progress-output"
-grep -Fq 'complete ' "$CALL_DIRECTORY/pgroll" || \
-    fail "runner did not complete an in-progress migration"
+run_runner \
+    FAKE_PGROLL_COMPLETE_EXIT=1 \
+    'FAKE_PGROLL_COMPLETE_OUTPUT=unable to get active migration: no active migration' \
+    >"$TEST_DIRECTORY/no-active-migration-output"
+grep -Fq 'Nothing to complete' "$TEST_DIRECTORY/no-active-migration-output" || \
+    fail "runner did not tolerate pgroll's no-active-migration result"
+
+run_runner FAKE_MIGRATION_APPLIED=t \
+    >"$TEST_DIRECTORY/already-applied-output"
+if grep -Fq 'start ' "$CALL_DIRECTORY/pgroll"; then
+    fail "runner reapplied a completed migration"
+fi
+grep -Fq 'Skipped: already applied' \
+    "$TEST_DIRECTORY/already-applied-output" || \
+    fail "runner did not report completed migrations as skipped"
 
 run_runner 'FAKE_PGROLL_STATUS=No migrations' \
     >"$TEST_DIRECTORY/baseline-output"
@@ -125,9 +138,8 @@ grep -Fq 'INSERT INTO pgroll.migrations' "$CALL_DIRECTORY/psql" || \
 
 expect_failure "pgroll init failure" FAKE_PGROLL_INIT_EXIT=21
 expect_failure "pgroll status failure" FAKE_PGROLL_STATUS_EXIT=22
-expect_failure "pgroll complete failure" \
-    'FAKE_PGROLL_STATUS=In progress' FAKE_PGROLL_COMPLETE_EXIT=23
-expect_failure "pgroll migrate failure" FAKE_PGROLL_MIGRATE_EXIT=24
+expect_failure "pgroll complete failure" FAKE_PGROLL_COMPLETE_EXIT=23
+expect_failure "pgroll start failure" FAKE_PGROLL_START_EXIT=24
 expect_failure "final pgroll status failure" FAKE_PGROLL_FINAL_STATUS_EXIT=25
 expect_failure "baseline psql failure" \
     'FAKE_PGROLL_STATUS=No migrations' FAKE_PSQL_EXIT=26

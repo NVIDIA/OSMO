@@ -2160,7 +2160,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "set -euo pipefail"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
-        'pgroll migrate "$SCRIPT_DIR" --postgres-url "$PGROLL_URL" --complete'
+        'for migration_file in "$SCRIPT_DIR"/0*.json; do'
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "005_v6_4_0_workflow_labels.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \

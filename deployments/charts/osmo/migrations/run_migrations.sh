@@ -111,17 +111,43 @@ fi
 # --- Step 4: Complete any in-progress migration ---
 echo ""
 echo "Step 4: Completing any in-progress migration..."
-if echo "$STATUS" | grep -q '"status": "In progress"'; then
-    pgroll complete --postgres-url "$PGROLL_URL"
+if OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1); then
     echo "  Completed"
-else
+elif echo "$OUTPUT" | grep -q "no active migration"; then
     echo "  Nothing to complete"
+else
+    echo "ERROR: Failed to complete the active migration:" >&2
+    echo "$OUTPUT" >&2
+    exit 1
 fi
 
 # --- Step 5: Apply all migrations ---
 echo ""
 echo "Step 5: Applying migrations..."
-pgroll migrate "$SCRIPT_DIR" --postgres-url "$PGROLL_URL" --complete
+for migration_file in "$SCRIPT_DIR"/0*.json; do
+    name="$(basename "$migration_file")"
+    migration_name="${name%.json}"
+    if [[ ! "$migration_name" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        echo "ERROR: Invalid migration filename: $name" >&2
+        exit 1
+    fi
+
+    echo "  [$name]"
+    MIGRATION_APPLIED=$(run_psql \
+        "SELECT EXISTS (SELECT 1 FROM pgroll.migrations WHERE schema = 'public' AND name = '${migration_name}' AND done = true);")
+    if [ "$MIGRATION_APPLIED" = "t" ]; then
+        echo "    Skipped: already applied"
+        continue
+    fi
+
+    if OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1); then
+        echo "    Applied"
+    else
+        echo "ERROR: Failed to apply $name:" >&2
+        echo "$OUTPUT" >&2
+        exit 1
+    fi
+done
 
 # --- Step 6: Create versioned schema with views ---
 if [ "$TARGET_SCHEMA" != "public" ]; then
