@@ -195,6 +195,14 @@ class ValuesConvertTest(unittest.TestCase):
                 'targetPort': 'envoy-http',
                 'protocol': 'TCP',
             }])
+        self.assertEqual(converted['ingress']['annotations'], {
+            'alb.ingress.kubernetes.io/target-type': 'ip',
+            'alb.ingress.kubernetes.io/healthcheck-path': '/api/version',
+            'alb.ingress.kubernetes.io/group.name': 'osmo',
+            'alb.ingress.kubernetes.io/group.order': '20',
+            'alb.ingress.kubernetes.io/certificate-arn':
+                'example-certificate',
+        })
         self.assertEqual(converted['gateway']['upstreams']['api']['host'],
                          '')
         self.assertEqual(converted['gateway']['oauth2Proxy']['redisDatabase'],
@@ -203,6 +211,31 @@ class ValuesConvertTest(unittest.TestCase):
                          [{'name': 'api', 'component': 'api', 'port': 8000}])
         self.assertTrue(
             converted['monitoring']['podMonitor']['control']['enabled'])
+
+    def test_preserves_explicitly_disabled_autoscaling(self):
+        result = values_convert.convert_values({
+            'services': {
+                'worker': {'scaling': {'enabled': False}},
+            },
+            'gateway': {
+                'envoy': {'scaling': {'enabled': False}},
+            },
+        })
+
+        self.assertFalse(
+            result.values['services']['worker']['autoscaling']['enabled'])
+        self.assertFalse(
+            result.values['gateway']['envoy']['autoscaling']['enabled'])
+
+    def test_ignores_empty_unsupported_container(self):
+        result = values_convert.convert_values({
+            'services': {
+                'localstackS3': {'enabled': False},
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertNotIn('services.localstackS3', issue_paths)
 
     def test_reports_every_unmapped_leaf_without_values(self):
         result = values_convert.convert_values({

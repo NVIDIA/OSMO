@@ -30,10 +30,10 @@ The legacy output SHA-256 is
 The proposed render used:
 
 - Public chart commit
-  `13f58d570db333c188b0de213013b94702e9532c`,
+  `8b11894fd0254e1808dfd28917987db059469761`,
   `deployments/charts/osmo`.
 - Internal worktree commit
-  `c6bcba74d0f5efd2bd4ec09b057bd3cf19dee175`.
+  `6305ee7cc3673e18f54b47c50b9c8b7d18cfd559`.
 - `charts_value/osmo/stg/staging_osmo_values.yaml`, whose last modifying commit
   and Argo-pinned values revision is
   `9531a23d587a6a880c118266a6941c99002b6a60`. The worktree file is byte-identical
@@ -41,6 +41,8 @@ The proposed render used:
 - Release `staging-osmo`, namespace `default`, Kubernetes version `1.30.0`.
 
 Both fresh `helm template` commands completed successfully.
+The proposed output SHA-256 is
+`dbbe6df7f2cb893e98b31a4558fde66a48895a897af5f32bace6953cdc323fc0`.
 
 ## Executive summary
 
@@ -56,7 +58,7 @@ configuration values are preserved.
 | Credentials | Vault Agent annotations, projected Vault tokens, and seven Vault ConfigMaps disappear. Workloads instead reference typed Kubernetes Secrets and the existing per-location storage Secrets. | **Intentional, prerequisite-sensitive.** ESO-provided Secrets must be Ready before cutover. Existing storage and image-pull Secret mount paths are preserved exactly. |
 | Internal TLS | Process-local `--ssl_self_signed` is replaced by mounted leaf certificates. Seven retained placeholder Secrets and a bootstrap hook are added; Envoy begins validating the internal CA and expected DNS identities. | **Intentional, must be verified.** First-sync hook ordering and generated certificate contents are critical. |
 | Service authentication | Components gain `/etc/osmo/service-auth/authentication-config.json`; a scoped ServiceAccount, Role, RoleBinding, and database-to-Secret migration Job are added. | **Intentional, must be verified.** The migration Job must finish before workloads start. |
-| Database migration | The pgroll ConfigMap and Job are renamed and ordered ahead of service-auth. The same nine migration JSON files are bundled. Password delivery changes from Vault to a typed Secret. | **Resolved.** New download logic adds failure handling, retries, and arm64 support; migration success remains a cutover gate. |
+| Database migration | The pgroll ConfigMap and Job are renamed and ordered ahead of service-auth. The legacy render bundles nine migrations; the proposed chart bundles only the five OSMO 6.4 migrations needed on the guaranteed 6.3 baseline. Password delivery changes from Vault to a typed Secret. | **Resolved.** New download logic adds failure handling, retries, and arm64 support; migration success remains a cutover gate. |
 | Scheduling and capacity | Legacy soft spreading is preserved with new selectors, and worker spreading now correctly selects worker pods. All HPA min/max values and metric targets are preserved. | **Resolved.** Router omits an explicit `replicas: 3`, but its unchanged HPA has `minReplicas: 3`; it may briefly begin at one replica before HPA reconciliation. |
 | Networking | The ALB Ingress is semantically identical. Ten retained Services have identical types and ports; API is renamed, router remains headless, and the redundant logger headless Service is removed. | **Intentional/resolved.** Envoy uses equivalent namespace-local short DNS names and adds upstream certificate verification. |
 | Resources and health | Every main container's resources and startup/readiness/liveness probes match the legacy render exactly. | **Resolved.** This includes the legacy authenticated API readiness probe and logger/agent probe timings. |
@@ -143,10 +145,13 @@ certificates to the generated leaf Secrets. Envoy receives a trust bundle and
 validates the internal endpoints; the UI remains plain HTTP behind Envoy.
 
 Pgroll changes from `pgroll-migration-files`/`pgroll-migrate-1` to
-`osmo-pgroll-migrations`/`osmo-pgroll-migration`. All nine JSON migrations are
-byte-identical. The unused Bazel `BUILD` entry is no longer placed in the
-ConfigMap. The runner's effective staging SSL mode remains `require`, while the
-new implementation supports an explicit CA, detects amd64/arm64, retries the
+`osmo-pgroll-migrations`/`osmo-pgroll-migration`. The five retained OSMO 6.4
+JSON migrations (`005` through `008`) are byte-identical to their legacy-chart
+counterparts. The four pre-6.3 migrations (`001` through `004`) are
+intentionally omitted because the source database is guaranteed to already be
+on 6.3. The unused Bazel `BUILD` entry is no longer placed in the ConfigMap.
+The runner's effective staging SSL mode remains `require`, while the new
+implementation supports an explicit CA, detects amd64/arm64, retries the
 download, and fails on HTTP errors.
 
 The ordering rendered for the migration is:
