@@ -2153,10 +2153,14 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/database-migration-job.yaml"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         'helm.sh/hook-weight: "-26"'
-    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
-        'argocd.argoproj.io/sync-wave: "-26"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'argocd.argoproj.io/sync-wave:'
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "run_migrations.sh: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "set -euo pipefail"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        'pgroll migrate "$SCRIPT_DIR" --postgres-url "$PGROLL_URL" --complete'
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "005_v6_4_0_workflow_labels.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
@@ -2165,8 +2169,8 @@ test_control_umbrella() {
         "004_v6_2_0_data.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         'helm.sh/hook-weight: "-25"'
-    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
-        'argocd.argoproj.io/sync-wave: "-25"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'argocd.argoproj.io/sync-wave:'
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         "image: postgres:15-alpine"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
@@ -2178,6 +2182,12 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         'key: "external-db-password"'
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "name: PGSSLMODE"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        'value: "disable"'
+    require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
+        "name: PGSSLROOTCERT"
+    require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         "kubernetes.io/arch: amd64"
     require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
         "name: OSMO_SCHEMA_VERSION" 7
@@ -2187,6 +2197,25 @@ test_control_umbrella() {
         'argocd.argoproj.io/sync-wave: "-20"'
     require_contains "$TEST_DIRECTORY/database-migration.yaml" \
         'argocd.argoproj.io/sync-wave: "-10"'
+
+    helm_template database-migration-tls "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
+        >"$TEST_DIRECTORY/database-migration-tls.yaml"
+    resource_document "$TEST_DIRECTORY/database-migration-tls.yaml" Job \
+        "database-migration-tls-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/database-migration-tls-job.yaml"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "name: PGSSLMODE"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        'value: "verify-full"'
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "name: PGSSLROOTCERT"
+    require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
+        "secretName: postgresql-ca"
 
     if helm_template invalid-compute-database-migration "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -5843,6 +5872,7 @@ EOF
 case "$MODE" in
     osmo|all)
         test_yaml_helpers
+        bash "$CHARTS_ROOT/osmo/tests/test_migration_runner.sh"
         require_clean_osmo_sources
         test_control_umbrella
         ;;

@@ -541,6 +541,10 @@ as the services and runs before the service-auth database migration. It
 downloads the pinned pgroll release from GitHub at runtime, so the Job requires
 outbound HTTPS access to GitHub.
 
+Argo CD sync waves are environment-owned. Set
+`databaseMigration.annotations.argocd.argoproj.io/sync-wave` in environment
+values when the migration must be ordered relative to other environment hooks.
+
 Use `public` to migrate the base schema in place. A versioned target such as
 `public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;
 keep `databaseMigration.enabled` set while those workloads use that schema.

@@ -8,14 +8,12 @@
       "helm.sh/hook-weight" "-26"
       "helm.sh/hook-delete-policy" "before-hook-creation"
       "argocd.argoproj.io/hook" "PreSync"
-      "argocd.argoproj.io/sync-wave" "-26"
       "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation" -}}
 {{- $jobHookAnnotations := dict
       "helm.sh/hook" "pre-install,pre-upgrade"
       "helm.sh/hook-weight" "-25"
       "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded"
       "argocd.argoproj.io/hook" "PreSync"
-      "argocd.argoproj.io/sync-wave" "-25"
       "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded" -}}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
@@ -107,9 +105,9 @@ spec:
             secretKeyRef:
               name: {{ include "osmo.postgresql.secretName" . | quote }}
               key: {{ include "osmo.postgresql.passwordKey" . | quote }}
-        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
         - name: PGSSLMODE
-          value: verify-full
+          value: {{ include "osmo.postgresql.sslMode" . | quote }}
+        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
         - name: PGSSLROOTCERT
           value: /etc/osmo/ca/postgresql/ca.crt
         {{- end }}

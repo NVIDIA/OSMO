@@ -28,7 +28,7 @@
 # the script exits immediately (no-op). Migrations that have already been
 # applied or aren't applicable are skipped.
 
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -97,7 +97,7 @@ fi
 # --- Step 2: Initialize pgroll ---
 echo ""
 echo "Step 2: Initializing pgroll..."
-pgroll init --postgres-url "$PGROLL_URL" 2>&1 || true
+pgroll init --postgres-url "$PGROLL_URL"
 
 # --- Step 3: Create baseline if needed ---
 echo ""
@@ -111,8 +111,8 @@ fi
 # --- Step 4: Complete any in-progress migration ---
 echo ""
 echo "Step 4: Completing any in-progress migration..."
-OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1)
-if [ $? -eq 0 ]; then
+if echo "$STATUS" | grep -q '"status": "In progress"'; then
+    pgroll complete --postgres-url "$PGROLL_URL"
     echo "  Completed"
 else
     echo "  Nothing to complete"
@@ -121,16 +121,7 @@ fi
 # --- Step 5: Apply all migrations ---
 echo ""
 echo "Step 5: Applying migrations..."
-for migration_file in "$SCRIPT_DIR"/0*.json; do
-    name="$(basename "$migration_file")"
-    echo "  [$name]"
-    OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1)
-    if [ $? -eq 0 ]; then
-        echo "    Applied"
-    else
-        echo "    Skipped: $(echo "$OUTPUT" | head -1)"
-    fi
-done
+pgroll migrate "$SCRIPT_DIR" --postgres-url "$PGROLL_URL" --complete
 
 # --- Step 6: Create versioned schema with views ---
 if [ "$TARGET_SCHEMA" != "public" ]; then
