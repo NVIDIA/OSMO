@@ -31,7 +31,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / values / allow:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and use only the regular logger Service. |
-| D8 | Database and Argo lifecycle | The legacy pgroll migration Job and migration-files ConfigMap disappear. New TLS and service-auth hooks/RBAC appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema migration must be completed before cutover, and hook/app synchronization must be explicitly ordered. | **Pending** |
+| D8 | Database and Argo lifecycle | The initial umbrella render omitted the legacy pgroll migration lifecycle. New TLS and service-auth hooks/RBAC also appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema and service-auth migrations must finish before workloads start, and hook/app synchronization must be explicitly ordered. | **Fix chart / values:** add and enable pgroll ahead of service-auth. **Pending:** choose the controlled Argo cutover/prune sequence. |
 | D9 | Configuration and storage representation | The generated service configuration retains the same major sections, but empty maps are pruned and storage credentials become explicit per-location Secret references and endpoints. | Empty maps are probably inert, but storage data/log/app operations require an end-to-end verification before allowing the difference. | **Pending** |
 | D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
 
@@ -556,6 +556,85 @@ staging's explicit logger upstream port to 80.
 - Confirm no logger headless Service or Envoy address remains. Exercise logger
   WebSocket traffic through the gateway during cutover.
 
+## D8: Database and Argo lifecycle
+
+This area is split between restoring the database migration lifecycle and the
+still-pending controlled Argo cutover sequence.
+
+### Pgroll schema migration
+
+#### Evidence
+
+- The legacy chart renders a `pgroll-migration-files` ConfigMap and an
+  idempotent `pgroll-migrate-<revision>` Job as Helm
+  `pre-install,pre-upgrade` hooks. Staging also makes them Argo `PreSync`
+  hooks, targets the `public` schema, and schedules the Job on service nodes.
+- The initial umbrella chart had no equivalent. Its only database-related Job
+  exported the legacy service-auth identity; it did not apply schema
+  migrations.
+- The umbrella chart now contains the same nine ordered pgroll JSON migration
+  files and migration runner. `databaseMigration.enabled` is false by default,
+  and staging explicitly enables it with `targetSchema: public`.
+- The new Job consumes the same typed PostgreSQL Secret name and password key
+  as the umbrella services. It therefore does not need the legacy Vault Agent
+  annotations, projected Vault token, or `osmo2` service account. Staging keeps
+  the legacy `node_group: service` selector and `dedicated=osmo-service`
+  toleration.
+- Helm hook weights and Argo sync waves now execute TLS placeholders at `-30`,
+  initial TLS bootstrap at `-29`, the pgroll ConfigMap at `-26`, pgroll Job at
+  `-25`, service-auth RBAC at `-20`, and service-auth migration Job at `-10`.
+- A non-`public` target schema is validated as a PostgreSQL identifier and is
+  propagated as `OSMO_SCHEMA_VERSION` to every PostgreSQL-consuming workload.
+  Staging uses `public`, matching the legacy render.
+- The migration image remains `postgres:15-alpine` and downloads pinned pgroll
+  `v0.16.1` from GitHub when the hook runs. The pod therefore requires outbound
+  HTTPS access to GitHub during the sync.
+
+#### Decision
+
+**Fix chart / values.** Restore the pgroll migration lifecycle in the umbrella
+chart and enable it for staging. Use the typed ESO-managed PostgreSQL Secret,
+preserve the legacy scheduling constraints and `public` target, and order
+pgroll before the service-auth database migration. Do not retain Vault
+injection solely for the migration Job.
+
+#### Actions
+
+- Keep the chart default disabled and enable `databaseMigration` only for
+  upgrades that require the bundled migrations.
+- Before cutover, confirm `osmo-postgresql-credentials/db-password` exists
+  without reading its value and confirm service nodes can reach GitHub over
+  HTTPS.
+- During the controlled sync, require `osmo-pgroll-migration` to complete
+  before `osmo-service-auth-db-migration` starts. Stop the rollout if either
+  hook fails.
+- Inspect migration logs for the final pgroll status and verify the expected
+  schema objects before allowing application workloads to start.
+- Keep `databaseMigration.enabled: true` in staging so the bundled migration
+  lifecycle also runs on future chart upgrades. Disable it only if database
+  schema management is intentionally moved outside the chart.
+
+### Argo cutover and pruning
+
+#### Evidence
+
+- The staging Application has automated synchronization and `PruneLast=true`.
+  D1 requires explicit deletion of ten same-named Deployments before Argo can
+  create their replacements because their selectors are immutable.
+- D2 requires the separate External Secrets Application and all target Secrets
+  to be Ready first. D3 permits initial TLS Secret generation once. The
+  service-auth migration also requires old API writers to be stopped and an
+  authorized empty placeholder Secret to exist before its PreSync Job runs.
+- The first umbrella sync adds the pgroll and service-auth hooks, TLS Secrets,
+  and renamed API resources. It also eventually prunes legacy Vault
+  ConfigMaps, renamed policies and monitors, and `osmo-service` resources.
+
+#### Decision
+
+**Pending.** Choose whether the first umbrella rollout is one paused,
+controlled manual sync after all prerequisites and Deployment deletions, or a
+multi-commit/multi-sync cutover that introduces prerequisites separately.
+
 ## Decisions log
 
 | Date | ID | Decision | Required changes | Verification |
@@ -571,4 +650,5 @@ staging's explicit logger upstream port to 80.
 | 2026-09-04 | D7 cadence | Preserve the legacy chart-wide 15-second metrics cadence. | Change the base umbrella PodMonitor interval default; do not add a staging override. | The complete chart test suite and Helm lint pass; all three staging PodMonitors render with `interval: 15s`. |
 | 2026-09-04 | D7 identity | Accept release-scoped Service, NetworkPolicy, and PodMonitor names and selectors. | No compatibility mode. Add endpoint, policy-path, monitoring-target, and prune checks to cutover. | All 10 retained Services, four policies, and seven monitored workloads resolve to exactly the intended Deployment labels and ports. |
 | 2026-09-04 | D7 gateway | Use only regular `osmo-logger` for logger traffic; retain the router's affinity-required headless Service. | Remove the unused logger headless Service, make Envoy and TLS default to `osmo-logger:80`, and update staging's explicit port. | The complete chart suite and focused comparisons pass; the render has matching logger address/SNI/SAN/leaf identity and no logger headless Service. |
-| 2026-09-04 | D10 | Refresh both repositories after rebasing onto current main. | Pin staging to chart commit `ed75fdb5a9d1853c79302edb6561d98a51947bdf` and values commit `fb646f89e39205887cdbc75cbff9472b35d2ce12`; retain the unchanged ESO source pin. | Chart tests, typed ESO tests, and the complete staging render pass. |
+| 2026-09-04 | D8 pgroll | Restore the legacy pgroll lifecycle and run it before service-auth migration using the typed PostgreSQL Secret. | Add the migration assets, ConfigMap, Job, values/schema contract, hook ordering, and schema env propagation to the umbrella chart; enable staging with its legacy scheduling and `public` target. | The complete chart suite and Helm lint pass; the staging render uses the expected Secret key and hook order `-30`, `-29`, `-26`, `-25`, `-20`, `-10`. Live hook execution remains a cutover check. |
+| 2026-09-04 | D10 | Refresh both repositories after the pgroll decision. | Pin staging to chart commit `c4f3f14e9da92f455cc6d723ed09d28430aaf596` and values commit `05796ae40e2eb0367d8ac3d2aab564542b292bcd`; retain the unchanged ESO source pin. | The complete chart tests, Helm lint, and staging render pass. |

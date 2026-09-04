@@ -86,6 +86,7 @@ derived from an override file alone.
 | `global.logs` | `logging` | Direct. |
 | `global.serviceAccountName` and `serviceAccount` | Per-component `serviceAccount` | One API-owned shared ServiceAccount is rendered so Argo prune does not delete it; other components reference it. |
 | `services.postgres` | `embeddedDependencies.postgresql`, `externalDependencies.postgresql`, `secrets.postgresql` | Endpoint fields map. A compatible password Secret is mandatory for external PostgreSQL. |
+| `services.migration` | `databaseMigration` | Map enablement, target schema, and scheduling explicitly. Replace legacy Vault credential delivery with the typed PostgreSQL Secret; the converter leaves a diagnostic for this review. |
 | `services.redis` | `embeddedDependencies.valkey`, `externalDependencies.valkey`, `secrets.valkey` | Endpoint fields map. Legacy TLS defaults on; public-CA endpoints use the system trust store and private CAs use `caExistingSecret`. |
 | `services.configs` | `configuration` | Supported configuration sections are copied. Storage subtrees are handled separately. |
 | `extraConfigMaps` | `configuration.extraConfigMaps` | Direct. |
@@ -105,7 +106,8 @@ derived from an override file alone.
 The following values intentionally produce findings instead of guesses:
 
 - `services.configFile` and `services.configs.secretRefs`;
-- the legacy pgroll `services.migration` Job;
+- `services.migration`, because credential delivery and scheduling must be
+  reviewed before enabling `databaseMigration`;
 - `services.configs.dataset`;
 - LocalStack settings;
 - storage schemes other than S3, Azure, and Swift;
@@ -310,9 +312,11 @@ meaningful.
   identity is `osmo-mek`, `osmo-master-encryption-key`, or a Vault-projected
   file before changing ownership. Never bootstrap a new MEK against the
   retained database.
-- The old pgroll schema Job and migration-files ConfigMap are absent. Complete
-  the required legacy database migration before switching charts. SQA and
-  staging currently render that Job; production does not.
+- The umbrella chart provides `databaseMigration` for the legacy pgroll
+  lifecycle. It packages the ordered migrations, reads the typed PostgreSQL
+  Secret, and runs as a Helm pre-install/pre-upgrade or Argo PreSync hook before
+  the service-auth migration. Enable it for SQA or staging when their legacy
+  values enable `services.migration`; production currently leaves it disabled.
 - Core images, HPA metric types, HPA bounds, and the numbers of Deployments,
   Services, HPAs, Ingresses, NetworkPolicies, and PodMonitors are otherwise
   preserved by the converted values. The new chart adds read-only-root and
@@ -339,6 +343,11 @@ meaningful.
 
 ### Staging
 
+- Enable `databaseMigration` with `targetSchema: public`. The pgroll Job uses
+  `osmo-postgresql-credentials/db-password`, retains the service-node selector
+  and toleration, and runs at Argo wave `-25` before service-auth at `-10`. It
+  downloads pgroll `v0.16.1` at runtime, so verify outbound GitHub HTTPS before
+  the maintenance window.
 - The selected values use the existing service-auth migration path with
   `secrets.serviceAuth.managementMode=external`,
   `existingSecret.name=osmo-service-auth`,
@@ -420,8 +429,9 @@ create or modify Azure resources and cannot perform this live verification.
 
 1. Freeze the Argo application definition, chart revision, and values revision
    to reviewed commit hashes. Do not migrate against moving `main`/`HEAD` refs.
-2. Complete pending pgroll database migrations and take a tested database,
-   MEK, service-auth, and credential backup.
+2. Take a tested database, MEK, service-auth, and credential backup. For
+   releases that used the legacy migration, enable `databaseMigration` and
+   verify its PostgreSQL Secret key, scheduling, and GitHub egress.
 3. Recover storage endpoints from the mounted Secrets. Reuse all three existing
    credential Secrets through `credentialSecretRefs`, or build one compatible
    object-storage Secret per namespace, and validate access with least
@@ -433,9 +443,10 @@ create or modify Azure resources and cannot perform this live verification.
    `--allow-unmapped` output alone.
 6. Render again with no placeholders. Perform the semantic comparison and run
    `helm lint` plus the umbrella chart tests.
-7. Follow the chart's service-auth DB migration procedure: stop old API writers,
-   create and authorize the placeholder Secret, and enable
-   `secrets.serviceAuth.migration.enabled` for the first upgrade.
+7. Follow the chart's database and service-auth migration procedures: stop old
+   API writers, create and authorize the service-auth placeholder Secret, and
+   enable both required hooks for the first upgrade. Pgroll must complete before
+   the service-auth migration starts.
 8. Enable first-upgrade internal-TLS generation once. Sync in a maintenance
    window because the API Service/Deployment names change. Verify hook success,
    every rollout, HPA recreation, ALB health, login/token continuity, workflow
