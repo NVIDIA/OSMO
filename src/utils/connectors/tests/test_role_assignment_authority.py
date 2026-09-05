@@ -9,6 +9,7 @@ from src.utils import configmap_state, connectors
 
 
 class TestRoleAssignmentAuthority(unittest.TestCase):
+    """Verify assignments are validated against ConfigMap-owned roles."""
 
     def setUp(self):
         configmap_state.set_parsed_configs({

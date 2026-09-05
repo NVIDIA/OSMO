@@ -10,6 +10,7 @@ from src.utils import connectors
 
 
 class ConfigHistoryDisabledTestCase(unittest.TestCase):
+    """Verify ConfigMap-owned history operations fail before DB access."""
 
     def _assert_rejected_without_db(self, operation: Callable[[], Any]) -> None:
         with mock.patch.object(

@@ -19,13 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 # pylint: disable=protected-access
 
 from typing import Any, Dict, List, Optional
-from unittest import mock
 
-from src.lib.utils import osmo_errors
-from src.service.core.auth import auth_service, objects
+from src.service.core.auth import objects
 from src.service.core.config import configmap_loader
 from src.service.core.tests import fixture
-from src.utils import configmap_state, connectors
+from src.utils import connectors
 from src.tests.common import runner
 
 

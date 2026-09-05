@@ -18,10 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 import logging
 from typing import Any, List
-from unittest import mock
 
 from src.lib.utils import common, priority as wf_priority, version
-from src.service.core import service
 from src.service.agent import helpers as agent_helpers
 from src.service.core.config import objects as config_objects
 from src.service.core.tests import fixture as service_fixture

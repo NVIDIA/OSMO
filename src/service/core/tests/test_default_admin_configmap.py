@@ -9,6 +9,7 @@ from src.service.core import service
 
 
 class DefaultAdminConfigMapTestCase(unittest.TestCase):
+    """Verify default-admin bootstrap uses only ConfigMap role authority."""
 
     def _config(self):
         return types.SimpleNamespace(

@@ -67,7 +67,11 @@ def create_configmap_file() -> IO[str]:
         "resource_validations: {}\n"
         "backends: {}\n"
         "backend_tests: {}\n"
-        "group_templates: {}\n")
+        "group_templates: {}\n"
+        "roles:\n"
+        "  osmo-default:\n"
+        "    description: Default test role\n"
+        "    policies: []\n")
     config_file.flush()
     return config_file
 
