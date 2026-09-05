@@ -28,14 +28,15 @@ metadata:
 data:
   config.yaml: |
     {{- $cfg := .Values.configuration }}
-    {{- if or $cfg.service .Values.externalUrl }}
+    {{- if ne .Values.configuration.snapshot nil }}
+    {{- $cfg = .Values.configuration.snapshot }}
+    {{- end }}
     service:
       {{- $service := deepCopy ($cfg.service | default dict) }}
       {{- if .Values.externalUrl }}
       {{- $_ := set $service "service_base_url" .Values.externalUrl }}
       {{- end }}
       {{- toYaml $service | nindent 6 }}
-    {{- end }}
     {{- if $cfg.workflow }}
     workflow:
       {{- $workflow := deepCopy $cfg.workflow }}
@@ -52,6 +53,7 @@ data:
       {{- $_ := set $backendImages "client" (printf "%s/client:%s" $runtimeRepository $runtimeTag) }}
       {{- end }}
       {{- $_ := set $workflow "backend_images" $backendImages }}
+      {{- if eq .Values.configuration.snapshot nil }}
       {{- $overrideUrl := include "osmo.objectStorage.overrideUrl" . }}
       {{- $region := include "osmo.objectStorage.region" . }}
       {{- $workflowData := deepCopy (default (dict) $workflow.workflow_data) }}
@@ -93,20 +95,17 @@ data:
       {{- if $region }}{{- $_ := set $workflowAppCredential "region" $region }}{{- end }}
       {{- $_ := set $workflowApp "credential" $workflowAppCredential }}
       {{- $_ := set $workflow "workflow_app" $workflowApp }}
+      {{- end }}
       {{- toYaml $workflow | nindent 6 }}
+    {{- else }}
+    workflow: {}
     {{- end }}
-    {{- if $cfg.pools }}
     pools:
-      {{- toYaml $cfg.pools | nindent 6 }}
-    {{- end }}
-    {{- if $cfg.podTemplates }}
+      {{- toYaml ($cfg.pools | default dict) | nindent 6 }}
     pod_templates:
-      {{- toYaml $cfg.podTemplates | nindent 6 }}
-    {{- end }}
-    {{- if $cfg.resourceValidations }}
+      {{- toYaml ($cfg.podTemplates | default dict) | nindent 6 }}
     resource_validations:
-      {{- toYaml $cfg.resourceValidations | nindent 6 }}
-    {{- end }}
+      {{- toYaml ($cfg.resourceValidations | default dict) | nindent 6 }}
     {{- if $cfg.backends }}
     backends:
       {{- $backends := deepCopy $cfg.backends }}
@@ -116,18 +115,14 @@ data:
       {{- end }}
       {{- end }}
       {{- toYaml $backends | nindent 6 }}
+    {{- else }}
+    backends: {}
     {{- end }}
-    {{- if $cfg.backendTests }}
     backend_tests:
-      {{- toYaml $cfg.backendTests | nindent 6 }}
-    {{- end }}
-    {{- if $cfg.groupTemplates }}
+      {{- toYaml ($cfg.backendTests | default dict) | nindent 6 }}
     group_templates:
-      {{- toYaml $cfg.groupTemplates | nindent 6 }}
-    {{- end }}
-    {{- if $cfg.roles }}
+      {{- toYaml ($cfg.groupTemplates | default dict) | nindent 6 }}
     roles:
-      {{- toYaml $cfg.roles | nindent 6 }}
-    {{- end }}
+      {{- toYaml ($cfg.roles | default dict) | nindent 6 }}
 {{- end }}
 {{- end }}

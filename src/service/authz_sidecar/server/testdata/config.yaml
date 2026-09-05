@@ -1,0 +1,15 @@
+roles:
+  scoped-reader:
+    description: Reader limited to team-a
+    policies:
+    - effect: Allow
+      actions: [workflow:Read]
+      resources: [pool/team-a]
+    external_roles: [team-a-group]
+  osmo-default:
+    description: Default role without workflow access
+    policies: []
+    external_roles: []
+pools:
+  team-a: {}
+  team-b: {}

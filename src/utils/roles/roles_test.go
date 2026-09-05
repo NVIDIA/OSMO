@@ -19,10 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
-	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"testing"
 )
 
@@ -1208,41 +1205,6 @@ func TestRoleActions_RoundTrip(t *testing.T) {
 		if roundTripped[i] != original[i] {
 			t.Errorf("roundTripped[%d] = %+v, want %+v", i, roundTripped[i], original[i])
 		}
-	}
-}
-
-// TestGetRoles_EmptyRoleNames verifies the early-return branch when no role
-// names are provided: the function returns an empty (non-nil) slice and never
-// touches the database, so a nil *postgres.PostgresClient is safe.
-func TestGetRoles_EmptyRoleNames(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	roles, err := GetRoles(context.Background(), nil, []string{}, logger)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if roles == nil {
-		t.Errorf("roles should be a non-nil empty slice")
-	}
-	if len(roles) != 0 {
-		t.Errorf("len(roles) = %d, want 0", len(roles))
-	}
-}
-
-// TestGetRoles_NilRoleNames mirrors the empty-slice case with a nil slice —
-// len(nil) == 0 so the same early-return branch fires.
-func TestGetRoles_NilRoleNames(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	roles, err := GetRoles(context.Background(), nil, nil, logger)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if roles == nil {
-		t.Errorf("roles should be a non-nil empty slice")
-	}
-	if len(roles) != 0 {
-		t.Errorf("len(roles) = %d, want 0", len(roles))
 	}
 }
 

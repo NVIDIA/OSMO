@@ -17,8 +17,12 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import unittest
+from unittest import mock
+import argparse
 
+from src.cli import config
 from src.cli.config import deep_diff
+from src.lib.utils import client
 
 
 class TestConfigUpdate(unittest.TestCase):
@@ -40,6 +44,26 @@ class TestConfigUpdate(unittest.TestCase):
         result = deep_diff(current, updated)
         expected = {"b": 3}
         self.assertEqual(result, expected)
+
+    @mock.patch('src.cli.config.common.current_time', return_value='now')
+    def test_default_history_list_requests_roles_only(self, _current_time):
+        service_client = mock.Mock()
+        service_client.request.return_value = {'configs': []}
+
+        config._run_list_command(
+            service_client,
+            argparse.Namespace(format_type='json', fit_width=False),
+        )
+
+        service_client.request.assert_called_once_with(
+            client.RequestMethod.GET,
+            'api/configs/history',
+            params={
+                'config_types': ['ROLE'],
+                'omit_data': True,
+                'at_timestamp': 'now',
+            },
+        )
 
     def test_deep_diff_nested_dict_change(self):
         """Test deep_diff with nested dictionary changes."""

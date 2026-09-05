@@ -933,7 +933,7 @@ class UpdateGroup(WorkflowJob):
                 exit_code=self.exit_code,
             )
         else:
-            pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+            pool_info = connectors.Pool.fetch_from_configmap(workflow_obj.pool)
 
             if self.task_name and self.retry_id is not None:
                 current_task = task.Task.fetch_from_db(
@@ -1735,7 +1735,7 @@ class CheckRunTimeout(WorkflowJob):
             return workflow_obj.timeout.exec_timeout
         if not workflow_obj.pool:
             raise osmo_errors.OSMOUserError('No Pool Specified')
-        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(workflow_obj.pool)
         workflow_config = context.postgres.get_workflow_configs()
         return common.to_timedelta(pool_info.default_exec_timeout
                                    if pool_info.default_exec_timeout
@@ -1851,7 +1851,7 @@ class CheckQueueTimeout(WorkflowJob):
             return workflow_obj.timeout.queue_timeout
         if not workflow_obj.pool:
             raise osmo_errors.OSMOUserError('No Pool Specified')
-        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(workflow_obj.pool)
         workflow_config = context.postgres.get_workflow_configs()
         return common.to_timedelta(pool_info.default_queue_timeout
                                    if pool_info.default_queue_timeout

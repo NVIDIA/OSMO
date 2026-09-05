@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"sync"
-	"time"
+	"regexp"
+	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -44,24 +45,24 @@ type FileRoleStore struct {
 	filePath string
 	logger   *slog.Logger
 
-	mu              sync.RWMutex
-	roles           map[string]*Role   // name -> Role
+	roles           map[string]*Role    // name -> Role
 	externalRoleMap map[string][]string // externalRole -> []osmoRoleName
 	poolNames       []string
-	lastModTime     time.Time
 }
+
+var semanticActionPattern = regexp.MustCompile(`^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$`)
 
 // fileConfig mirrors the flat YAML structure of the configs file.
 type fileConfig struct {
-	Roles map[string]fileRole   `yaml:"roles"`
-	Pools map[string]yaml.Node  `yaml:"pools"`
+	Roles map[string]fileRole  `yaml:"roles"`
+	Pools map[string]yaml.Node `yaml:"pools"`
 }
 
 type fileRole struct {
-	Description   string           `yaml:"description"`
-	Policies      []filePolicy     `yaml:"policies"`
-	ExternalRoles []string         `yaml:"external_roles"`
-	Immutable     bool             `yaml:"immutable"`
+	Description   string       `yaml:"description"`
+	Policies      []filePolicy `yaml:"policies"`
+	ExternalRoles *[]string    `yaml:"external_roles"`
+	Immutable     bool         `yaml:"immutable"`
 }
 
 type filePolicy struct {
@@ -71,7 +72,8 @@ type filePolicy struct {
 }
 
 // NewFileRoleStore creates a store that reads from the given YAML file.
-// Call Load() to populate, then Start() to begin watching for changes.
+// Call Load() once during process startup. Workload rollouts triggered by the
+// ConfigMap checksum are responsible for applying later changes.
 func NewFileRoleStore(filePath string, logger *slog.Logger) *FileRoleStore {
 	return &FileRoleStore{
 		filePath:        filePath,
@@ -97,45 +99,51 @@ func (s *FileRoleStore) Load() error {
 	roles := make(map[string]*Role, len(config.Roles))
 	externalMap := make(map[string][]string)
 
-	for name, fileRole := range config.Roles {
+	roleNames := make([]string, 0, len(config.Roles))
+	for name := range config.Roles {
+		roleNames = append(roleNames, name)
+	}
+	sort.Strings(roleNames)
+	for _, name := range roleNames {
+		fileRole := config.Roles[name]
 		role, err := parseFileRole(name, fileRole)
 		if err != nil {
-			s.logger.Error("skipping invalid role",
-				slog.String("role", name),
-				slog.String("error", err.Error()))
-			continue
+			return fmt.Errorf("invalid role %q: %w", name, err)
 		}
 		roles[name] = role
 
 		// Build reverse mapping: externalRole -> []osmoRoleName
-		extRoles := fileRole.ExternalRoles
-		if len(extRoles) == 0 {
-			// Default: role name maps to itself
-			extRoles = []string{name}
+		extRoles := []string{name}
+		if fileRole.ExternalRoles != nil {
+			extRoles = *fileRole.ExternalRoles
 		}
 		for _, extRole := range extRoles {
+			if strings.TrimSpace(extRole) == "" {
+				return fmt.Errorf("invalid role %q: external_roles must not contain an empty name", name)
+			}
 			externalMap[extRole] = append(externalMap[extRole], name)
 		}
+	}
+	if len(roles) == 0 {
+		return fmt.Errorf("roles section must contain at least one role")
+	}
+	if config.Pools == nil {
+		return fmt.Errorf("pools section is required")
 	}
 
 	// Extract pool names
 	poolNames := make([]string, 0, len(config.Pools))
 	for name := range config.Pools {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("pools must not contain an empty name")
+		}
 		poolNames = append(poolNames, name)
 	}
+	sort.Strings(poolNames)
 
-	// Stat before lock to get modtime
-	info, _ := os.Stat(s.filePath)
-
-	// Atomic swap (includes lastModTime to avoid race with poll goroutine)
-	s.mu.Lock()
 	s.roles = roles
 	s.externalRoleMap = externalMap
 	s.poolNames = poolNames
-	if info != nil {
-		s.lastModTime = info.ModTime()
-	}
-	s.mu.Unlock()
 
 	s.logger.Info("roles loaded from file",
 		slog.Int("role_count", len(roles)),
@@ -146,37 +154,9 @@ func (s *FileRoleStore) Load() error {
 	return nil
 }
 
-// Start begins a background goroutine that polls the file for changes.
-func (s *FileRoleStore) Start(pollInterval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(pollInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			info, err := os.Stat(s.filePath)
-			if err != nil {
-				continue
-			}
-			s.mu.RLock()
-			changed := info.ModTime().After(s.lastModTime)
-			s.mu.RUnlock()
-			if changed {
-				s.logger.Info("roles file changed, reloading",
-					slog.String("file", s.filePath))
-				if err := s.Load(); err != nil {
-					s.logger.Error("failed to reload roles file",
-						slog.String("error", err.Error()))
-				}
-			}
-		}
-	}()
-}
-
 // GetRoles returns Role objects for the given names.
-// Unknown names are silently skipped (same behavior as DB query).
+// Unknown names are skipped so stale assignment rows cannot grant authority.
 func (s *FileRoleStore) GetRoles(names []string) []*Role {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	var result []*Role
 	for _, name := range names {
 		if role, ok := s.roles[name]; ok {
@@ -190,9 +170,6 @@ func (s *FileRoleStore) GetRoles(names []string) []*Role {
 // OSMO role names using the in-memory external_roles mappings.
 // This replaces the SyncUserRoles SQL query.
 func (s *FileRoleStore) ResolveExternalRoles(externalRoles []string) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	seen := make(map[string]bool)
 	var result []string
 	for _, extRole := range externalRoles {
@@ -208,9 +185,6 @@ func (s *FileRoleStore) ResolveExternalRoles(externalRoles []string) []string {
 
 // GetPoolNames returns all pool names from the ConfigMap.
 func (s *FileRoleStore) GetPoolNames() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	result := make([]string, len(s.poolNames))
 	copy(result, s.poolNames)
 	return result
@@ -218,6 +192,9 @@ func (s *FileRoleStore) GetPoolNames() []string {
 
 // parseFileRole converts a fileRole (YAML) to a Role (Go struct).
 func parseFileRole(name string, fr fileRole) (*Role, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("role name must not be empty")
+	}
 	role := &Role{
 		Name:        name,
 		Description: fr.Description,
@@ -234,6 +211,12 @@ func parseFileRole(name string, fr fileRole) (*Role, error) {
 		} else {
 			policy.Effect = EffectAllow
 		}
+		if policy.Effect != EffectAllow && policy.Effect != EffectDeny {
+			return nil, fmt.Errorf("policy %d: effect must be Allow or Deny", i)
+		}
+		if len(fp.Actions) == 0 {
+			return nil, fmt.Errorf("policy %d: actions must not be empty", i)
+		}
 		if policy.Resources == nil {
 			policy.Resources = []string{}
 		}
@@ -244,6 +227,9 @@ func parseFileRole(name string, fr fileRole) (*Role, error) {
 		for j, action := range fp.Actions {
 			switch v := action.(type) {
 			case string:
+				if !semanticActionPattern.MatchString(v) {
+					return nil, fmt.Errorf("policy %d action %d: invalid semantic action %q", i, j, v)
+				}
 				policy.Actions = append(policy.Actions, RoleAction{Action: v})
 			case map[string]any:
 				ra := RoleAction{}
@@ -258,6 +244,13 @@ func parseFileRole(name string, fr fileRole) (*Role, error) {
 				}
 				if s, ok := v["method"].(string); ok {
 					ra.Method = s
+				}
+				if ra.Action != "" {
+					if !semanticActionPattern.MatchString(ra.Action) {
+						return nil, fmt.Errorf("policy %d action %d: invalid semantic action %q", i, j, ra.Action)
+					}
+				} else if !ra.IsLegacyAction() {
+					return nil, fmt.Errorf("policy %d action %d: action must not be empty", i, j)
 				}
 				policy.Actions = append(policy.Actions, ra)
 			default:

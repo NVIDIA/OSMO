@@ -17,7 +17,7 @@ import unittest
 from jwcrypto import jwk  # type: ignore
 import psycopg2  # type: ignore
 
-from src.utils import auth, connectors
+from src.utils import connectors
 from src.utils.secret_manager import SecretManager
 
 
@@ -116,10 +116,9 @@ class TestMekReconciliationPostgres(unittest.TestCase):
         self.database._create_pool()
         for command in (
             "CREATE EXTENSION IF NOT EXISTS hstore;",
-            "DROP TABLE IF EXISTS configs, ueks, users CASCADE;",
+            "DROP TABLE IF EXISTS ueks, users CASCADE;",
             "CREATE TABLE users (id TEXT PRIMARY KEY);",
             "CREATE TABLE ueks (uid TEXT PRIMARY KEY, keys HSTORE NOT NULL);",
-            "CREATE TABLE configs (key TEXT, type TEXT, value TEXT, PRIMARY KEY(key, type));",
             "INSERT INTO users(id) VALUES ('user');",
         ):
             self.database.execute_commit_command(command, ())
@@ -168,74 +167,6 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE '%%mek%%';",
             (), return_raw=True)
         self.assertEqual(trigger_rows, [])
-
-    def test_default_config_secrets_are_encrypted_before_insert(self) -> None:
-        probe = self.database.secret_manager.encrypt("", "").value
-        self.assertEqual(
-            self.database.secret_manager.authenticate_mek_encrypted(probe), "old")
-        self.database._init_default_configs()
-
-        rows = self.database.execute_fetch_command(
-            "SELECT key, value FROM configs WHERE type = 'WORKFLOW' "
-            "AND key IN ('backend_images', 'workflow_alerts');",
-            (), return_raw=True)
-        self.assertEqual(len(rows), 2)
-        for row in rows:
-            self.assertNotIn('**********', row["value"])
-        persisted = {row["key"]: json.loads(row["value"]) for row in rows}
-        for encrypted in (
-            persisted["backend_images"]["credential"]["auth"],
-            persisted["workflow_alerts"]["slack_token"],
-            persisted["workflow_alerts"]["smtp_settings"]["password"],
-        ):
-            self.assertEqual(
-                self.database.secret_manager.authenticate_mek_encrypted(encrypted), "old")
-
-        counts, blockers = self.database._scan_mek_references()
-        self.assertEqual(blockers, [])
-        # Registry auth, Slack, and SMTP defaults are all persisted as
-        # authenticated direct-MEK ciphertext even when no application read
-        # performs the historical lazy-encryption step.
-        self.assertGreaterEqual(counts["old"], 3)
-
-    def test_retained_legacy_service_auth_is_inventoried_and_rewrapped(self) -> None:
-        service_auth = auth.AuthenticationConfig.generate_default()
-        payload = service_auth.plaintext_dict()
-        active_key = payload["active_key"]
-        payload["keys"][active_key]["private_key"] = (
-            self.database.secret_manager.encrypt(
-                payload["keys"][active_key]["private_key"], "").value)
-        self.database.execute_commit_command(
-            "INSERT INTO configs(key, type, value) VALUES (%s, %s, %s);",
-            ("service_auth", "SERVICE", json.dumps(payload)),
-        )
-
-        counts, blockers = self.database._scan_mek_references()
-        self.assertEqual(blockers, [])
-        self.assertEqual(counts["old"], 2)
-
-        _write_keyring(
-            self.keyring_path, "new", {"old": self.old_mek, "new": self.new_mek})
-        self.database.secret_manager = SecretManager(
-            str(self.keyring_path), self.database.read_uek, self.database.write_uek,
-            self.database.read_current_kid, self.database.add_user)
-        snapshot = self.database.secret_manager.rewrap_snapshot()
-        self.database.rewrap_mek_references(
-            expected_generation=snapshot.generation,
-            expected_current_kid="new",
-            expected_registry_digest=(
-                self.database.secret_manager.rewrap_snapshot_digest(snapshot)),
-        )
-
-        row = self.database.execute_fetch_command(
-            "SELECT value FROM configs WHERE key = 'service_auth' AND type = 'SERVICE';",
-            (), return_raw=True)[0]
-        rewrapped = json.loads(row["value"])["keys"][active_key]["private_key"]
-        self.assertEqual(
-            self.database.secret_manager.authenticate_mek_encrypted(rewrapped), "new")
-        counts, blockers = self.database._scan_mek_references()
-        self.assertEqual(blockers, [])
-        self.assertEqual(counts, {"old": 0, "new": 2})
 
     def test_startup_inventory_rejects_a_missing_historical_key(self) -> None:
         _write_keyring(self.keyring_path, "new", {"new": self.new_mek})

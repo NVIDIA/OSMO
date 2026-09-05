@@ -60,6 +60,40 @@
 {{- fail "databaseMigration.enabled requires planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
+{{- $runtimeConfiguration := .Values.configuration -}}
+{{- if ne .Values.configuration.snapshot nil -}}
+{{- $runtimeConfiguration = .Values.configuration.snapshot -}}
+{{- end -}}
+{{- $runtimeRoles := get $runtimeConfiguration "roles" -}}
+{{- if or (not (kindIs "map" $runtimeRoles)) (eq (len $runtimeRoles) 0) -}}
+{{- fail "configuration roles must be a non-empty map in the 6.4 runtime snapshot" -}}
+{{- end -}}
+{{- range $roleName, $roleDefinition := $runtimeRoles -}}
+{{- if or (not $roleName) (not (kindIs "map" $roleDefinition)) -}}
+{{- fail "every configuration role must have a non-empty name and mapping definition" -}}
+{{- end -}}
+{{- if hasKey $roleDefinition "sync_mode" -}}
+{{- fail (printf "configuration role %q must not set sync_mode; role definitions are ConfigMap-owned" $roleName) -}}
+{{- end -}}
+{{- if or (not (hasKey $roleDefinition "description")) (not (hasKey $roleDefinition "policies")) -}}
+{{- fail (printf "configuration role %q requires description and policies" $roleName) -}}
+{{- end -}}
+{{- end -}}
+{{- if and
+  .Values.secrets.serviceAuth.bootstrap.enabled
+  .Values.secrets.serviceAuth.migration.enabled -}}
+{{- fail "secrets.serviceAuth.bootstrap.enabled and migration.enabled are mutually exclusive" -}}
+{{- end -}}
+{{- if and
+  .Values.secrets.serviceAuth.migration.enabled
+  .Values.services.api.enabled -}}
+{{- fail "services.api.enabled must be false during service-auth migration so the 6.4 ConfigMap rollout remains quiesced" -}}
+{{- end -}}
+{{- if and
+  .Values.services.api.enabled
+  (ne (dig "type" "" .Values.services.api.deploymentStrategy) "Recreate") -}}
+{{- fail "services.api.deploymentStrategy.type must be Recreate so ConfigMap authority changes cannot race workflow submission" -}}
+{{- end -}}
 {{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
 {{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
 {{- end -}}
@@ -491,5 +525,25 @@
 {{- end -}}
 {{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
 {{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- end -}}
+
+{{- $configurationSecretNames := dict -}}
+{{- if not .Values.configuration.enabled -}}
+{{- fail "configuration.enabled must be true; OSMO 6.4 service configuration is ConfigMap-only" -}}
+{{- end -}}
+{{- range $index, $secretRef := .Values.configuration.secretRefs -}}
+{{- $secretName := required (printf "configuration.secretRefs[%d].secretName is required" $index) $secretRef.secretName -}}
+{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
+{{- fail (printf "configuration.secretRefs[%d].secretName must be a valid Kubernetes Secret name" $index) -}}
+{{- end -}}
+{{- range $label := splitList "." $secretName -}}
+{{- if gt (len $label) 63 -}}
+{{- fail (printf "configuration.secretRefs[%d].secretName contains a DNS label longer than 63 characters" $index) -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey $configurationSecretNames $secretName -}}
+{{- fail (printf "configuration.secretRefs contains duplicate Secret %q" $secretName) -}}
+{{- end -}}
+{{- $_ := set $configurationSecretNames $secretName true -}}
 {{- end -}}
 {{- end -}}

@@ -2577,7 +2577,7 @@
           "Config API"
         ],
         "summary": "Get Configs History",
-        "description": "List history of all configs",
+        "description": "List DB-backed role history.",
         "operationId": "get_configs_history_api_configs_history_get",
         "parameters": [
           {
@@ -2813,7 +2813,7 @@
           "Config API"
         ],
         "summary": "Rollback Config",
-        "description": "Roll back a config to a particular revision.",
+        "description": "Roll back DB-backed roles to a particular revision.",
         "operationId": "rollback_config_api_configs_history_rollback_post",
         "parameters": [
           {
@@ -6680,6 +6680,22 @@
               "type": "string",
               "title": "Name"
             }
+          },
+          {
+            "name": "x-osmo-allowed-pools",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Osmo-Allowed-Pools"
+            }
           }
         ],
         "responses": {
@@ -7653,8 +7669,15 @@
             "$ref": "#/components/schemas/BackendNodeConditions"
           },
           "last_heartbeat": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Last Heartbeat"
           },
           "created_date": {

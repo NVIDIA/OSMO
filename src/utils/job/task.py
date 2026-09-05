@@ -2255,7 +2255,7 @@ class TaskGroup(pydantic.BaseModel):
             return [], task_infos
 
         # Fetch pool configuration and build topology keys
-        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        pool_obj = connectors.Pool.fetch_from_configmap(pool)
         topology_keys = [
             topology_module.TopologyKey(key=tk.key, label=tk.label)
             for tk in pool_obj.topology_keys
@@ -2394,7 +2394,7 @@ class TaskGroup(pydantic.BaseModel):
             kb_resources.append(headless_service)
 
         # Prepend group template resources so they are created before pods
-        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        pool_obj = connectors.Pool.fetch_from_configmap(pool)
         if pool_obj.parsed_group_templates:
             template_variables = self._convert_labels_to_variables(labels)
             template_variables['WF_POOL'] = pool
@@ -2590,7 +2590,7 @@ class TaskGroup(pydantic.BaseModel):
             raise osmo_errors.OSMOServerError('Workflow data credential is not set')
 
         if pool_info is None:
-            pool_info = connectors.Pool.fetch_from_db(self.database, pool)
+            pool_info = connectors.Pool.fetch_from_configmap(pool)
         if service_config is None:
             service_config = self.database.get_service_configs()
         if data_endpoints is None:
@@ -2951,7 +2951,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config = self.database.get_service_configs()
         backend_config = connectors.Backend.fetch_from_db(postgres, self.spec.tasks[0].backend)
         k8s_factory = self.get_k8s_object_factory(backend_config)
-        pool_info = connectors.Pool.fetch_from_db(postgres, pool)
+        pool_info = connectors.Pool.fetch_from_configmap(pool)
         pod_list = {
             t.name: kb_objects.construct_pod_name(
                 workflow_uuid, t.task_uuid) for t in self.tasks}

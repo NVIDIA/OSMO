@@ -38,26 +38,6 @@ class TestMekReconciliation(unittest.TestCase):
         with self.assertRaisesRegex(osmo_errors.OSMOError, "authentication"):
             database._rewrap_ueks(mock.sentinel.snapshot)
 
-    def test_unknown_config_path_is_never_mutated(self):
-        database, manager = _database()
-        value = {"known": "not-a-jwe", "extension": "opaque"}
-        replacement, changed = database._rewrap_config_value(
-            value, frozenset({"known"}), mock.sentinel.snapshot)
-        self.assertEqual(replacement, value)
-        self.assertFalse(changed)
-        manager.rewrap_direct_mek.assert_not_called()
-
-    def test_registered_config_path_uses_explicit_rewrap(self):
-        database, manager = _database()
-        database._jwe_header = mock.Mock(return_value={"kid": "key1"})  # type: ignore[method-assign]
-        manager.meks = {"key1": mock.sentinel.key}
-        manager.rewrap_direct_mek.return_value = mock.Mock(
-            value="replacement", status="rewrapped")
-        replacement, changed = database._rewrap_config_value(
-            "ciphertext", frozenset({"secret"}), mock.sentinel.snapshot, "secret")
-        self.assertEqual(replacement, "replacement")
-        self.assertTrue(changed)
-
     def test_inventory_blocker_never_becomes_completion(self):
         database, manager = _database()
         manager.rewrap_snapshot.return_value = mock.Mock(

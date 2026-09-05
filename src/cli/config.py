@@ -258,7 +258,10 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
     """
     # Build query parameters
     params: Dict[str, Any] = {
-        'config_types': config_history.OPERABLE_CONFIG_TYPES,
+        # In 6.4 only authz roles retain DB-backed revision history.  Keep the
+        # unqualified command useful while explicit requests for removed
+        # config-history types continue to receive the API's 409 response.
+        'config_types': [config_history.ConfigHistoryType.ROLE.value],
         'omit_data': True,
         'at_timestamp': common.current_time()
     }

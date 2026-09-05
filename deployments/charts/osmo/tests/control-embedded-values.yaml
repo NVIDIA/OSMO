@@ -71,7 +71,7 @@ secrets:
       enabled: false
 
 configuration:
-  enabled: false
+  enabled: true
 
 gateway:
   envoy:

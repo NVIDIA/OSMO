@@ -41,6 +41,17 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_default_admin_configmap",
+    srcs = ["test_default_admin_configmap.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core:service_lib",
+    ],
+    size = "small",
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
     name = "test_group_templates",
     srcs = ["test_group_templates.py"],
     deps = [

@@ -56,20 +56,6 @@ py_test(
 )
 
 py_test(
-    name = "test_default_roles",
-    srcs = [
-        "test_default_roles.py"
-        ],
-    deps = [
-        "//src/utils/connectors:connectors",
-    ],
-    tags = [
-        "exclusive"
-    ],
-    size = "small"
-)
-
-py_test(
     name = "test_backend_resource",
     srcs = [
         "test_backend_resource.py"
@@ -81,6 +67,26 @@ py_test(
         "exclusive"
     ],
     size = "small"
+)
+
+osmo_py_test(
+    name = "test_pool_config_authority",
+    srcs = ["test_pool_config_authority.py"],
+    deps = [
+        "//src/utils:configmap_state",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+osmo_py_test(
+    name = "test_role_assignment_authority",
+    srcs = ["test_role_assignment_authority.py"],
+    deps = [
+        "//src/utils:configmap_state",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
 )
 
 py_test(

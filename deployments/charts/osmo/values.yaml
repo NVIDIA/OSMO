@@ -28,7 +28,7 @@ compute:
   authentication:
     existingSecret: osmo-backend-token
     tokenKey: token
-  nodeConditionPrefix: ''
+  nodeConditionPrefix: osmo.nvidia.com/
   rbac:
     create: true
     clusterRoles:
@@ -993,6 +993,10 @@ services:
   # Main OSMO REST API and control-plane service.
   api:
     enabled: true
+    # Config snapshots are immutable per pod. Recreate prevents an old ready
+    # API from accepting work against authority removed by a new snapshot.
+    deploymentStrategy:
+      type: Recreate
     autoscaling:
       enabled: false
       minReplicas: 3
@@ -1579,6 +1583,8 @@ gateway:
       minConns: 2
       maxConnLifetimeMin: 5
     cache:
+      # Deprecated compatibility values. DB-owned role policies are not cached
+      # so privilege revocation takes effect on the next authorization check.
       ttl: 300
       maxSize: 1000
     resources:
@@ -1739,11 +1745,25 @@ gateway:
       mcp: ''
     caSecret: ''
 
-# OSMO domain configuration rendered into the service ConfigMap.
+# OSMO domain configuration rendered into the required service ConfigMap.
 configuration:
+  # OSMO 6.4 requires ConfigMap-owned service configuration.
   enabled: true
+  # Existing Kubernetes Secrets referenced from service/workflow configuration.
+  # Every Secret is mounted read-only at /etc/osmo/secrets/<secretName>/.
+  # The dedicated object-storage Secret is already mounted and is de-duplicated.
+  # Listing it here mounts all of its keys so additional config references to
+  # that Secret work; do not co-locate unrelated credentials in a shared Secret.
+  # Keep secret values out of Helm values; every OSMO config credential
+  # reference must include both secretName and secretKey. Bare secretName
+  # fields in workload pod templates are not control-plane config references.
+  secretRefs: []
   extraConfigMaps: []
   extraAnnotations: {}
+  # Optional complete replacement for the opinionated section defaults below.
+  # The config exporter writes all nine managed sections here so empty maps
+  # and deleted default entries remain exact after Helm values merging.
+  snapshot: null
   service: {}
   workflow:
     max_num_tasks: 100
@@ -1824,6 +1844,7 @@ configuration:
       left_operand: '{{USER_STORAGE}}'
       right_operand: '0'
       assert_message: Value {{USER_STORAGE}} needs to be greater than 0 for storage
+  # Role definitions and external mappings remain ConfigMap-owned.
   roles:
     osmo-admin:
       description: "Admin role \u2014 full access to all resources"

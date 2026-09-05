@@ -27,7 +27,6 @@ import yaml
 from src.lib.utils import osmo_errors
 from src.service.core.config import (
     config_service,
-    configmap_guard,
     configmap_loader,
     objects as config_objects,
 )
@@ -46,7 +45,29 @@ def _service_auth_config() -> Dict[str, Any]:
 
 
 def _with_service_auth(config: Dict[str, Any]) -> Dict[str, Any]:
-    config = dict(config)
+    complete_config: Dict[str, Any] = {
+        'service': {},
+        'workflow': {},
+        'pools': {},
+        'pod_templates': {},
+        'resource_validations': {},
+        'backends': {},
+        'backend_tests': {},
+        'group_templates': {},
+        'roles': {
+            'osmo-default': {
+                'description': 'Default test role',
+                'policies': [{
+                    'effect': 'Allow',
+                    'actions': ['system:Health'],
+                    'resources': ['*'],
+                }],
+                'external_roles': [],
+            },
+        },
+    }
+    complete_config.update(config)
+    config = complete_config
     service = dict(config.get('service', {}))
     service['service_auth'] = _service_auth_config()
     config['service'] = service
@@ -198,92 +219,23 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         result = connectors.GroupTemplate.list_from_db(postgres)
         self.assertEqual(set(result.keys()), {'grp_a', 'grp_b'})
 
-    def test_role_from_snapshot(self):
-        """Role.fetch_from_db reads from snapshot."""
+    def test_roles_are_read_from_configmap_without_db_projection(self):
         postgres = self._get_postgres()
         self._activate_configmap_mode({
             'roles': {
-                'test-role': {
-                    'description': 'Test',
+                'must-not-be-read': {
+                    'description': 'ConfigMap-owned role',
                     'policies': [],
                 },
             },
         })
 
-        result = connectors.Role.fetch_from_db(postgres, 'test-role')
-        self.assertEqual(result.name, 'test-role')
-        self.assertEqual(result.description, 'Test')
-
-    def test_role_list_from_snapshot(self):
-        """Role.list_from_db returns all roles from snapshot."""
-        postgres = self._get_postgres()
-        self._activate_configmap_mode({
-            'roles': {
-                'role-a': {'description': 'A', 'policies': []},
-                'role-b': {'description': 'B', 'policies': []},
-            },
-        })
-
-        result = connectors.Role.list_from_db(postgres)
-        names = {r.name for r in result}
-        self.assertEqual(names, {'role-a', 'role-b'})
-
-    def test_roles_by_external_roles_from_snapshot(self):
-        postgres = self._get_postgres()
-        self._activate_configmap_mode({
-            'roles': {
-                'role-a': {
-                    'description': 'A',
-                    'policies': [],
-                    'external_roles': ['external-a'],
-                },
-                'role-b': {
-                    'description': 'B',
-                    'policies': [],
-                    'external_roles': ['external-b'],
-                },
-                'role-default': {
-                    'description': 'Default mapping',
-                    'policies': [],
-                },
-                'role-null': {
-                    'description': 'Null mapping',
-                    'policies': [],
-                    'external_roles': None,
-                },
-                'role-empty': {
-                    'description': 'Empty mapping',
-                    'policies': [],
-                    'external_roles': [],
-                },
-            },
-        })
-
-        result = connectors.Role.get_roles_by_external_roles(
-            postgres, [
-                'external-b', 'role-default', 'role-null', 'role-empty'])
-
-        self.assertEqual(
-            result, ['role-b', 'role-default', 'role-empty', 'role-null'])
-
-    def test_scalar_external_roles_uses_default_mapping_from_snapshot(self):
-        postgres = self._get_postgres()
-        self._activate_configmap_mode({
-            'roles': {
-                'role-scalar': {
-                    'description': 'Scalar mapping',
-                    'policies': [],
-                    'external_roles': 'external-scalar',
-                },
-            },
-        })
-
-        self.assertEqual(
-            connectors.Role.get_roles_by_external_roles(postgres, ['a']), [])
-        self.assertEqual(
-            connectors.Role.get_roles_by_external_roles(
-                postgres, ['role-scalar']),
-            ['role-scalar'])
+        roles = connectors.Role.list_from_db(postgres)
+        self.assertEqual([item.name for item in roles], ['must-not-be-read'])
+        db_rows = postgres.execute_fetch_command(
+            'SELECT name FROM roles WHERE name = %s;',
+            ('must-not-be-read',), True)
+        self.assertEqual(db_rows, [])
 
     def test_backend_list_from_snapshot(self):
         """Backend.list_from_db returns backends from snapshot."""
@@ -349,25 +301,17 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             )
         self.assertEqual(ctx.exception.status_code, 409)
 
-    def test_409_bypass_for_configmap_sync(self):
-        """configmap-sync user can write even in ConfigMap mode."""
+    def test_no_internal_user_bypasses_configmap_ownership(self):
         self._activate_configmap_mode({})
-        # Should not raise for configmap-sync username
-        # (will likely fail for other reasons, but not 409)
-        try:
+        with self.assertRaises(osmo_errors.OSMOUserError) as context:
             config_service.put_pod_templates(
                 request=config_objects.PutPodTemplatesRequest(
                     configs={'test': {'spec': {}}},
                     description='test',
                 ),
-                username=configmap_guard.CONFIGMAP_SYNC_USERNAME,
+                username='configmap-sync',
             )
-        except osmo_errors.OSMOUserError as error:
-            # Any error other than 409 is acceptable
-            self.assertNotEqual(error.status_code, 409)
-        except (osmo_errors.OSMOUserError, osmo_errors.OSMOBackendError,
-                osmo_errors.OSMOServerError):
-            pass  # Non-409 errors are fine
+        self.assertEqual(context.exception.status_code, 409)
 
     # -------------------------------------------------------------------
     # ConfigMapWatcher loads configs into snapshot
@@ -396,88 +340,6 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         finally:
             os.unlink(temp_file.name)
 
-    def test_api_watcher_reconciles_user_roles_from_snapshot(self):
-        postgres = self._get_postgres()
-        user_id = 'configmap-roles@example.com'
-        postgres.execute_commit_command(
-            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
-            (user_id, 'test'))
-        postgres.execute_commit_command('''
-            INSERT INTO user_roles (user_id, role_name, assigned_by)
-            VALUES (%s, %s, %s), (%s, %s, %s);
-        ''', (user_id, 'current-role', 'test', user_id, 'stale-role', 'test'))
-        role_rows = postgres.execute_fetch_command(
-            'SELECT id, role_name FROM user_roles WHERE user_id = %s;',
-            (user_id,), True)
-        role_ids = {row['role_name']: row['id'] for row in role_rows}
-        postgres.execute_commit_command('''
-            INSERT INTO access_token (user_name, token_name, access_token)
-            VALUES (%s, %s, %s);
-            INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by)
-            VALUES (%s, %s, %s, %s), (%s, %s, %s, %s);
-        ''', (user_id, 'configmap-token', b'token',
-              user_id, 'configmap-token', role_ids['current-role'], 'test',
-              user_id, 'configmap-token', role_ids['stale-role'], 'test'))
-        with tempfile.NamedTemporaryFile(
-                mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(_with_service_auth({
-                'roles': {
-                    'current-role': {'description': 'current', 'policies': []},
-                },
-            }), temp_file)
-        try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                temp_file.name, postgres, enable_reconciliation=True,
-                backend_queue_updater=lambda *_args, **_kwargs: True,
-                backend_test_updater=lambda *_args, **_kwargs: True)
-            self.assertEqual(
-                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
-            rows = postgres.execute_fetch_command(
-                'SELECT role_name FROM user_roles WHERE user_id = %s;',
-                (user_id,), True)
-            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
-            rows = postgres.execute_fetch_command('''
-                SELECT ur.role_name FROM access_token_roles atr
-                JOIN user_roles ur ON ur.id = atr.user_role_id
-                WHERE atr.user_name = %s AND atr.token_name = %s;
-            ''', (user_id, 'configmap-token'), True)
-            self.assertEqual([row['role_name'] for row in rows], ['current-role'])
-
-            with open(temp_file.name, 'w', encoding='utf-8') as config_file:
-                yaml.dump(_with_service_auth({'roles': {}}), config_file)
-            self.assertEqual(
-                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
-            rows = postgres.execute_fetch_command(
-                'SELECT role_name FROM user_roles WHERE user_id = %s;',
-                (user_id,), True)
-            self.assertEqual(rows, [])
-        finally:
-            os.unlink(temp_file.name)
-
-    def test_non_api_watcher_does_not_reconcile_user_roles(self):
-        postgres = self._get_postgres()
-        user_id = 'non-api-configmap-roles@example.com'
-        postgres.execute_commit_command(
-            'INSERT INTO users (id, created_by) VALUES (%s, %s);',
-            (user_id, 'test'))
-        postgres.execute_commit_command('''
-            INSERT INTO user_roles (user_id, role_name, assigned_by)
-            VALUES (%s, %s, %s);
-        ''', (user_id, 'stale-role', 'test'))
-        with tempfile.NamedTemporaryFile(
-                mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(_with_service_auth({'roles': {}}), temp_file)
-        try:
-            watcher = configmap_loader.ConfigMapWatcher(temp_file.name, postgres)
-            self.assertEqual(
-                watcher._load_and_apply(), configmap_loader.LoadResult.SUCCESS)
-            rows = postgres.execute_fetch_command(
-                'SELECT role_name FROM user_roles WHERE user_id = %s;',
-                (user_id,), True)
-            self.assertEqual([row['role_name'] for row in rows], ['stale-role'])
-        finally:
-            os.unlink(temp_file.name)
-
     def test_watcher_resolves_pool_parsed_fields(self):
         """ConfigMapWatcher resolves parsed_pod_template from references."""
         config = {
@@ -499,8 +361,12 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
                 'cpu_check': [
                     {'operator': 'LE',
                      'left_operand': '{{USER_CPU}}',
-                     'right_operand': '{{K8_CPU}}'},
+                     'right_operand': '{{K8_CPU}}',
+                     'assert_message': 'Requested CPU exceeds capacity'},
                 ],
+            },
+            'backends': {
+                'default': {'k8s_namespace': 'default'},
             },
             'pools': {
                 'test-pool': {

@@ -27,7 +27,7 @@ import fastapi
 from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
 from src.service.core.auth import backend_secret_auth, objects
-from src.utils import auth, configmap_state, connectors
+from src.utils import auth, connectors
 
 
 router = fastapi.APIRouter(
@@ -465,17 +465,6 @@ def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str
 def _insert_user_role(postgres: connectors.PostgresConnector, user_id: str,
                       role_name: str, assigned_by: str,
                       assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
-    if configmap_state.get_snapshot() is not None:
-        _validate_role_exists(postgres, role_name)
-        insert_cmd = '''
-            INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (user_id, role_name) DO UPDATE SET user_id = EXCLUDED.user_id
-            RETURNING id, assigned_by, assigned_at;
-        '''
-        return postgres.execute_fetch_command(
-            insert_cmd, (user_id, role_name, assigned_by, assigned_at), True)
-
     return postgres.assign_user_role(user_id, role_name, assigned_by, assigned_at)
 
 

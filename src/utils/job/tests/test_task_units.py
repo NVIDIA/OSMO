@@ -1610,7 +1610,7 @@ class TaskGroupBuildTopologyTreeTest(unittest.TestCase):
             ],
         )
         with mock.patch.object(
-            connectors.Pool, 'fetch_from_db', return_value=fake_pool,
+            connectors.Pool, 'fetch_from_configmap', return_value=fake_pool,
         ):
             keys, task_infos = group._build_topology_tree(  # pylint: disable=protected-access
                 'pool-a')
@@ -1625,7 +1625,7 @@ class TaskGroupBuildTopologyTreeTest(unittest.TestCase):
         group = self._make_group_with_topology(db)
         fake_pool = types.SimpleNamespace(topology_keys=[])
         with mock.patch.object(
-            connectors.Pool, 'fetch_from_db', return_value=fake_pool,
+            connectors.Pool, 'fetch_from_configmap', return_value=fake_pool,
         ):
             keys, _ = group._build_topology_tree('p')  # pylint: disable=protected-access
         self.assertEqual(keys, [])

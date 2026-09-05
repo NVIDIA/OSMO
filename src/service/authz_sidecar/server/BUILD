@@ -52,14 +52,10 @@ go_test(
 
 go_test(
     name = "server_integration_test",
-    srcs = [
-        "authz_server_integration_test.go",
-    ],
+    srcs = ["authz_server_integration_test.go"],
     data = glob(["testdata/**"]),
     gotags = ["integration"],
-    tags = [
-        "requires-network",
-    ],
+    tags = ["requires-network"],
     deps = [
         ":server",
         "//src/tests/common/database:database_go",

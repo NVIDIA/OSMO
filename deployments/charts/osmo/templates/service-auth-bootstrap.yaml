@@ -5,9 +5,6 @@
 {{- if and $serviceAuth.bootstrap.enabled (ne $serviceAuth.managementMode "osmo") -}}
 {{- fail "secrets.serviceAuth.bootstrap.enabled requires managementMode=osmo" -}}
 {{- end -}}
-{{- if and $serviceAuth.bootstrap.enabled $serviceAuth.migration.enabled -}}
-{{- fail "secrets.serviceAuth.bootstrap.enabled and migration.enabled are mutually exclusive" -}}
-{{- end -}}
 {{- if and $serviceAuth.bootstrap.enabled (not .Values.planes.control.enabled) -}}
 {{- fail "secrets.serviceAuth.bootstrap.enabled requires planes.control.enabled=true" -}}
 {{- end -}}

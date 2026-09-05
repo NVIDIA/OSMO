@@ -16,8 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import logging
+import copy
 import io
+import logging
+import os
+import tempfile
 import time
 from typing import Any, Dict, IO
 
@@ -26,10 +29,9 @@ from fastapi import testclient
 from src.lib.utils import common, jinja_sandbox
 from src.service.agent import helpers as agent_helpers
 from src.service.core import service
-from src.service.core.config import config_service
-from src.service.core.config import objects as config_objects
+from src.service.core.config import configmap_loader
 from src.service.core.workflow import objects
-from src.utils import connectors, backend_messages
+from src.utils import backend_messages, configmap_state, connectors
 from src.utils.job import task
 from src.tests.common import fixtures
 
@@ -52,12 +54,67 @@ class ServiceTestFixture(fixtures.PostgresFixture,
     """
 
     client: testclient.TestClient
+    config_file: IO[str]
     service_auth_file: IO[str]
+    reconciliation_state_directory: tempfile.TemporaryDirectory[str]
+    previous_reconciliation_state_file: str | None
+
+    @staticmethod
+    def install_configmap_snapshot(**sections: Dict[str, Any]) -> None:
+        """Install an isolated, complete ConfigMap snapshot for one test."""
+        snapshot: Dict[str, Any] = {
+            'service': {},
+            'workflow': {},
+            'pools': {},
+            'pod_templates': {},
+            'resource_validations': {},
+            'backends': {},
+            'backend_tests': {},
+            'group_templates': {},
+            'roles': {
+                'osmo-default': {
+                    'description': 'Default test role',
+                    'policies': [],
+                },
+            },
+        }
+        snapshot.update(copy.deepcopy(sections))
+        errors = configmap_loader.validate_configmap_snapshot(
+            snapshot, require_service_auth=False)
+        if errors:
+            raise ValueError('; '.join(errors))
+        configmap_loader._resolve_backend_test_computed_fields(  # pylint: disable=protected-access
+            snapshot)
+        configmap_loader._resolve_pool_computed_fields(  # pylint: disable=protected-access
+            snapshot)
+        configmap_state.set_parsed_configs(snapshot)
+        configmap_state.set_configmap_mode(True)
+
+    def update_configmap_sections(self, **sections: Dict[str, Any]) -> None:
+        """Replace selected sections in the active test snapshot."""
+        snapshot = copy.deepcopy(configmap_state.require_snapshot())
+        snapshot.update(sections)
+        self.install_configmap_snapshot(**snapshot)
+
+    def update_configmap_entry(
+        self, section: str, name: str, value: Dict[str, Any],
+    ) -> None:
+        """Create or replace one named entry in the active test snapshot."""
+        snapshot = copy.deepcopy(configmap_state.require_snapshot())
+        snapshot[section][name] = value
+        self.install_configmap_snapshot(**snapshot)
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.config_file = fixtures.create_configmap_file()
         cls.service_auth_file = fixtures.create_service_auth_file()
+        cls.reconciliation_state_directory = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+        )
+        cls.previous_reconciliation_state_file = os.environ.get(
+            'OSMO_RECONCILIATION_STATE_FILE')
+        os.environ['OSMO_RECONCILIATION_STATE_FILE'] = os.path.join(
+            cls.reconciliation_state_directory.name, 'checkpoint.json')
 
         # Prepare a bucket in S3 storage
         cls.s3_client.create_bucket(Bucket=TEST_BUCKET_NAME)
@@ -78,6 +135,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
                 redis_db_number=cls.redis_params.db_number,
                 redis_tls_enable=False,
                 method='dev',
+                config_file=cls.config_file.name,
                 service_auth_file=cls.service_auth_file.name,
             ),
         )
@@ -106,6 +164,13 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             # Close TestClient
             if hasattr(cls, 'client'):
                 cls.client.close()
+            if cls.previous_reconciliation_state_file is None:
+                os.environ.pop('OSMO_RECONCILIATION_STATE_FILE', None)
+            else:
+                os.environ['OSMO_RECONCILIATION_STATE_FILE'] = (
+                    cls.previous_reconciliation_state_file)
+            cls.reconciliation_state_directory.cleanup()
+            cls.config_file.close()
             cls.service_auth_file.close()
         finally:
             super().tearDownClass()
@@ -121,6 +186,10 @@ class ServiceTestFixture(fixtures.PostgresFixture,
                 logger.info('Deleted object: %s.', obj['Key'])
 
         super().tearDown()
+
+    def setUp(self):
+        super().setUp()
+        self.install_configmap_snapshot()
 
     def create_test_backend(self, database=None, backend_name='test_backend'):
         """Helper function to create a test backend.
@@ -141,6 +210,12 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             'version': 'test_version',
             'node_condition_prefix': 'test.osmo.nvidia.com/',
         }
+        self.update_configmap_entry('backends', backend_name, {
+            'k8s_namespace': backend['k8s_namespace'],
+            'node_conditions': {
+                'prefix': backend['node_condition_prefix'],
+            },
+        })
         agent_helpers.create_backend(
             database, backend_name, backend_messages.InitBody(**backend))
 
@@ -151,11 +226,13 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             name: Name of the group template
             group_template: The group template dict (must contain apiVersion, kind, metadata.name)
         """
-        config_service.put_group_template(
-            name=name,
-            request=config_objects.PutGroupTemplateRequest(configs=group_template),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_entry('group_templates', name, group_template)
+
+    def create_test_pod_template(
+        self, name: str, pod_template: Dict[str, Any],
+    ) -> None:
+        """Install one pod template through the ConfigMap test snapshot."""
+        self.update_configmap_entry('pod_templates', name, pod_template)
 
     def create_test_pool(self, pool_name='test_pool', description='test_description',
                          default_platform='test_platform', backend='test_backend',
@@ -176,7 +253,6 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             The created pool configuration
         """
         pool_config = {
-            'name': pool_name,
             'description': description,
             'default_platform': default_platform,
             'platforms': {
@@ -192,13 +268,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         if common_group_templates:
             pool_config['common_group_templates'] = common_group_templates
 
-        config_service.put_pool(
-            name=pool_name,
-            request=config_objects.PutPoolRequest(
-                configs=connectors.Pool(**pool_config)
-            ),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_entry('pools', pool_name, pool_config)
         return pool_config
 
     def create_task_group(self, database):

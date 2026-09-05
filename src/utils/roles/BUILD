@@ -22,16 +22,13 @@ go_library(
         "action_registry.go",
         "file_loader.go",
         "pool_access.go",
-        "role_cache.go",
         "roles.go",
-        "user_role_sync.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/utils/roles",
     visibility = ["//visibility:public"],
     deps = [
         "//src/utils",
         "//src/utils/postgres",
-        "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
         "@in_gopkg_yaml_v3//:go_default_library",
     ],
 )
@@ -40,26 +37,10 @@ go_test(
     name = "roles_test",
     srcs = [
         "action_registry_test.go",
+        "file_loader_test.go",
         "pool_access_test.go",
-        "role_cache_test.go",
         "roles_test.go",
     ],
     embed = [":roles"],
     deps = [],
-)
-
-go_test(
-    name = "roles_integration_test",
-    srcs = [
-        "roles_integration_test.go",
-        "user_role_sync_integration_test.go",
-    ],
-    gotags = ["integration"],
-    tags = [
-        "requires-network",
-    ],
-    deps = [
-        ":roles",
-        "//src/tests/common/database:database_go",
-    ],
 )
