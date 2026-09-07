@@ -1,0 +1,4 @@
+interface:
+  display_name: "OSMO Agentic Workflow"
+  short_description: "Delegate recursive OSMO agent workflows"
+  default_prompt: "Use $osmo-agentic-workflow to create and manage a child OSMO workflow for this bounded subgoal."

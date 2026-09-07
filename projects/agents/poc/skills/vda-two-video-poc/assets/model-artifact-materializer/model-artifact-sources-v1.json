@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "v1",
+  "source": {
+    "nvidiaSkillsRepository": "https://github.com/NVIDIA/skills",
+    "nvidiaSkillsCommit": "6379b9ce5498d56626caa9e93a8c8a599f90046d",
+    "derivedFrom": "skills/physical-ai-video-data-augmentation/assets/configs/osmo/setup_model_cache.yaml"
+  },
+  "materializer": {
+    "entrypointVersion": "v2",
+    "baseImage": "nvcr.io/nvidia/base/ubuntu@sha256:2a9f71d82aa4daac444c1b4b74d5d7b01f93eb23662c1236f89d817f083abecd",
+    "huggingfaceHubVersion": "1.24.0",
+    "superResolution": false,
+    "seedvrVariant": "none"
+  },
+  "publication": {
+    "schemaVersion": "v2",
+    "excludedTransientPaths": [
+      "any .locks subtree",
+      "any xet subtree",
+      "any .agent_harnesses.json file",
+      "any .no_exist subtree",
+      "any trees/*.json Hugging Face metadata file"
+    ],
+    "consumerReadinessSchemaVersion": "v1"
+  },
+  "cosmos": {
+    "hubDownloads": [
+      {
+        "repo": "nvidia/Cosmos-Transfer2.5-2B",
+        "revision": "b67b64abda3801a9aceddbff2bdb86126c06db74",
+        "file": "general/edge/61f5694b-0ad5-4ecd-8ad7-c8545627d125_ema_bf16.pt"
+      },
+      {
+        "repo": "nvidia/Cosmos-Transfer2.5-2B",
+        "revision": "dea7737ca29dd8d9086413c6dc5724b8250a0bb4",
+        "file": "general/depth/626e6618-bfcd-4d9a-a077-1409e2ce353f_ema_bf16.pt"
+      },
+      {
+        "repo": "nvidia/Cosmos-Transfer2.5-2B",
+        "revision": "eb5325b77d358944da58a690157dd2b8071bbf85",
+        "file": "general/blur/ba2f44f2-c726-4fe7-949f-597069d9b91c_ema_bf16.pt"
+      },
+      {
+        "repo": "nvidia/Cosmos-Transfer2.5-2B",
+        "revision": "23057a4167b89de89a4a397fdbf3887994d115eb",
+        "file": "general/seg/5136ef49-6d8d-42e8-8abf-7dac722a304a_ema_bf16.pt"
+      },
+      {
+        "repo": "nvidia/Cosmos-Transfer2.5-2B",
+        "revision": "00c591edab119e8a6ca06e6e091351a04ce0ecc9",
+        "file": "auto/multiview/4ecc66e9-df19-4aed-9802-0d11e057287a_ema_bf16.pt"
+      },
+      {
+        "repo": "nvidia/Cosmos-Predict2.5-2B",
+        "revision": "f176dc95b4a70f53ce01c4b302851595e7322b00",
+        "file": "tokenizer.pth"
+      },
+      {
+        "repo": "nvidia/Cosmos-Predict2.5-2B",
+        "revision": "f176dc95b4a70f53ce01c4b302851595e7322b00",
+        "file": "base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt"
+      }
+    ],
+    "snapshots": [
+      {
+        "repo": "nvidia/Cosmos-Reason1-7B",
+        "revision": "3210bec0495fdc7a8d3dbb8d58da5711eab4b423"
+      },
+      {
+        "repo": "nvidia/Cosmos-Guardrail1",
+        "revision": "d6d4bfa899a71454a700907664f3e88f503950cf"
+      },
+      {
+        "repo": "Qwen/Qwen3Guard-Gen-0.6B",
+        "revision": "fada3b2f655b89601929198343c94cd2f64d93cc"
+      },
+      {
+        "repo": "google/siglip-so400m-patch14-384",
+        "revision": "9fdffc58afc957d1a03a25b10dba0329ab15c2a3"
+      },
+      {
+        "repo": "google/siglip2-so400m-patch16-naflex",
+        "revision": "cc24074f717b612951c2dead130904ab9b65a81e"
+      }
+    ]
+  },
+  "autoLabeling": {
+    "seedvr": null,
+    "directDownloads": [
+      {
+        "url": "https://drive.usercontent.google.com/download?id=168BLegHHxNqatW5wx1YyL2REaThWoof5&export=download&confirm=t",
+        "path": "reid/clip_vehicleid.pt"
+      },
+      {
+        "url": "https://storage.googleapis.com/rfdetr/rf-detr-base-coco.pth",
+        "path": "rfdetr/rf-detr-base.pth"
+      }
+    ]
+  }
+}
