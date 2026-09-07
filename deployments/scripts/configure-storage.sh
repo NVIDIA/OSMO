@@ -30,7 +30,7 @@
 #   configure-storage.sh [options]
 #
 # Options:
-#   --backend {auto|minio|azure-blob|byo|none}        Backend (default: auto)
+#   --backend {auto|s3|minio|rustfs|azure-blob|byo|none} Backend (default: auto)
 #   --auth-method {static|workload-identity}          Auth mode (default: static)
 #   --namespace NS                                    OSMO namespace (default: osmo-minimal)
 #   --output-values PATH                              Where to write the values fragment
@@ -44,6 +44,8 @@
 #   auto       — Probe live signals: BYO env vars → microk8s minio addon →
 #                helm-installed minio service → osmo Azure TF output → fail
 #   minio      — Read MinIO root creds; create osmo-workflow-* Secrets
+#   rustfs     — Read RustFS creds; create osmo-workflow-* Secrets (in-cluster
+#                S3, mutually exclusive with minio)
 #   azure-blob — Read STORAGE_ACCOUNT/STORAGE_KEY (env or osmo TF) → connection string
 #   byo        — Read all values from env vars (S3-compatible)
 #   none       — Skip storage configuration entirely (caller will configure later)
@@ -192,6 +194,8 @@ if [[ "$BACKEND" == "auto" ]]; then
 ERROR: no storage backend detected. Pick one explicitly with --backend:
 
   --backend minio        — in-cluster MinIO (microk8s addon or helm-installed)
+  --backend rustfs       — in-cluster RustFS S3 store (helm-installed;
+                           mutually exclusive with minio)
   --backend s3           — AWS S3; set STORAGE_BUCKET / STORAGE_ACCESS_KEY_ID /
                            STORAGE_ACCESS_KEY (or use the osmo AWS TF outputs
                            when s3_bucket_enabled = true)
@@ -293,9 +297,9 @@ will fail at runtime with 401/403 from S3. There is no safety net here.${NC}
 
 EOF
             ;;
-        minio)
-            log_error "Workload identity is not supported for the minio backend (no cloud-vendor IdP)."
-            log_error "Use --auth-method static for minio, or switch to azure-blob / byo."
+        minio|rustfs)
+            log_error "Workload identity is not supported for the $BACKEND backend (no cloud-vendor IdP)."
+            log_error "Use --auth-method static for $BACKEND, or switch to azure-blob / byo."
             exit 2
             ;;
     esac
