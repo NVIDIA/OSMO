@@ -222,7 +222,7 @@ async def redis_log_streamer(
         while not skip_streaming:
             logs = None
             try:
-                logs = await redis_client.xread({name: start_id}, 1)
+                logs = await redis_client.xread({name: start_id}, 10)
                 start_id, log = logs[0][-1][0]
                 log = LogStreamBody(**{k.decode(): v.decode() for k, v in log.items()})
                 if log.io_type == IOType.END_FLAG:
