@@ -359,21 +359,17 @@ data:
 {{- end -}}
 
 {{- define "osmo.configuration.args" -}}
-{{- if .Values.configuration.enabled }}
 - --config_file
 - /etc/osmo/configs/config.yaml
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.configuration.extraEnv" -}}
-{{- if .Values.configuration.enabled }}
 - name: POD_NAMESPACE
   valueFrom:
     fieldRef:
       fieldPath: metadata.namespace
 - name: OSMO_CONFIGMAP_NAME
   value: {{ include "osmo.api.fullname" . }}-config
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.objectStorage.credentialSecretRef" -}}
@@ -461,7 +457,6 @@ data:
 {{- end -}}
 
 {{- define "osmo.configuration.volumeMounts" -}}
-{{- if .Values.configuration.enabled }}
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
@@ -471,11 +466,9 @@ data:
   mountPath: /etc/osmo/secrets/{{ $secretName }}
   readOnly: true
 {{- end }}
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.configuration.volumes" -}}
-{{- if .Values.configuration.enabled }}
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
@@ -489,7 +482,6 @@ data:
 {{- range $key, $_ := $secretReference.keys }}
     - key: {{ $key | quote }}
       path: {{ $key | quote }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

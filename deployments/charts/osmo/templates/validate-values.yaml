@@ -1,6 +1,9 @@
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- include "osmo.gateway.tlsNormalize" . }}
+{{- if and (kindIs "map" .Values.configuration) (hasKey .Values.configuration "enabled") -}}
+{{- fail "configuration.enabled has been removed; OSMO 6.4 always uses ConfigMap-owned service configuration" -}}
+{{- end -}}
 {{- if and (not .Values.planes.control.enabled) (not .Values.planes.compute.enabled) -}}
 {{- fail "at least one of planes.control.enabled or planes.compute.enabled must be true" -}}
 {{- end -}}
@@ -560,9 +563,6 @@
 {{- end -}}
 
 {{- $configurationSecretNames := dict -}}
-{{- if not .Values.configuration.enabled -}}
-{{- fail "configuration.enabled must be true; OSMO 6.4 service configuration is ConfigMap-only" -}}
-{{- end -}}
 {{- range $index, $secretRef := .Values.configuration.secretRefs -}}
 {{- $secretName := required (printf "configuration.secretRefs[%d].secretName is required" $index) $secretRef.secretName -}}
 {{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}

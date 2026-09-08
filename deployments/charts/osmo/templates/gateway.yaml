@@ -601,18 +601,14 @@ spec:
         env:
           {{- include "osmo.component.extraEnv" $gw.authz | nindent 10 }}
           {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 10 }}
-        {{- if or .Values.configuration.enabled $gw.authz.extraVolumeMounts (eq (include "osmo.externalDependencies.connectionCaEnabled" .) "true") }}
         volumeMounts:
-          {{- if .Values.configuration.enabled }}
           - name: configs
             mountPath: /etc/osmo/configs
             readOnly: true
-          {{- end }}
           {{- with $gw.authz.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
           {{- include "osmo.externalDependencies.caVolumeMounts" . | nindent 10 }}
-        {{- end }}
         {{- with (include "osmo.probe" (dict "probe" $gw.authz.livenessProbe)) }}
         livenessProbe:
           {{- . | nindent 10 }}
@@ -625,11 +621,9 @@ spec:
           {{- toYaml $gw.authz.resources | nindent 10 }}
       {{- include "osmo.pod.extraContainers" $gw.authz | nindent 6 }}
       volumes:
-        {{- if .Values.configuration.enabled }}
         - name: configs
           configMap:
             name: {{ include "osmo.api.fullname" . }}-config
-        {{- end }}
         {{- with $gw.authz.pod.extraVolumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}

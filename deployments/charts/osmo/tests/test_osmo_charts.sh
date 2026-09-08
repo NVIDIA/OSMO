@@ -550,6 +550,15 @@ test_control_umbrella() {
     fi
     require_contains "$TEST_DIRECTORY/missing-split-backend-name.out" \
         "compute.backendName is required for compute-only installations"
+    if helm_template_with_backend removed-configuration-toggle-compute \
+            "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            --set configuration.enabled=true \
+            >"$TEST_DIRECTORY/removed-configuration-toggle-compute.out" 2>&1; then
+        fail "expected compute-only releases to reject configuration.enabled"
+    fi
+    require_contains "$TEST_DIRECTORY/removed-configuration-toggle-compute.out" \
+        "configuration.enabled has been removed"
 
     helm_template converged-default-backend "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -5072,15 +5081,15 @@ EOF
     if [[ -z "$base_config_checksum" || "$base_config_checksum" == "$changed_config_checksum" ]]; then
         fail "expected a ConfigMap role change to update the authz pod checksum"
     fi
-    if helm_template disabled-configuration "$charts_copy/osmo" \
+    if helm_template removed-configuration-toggle "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set configuration.enabled=false \
-        >"$TEST_DIRECTORY/osmo-disabled-configuration.out" 2>&1; then
-        fail "expected configuration.enabled=false to fail"
+        >"$TEST_DIRECTORY/osmo-removed-configuration-toggle.out" 2>&1; then
+        fail "expected the removed configuration.enabled value to fail"
     fi
-    require_contains "$TEST_DIRECTORY/osmo-disabled-configuration.out" \
-        "configuration.enabled must be true"
+    require_contains "$TEST_DIRECTORY/osmo-removed-configuration-toggle.out" \
+        "configuration.enabled has been removed"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Ingress \
         review-release-osmo-gateway \
         >"$TEST_DIRECTORY/osmo-review-ingress.yaml"

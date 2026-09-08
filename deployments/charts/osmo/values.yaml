@@ -1751,8 +1751,6 @@ gateway:
 
 # OSMO domain configuration rendered into the required service ConfigMap.
 configuration:
-  # OSMO 6.4 requires ConfigMap-owned service configuration.
-  enabled: true
   # Existing Kubernetes Secrets referenced from service/workflow configuration.
   # Every Secret is mounted read-only at /etc/osmo/secrets/<secretName>/.
   # The dedicated object-storage Secret is already mounted and is de-duplicated.
