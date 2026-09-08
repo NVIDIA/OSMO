@@ -54,6 +54,7 @@ export const BulkCancelWorkflowsDialog = memo(function BulkCancelWorkflowsDialog
   const mounted = useMounted();
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
