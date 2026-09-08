@@ -204,6 +204,7 @@ class EmbeddedDexKind(SmokeFixture):
         self.assertEqual(
             'CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs',
             payload['sub'])
+        self.assertEqual('admin', payload['name'])
         self.assertEqual(external_url + '/dex', payload['iss'])
 
         admin_request = urllib.request.Request(
@@ -227,6 +228,16 @@ class EmbeddedDexKind(SmokeFixture):
             status, (401, 403),
             'issued administrator identity was rejected by gateway authorization: '
             + response_body)
+        self.assertEqual(200, status, response_body)
+
+        profile_request = urllib.request.Request(
+            external_url + '/api/profile/settings',
+            headers={'Authorization': 'Bearer ' + id_token},
+        )
+        with urllib.request.urlopen(profile_request, timeout=10) as response:
+            profile = json.load(response)
+        self.assertEqual('admin', profile['profile']['username'])
+        self.assertIn('osmo-admin', profile['roles'])
 
     @staticmethod
     def _stop_process(process):

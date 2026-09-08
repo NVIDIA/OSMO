@@ -50,7 +50,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $dexIssuer := include "osmo.authentication.issuer" . }}
 {{- $dexJwks := "http://osmo-dex:5556/dex/keys" }}
 {{- $jwtProviders = concat $jwtProviders (list
-      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "sub" "roles_claim" "roles" "cluster" "embedded-dex")) }}
+      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "name" "roles_claim" "roles" "admin_subject" "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs" "cluster" "embedded-dex")) }}
 {{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/dex/")) }}
 {{- else }}
 {{- $external := .Values.authentication.externalOidc }}
@@ -818,6 +818,14 @@ data:
                       local jwt = meta.verified_jwt_{{$i}}
                       if (jwt ~= nil) then
                         local roles = jwt[{{ default "roles" $provider.roles_claim | quote }}]
+                        {{- if hasKey $provider "admin_subject" }}
+                        if (jwt.sub == {{ $provider.admin_subject | quote }}) then
+                          if (roles == nil or type(roles) ~= 'table') then
+                            roles = {}
+                          end
+                          table.insert(roles, 'osmo-admin')
+                        end
+                        {{- end }}
                         if (roles ~= nil and type(roles) == 'table') then
                           request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
                         end
