@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import copy
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from typing import Any, Dict
@@ -282,6 +283,19 @@ class SecretMappingTest(unittest.TestCase):
         })
         self.assertEqual(
             snapshot['roles']['osmo-default']['sync_mode'], 'force')
+
+    def test_unified_output_matches_chart_render_fixture(self):
+        values = exporter.build_helm_values(_empty_export(), 'unified', [])
+        fixture_path = (
+            Path(__file__).parents[2]
+            / 'charts/osmo/tests/unified-export-values.yaml'
+        )
+
+        with fixture_path.open(encoding='utf-8') as fixture_file:
+            expected = yaml.safe_load(fixture_file)
+
+        self.assertEqual(values, expected)
+        self.assertNotIn('enabled', values['configuration'])
 
     def test_roles_export_preserves_sync_mode(self):
         with mock.patch.object(exporter, 'fetch', return_value=[{

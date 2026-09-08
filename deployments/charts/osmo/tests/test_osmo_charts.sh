@@ -4933,6 +4933,13 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
         >"$TEST_DIRECTORY/complete-snapshot.yaml"
+
+    helm_template unified-export "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/unified-export-values.yaml" \
+        >"$TEST_DIRECTORY/unified-export.yaml"
+
     resource_document "$TEST_DIRECTORY/complete-snapshot.yaml" ConfigMap \
         complete-snapshot-osmo-api-config \
         >"$TEST_DIRECTORY/complete-snapshot-config.yaml"

@@ -841,7 +841,6 @@ def build_helm_values(configs, chart, mapped_secret_names):
                 workflow.pop('backend_images')
     return {
         'configuration': {
-            'enabled': True,
             **({'secretRefs': secret_refs} if secret_refs else {}),
             'snapshot': configs,
         },

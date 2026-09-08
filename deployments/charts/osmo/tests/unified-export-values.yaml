@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Golden output from build_helm_values for a complete, empty unified export.
+# The exporter unit test owns this content; the chart test renders it.
+configuration:
+  snapshot:
+    service: {}
+    workflow: {}
+    backends: {}
+    pools: {}
+    podTemplates: {}
+    resourceValidations: {}
+    groupTemplates: {}
+    backendTests: {}
+    roles:
+      osmo-default:
+        description: Default role
+        policies: []
+        external_roles: []

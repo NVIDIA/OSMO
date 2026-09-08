@@ -7,6 +7,7 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 osmo_py_test(
     name = "test_export_configs_to_helm",
     srcs = ["test_export_configs_to_helm.py"],
+    data = ["//deployments/charts:osmo"],
     deps = [
         "//deployments/upgrades:export_configs_to_helm",
         requirement("pyyaml"),
