@@ -64,15 +64,14 @@ emit_fixture() {
 cmd="${1:-}"
 sub="${2:-}"
 
-# Treat top-level flags (--version, --help) the same as their subcommand
-# equivalents so prerequisite checks like `osmo --version` succeed.
+# Handle the top-level help flag used by agents during eval runs.
 case "$cmd" in
-  --version|-V)
-    echo "mock-osmo 0.0.0"
-    exit 0
-    ;;
   --help|-h)
     echo "mock-osmo — stub used for osmo-user eval runs"
+    exit 0
+    ;;
+  login)
+    echo "Logged in"
     exit 0
     ;;
 esac
@@ -195,6 +194,9 @@ case "$cmd $sub" in
     counter=$((counter + 1))
     echo "$counter" > "$counter_file"
     emit_fixture "submit_response.txt" | sed "s/gr00t-train-1/gr00t-train-${counter}/g"
+    ;;
+  "workflow restart")
+    echo "Workflow restarted: $3"
     ;;
   "app create")
     emit_fixture "app_create_response.txt"
