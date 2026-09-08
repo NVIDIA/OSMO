@@ -223,11 +223,11 @@ async def redis_log_streamer(
             logs = None
             try:
                 logs = await redis_client.xread({name: start_id}, 10)
-                start_id, log = logs[0][-1][0]
-                log = LogStreamBody(**{k.decode(): v.decode() for k, v in log.items()})
-                if log.io_type == IOType.END_FLAG:
-                    break
-                yield log
+                for start_id, log in logs[0][-1]:
+                    log = LogStreamBody(**{k.decode(): v.decode() for k, v in log.items()})
+                    if log.io_type == IOType.END_FLAG:
+                        return
+                    yield log
             except IndexError:  # No new line
                 await asyncio.sleep(1)  # Otherwise the stream will hang
     finally:

@@ -36,6 +36,21 @@ def _log_line(text: str) -> redis.LogStreamBody:
     )
 
 
+def _redis_log_entry(
+    stream_id: str,
+    text: str,
+    io_type: redis.IOType = redis.IOType.STDOUT,
+) -> tuple[bytes, dict[bytes, bytes]]:
+    """One encoded Redis stream entry returned by xread."""
+    return stream_id.encode(), {
+        b'source': b'task-1',
+        b'retry_id': b'0',
+        b'time': b'2026-08-19T00:00:00',
+        b'text': text.encode(),
+        b'io_type': io_type.value.encode(),
+    }
+
+
 class TestRedisLogFormatter(unittest.IsolatedAsyncioTestCase):
     """Covers closure propagation from the log formatter to the Redis reader."""
 
@@ -63,7 +78,67 @@ class TestRedisLogFormatter(unittest.IsolatedAsyncioTestCase):
 
 
 class TestRedisLogStreamer(unittest.IsolatedAsyncioTestCase):
-    """Covers release of the Redis client when the reader is cancelled."""
+    """Covers Redis log streaming and client cleanup."""
+
+    async def test_yields_every_entry_in_xread_batch(self):
+        xread_responses = [
+            [(b'logs', [
+                _redis_log_entry('1-0', 'first log line'),
+                _redis_log_entry('2-0', 'second log line'),
+            ])],
+            [(b'logs', [
+                _redis_log_entry('3-0', '', redis.IOType.END_FLAG),
+            ])],
+        ]
+
+        class _FakeClient:
+            async def xread(self, *args, **kwargs):  # pylint: disable=unused-argument
+                return xread_responses.pop(0)
+
+            async def aclose(self):
+                pass
+
+        with mock.patch.object(redis.redis.asyncio, 'from_url',
+                               return_value=_FakeClient()):
+            lines = [
+                line async for line in redis.redis_log_streamer(
+                    'redis://localhost', 'logs')
+            ]
+
+        self.assertEqual(
+            ['first log line', 'second log line'],
+            [line.text for line in lines],
+        )
+
+    async def test_stops_at_end_flag_within_xread_batch(self):
+        xread_calls = 0
+
+        class _FakeClient:
+            async def xread(self, *args, **kwargs):  # pylint: disable=unused-argument
+                nonlocal xread_calls
+                xread_calls += 1
+                if xread_calls == 1:
+                    return [(b'logs', [
+                        _redis_log_entry('1-0', 'first log line'),
+                        _redis_log_entry('2-0', '', redis.IOType.END_FLAG),
+                        _redis_log_entry('3-0', 'after end flag'),
+                    ])]
+                return [(b'logs', [
+                    _redis_log_entry('4-0', '', redis.IOType.END_FLAG),
+                ])]
+
+            async def aclose(self):
+                pass
+
+        with mock.patch.object(redis.redis.asyncio, 'from_url',
+                               return_value=_FakeClient()):
+            lines = [
+                line async for line in redis.redis_log_streamer(
+                    'redis://localhost', 'logs')
+            ]
+
+        self.assertEqual(['first log line'], [line.text for line in lines])
+        self.assertEqual(1, xread_calls)
 
     async def test_client_is_closed_even_when_the_reader_is_cancelled(self):
         """A disconnect cancels the task driving the reader, and cancellation
