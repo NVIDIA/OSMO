@@ -33,7 +33,9 @@ osmo logout
 device-authorization flow is required. For noninteractive token login, use a
 user-provided local token file with `--method token --token-file <path>`; do
 not read or print its contents. Never ask the user to paste passwords or tokens
-into chat.
+into chat. See the
+[service-account authentication example](../../../docs/deployment_guide/appendix/authentication/service_accounts.rst)
+for a documented token-file login command.
 
 ## Profile
 
