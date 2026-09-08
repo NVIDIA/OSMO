@@ -27,7 +27,8 @@ byte-for-byte by rendering:
 The legacy output SHA-256 is
 `039cedd9e5f2183799a65a6ba331a9c12ccf3e0519b6ad21f8994926aced6481`.
 
-The proposed render used:
+The proposed render used the revisions available at the time of this
+comparison:
 
 - Public chart commit
   `8b11894fd0254e1808dfd28917987db059469761`,
@@ -36,7 +37,7 @@ The proposed render used:
   `f7695d8c0c086b1107170861b6e45461c393d185`.
 - `charts_value/osmo/stg/staging_values.yaml`, `staging_configs.yaml`,
   `staging_templates.yaml`, and `staging_pools.yaml`. Their last modifying
-  commit and Argo-pinned values revision is
+  commit and then-current Argo-pinned values revision is
   `cc78f071b155e0378ae3bfa1ff2f5b1a3eeff5a1`; the worktree files are
   byte-identical to that pinned revision.
 - Release `staging-osmo`, namespace `default`, Kubernetes version `1.30.0`.
@@ -44,6 +45,12 @@ The proposed render used:
 Both fresh `helm template` commands completed successfully.
 The proposed output SHA-256 is
 `dbbe6df7f2cb893e98b31a4558fde66a48895a897af5f32bace6953cdc323fc0`.
+
+The final reviewed deployment pins are public chart merge commit
+`2bcbf72b5598894b96170262f3536918d34874c2` and rebased internal values
+commit `44d42b77668e7d7624cc7de5c4bd617176595dde`. The verification for those
+revisions is recorded in `DIFFERENCES.md`; the hashes above intentionally
+retain this comparison's reproducible historical inputs.
 
 ## Executive summary
 

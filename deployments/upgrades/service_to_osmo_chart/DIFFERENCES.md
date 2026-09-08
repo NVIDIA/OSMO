@@ -31,7 +31,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 | D5 | Scheduling and availability | Topology spread constraints disappear for API, agent, logger, router, worker, and UI. HPA min/max values and metric targets are otherwise preserved. | Reduced zone/host spreading can increase correlated disruption. Restoring worker behavior needs care because its legacy constraint selects API pods rather than worker pods. | **Fix values:** restore the legacy soft spread intent per component and correct worker to select worker pods. |
 | D6 | Resources, probes, and pod hardening | Resource settings change for agent, logger, delayed-job-monitor, and Envoy. The API readiness endpoint changes. Pods gain seccomp, mostly disable service-account token automounting, use read-only root filesystems, and add writable runtime volumes where required. | Lower requests may alter scheduling/capacity; stricter filesystems may expose runtime assumptions; the new readiness endpoint has different coverage. | **Fix values / allow:** preserve legacy resources and probes; accept the umbrella pod hardening. |
 | D7 | Gateway, policies, and monitoring | The Ingress and gateway ports are preserved, but gateway upstream names/addresses, Service selectors, NetworkPolicy names/selectors, and PodMonitor names/selectors change. Scrape interval changes from 15s to 30s. Upstream TLS validation is added. | Policies and monitors are recreated; dashboards or alerts may depend on scrape cadence or object names. | **Fix chart / values / allow:** preserve the legacy 15-second scrape interval, accept release-scoped resource identity, and use only the regular logger Service. |
-| D8 | Database and Argo lifecycle | The initial umbrella render omitted the legacy pgroll migration lifecycle. New TLS and service-auth hooks/RBAC also appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema and service-auth migrations must finish before workloads start, and hook/app synchronization must be explicitly ordered. | **Fix chart / values / migration procedure:** add pgroll ahead of service-auth, retain automated sync, and complete external prerequisites before making the new desired state visible. |
+| D8 | Database and Argo lifecycle | The initial umbrella render omitted the legacy pgroll migration lifecycle. New TLS and service-auth hooks/RBAC also appear, while Argo prunes the old Vault ConfigMaps and old API resources. | Schema and service-auth migrations must finish before workloads start, and hook/app synchronization must be explicitly ordered. | **Fix chart / values / migration procedure:** add pgroll ahead of service-auth, disable automated sync for staging while retaining it for SQA and production, and complete external prerequisites before manually starting the staging sync. |
 | D9 | Configuration and storage representation | The generated service configuration retains every shared non-empty value, but prunes empty fields, drops one empty-but-addressable platform, and initially rendered storage endpoints outside the existing Secrets. | A workflow explicitly selecting the removed platform would fail, and duplicating storage endpoints creates two sources of truth. | **Fix chart / values / allow:** source endpoints only from the existing Secrets, restore the missing platform, and allow omissions of fields that normalize to empty maps. |
 | D10 | Pinned revisions | The internal staging Application must pin the rebased chart-only commit and a reachable rebased internal values commit. | Later decisions would otherwise be tested against a stale candidate. | **Fix values:** refresh after each accepted chart or values change. |
 
@@ -73,7 +73,7 @@ specs, security settings, secret delivery, and lifecycle jobs differ.
 
 **Migration procedure.** A brief traffic interruption is acceptable. Do not
 add selector compatibility to the umbrella chart. Explicitly delete the ten
-same-named Deployments immediately before the automated umbrella cutover.
+same-named Deployments immediately before the manually initiated umbrella cutover.
 
 ### Actions
 
@@ -86,7 +86,7 @@ same-named Deployments immediately before the automated umbrella cutover.
   It does not have an immutable-selector collision because the umbrella API is
   renamed, but it must be stopped before the pgroll and service-auth hooks so
   no old API writer remains active against the database.
-- Let the existing automated sync reconcile the umbrella desired state, then
+- Manually sync the umbrella desired state after completing the prerequisites, then
   wait for all 11 Deployments, their Service endpoints, and all eight HPAs to
   become healthy.
 - Rollback must also delete the ten same-named umbrella Deployments before
@@ -624,7 +624,8 @@ injection solely for the migration Job.
 
 #### Evidence
 
-- The staging Application has automated synchronization and `PruneLast=true`.
+- The staging Application retains `PruneLast=true` but disables automated
+  synchronization for the migration. SQA and production remain automated.
   D1 requires explicit deletion of ten same-named Deployments before Argo can
   create their replacements because their selectors are immutable.
 - D2 requires the separate External Secrets Application and all target Secrets
@@ -637,25 +638,24 @@ injection solely for the migration Job.
 
 #### Decision
 
-**Fix values / migration procedure.** Retain the ApplicationSet's shared
-automated-sync policy for staging, SQA, and production. Complete all external
-prerequisites and delete the 11 legacy Deployments immediately before the
-parent Argo application makes the new pinned chart and values revisions
-visible. The child application then reconciles automatically with the existing
-`PruneLast=true` option.
+**Fix values / migration procedure.** Make automated synchronization a
+per-environment setting: retain it for SQA and production, but disable it for
+staging. Complete all external prerequisites and delete the 11 legacy
+Deployments before manually synchronizing the staging child Application with
+the existing `PruneLast=true` option.
 
 #### Actions
 
-- Leave the shared `spec.template.spec.syncPolicy.automated` setting unchanged;
-  do not add per-environment sync-policy controls for SQA, staging, or
-  production.
+- Add a per-environment automated-sync control to the ApplicationSet. Enable it
+  for SQA and production and disable it for staging; keep the shared
+  `syncOptions`, including `PruneLast=true`.
 - Before merging or reconciling the new OSMO desired state, sync and verify the
   typed External Secrets Application, take the required backups, verify pgroll
   GitHub egress, and create the authorized empty service-auth placeholder.
 - Delete the ten same-named legacy Deployments listed in D1 and the legacy
   `osmo-service` Deployment. This both avoids immutable selector failures and
   stops all old API writers.
-- Let `staging-osmo` synchronize automatically. Require TLS bootstrap, pgroll,
+- Manually synchronize `staging-osmo`. Require TLS bootstrap, pgroll,
   and service-auth hooks to succeed in their documented order before accepting
   the workload rollout. Let `PruneLast=true` remove obsolete legacy resources
   only after the new resources become healthy.
@@ -663,8 +663,8 @@ visible. The child application then reconciles automatically with the existing
   authentication continuity, storage operations, metrics targets, and Argo's
   final prune set.
 - Commit `allowInitialGeneration=false` and
-  `secrets.serviceAuth.migration.enabled=false`; let the follow-up reconcile
-  automatically and verify once more.
+  `secrets.serviceAuth.migration.enabled=false`; manually synchronize the
+  follow-up and verify once more.
 - For rollback, delete the ten same-named umbrella Deployments before restoring
   legacy desired state, remove `osmo-api`, and let Argo reconcile the pinned
   legacy chart/values. Retain ESO credentials, the MEK, service-auth identity,
@@ -742,6 +742,6 @@ runtime normalizes them to the same values.
 | 2026-09-04 | D7 identity | Accept release-scoped Service, NetworkPolicy, and PodMonitor names and selectors. | No compatibility mode. Add endpoint, policy-path, monitoring-target, and prune checks to cutover. | All 10 retained Services, four policies, and seven monitored workloads resolve to exactly the intended Deployment labels and ports. |
 | 2026-09-04 | D7 gateway | Use only regular `osmo-logger` for logger traffic; retain the router's affinity-required headless Service. | Remove the unused logger headless Service, make Envoy and TLS default to `osmo-logger:80`, and update staging's explicit port. | The complete chart suite and focused comparisons pass; the render has matching logger address/SNI/SAN/leaf identity and no logger headless Service. |
 | 2026-09-04 | D8 pgroll | Restore the legacy pgroll lifecycle and run it before service-auth migration using the typed PostgreSQL Secret. | Add the migration assets, ConfigMap, Job, values/schema contract, hook ordering, and schema env propagation to the umbrella chart; enable staging with its legacy scheduling and `public` target. | The complete chart suite and Helm lint pass; the staging render uses the expected Secret key and hook order `-30`, `-29`, `-26`, `-25`, `-20`, `-10`. Live hook execution remains a cutover check. |
-| 2026-09-04 | D8 Argo | Retain the existing automated sync and prune-last behavior for all environments. | Verify prerequisites and delete all 11 legacy Deployments before the parent application makes the new staging revisions visible; allow the child application to reconcile automatically. | The ApplicationSet has no per-environment sync-policy changes. Cutover must coordinate the merge/reconciliation boundary because automation starts as soon as the new desired state is visible. |
+| 2026-09-08 | D8 Argo | Disable automated sync for staging while retaining automated sync for SQA and production; retain prune-last for all environments. | Add a per-environment automated-sync control, verify prerequisites, delete all 11 legacy Deployments, and manually synchronize staging. | Confirm the generated SQA and production Applications contain `automated: {}`, staging omits it, and all three retain `PruneLast=true`. |
 | 2026-09-04 | D9 | Keep storage endpoints exclusively in the three existing per-location Secrets, restore the legacy empty `default` platform, and allow empty-field pruning. | Add a guarded Secret-only location mode to the umbrella chart; empty all three staging location values and add `configuration.pools.default.platforms.default: {}`. | Chart tests must prove no endpoints render while all Secret names and mounts remain. The staging `config.yaml` diff must contain only normalized empty-field omissions; storage data/log/app behavior remains a cutover smoke test. |
-| 2026-09-04 | D10 | Refresh both repositories after the Secret-only storage and 6.3-to-6.4 migration-scope decisions. | Pin staging to chart commit `8b11894fd0254e1808dfd28917987db059469761` and four-file values commit `cc78f071b155e0378ae3bfa1ff2f5b1a3eeff5a1`; pin the typed ESO chart and values to the same reachable internal revision. | The complete chart tests and Helm lint pass. The four-file staging render is byte-identical to the prior combined render, has no storage endpoints, retains all three Secret names and mounts, restores the legacy empty platform, and bundles only the five required OSMO 6.4 migrations. |
+| 2026-09-08 | D10 | Refresh both repositories after PR 1365 merged and the internal branch was rebased. | Pin staging to merged chart commit `2bcbf72b5598894b96170262f3536918d34874c2` and four-file values commit `44d42b77668e7d7624cc7de5c4bd617176595dde`; pin the typed ESO chart and values to the same reachable internal revision. | The complete chart tests and Helm lint pass. The staging render uses the merged chart and rebased values, has no storage endpoints, retains all three Secret names and mounts, restores the legacy empty platform, and bundles only the five required OSMO 6.4 migrations. |
