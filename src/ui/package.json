@@ -118,7 +118,7 @@
     "github-slugger": "2.0.0",
     "jsdom": "^27.3.0",
     "msw": "^2.12.4",
-    "orval": "^8.17.0",
+    "orval": "^8.30.0",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.6.10",
     "stylelint": "^17.4.0",
