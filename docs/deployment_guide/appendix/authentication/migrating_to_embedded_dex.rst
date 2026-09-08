@@ -45,6 +45,17 @@ Set a reachable HTTP or HTTPS ``externalUrl`` and select (or retain) the default
 ``embeddedDependencies.dex.enabled: true`` and ``configuration.enabled: true``.
 The URL must be an origin without a path prefix; an optional port and trailing
 slash are supported.
+The account signs in with ``authentication.embeddedDex.admin.email`` and appears
+inside OSMO as ``authentication.embeddedDex.admin.username`` (``admin`` by
+default). The signed Dex ``name`` claim supplies that identity. The gateway
+assigns ``osmo-admin`` only to a token verified against embedded Dex with the
+static administrator's immutable ``sub``; a matching username from another JWT
+provider does not receive the grant. The configured username must use OSMO's
+letters, digits, underscores, periods, ``@``, and hyphens syntax and begin and
+end with a letter or digit. Changing the username renames the OSMO identity and
+may require existing browser and CLI sessions to sign in again. Resources and
+audit records created under the previous identity retain that recorded owner;
+the chart does not rewrite application data during an identity rename.
 The pre-install/pre-upgrade bootstrap Job creates or reconciles retained
 administrator and OAuth credential Secrets; the separate post-install/
 post-upgrade Job restarts Dex when Helm updates its config Secret. The Jobs

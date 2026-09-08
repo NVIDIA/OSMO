@@ -141,10 +141,13 @@ origin. If you selected that mode before installation, use:
 export OSMO_URL=http://127.0.0.1:8080
 ```
 
-The default embedded Dex account is `admin` (`admin@osmo.local`). Retrieve its
-random initial password only when you need to sign in. This intentionally writes
-the password to the terminal, so use a private terminal and do not paste it into
-shell history, issue trackers, or logs:
+The default embedded Dex account signs in as `admin@osmo.local` and appears in
+OSMO as `admin`. Configure both values with
+`authentication.embeddedDex.admin.email` and
+`authentication.embeddedDex.admin.username`. Retrieve its random initial
+password only when you need to sign in. This intentionally writes the password
+to the terminal, so use a private terminal and do not paste it into shell
+history, issue trackers, or logs:
 
 ```bash
 kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \

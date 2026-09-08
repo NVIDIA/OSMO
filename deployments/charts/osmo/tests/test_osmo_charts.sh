@@ -593,6 +593,10 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         --set gateway.networkPolicies.enabled=true \
         >"$TEST_DIRECTORY/embedded-auth-default.yaml"
+    helm_template embedded-auth-custom-username "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string authentication.embeddedDex.admin.username=platform-admin \
+        >"$TEST_DIRECTORY/embedded-auth-custom-username.yaml"
     helm_template embedded-auth-deterministic "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
@@ -762,9 +766,21 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "prefix: /dex/"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "claim_name: name"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "user_roles:"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'if (jwt.sub == "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs") then'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "table.insert(roles, 'osmo-admin')"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs:"
+    require_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        'username: "platform-admin"'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        "user_roles:"
+    require_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        "claim_name: name"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "--device_endpoint"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
@@ -849,6 +865,19 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/embedded-auth-generation-disabled-role.yaml" \
         'verbs: ["create"]'
 
+    local embedded_invalid_username
+    for embedded_invalid_username in ' ' '<<' '-admin' 'admin_' 'admin/name'; do
+        if helm_template invalid-embedded-dex-username "$charts_copy/osmo" \
+                --api-versions postgresql.cnpg.io/v1 \
+                --set-string \
+                "authentication.embeddedDex.admin.username=$embedded_invalid_username" \
+                >"$TEST_DIRECTORY/invalid-embedded-dex-username.out" 2>&1; then
+            fail "expected invalid embedded Dex username '$embedded_invalid_username' to fail"
+        fi
+        require_schema_path "$TEST_DIRECTORY/invalid-embedded-dex-username.out" \
+            "authentication.embeddedDex.admin.username"
+    done
+
     local external_invalid_secret_value
     for external_invalid_secret_value in \
             'authentication.externalOidc.browserClientSecret.existingSecret=invalid_secret' \
@@ -895,6 +924,10 @@ test_control_umbrella() {
         "filename: /etc/ssl/certs/ca-certificates.crt"
     require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
         'exact: "idp.example.com"'
+    require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "claim_name: sub"
+    require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "table.insert(roles, 'osmo-admin')"
 
     helm_template external-custom-roles-claim "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
