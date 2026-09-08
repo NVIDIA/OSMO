@@ -25,6 +25,7 @@ py_test(
         "test_cli.py"
     ],
     deps = [
+        "//src/cli:cli",
         "//src/cli:cli_lib",
     ]
 )

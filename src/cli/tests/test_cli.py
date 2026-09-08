@@ -16,11 +16,73 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import argparse
+import contextlib
+import io
+import json
 import unittest
 from unittest import mock
 
+import src.cli.cli as cli
 from src.cli import main_parser, workflow
 from src.lib.rsync import rsync
+from src.lib.utils import osmo_errors
+
+
+class TestSubmissionErrorOutput(unittest.TestCase):
+    """The CLI reports HTTP status separately from its process exit code."""
+
+    def _run_cli(self, format_type: str, status_code: int | None) -> tuple[str, int]:
+        args = argparse.Namespace(
+            format_type=format_type,
+            func=mock.Mock(side_effect=osmo_errors.OSMOSubmissionError(
+                'Workflow submit failed.',
+                status_code=status_code,
+            )),
+            log_level=mock.sentinel.log_level,
+        )
+        parser = mock.Mock()
+        parser.parse_args.return_value = args
+        output = io.StringIO()
+
+        with mock.patch.object(
+                cli.main_parser, 'create_cli_parser', return_value=parser), \
+             mock.patch.object(cli, 'configure_logging'), \
+             mock.patch.object(cli.client, 'LoginManager'), \
+             mock.patch.object(cli.client, 'ServiceClient'), \
+             mock.patch.object(cli.sys, 'argv', ['osmo']), \
+             contextlib.redirect_stdout(output), \
+             self.assertRaises(SystemExit) as raised:
+            cli.main()
+
+        exit_code = raised.exception.code
+        if not isinstance(exit_code, int):
+            self.fail(f'Expected integer exit code, got {exit_code!r}.')
+        return output.getvalue(), exit_code
+
+    def test_text_output_uses_http_status_and_submission_exit_code(self):
+        output, exit_code = self._run_cli('text', 400)
+
+        self.assertEqual(
+            output,
+            'Error message: Workflow submit failed.\nError code: 400\n',
+        )
+        self.assertEqual(exit_code, 1)
+
+    def test_json_output_uses_http_status_and_submission_exit_code(self):
+        output, exit_code = self._run_cli('json', 400)
+
+        self.assertEqual(
+            json.loads(output),
+            {'message': 'Workflow submit failed.', 'code': 400},
+        )
+        self.assertEqual(exit_code, 1)
+
+    def test_missing_http_status_retains_error_code_fallback(self):
+        output, exit_code = self._run_cli('text', None)
+
+        self.assertIn('Error code: 1', output)
+        self.assertEqual(exit_code, 1)
+
 
 class TestPortParse(unittest.TestCase):
     def test_port_parse(self):

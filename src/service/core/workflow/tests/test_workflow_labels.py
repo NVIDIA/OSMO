@@ -181,9 +181,12 @@ workflow:
              mock.patch.object(
                  objects.WorkflowSubmitInfo,
                  'insert_failed_submission_to_db') as insert_failed:
-            with self.assertRaises(osmo_errors.OSMOUsageError):
+            with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
                 submit_info.construct_workflow_dict(template_spec)
 
+        self.assertIn('at most one "/"', raised.exception.message)
+        self.assertNotIn('kubernetes', raised.exception.message.lower())
+        self.assertNotIn('pod', raised.exception.message.lower())
         insert_failed.assert_not_called()
 
     def test_nested_yaml_label_does_not_create_failed_submission(self):
@@ -525,6 +528,9 @@ class TestPodLabelPrefixGate(unittest.TestCase):
                 _rendered_spec({'team.example.com/role': 'lead'}))
         self.assertIn(
             'example.com/team.example.com/role', raised.exception.message)
+        self.assertIn('configured label prefix', raised.exception.message)
+        self.assertNotIn('kubernetes', raised.exception.message.lower())
+        self.assertNotIn('pod', raised.exception.message.lower())
 
 
 class TestWorkflowLabelResponses(unittest.TestCase):

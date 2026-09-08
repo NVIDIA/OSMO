@@ -759,7 +759,8 @@ def _submit_workflow(service_client: client.ServiceClient, args: argparse.Namesp
                 f'{err.workflow_id} ' if err.workflow_id is not None else ''
             raise osmo_errors.OSMOSubmissionError(
                 f'Workflow {workflow_string}submit failed:\n'
-                f'{err}', workflow_id=err.workflow_id)
+                f'{err}', workflow_id=err.workflow_id,
+                status_code=err.status_code)
 
         print_submission_results(result, args)
 
@@ -818,7 +819,8 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
             f'{err.workflow_id} ' if err.workflow_id is not None else ''
         raise osmo_errors.OSMOSubmissionError(
             f'Workflow {workflow_string}submit failed:\n'
-            f'{err}', workflow_id=err.workflow_id)
+            f'{err}', workflow_id=err.workflow_id,
+            status_code=err.status_code)
 
     print_submission_results(result, args)
 
@@ -858,7 +860,8 @@ def _restart_workflow(service_client: client.ServiceClient, args: argparse.Names
             f'{err.workflow_id} ' if err.workflow_id is not None else ''
         raise osmo_errors.OSMOSubmissionError(
             f'Workflow {workflow_string}submit failed:\n'
-            f'{err}', workflow_id=err.workflow_id)
+            f'{err}', workflow_id=err.workflow_id,
+            status_code=err.status_code)
 
     print_submission_results(result, args, args.workflow_id)
 

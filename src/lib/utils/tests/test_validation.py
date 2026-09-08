@@ -234,7 +234,12 @@ class TestSanitizedPath(unittest.TestCase):
 class TestWorkflowLabelValidation(unittest.TestCase):
     """Tests for the workflow label validation helpers."""
 
-    def test_accepts_kubernetes_label_key_and_nonempty_value(self):
+    def _assert_no_platform_implementation_details(self, message: str):
+        normalized_message = message.lower()
+        self.assertNotIn('kubernetes', normalized_message)
+        self.assertNotIn('pod', normalized_message)
+
+    def test_accepts_workflow_label_key_and_nonempty_value(self):
         self.assertEqual(validation.validate_workflow_label_key('PPP'), 'PPP')
         self.assertEqual(
             validation.validate_workflow_label_key('example.com/experiment'),
@@ -259,15 +264,43 @@ class TestWorkflowLabelValidation(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertEqual(validation.validate_workflow_label_key(key), key)
 
-    def test_rejects_invalid_key_syntax(self):
-        for key in ('', '/name', 'UPPER.example.com/name', 'example.com/', '-name'):
-            with self.subTest(key=key), self.assertRaises(ValueError):
-                validation.validate_workflow_label_key(key)
+    def test_rejects_key_with_multiple_separators_with_actionable_error(self):
+        with self.assertRaises(ValueError) as raised:
+            validation.validate_workflow_label_key('bad/key/nested')
 
-    def test_rejects_empty_or_invalid_value(self):
-        for value in ('', '-value', 'value/', 'x' * 64):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+        self.assertIn('at most one "/"', str(raised.exception))
+        self._assert_no_platform_implementation_details(str(raised.exception))
+
+    def test_rejects_invalid_key_prefix_with_actionable_error(self):
+        with self.assertRaises(ValueError) as raised:
+            validation.validate_workflow_label_key('UPPER.example.com/name')
+
+        message = str(raised.exception)
+        self.assertIn('invalid prefix', message)
+        self.assertIn('lowercase letters', message)
+        self._assert_no_platform_implementation_details(message)
+
+    def test_rejects_invalid_key_name_with_actionable_error(self):
+        with self.assertRaises(ValueError) as raised:
+            validation.validate_workflow_label_key('example.com/-name')
+
+        message = str(raised.exception)
+        self.assertIn('invalid name', message)
+        self.assertIn('1-63 characters', message)
+        self._assert_no_platform_implementation_details(message)
+
+    def test_rejects_empty_oversized_and_invalid_value_with_actionable_error(self):
+        for value in ('', 'x' * 64, 'value/'):
+            with self.subTest(value=value), self.assertRaises(ValueError) as raised:
                 validation.validate_workflow_label_value(value)
+
+            message = str(raised.exception)
+            self.assertIn('1-63 characters', message)
+            self.assertIn(
+                'letters, numbers, hyphens, underscores, or periods',
+                message,
+            )
+            self._assert_no_platform_implementation_details(message)
 
     def test_rejects_more_than_sixteen_labels(self):
         labels = {f'label-{index}': 'value' for index in range(17)}
@@ -499,6 +532,9 @@ class TestPodLabelPrefix(unittest.TestCase):
         message = str(raised.exception)
         self.assertIn('team.example.com/role', message)
         self.assertIn('example.com/', message)
+        self.assertIn('configured label prefix', message)
+        self.assertNotIn('kubernetes', message.lower())
+        self.assertNotIn('pod', message.lower())
 
 
 if __name__ == '__main__':
