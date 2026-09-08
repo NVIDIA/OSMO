@@ -119,7 +119,7 @@ PLATFORM_COMPUTED_FIELDS = {
     'default_mounts',
 }
 
-ROLE_INTERNAL_FIELDS = {'sync_mode'}
+WORKFLOW_RELEASE_IMAGE_FIELDS = {'init', 'client'}
 
 def fetch(base_url, path, headers):
     """Fetch JSON from the OSMO API."""
@@ -163,6 +163,19 @@ def export_singleton(base_url, headers, config_type, strip):
     # Remove _configmap_mode flag if present
     data.pop('_configmap_mode', None)
     return data
+
+
+def export_workflow(base_url, headers):
+    """Export workflow config, including fields needed by the legacy chart."""
+    workflow = export_singleton(base_url, headers, 'workflow', set())
+    if not isinstance(workflow, dict):
+        return None
+    backend_images = workflow.get('backend_images')
+    if backend_images is None:
+        return workflow
+    if not isinstance(backend_images, dict):
+        return None
+    return workflow
 
 
 def export_backends(base_url, headers):
@@ -234,7 +247,7 @@ def export_named_configs(base_url, headers, path):
 
 
 def export_roles(base_url, headers):
-    """Export ConfigMap role definitions without DB synchronization state."""
+    """Export ConfigMap-owned role definitions and IDP sync settings."""
     data = fetch(base_url, '/api/configs/role', headers)
     if not isinstance(data, list):
         return None
@@ -245,9 +258,127 @@ def export_roles(base_url, headers):
         name = role_config.get('name')
         if not isinstance(name, str) or not name:
             return None
-        roles[name] = strip_fields(
-            role_config, ROLE_INTERNAL_FIELDS | {'name'})
+        roles[name] = strip_fields(role_config, {'name'})
     return roles
+
+
+def report_idp_sync_upgrade_risks(base_url, headers, roles):
+    """Report force assignments and PAT grants with delayed revocation."""
+    force_roles = {
+        name for name, definition in roles.items()
+        if isinstance(definition, dict)
+        and definition.get('sync_mode', 'import') == 'force'
+    }
+    if not force_roles:
+        return
+
+    users = []
+    seen_user_ids = set()
+    start_index = 1
+    expected_total = None
+    while True:
+        response = fetch(
+            base_url,
+            f'/api/auth/user?start_index={start_index}&count=1000', headers)
+        if not isinstance(response, dict) or not isinstance(
+                response.get('users'), list):
+            raise ValueError(
+                'Could not enumerate users for the IDP role preflight.')
+        page = response['users']
+        for user in page:
+            if not isinstance(user, dict) or not isinstance(user.get('id'), str):
+                raise ValueError(
+                    'IDP role preflight received a malformed user entry.')
+            if user['id'] in seen_user_ids:
+                raise ValueError(
+                    'IDP role preflight received a duplicate user entry.')
+            seen_user_ids.add(user['id'])
+        users.extend(page)
+        total = response.get('total_results', len(users))
+        if not isinstance(total, int) or total < 0:
+            raise ValueError(
+                'IDP role preflight received an invalid user count.')
+        if expected_total is None:
+            expected_total = total
+        elif total != expected_total:
+            raise ValueError(
+                'IDP role preflight received an inconsistent user count.')
+        if len(users) >= total:
+            break
+        if not page:
+            raise ValueError(
+                'IDP role preflight ended before all users were enumerated.')
+        start_index += len(page)
+
+    force_assignments: list[tuple[str, str]] = []
+    pat_grants: list[tuple[str, str, str]] = []
+    for user in users:
+        if not isinstance(user, dict) or not isinstance(user.get('id'), str):
+            raise ValueError(
+                'IDP role preflight received a malformed user entry.')
+        user_id = user['id']
+        quoted_user = urllib.parse.quote(user_id, safe='')
+        assignments = fetch(
+            base_url, f'/api/auth/user/{quoted_user}/roles', headers)
+        if not isinstance(assignments, dict):
+            raise ValueError(
+                f'Could not inspect IDP assignments for {user_id}.')
+        assignment_entries = assignments.get('roles')
+        if not isinstance(assignment_entries, list):
+            raise ValueError(
+                f'IDP role preflight received malformed assignments for {user_id}.')
+        active_force_roles: set[str] = set()
+        for assignment in assignment_entries:
+            if not isinstance(assignment, dict):
+                raise ValueError(
+                    f'IDP role preflight received a malformed assignment for {user_id}.')
+            role_name = assignment.get('role_name')
+            assigned_by = assignment.get('assigned_by')
+            if not isinstance(role_name, str) or not isinstance(assigned_by, str):
+                raise ValueError(
+                    f'IDP role preflight received a malformed assignment for {user_id}.')
+            if assigned_by == 'idp-sync' and role_name in force_roles:
+                active_force_roles.add(role_name)
+        if not active_force_roles:
+            continue
+        force_assignments.extend(
+            (user_id, role_name) for role_name in sorted(active_force_roles))
+        tokens = fetch(
+            base_url, f'/api/auth/user/{quoted_user}/access_token', headers)
+        if not isinstance(tokens, list):
+            raise ValueError(f'Could not inspect PAT grants for {user_id}.')
+        for token in tokens:
+            if not isinstance(token, dict):
+                raise ValueError(
+                    f'IDP role preflight received a malformed PAT for {user_id}.')
+            token_name = token.get('token_name')
+            token_roles = token.get('roles')
+            if not isinstance(token_name, str) or not isinstance(token_roles, list):
+                raise ValueError(
+                    f'IDP role preflight received a malformed PAT for {user_id}.')
+            if any(not isinstance(role_name, str) for role_name in token_roles):
+                raise ValueError(
+                    f'IDP role preflight received malformed PAT roles for {user_id}.')
+            for role_name in sorted(active_force_roles.intersection(
+                    token_roles)):
+                pat_grants.append((user_id, token_name, role_name))
+
+    print(
+        f'IDP sync preflight: {len(force_assignments)} force-derived user role '
+        f'assignment(s), {len(pat_grants)} associated PAT grant(s).',
+        file=sys.stderr)
+    for user_id, role_name in force_assignments:
+        print(f'  force assignment: user={user_id} role={role_name}',
+              file=sys.stderr)
+    for user_id, token_name, role_name in pat_grants:
+        print(
+            f'  force PAT grant: user={user_id} token={token_name} role={role_name}',
+            file=sys.stderr)
+    if force_assignments:
+        print(
+            'Force revocation remains request-driven: these assignments and PAT '
+            'grants are removed when each user next makes a human SSO request '
+            'without the matching claim.', file=sys.stderr)
 
 
 def _walk_masked_secret_paths(value, path=()):
@@ -548,15 +679,45 @@ def _strip_runtime_fields(runtime_config):
                 for field in POOL_COMPUTED_FIELDS:
                     pool.pop(field, None)
                 strip_platform_computed_fields(pool)
+    workflow = normalized.get('workflow')
+    if isinstance(workflow, dict):
+        backend_images = workflow.get('backend_images')
+        if isinstance(backend_images, dict):
+            for field in WORKFLOW_RELEASE_IMAGE_FIELDS:
+                backend_images.pop(field, None)
+            if not backend_images:
+                workflow.pop('backend_images')
     return normalized
+
+
+def _validate_release_owned_workflow_images(rendered):
+    """Require Helm to inject both release-coupled workflow helper images."""
+    workflow = rendered.get('workflow')
+    backend_images = (
+        workflow.get('backend_images') if isinstance(workflow, dict) else None)
+    if not isinstance(backend_images, dict):
+        raise ValueError(
+            'Rendered ConfigMap is missing release-owned workflow images: '
+            'workflow.backend_images.')
+    missing = [
+        field for field in sorted(WORKFLOW_RELEASE_IMAGE_FIELDS)
+        if not isinstance(backend_images.get(field), str)
+        or not backend_images[field]
+    ]
+    if missing:
+        raise ValueError(
+            'Rendered ConfigMap is missing release-owned workflow image(s): '
+            + ', '.join(missing) + '.')
 
 
 def verify_rendered_config(
     configs, rendered_path, secrets_root, required_secret_paths=(),
 ):
     """Compare exported config to Helm output and run production validation."""
+    rendered_config = load_rendered_config(rendered_path)
+    _validate_release_owned_workflow_images(rendered_config)
     expected = _strip_runtime_fields(to_runtime_config(configs))
-    rendered = _strip_runtime_fields(load_rendered_config(rendered_path))
+    rendered = _strip_runtime_fields(rendered_config)
     expected_sections = set(RUNTIME_SECTION_NAMES.values())
     if set(expected) != expected_sections:
         raise ValueError(
@@ -618,7 +779,7 @@ def collect_configs(base_url, headers):
     configs['service'] = service
 
     print('Exporting workflow config...', file=sys.stderr)
-    workflow = export_singleton(base_url, headers, 'workflow', set())
+    workflow = export_workflow(base_url, headers)
     configs['workflow'] = workflow
 
     print('Exporting backends...', file=sys.stderr)
@@ -656,16 +817,28 @@ def collect_configs(base_url, headers):
 
 def build_helm_values(configs, chart, mapped_secret_names):
     """Build unified values by default, with explicit 6.3 legacy output."""
+    configs = copy.deepcopy(configs)
     secret_refs = [
         {'secretName': name} for name in sorted(set(mapped_secret_names))
     ]
     if chart == 'legacy':
+        for definition in configs.get('roles', {}).values():
+            if isinstance(definition, dict):
+                definition.pop('sync_mode', None)
         managed = {
             'enabled': True,
             **({'secretRefs': secret_refs} if secret_refs else {}),
             **configs,
         }
         return {'services': {'configs': managed}}
+    workflow = configs.get('workflow')
+    if isinstance(workflow, dict):
+        backend_images = workflow.get('backend_images')
+        if isinstance(backend_images, dict):
+            for field in WORKFLOW_RELEASE_IMAGE_FIELDS:
+                backend_images.pop(field, None)
+            if not backend_images:
+                workflow.pop('backend_images')
     return {
         'configuration': {
             'enabled': True,
@@ -726,6 +899,9 @@ def main():
 
     try:
         configs = collect_configs(base_url, headers)
+        if args.chart == 'unified':
+            report_idp_sync_upgrade_risks(
+                base_url, headers, configs.get('roles', {}))
         mappings = load_secret_mappings(args.secret_mappings)
         required_secret_paths = apply_secret_mappings(configs, mappings)
         validate_secret_references(configs)

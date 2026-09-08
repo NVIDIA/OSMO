@@ -536,6 +536,42 @@ class PostgresConnector:
                     cur.close()
 
     @retry
+    def execute_user_locked_fetch_command(
+        self, user_id: str, command: str, args: Tuple,
+    ) -> List[Dict[str, Any]]:
+        """Run a fetch command after acquiring the per-user transaction lock."""
+        with self._get_connection() as conn:
+            cur = None
+            try:
+                cur = conn.cursor(
+                    cursor_factory=psycopg2.extras.RealDictCursor)
+                # The lock must be a separate statement. A lock CTE can acquire
+                # too late (or be skipped), and its statement snapshot predates
+                # a concurrent assignment transaction that it waits for.
+                cur.execute(
+                    'SELECT pg_advisory_xact_lock(hashtextextended(%s, 0));',
+                    (user_id,))
+                cur.execute(command, args)
+                rows = cur.fetchall()
+                cur.close()
+                conn.commit()
+                return rows
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during executing user-locked command {command}: {error}')
+            finally:
+                if cur is not None:
+                    cur.close()
+
+    @retry
     def execute_commit_command(self, command: str, args: Tuple):
         """
         Connects and executes a command that updates the database.
@@ -621,11 +657,15 @@ class PostgresConnector:
             cur = None
             try:
                 cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cur.execute(
+                    'SELECT pg_advisory_xact_lock(hashtextextended(%s, 0));',
+                    (user_id,))
                 cur.execute('''
                     INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (user_id, role_name)
-                    DO UPDATE SET user_id = EXCLUDED.user_id
+                    DO UPDATE SET assigned_by = EXCLUDED.assigned_by,
+                                  assigned_at = EXCLUDED.assigned_at
                     RETURNING id, assigned_by, assigned_at;
                 ''', (user_id, role_name, assigned_by, assigned_at))
                 rows = cur.fetchall()
@@ -643,6 +683,33 @@ class PostgresConnector:
             except Exception as error:  # pylint: disable=broad-except
                 raise osmo_errors.OSMODatabaseError(
                     f'Error during assigning user role: {error}')
+            finally:
+                if cur is not None:
+                    cur.close()
+
+    @retry
+    def remove_user_role(self, user_id: str, role_name: str):
+        """Remove one assignment while serialized with IDP sync and PAT writes."""
+        with self._get_connection() as conn:
+            cur = None
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    'SELECT pg_advisory_xact_lock(hashtextextended(%s, 0));',
+                    (user_id,))
+                cur.execute(
+                    'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;',
+                    (user_id, role_name))
+                cur.close()
+                conn.commit()
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
             finally:
                 if cur is not None:
                     cur.close()

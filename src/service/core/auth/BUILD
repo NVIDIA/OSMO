@@ -33,6 +33,7 @@ osmo_py_library(
         "//src/lib/utils:login",
         "//src/lib/utils:osmo_errors",
         "//src/utils/connectors",
+        "//src/utils:configmap_state",
         "//src/utils:auth",
         "//src/utils/job",
     ],

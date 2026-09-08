@@ -806,16 +806,9 @@ def _validate_required_sections(managed_configs: Dict[str, Any]) -> List[str]:
 
 
 def _validate_role_entry(name: str, value: Any) -> connectors.Role:
-    """Validate a ConfigMap-owned role definition.
-
-    ``sync_mode`` controls the legacy PostgreSQL assignment synchronizer and
-    is deliberately not part of the file-backed authorization contract.
-    """
+    """Validate a ConfigMap-owned role definition and IDP sync policy."""
     if not isinstance(value, dict):
         raise ConfigSnapshotValidationError('role entry must be a mapping')
-    if 'sync_mode' in value:
-        raise ConfigSnapshotValidationError(
-            'sync_mode is not used by ConfigMap-backed authorization')
     return connectors.Role(name=name, **value)
 
 

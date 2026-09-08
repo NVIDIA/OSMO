@@ -1,6 +1,8 @@
 INSERT INTO users (id, created_by) VALUES
     ('manual@example.com', 'test'),
     ('idp-sync@example.com', 'test'),
+    ('force-idp@example.com', 'test'),
+    ('force-manual@example.com', 'test'),
     ('db-only@example.com', 'test');
 
 INSERT INTO roles (name, description, policies, sync_mode) VALUES
@@ -12,6 +14,8 @@ INSERT INTO role_external_mappings (role_name, external_role) VALUES
 INSERT INTO user_roles (user_id, role_name, assigned_by) VALUES
     ('manual@example.com', 'scoped-reader', 'operator@example.com'),
     ('idp-sync@example.com', 'scoped-reader', 'idp-sync'),
+    ('force-idp@example.com', 'force-reader', 'idp-sync'),
+    ('force-manual@example.com', 'force-reader', 'operator@example.com'),
     ('db-only@example.com', 'db-only-admin', 'operator@example.com');
 
 INSERT INTO workflows (workflow_id, pool) VALUES

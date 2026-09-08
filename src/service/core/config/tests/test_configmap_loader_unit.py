@@ -534,17 +534,72 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(
             errors, ['roles: required 6.4 config section must not be empty'])
 
-    def test_role_sync_mode_is_rejected(self):
+    def test_role_sync_mode_is_configmap_owned_and_validated(self):
+        for sync_mode in ('import', 'force', 'ignore'):
+            errors = configmap_loader._validate_configs({
+                'roles': {
+                    'configured-role': {
+                        'description': 'ConfigMap role',
+                        'policies': [],
+                        'sync_mode': sync_mode,
+                    },
+                },
+            })
+            self.assertEqual(errors, [])
+
         errors = configmap_loader._validate_configs({
             'roles': {
-                'legacy-role': {
-                    'description': 'Legacy DB role',
+                'invalid-role': {
+                    'description': 'ConfigMap role',
                     'policies': [],
-                    'sync_mode': 'force',
+                    'sync_mode': 'invalid',
                 },
             },
         })
-        self.assertTrue(any('sync_mode is not used' in error for error in errors))
+        self.assertEqual(len(errors), 1)
+
+        errors = configmap_loader._validate_configs({
+            'roles': {
+                'typo-role': {
+                    'description': 'ConfigMap role',
+                    'policies': [],
+                    'sync_mdoe': 'force',
+                },
+            },
+        })
+        self.assertEqual(len(errors), 1)
+        self.assertIn('sync_mdoe', errors[0])
+
+        errors = configmap_loader._validate_configs({
+            'roles': {
+                'typo-policy': {
+                    'description': 'ConfigMap role',
+                    'policies': [{
+                        'effects': 'Deny',
+                        'actions': ['workflow:Read'],
+                    }],
+                },
+            },
+        })
+        self.assertEqual(len(errors), 1)
+        self.assertIn('effects', errors[0])
+
+        errors = configmap_loader._validate_configs({
+            'roles': {
+                'unsafe-action': {
+                    'description': 'ConfigMap role',
+                    'policies': [{
+                        'effect': 'Allow',
+                        'actions': [{
+                            'action': 'workflow:Read',
+                            'resources': ['pool/team-a'],
+                        }],
+                    }],
+                },
+            },
+        })
+        self.assertEqual(len(errors), 1)
+        self.assertIn('may only contain action', errors[0])
 
     def test_role_action_object_contract_matches_authz_loader(self):
         errors = configmap_loader._validate_configs({

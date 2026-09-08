@@ -97,10 +97,88 @@ func TestRuntimeStateCannotOverrideConfigMapAuthority(t *testing.T) {
 			codes.OK)
 	})
 
-	t.Run("historical idp sync assignment is inert", func(t *testing.T) {
+	t.Run("import assignment remains sticky", func(t *testing.T) {
 		requireAuthzCode(t, authzServer,
 			runtimeAuthorityRequest("idp-sync@example.com", "team-a-workflow", ""),
+			codes.OK)
+	})
+
+	t.Run("force removes only idp-derived assignment", func(t *testing.T) {
+		requireAuthzCode(t, authzServer,
+			runtimeAuthorityRequest("force-idp@example.com", "team-a-workflow", ""),
 			codes.PermissionDenied)
+		requireAuthzCode(t, authzServer,
+			runtimeAuthorityRequest("force-manual@example.com", "team-a-workflow", ""),
+			codes.OK)
+	})
+
+	t.Run("ignore claim never creates an assignment", func(t *testing.T) {
+		const userName = "ignored-new@example.com"
+		requireAuthzCode(t, authzServer,
+			runtimeAuthorityRequest(userName, "team-a-workflow", "ignored-team-a-group"),
+			codes.PermissionDenied)
+
+		var assignmentCount int
+		if err := postgresFixture.Client.Pool().QueryRow(
+			context.Background(),
+			`SELECT COUNT(*) FROM user_roles WHERE user_id = $1`, userName,
+		).Scan(&assignmentCount); err != nil {
+			t.Fatalf("count ignored assignments: %v", err)
+		}
+		if assignmentCount != 0 {
+			t.Fatalf("ignored role created %d assignment(s), want 0", assignmentCount)
+		}
+	})
+
+	t.Run("force claim loss removes assignment and PAT grant", func(t *testing.T) {
+		const userName = "force-new@example.com"
+		requireAuthzCode(t, authzServer,
+			runtimeAuthorityRequest(userName, "team-a-workflow", "force-team-a-group"),
+			codes.OK)
+
+		var assignmentID string
+		if err := postgresFixture.Client.Pool().QueryRow(
+			context.Background(),
+			`SELECT id FROM user_roles WHERE user_id = $1 AND role_name = $2`,
+			userName, "force-reader",
+		).Scan(&assignmentID); err != nil {
+			t.Fatalf("read force assignment: %v", err)
+		}
+		if _, err := postgresFixture.Client.Pool().Exec(context.Background(), `
+			INSERT INTO access_token (user_name, token_name, expires_at, description)
+			VALUES ($1, 'force-token', NOW() + INTERVAL '1 day', 'test')`,
+			userName); err != nil {
+			t.Fatalf("seed force PAT: %v", err)
+		}
+		if _, err := postgresFixture.Client.Pool().Exec(context.Background(), `
+			INSERT INTO access_token_roles
+				(user_name, token_name, user_role_id, assigned_by)
+			VALUES ($1, 'force-token', $2, $1)`, userName, assignmentID); err != nil {
+			t.Fatalf("seed force PAT grant: %v", err)
+		}
+
+		requireAuthzCode(t, authzServer,
+			runtimeAuthorityRequest(userName, "team-a-workflow", ""),
+			codes.PermissionDenied)
+
+		var assignmentCount, grantCount int
+		if err := postgresFixture.Client.Pool().QueryRow(
+			context.Background(),
+			`SELECT COUNT(*) FROM user_roles WHERE user_id = $1`, userName,
+		).Scan(&assignmentCount); err != nil {
+			t.Fatalf("count force assignments after claim loss: %v", err)
+		}
+		if err := postgresFixture.Client.Pool().QueryRow(
+			context.Background(),
+			`SELECT COUNT(*) FROM access_token_roles WHERE user_name = $1`, userName,
+		).Scan(&grantCount); err != nil {
+			t.Fatalf("count force PAT grants after claim loss: %v", err)
+		}
+		if assignmentCount != 0 || grantCount != 0 {
+			t.Fatalf(
+				"claim loss left assignments=%d PAT grants=%d, want both 0",
+				assignmentCount, grantCount)
+		}
 	})
 
 	t.Run("database-only role and mapping are inert", func(t *testing.T) {

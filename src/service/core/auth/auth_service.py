@@ -192,6 +192,9 @@ def _create_jwt_from_access_token(access_token: str):
 
     # Get roles from access_token_roles table
     roles = objects.AccessToken.get_roles_for_token(postgres, token.user_name, token.token_name)
+    if not roles:
+        raise osmo_errors.OSMOUserError(
+            'Access Token has no roles eligible under the current configuration')
 
     service_config = postgres.get_service_configs()
 
@@ -282,15 +285,21 @@ def list_access_token_roles(
         raise osmo_errors.OSMOUserError(
             f'Token {token_name} not found or does not belong to current user')
 
-    # Fetch access token roles by joining with user_roles to get role_name
+    # Fetch only roles eligible under the current ConfigMap snapshot.
+    defined_roles, idp_eligible_roles = objects.current_role_eligibility()
     fetch_cmd = '''
         SELECT ur.role_name, pr.assigned_by, pr.assigned_at
         FROM access_token_roles pr
         JOIN user_roles ur ON pr.user_role_id = ur.id
         WHERE pr.user_name = %s AND pr.token_name = %s
+          AND ur.role_name = ANY(%s::text[])
+          AND (ur.assigned_by <> %s OR ur.role_name = ANY(%s::text[]))
         ORDER BY ur.role_name;
     '''
-    rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+    rows = postgres.execute_fetch_command(
+        fetch_cmd,
+        (user_name, token_name, defined_roles, objects.IDP_SYNC_ASSIGNER,
+         idp_eligible_roles), True)
 
     roles = [objects.AccessTokenRole(
         role_name=row['role_name'],
@@ -449,11 +458,19 @@ def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
 
 def _get_user_role_names(postgres: connectors.PostgresConnector,
                          user_id: str) -> List[str]:
-    """Fetch all role names assigned to a user."""
+    """Fetch role names eligible under the current ConfigMap snapshot."""
+    defined_roles, idp_eligible_roles = objects.current_role_eligibility()
     fetch_cmd = '''
-        SELECT role_name FROM user_roles WHERE user_id = %s ORDER BY role_name;
+        SELECT role_name FROM user_roles
+        WHERE user_id = %s
+          AND role_name = ANY(%s::text[])
+          AND (assigned_by <> %s OR role_name = ANY(%s::text[]))
+        ORDER BY role_name;
     '''
-    rows = postgres.execute_fetch_command(fetch_cmd, (user_id,), True)
+    rows = postgres.execute_fetch_command(
+        fetch_cmd,
+        (user_id, defined_roles, objects.IDP_SYNC_ASSIGNER,
+         idp_eligible_roles), True)
     return [row['role_name'] for row in rows]
 
 
@@ -465,6 +482,9 @@ def _validate_role_exists(postgres: connectors.PostgresConnector, role_name: str
 def _insert_user_role(postgres: connectors.PostgresConnector, user_id: str,
                       role_name: str, assigned_by: str,
                       assigned_at: datetime.datetime) -> List[Dict[str, Any]]:
+    if assigned_by == objects.IDP_SYNC_ASSIGNER:
+        raise osmo_errors.OSMOUserError(
+            f'Username {objects.IDP_SYNC_ASSIGNER} is reserved for IDP synchronization.')
     return postgres.assign_user_role(user_id, role_name, assigned_by, assigned_at)
 
 
@@ -554,7 +574,7 @@ def list_users(
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             WHERE ur.role_name IN ({role_placeholders}){where_clause}
-            ORDER BY u.created_at DESC
+            ORDER BY u.created_at DESC, u.id ASC
             LIMIT %s OFFSET %s;
         '''
     else:
@@ -567,7 +587,7 @@ def list_users(
         fetch_cmd = f'''
             SELECT u.id, u.created_at, u.created_by
             FROM users u{where_clause}
-            ORDER BY u.created_at DESC
+            ORDER BY u.created_at DESC, u.id ASC
             LIMIT %s OFFSET %s;
         '''
 
@@ -790,10 +810,8 @@ def remove_role_from_user(user_id: str, role_name: str):
     _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Delete role assignment from user_roles
-    # access_token_roles entries referencing this user_role are auto-deleted via ON DELETE CASCADE
-    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
-    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
+    # access_token_roles entries referencing this user_role are auto-deleted.
+    postgres.remove_user_role(user_id, role_name)
 
 
 @router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)
@@ -874,13 +892,16 @@ def bulk_assign_role(
 
         # Check if already assigned
         check_cmd = '''
-            SELECT 1 FROM user_roles WHERE user_id = %s AND role_name = %s;
+            SELECT assigned_by FROM user_roles
+            WHERE user_id = %s AND role_name = %s;
         '''
         existing = postgres.execute_fetch_command(check_cmd, (user_id, role_name), True)
 
-        if existing:
+        if existing and existing[0]['assigned_by'] != objects.IDP_SYNC_ASSIGNER:
             already_assigned.append(user_id)
         else:
+            # This also promotes an IDP-derived row to a manual assignment while
+            # preserving its UUID and existing PAT references.
             result = _insert_user_role(
                 postgres, user_id, role_name, assigned_by, now)
             if result:

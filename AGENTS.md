@@ -184,7 +184,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 | Package | Purpose |
 |---------|---------|
-| `roles/` | Semantic RBAC. Actions like `workflow:Create` and `pool:List`. Immutable ConfigMap role/external-mapping loading and pool access evaluation. |
+| `roles/` | Semantic RBAC. Actions like `workflow:Create` and `pool:List`. Immutable ConfigMap role/mapping loading, IDP assignment synchronization, and pool access evaluation. |
 | `postgres/` | PostgreSQL client with pgx connection pool and pgroll schema version support. |
 | `redis/` | Redis client with optional TLS. |
 | `logging/` | Structured slog handler compatible with Fluent Bit parsers. |
@@ -193,7 +193,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 ### Authorization Sidecar (`service/authz_sidecar/`) — Go gRPC
 
 - Implements external authorization for the API gateway
-- Flow: Extract user/roles from request headers → resolve human IDP claims or trusted token/workflow roles from the mounted ConfigMap → evaluate semantic RBAC → return allow/deny with `x-osmo-allowed-pools` when applicable
+- Flow: Extract user/roles from request headers → synchronize human IDP claims using mounted ConfigMap definitions (or accept trusted token/workflow assignments) → resolve current ConfigMap policies → evaluate semantic RBAC → return allow/deny with `x-osmo-allowed-pools` when applicable
 
 ### Frontend (`ui/`)
 

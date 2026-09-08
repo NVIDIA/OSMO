@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -74,6 +75,45 @@ pools:
 	}
 }
 
+func TestFileRoleStoreBuildsConfigMapOwnedSyncPlan(t *testing.T) {
+	path := writeRoleConfig(t, `
+roles:
+  imported:
+    description: imported
+    policies: []
+    external_roles: [idp-import]
+  forced:
+    description: forced
+    policies: []
+    external_roles: [idp-force]
+    sync_mode: force
+  manual:
+    description: manual
+    policies: []
+    external_roles: [idp-manual]
+    sync_mode: ignore
+pools: {}
+`)
+	store := NewFileRoleStore(path, slog.Default())
+	if err := store.Load(); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := store.BuildSyncPlan([]string{"idp-force", "idp-manual"})
+	if got := strings.Join(plan.MatchedRoles, ","); got != "forced" {
+		t.Fatalf("matched roles = %q, want forced", got)
+	}
+	if got := strings.Join(plan.ForceRoles, ","); got != "forced" {
+		t.Fatalf("force roles = %q, want forced", got)
+	}
+	if got := strings.Join(plan.DefinedRoles, ","); got != "forced,imported,manual" {
+		t.Fatalf("defined roles = %q", got)
+	}
+	if got := strings.Join(plan.IDPEligibleRoles, ","); got != "forced,imported" {
+		t.Fatalf("IDP-eligible roles = %q", got)
+	}
+}
+
 func TestFileRoleStoreRejectsIncompleteOrInvalidAuthority(t *testing.T) {
 	tests := map[string]string{
 		"missing roles": `pools: {default: {}}`,
@@ -90,6 +130,32 @@ roles:
   role:
     description: test
     policies: [{effect: Allow, actions: ["not-an-action"]}]
+pools: {default: {}}
+`,
+		"invalid sync mode": `
+roles:
+  role: {description: test, policies: [], sync_mode: invalid}
+pools: {default: {}}
+`,
+		"misspelled sync mode": `
+roles:
+  role: {description: test, policies: [], sync_mdoe: force}
+pools: {default: {}}
+`,
+		"misspelled deny effect": `
+roles:
+  role:
+    description: test
+    policies: [{effects: Deny, actions: ["workflow:Read"]}]
+pools: {default: {}}
+`,
+		"semantic action mapping with ignored resource": `
+roles:
+  role:
+    description: test
+    policies:
+    - effect: Allow
+      actions: [{action: "workflow:Read", resources: ["pool/team-a"]}]
 pools: {default: {}}
 `,
 	}

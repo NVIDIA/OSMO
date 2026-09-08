@@ -20,7 +20,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -120,14 +119,14 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	// configured mappings may grant internal roles. Access-token and workflow
 	// headers already contain internal role assignments resolved by the service.
 	if user != "" && tokenName == "" && workflowID == "" {
-		roleNames = s.fileStore.ResolveExternalRoles(roleNames)
-		manualRoles, err := s.getManualUserRoles(ctx, user)
+		var err error
+		roleNames, err = roles.SyncUserRoles(
+			ctx, s.pgClient, s.fileStore, user, roleNames, s.logger)
 		if err != nil {
-			s.logger.Error("failed to resolve manual user roles",
+			s.logger.Error("failed to synchronize user roles",
 				slog.String("user", user), slog.String("error", err.Error()))
-			return s.denyResponse(codes.Internal, "internal error resolving roles"), nil
+			return s.denyResponse(codes.Internal, "internal error synchronizing roles"), nil
 		}
-		roleNames = append(roleNames, manualRoles...)
 	}
 	roleNames = append(roleNames, defaultRole)
 
@@ -225,39 +224,6 @@ func (s *AuthzServer) checkAccess(
 	result := roles.CheckRolesAccess(ctx, userRoles, path, method, s.pgClient)
 	s.logAccessResult(result, user, path, method)
 	return result
-}
-
-// getManualUserRoles returns operator-assigned role names only. Historical
-// idp-sync rows are derived configuration state and cannot grant authority in
-// 6.4. Definitions are still resolved exclusively through FileRoleStore.
-func (s *AuthzServer) getManualUserRoles(
-	ctx context.Context, user string,
-) ([]string, error) {
-	if s.pgClient == nil {
-		return nil, nil
-	}
-	rows, err := s.pgClient.Pool().Query(ctx, `
-		SELECT role_name
-		FROM user_roles
-		WHERE user_id = $1 AND assigned_by <> 'idp-sync'
-		ORDER BY role_name`, user)
-	if err != nil {
-		return nil, fmt.Errorf("query manual user roles: %w", err)
-	}
-	defer rows.Close()
-
-	var roleNames []string
-	for rows.Next() {
-		var roleName string
-		if err := rows.Scan(&roleName); err != nil {
-			return nil, fmt.Errorf("scan manual user role: %w", err)
-		}
-		roleNames = append(roleNames, roleName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate manual user roles: %w", err)
-	}
-	return roleNames, nil
 }
 
 // computeAllowedPools evaluates role policies to determine which pools the

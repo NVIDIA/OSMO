@@ -47,9 +47,10 @@ class SyncMode(str, enum.Enum):
     """
     Sync mode for role assignments.
 
-    - FORCE: Always apply this role to all users (e.g., for system roles)
-    - IMPORT: Role is imported from IDP claims or user_roles table (default)
-    - IGNORE: Ignore this role in IDP sync (role is managed manually)
+    - FORCE: Add from matching IDP claims and remove the IDP-derived
+      assignment on the next human request without a matching claim.
+    - IMPORT: Add from matching IDP claims and retain the assignment (default).
+    - IGNORE: Never synchronize this role from IDP claims; manage it manually.
     """
     FORCE = 'force'
     IMPORT = 'import'
@@ -90,6 +91,8 @@ class RolePolicy(pydantic.BaseModel):
     Actions are validated via regex; API/DB still use [{"action": "..."}] for
     compatibility with the Go authz_sidecar.
     """
+    model_config = pydantic.ConfigDict(extra='forbid')
+
     effect: PolicyEffect = PolicyEffect.ALLOW
     actions: List[str | LegacyRoleAction]
     # Resources this policy applies to (e.g., ["*"], ["pool/production"], ["bucket/*"])
@@ -107,6 +110,9 @@ class RolePolicy(pydantic.BaseModel):
             if isinstance(action, str):
                 normalized_actions.append(validate_semantic_action(action))
             elif isinstance(action, dict) and 'action' in action:
+                if set(action) != {'action'}:
+                    raise ValueError(
+                        'Semantic role action mappings may only contain action')
                 semantic_action = action.get('action')
                 if not isinstance(semantic_action, str):
                     raise ValueError('Semantic role action must be a string')
@@ -145,10 +151,12 @@ class Role(pydantic.BaseModel):
     Single Role Entry
 
     external_roles semantics:
-    - None: Don't modify external role mappings (preserve existing)
+    - None: Map the role's own name for 6.3 compatibility
     - []: Explicitly clear all external role mappings
     - ['role1', 'role2']: Set external role mappings to these values
     """
+    model_config = pydantic.ConfigDict(extra='forbid')
+
     name: str
     description: str
     policies: List[RolePolicy]

@@ -5002,6 +5002,8 @@ EOF
         "--postgres-host=external-postgres"
     require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
         "name: OSMO_POSTGRES_PASSWORD"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "type: Recreate"
     if helm_template empty-roles "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -5011,15 +5013,49 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/empty-roles.out" \
         "configuration roles must be a non-empty map"
-    if helm_template role-sync-mode "$charts_copy/osmo" \
+    helm_template role-sync-mode "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string configuration.roles.osmo-default.sync_mode=force \
-        >"$TEST_DIRECTORY/role-sync-mode.out" 2>&1; then
-        fail "expected legacy role sync_mode to fail"
+        >"$TEST_DIRECTORY/role-sync-mode.out" 2>&1
+    if helm_template invalid-role-sync-mode "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.sync_mode=invalid \
+        >"$TEST_DIRECTORY/invalid-role-sync-mode.out" 2>&1; then
+        fail "expected invalid role sync_mode to fail"
     fi
-    require_contains "$TEST_DIRECTORY/role-sync-mode.out" \
-        "must not set sync_mode"
+    require_contains "$TEST_DIRECTORY/invalid-role-sync-mode.out" \
+        "sync_mode must be import, force, or ignore"
+    if helm_template misspelled-role-sync-mode "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.sync_mdoe=force \
+        >"$TEST_DIRECTORY/misspelled-role-sync-mode.out" 2>&1; then
+        fail "expected an unknown role field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/misspelled-role-sync-mode.out" \
+        'has unknown field "sync_mdoe"'
+    if helm_template misspelled-role-effect "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.policies[0].effects=Deny \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0]=workflow:Read \
+        >"$TEST_DIRECTORY/misspelled-role-effect.out" 2>&1; then
+        fail "expected an unknown role policy field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/misspelled-role-effect.out" \
+        'has unknown policy field "effects"'
+    if helm_template unsafe-semantic-action "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0].action=workflow:Read \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0].resources[0]=pool/team-a \
+        >"$TEST_DIRECTORY/unsafe-semantic-action.out" 2>&1; then
+        fail "expected an unknown semantic action field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsafe-semantic-action.out" \
+        'semantic action has unknown field "resources"'
     helm_template authz-role-change "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

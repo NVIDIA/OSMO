@@ -720,6 +720,15 @@ export interface LabelsConfigOutput {
 }
 
 /**
+ * Legacy path-based role action retained for 6.3 ConfigMap compatibility.
+ */
+export interface LegacyRoleAction {
+  base?: string;
+  path?: string;
+  method?: string;
+}
+
+/**
  * Object storing info for all backends.
  */
 export interface ListBackendsResponse {
@@ -1422,16 +1431,17 @@ export interface PutResourceValidationsRequest {
  */
 export interface RolePolicy {
   effect?: PolicyEffect;
-  actions: string[];
+  actions: (string | LegacyRoleAction)[];
   resources?: string[];
 }
 
 /**
  * Sync mode for role assignments.
  *
- * - FORCE: Always apply this role to all users (e.g., for system roles)
- * - IMPORT: Role is imported from IDP claims or user_roles table (default)
- * - IGNORE: Ignore this role in IDP sync (role is managed manually)
+ * - FORCE: Add from matching IDP claims and remove the IDP-derived
+ *   assignment on the next human request without a matching claim.
+ * - IMPORT: Add from matching IDP claims and retain the assignment (default).
+ * - IGNORE: Never synchronize this role from IDP claims; manage it manually.
  */
 export type SyncMode = typeof SyncMode[keyof typeof SyncMode];
 
@@ -1443,10 +1453,7 @@ export const SyncMode = {
 } as const;
 
 /**
- * Single Role Entry.
- *
- * Note: Authorization checking is now handled by the authz_sidecar (Go service).
- * This Python class is only used for role CRUD operations.
+ * ConfigMap-owned role definition used by read and validation APIs.
  */
 export interface RoleInput {
   name: string;
@@ -1624,10 +1631,7 @@ export interface ResourcesResponse {
 }
 
 /**
- * Single Role Entry.
- *
- * Note: Authorization checking is now handled by the authz_sidecar (Go service).
- * This Python class is only used for role CRUD operations.
+ * ConfigMap-owned role definition used by read and validation APIs.
  */
 export interface RoleOutput {
   name: string;
@@ -5634,7 +5638,7 @@ export const getPutRolesApiConfigsRolePutUrl = () => {
 }
 
 /**
- * Put Roles
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Put Roles
  */
 export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest, options?: RequestInit): Promise<unknown> => {
@@ -5818,7 +5822,7 @@ export const getPutRoleApiConfigsRoleNamePutUrl = (name: string,) => {
 }
 
 /**
- * Patch Role configurations
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Put Role
  */
 export const putRoleApiConfigsRoleNamePut = async (name: string,
@@ -5890,7 +5894,7 @@ export const getDeleteRoleApiConfigsRoleNameDeleteUrl = (name: string,) => {
 }
 
 /**
- * Delete Role
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Delete Role
  */
 export const deleteRoleApiConfigsRoleNameDelete = async (name: string,
@@ -6490,7 +6494,7 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
 }
 
 /**
- * List DB-backed role history.
+ * Reject the retired database-backed configuration history API.
  * @summary Get Configs History
  */
 export const getConfigsHistoryApiConfigsHistoryGet = async (params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: RequestInit): Promise<GetConfigsHistoryResponse> => {
@@ -6603,7 +6607,7 @@ export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
 }
 
 /**
- * Roll back DB-backed roles to a particular revision.
+ * Reject the retired database-backed configuration rollback API.
  * @summary Rollback Config
  */
 export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfigRequest: RollbackConfigRequest, options?: RequestInit): Promise<unknown> => {
@@ -6675,15 +6679,7 @@ export const getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRe
 }
 
 /**
- * Delete a specific config history revision. This performs a soft delete of the revision.
- *
- * Args:
- *     config_type: Type of config to delete
- *     revision: Revision number to delete (must be greater than 0)
- *     username: Username of the person performing the delete
- *
- * Raises:
- *     OSMOUserError: If the revision doesn't exist or is the current revision
+ * Reject the retired database-backed history deletion API.
  * @summary Delete Config History Revision
  */
 export const deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete = async (configType: string,
@@ -6756,16 +6752,7 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
 }
 
 /**
- * Update tags for a specific config history revision.
- *
- * Args:
- *     config_type: Type of config to update
- *     revision: Revision number to update (must be greater than 0)
- *     request: Request containing tags to add and delete
- *     username: Username of the person performing the update
- *
- * Raises:
- *     OSMOUserError: If the revision doesn't exist or is invalid
+ * Reject the retired database-backed history tagging API.
  * @summary Update Config History Tags
  */
 export const updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPost = async (configType: string,
@@ -6845,18 +6832,7 @@ export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiCon
 }
 
 /**
- * Returns two config revisions, similar to
- * GET /api/configs/history/{config_type}/revision/{revision}, but with obfuscated secret strings
- * that say if a secret string is changed. Intended for use with the `diff` command.
- *
- * Args:
- *     request: Request containing config type and revisions to compare
- *
- * Returns:
- *     ConfigDiffResponse containing the two revisions
- *
- * Raises:
- *     OSMOUserError: If either revision doesn't exist or is invalid
+ * Reject the retired database-backed configuration diff API.
  * @summary Get Config Diff
  */
 export const getConfigDiffApiConfigsDiffGet = async (params: GetConfigDiffApiConfigsDiffGetParams, options?: RequestInit): Promise<ConfigDiffResponse> => {

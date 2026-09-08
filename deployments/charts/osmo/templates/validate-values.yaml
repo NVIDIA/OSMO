@@ -72,11 +72,43 @@
 {{- if or (not $roleName) (not (kindIs "map" $roleDefinition)) -}}
 {{- fail "every configuration role must have a non-empty name and mapping definition" -}}
 {{- end -}}
-{{- if hasKey $roleDefinition "sync_mode" -}}
-{{- fail (printf "configuration role %q must not set sync_mode; role definitions are ConfigMap-owned" $roleName) -}}
+{{- range $roleField, $_ := $roleDefinition -}}
+{{- if not (has $roleField (list "description" "policies" "external_roles" "immutable" "sync_mode")) -}}
+{{- fail (printf "configuration role %q has unknown field %q" $roleName $roleField) -}}
+{{- end -}}
+{{- end -}}
+{{- if and (hasKey $roleDefinition "sync_mode") (not (has (get $roleDefinition "sync_mode") (list "import" "force" "ignore"))) -}}
+{{- fail (printf "configuration role %q sync_mode must be import, force, or ignore" $roleName) -}}
 {{- end -}}
 {{- if or (not (hasKey $roleDefinition "description")) (not (hasKey $roleDefinition "policies")) -}}
 {{- fail (printf "configuration role %q requires description and policies" $roleName) -}}
+{{- end -}}
+{{- range $policy := get $roleDefinition "policies" -}}
+{{- if not (kindIs "map" $policy) -}}
+{{- fail (printf "configuration role %q policies must contain mapping definitions" $roleName) -}}
+{{- end -}}
+{{- range $policyField, $_ := $policy -}}
+{{- if not (has $policyField (list "effect" "actions" "resources")) -}}
+{{- fail (printf "configuration role %q has unknown policy field %q" $roleName $policyField) -}}
+{{- end -}}
+{{- end -}}
+{{- range $action := get $policy "actions" -}}
+{{- if kindIs "map" $action -}}
+{{- if hasKey $action "action" -}}
+{{- range $actionField, $_ := $action -}}
+{{- if ne $actionField "action" -}}
+{{- fail (printf "configuration role %q semantic action has unknown field %q" $roleName $actionField) -}}
+{{- end -}}
+{{- end -}}
+{{- else -}}
+{{- range $actionField, $_ := $action -}}
+{{- if not (has $actionField (list "base" "path" "method")) -}}
+{{- fail (printf "configuration role %q legacy action has unknown field %q" $roleName $actionField) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- if and

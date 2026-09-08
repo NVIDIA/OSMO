@@ -44,9 +44,12 @@ class TestRoleAssignmentAuthority(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         statements = [call.args[0] for call in cursor.execute.call_args_list]
-        self.assertEqual(len(statements), 1)
-        self.assertIn('INSERT INTO user_roles', statements[0])
-        self.assertNotIn('FROM roles', statements[0])
+        self.assertEqual(len(statements), 2)
+        self.assertIn('pg_advisory_xact_lock', statements[0])
+        self.assertIn('INSERT INTO user_roles', statements[1])
+        self.assertNotIn('FROM roles', statements[1])
+        self.assertIn('assigned_by = EXCLUDED.assigned_by', statements[1])
+        self.assertIn('assigned_at = EXCLUDED.assigned_at', statements[1])
 
     def test_db_only_role_is_rejected_before_database_access(self):
         postgres = object.__new__(connectors.PostgresConnector)

@@ -2026,7 +2026,7 @@
           "Config API"
         ],
         "summary": "Put Roles",
-        "description": "Put Roles",
+        "description": "Reject role writes because role definitions are ConfigMap-owned.",
         "operationId": "put_roles_api_configs_role_put",
         "parameters": [
           {
@@ -2125,7 +2125,7 @@
           "Config API"
         ],
         "summary": "Put Role",
-        "description": "Patch Role configurations",
+        "description": "Reject role writes because role definitions are ConfigMap-owned.",
         "operationId": "put_role_api_configs_role__name__put",
         "parameters": [
           {
@@ -2190,7 +2190,7 @@
           "Config API"
         ],
         "summary": "Delete Role",
-        "description": "Delete Role",
+        "description": "Reject role writes because role definitions are ConfigMap-owned.",
         "operationId": "delete_role_api_configs_role__name__delete",
         "parameters": [
           {
@@ -2577,7 +2577,7 @@
           "Config API"
         ],
         "summary": "Get Configs History",
-        "description": "List DB-backed role history.",
+        "description": "Reject the retired database-backed configuration history API.",
         "operationId": "get_configs_history_api_configs_history_get",
         "parameters": [
           {
@@ -2813,7 +2813,7 @@
           "Config API"
         ],
         "summary": "Rollback Config",
-        "description": "Roll back DB-backed roles to a particular revision.",
+        "description": "Reject the retired database-backed configuration rollback API.",
         "operationId": "rollback_config_api_configs_history_rollback_post",
         "parameters": [
           {
@@ -2871,7 +2871,7 @@
           "Config API"
         ],
         "summary": "Delete Config History Revision",
-        "description": "Delete a specific config history revision. This performs a soft delete of the revision.\n\nArgs:\n    config_type: Type of config to delete\n    revision: Revision number to delete (must be greater than 0)\n    username: Username of the person performing the delete\n\nRaises:\n    OSMOUserError: If the revision doesn't exist or is the current revision",
+        "description": "Reject the retired database-backed history deletion API.",
         "operationId": "delete_config_history_revision_api_configs_history__config_type__revision__revision__delete",
         "parameters": [
           {
@@ -2938,7 +2938,7 @@
           "Config API"
         ],
         "summary": "Update Config History Tags",
-        "description": "Update tags for a specific config history revision.\n\nArgs:\n    config_type: Type of config to update\n    revision: Revision number to update (must be greater than 0)\n    request: Request containing tags to add and delete\n    username: Username of the person performing the update\n\nRaises:\n    OSMOUserError: If the revision doesn't exist or is invalid",
+        "description": "Reject the retired database-backed history tagging API.",
         "operationId": "update_config_history_tags_api_configs_history__config_type__revision__revision__tags_post",
         "parameters": [
           {
@@ -2999,7 +2999,7 @@
           "Config API"
         ],
         "summary": "Get Config Diff",
-        "description": "Returns two config revisions, similar to\nGET /api/configs/history/{config_type}/revision/{revision}, but with obfuscated secret strings\nthat say if a secret string is changed. Intended for use with the `diff` command.\n\nArgs:\n    request: Request containing config type and revisions to compare\n\nReturns:\n    ConfigDiffResponse containing the two revisions\n\nRaises:\n    OSMOUserError: If either revision doesn't exist or is invalid",
+        "description": "Reject the retired database-backed configuration diff API.",
         "operationId": "get_config_diff_api_configs_diff_get",
         "parameters": [
           {
@@ -8825,6 +8825,29 @@
         "title": "LabelsConfig",
         "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
       },
+      "LegacyRoleAction": {
+        "properties": {
+          "base": {
+            "type": "string",
+            "title": "Base",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "default": ""
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LegacyRoleAction",
+        "description": "Legacy path-based role action retained for 6.3 ConfigMap compatibility."
+      },
       "ListBackendsResponse": {
         "properties": {
           "backends": {
@@ -11746,7 +11769,7 @@
           "policies"
         ],
         "title": "Role",
-        "description": "Single Role Entry.\n\nNote: Authorization checking is now handled by the authz_sidecar (Go service).\nThis Python class is only used for role CRUD operations."
+        "description": "ConfigMap-owned role definition used by read and validation APIs."
       },
       "Role-Output": {
         "properties": {
@@ -11796,7 +11819,7 @@
           "policies"
         ],
         "title": "Role",
-        "description": "Single Role Entry.\n\nNote: Authorization checking is now handled by the authz_sidecar (Go service).\nThis Python class is only used for role CRUD operations."
+        "description": "ConfigMap-owned role definition used by read and validation APIs."
       },
       "RolePolicy": {
         "properties": {
@@ -11806,7 +11829,14 @@
           },
           "actions": {
             "items": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/components/schemas/LegacyRoleAction"
+                }
+              ]
             },
             "type": "array",
             "title": "Actions"
@@ -12233,7 +12263,7 @@
           "ignore"
         ],
         "title": "SyncMode",
-        "description": "Sync mode for role assignments.\n\n- FORCE: Always apply this role to all users (e.g., for system roles)\n- IMPORT: Role is imported from IDP claims or user_roles table (default)\n- IGNORE: Ignore this role in IDP sync (role is managed manually)"
+        "description": "Sync mode for role assignments.\n\n- FORCE: Add from matching IDP claims and remove the IDP-derived\n  assignment on the next human request without a matching claim.\n- IMPORT: Add from matching IDP claims and retain the assignment (default).\n- IGNORE: Never synchronize this role from IDP claims; manage it manually."
       },
       "TaskEntry": {
         "properties": {

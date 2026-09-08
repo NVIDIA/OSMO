@@ -243,11 +243,47 @@ class SecretMappingTest(unittest.TestCase):
             workload_secret, {'secretName': 'backend-only-secret'})
 
     def test_legacy_output_is_explicit(self):
-        values = exporter.build_helm_values(_empty_export(), 'legacy', [])
+        configs = _empty_export()
+        configs['workflow'] = {
+            'backend_images': {
+                'init': 'registry.example.com/init:6.3',
+                'client': 'registry.example.com/client:6.3',
+            },
+        }
+        configs['roles']['osmo-default']['sync_mode'] = 'force'
+
+        values = exporter.build_helm_values(configs, 'legacy', [])
+
         self.assertTrue(values['services']['configs']['enabled'])
         self.assertNotIn('configuration', values)
+        managed = values['services']['configs']
+        self.assertEqual(managed['workflow']['backend_images'], {
+            'init': 'registry.example.com/init:6.3',
+            'client': 'registry.example.com/client:6.3',
+        })
+        self.assertNotIn('sync_mode', managed['roles']['osmo-default'])
 
-    def test_roles_export_strips_legacy_sync_mode(self):
+    def test_unified_output_owns_release_images_and_preserves_sync_mode(self):
+        configs = _empty_export()
+        configs['workflow'] = {
+            'backend_images': {
+                'init': 'registry.example.com/init:6.3',
+                'client': 'registry.example.com/client:6.3',
+                'credential': {'secretName': 'registry-credential'},
+            },
+        }
+        configs['roles']['osmo-default']['sync_mode'] = 'force'
+
+        values = exporter.build_helm_values(configs, 'unified', [])
+
+        snapshot = values['configuration']['snapshot']
+        self.assertEqual(snapshot['workflow']['backend_images'], {
+            'credential': {'secretName': 'registry-credential'},
+        })
+        self.assertEqual(
+            snapshot['roles']['osmo-default']['sync_mode'], 'force')
+
+    def test_roles_export_preserves_sync_mode(self):
         with mock.patch.object(exporter, 'fetch', return_value=[{
             'name': 'operator',
             'description': 'Operator role',
@@ -264,14 +300,163 @@ class SecretMappingTest(unittest.TestCase):
                 'policies': [],
                 'immutable': False,
                 'external_roles': ['operator-group'],
+                'sync_mode': 'force',
             },
         })
+
+    def test_workflow_export_preserves_legacy_release_images(self):
+        with mock.patch.object(exporter, 'fetch', return_value={
+            'backend_images': {
+                'init': 'registry.example.com/init:6.3',
+                'client': 'registry.example.com/client:6.3',
+                'credential': {'secretName': 'registry-credential'},
+            },
+        }):
+            workflow = exporter.export_workflow(
+                'https://osmo.example.com', {})
+
+        self.assertEqual(workflow, {
+            'backend_images': {
+                'init': 'registry.example.com/init:6.3',
+                'client': 'registry.example.com/client:6.3',
+                'credential': {'secretName': 'registry-credential'},
+            },
+        })
+
+    def test_idp_sync_preflight_reports_force_assignments_and_pats(self):
+        responses = {
+            '/api/auth/user?start_index=1&count=1000': {
+                'users': [{'id': 'alice@example.com'}],
+                'total_results': 1,
+            },
+            '/api/auth/user/alice%40example.com/roles': {
+                'roles': [{
+                    'role_name': 'operator',
+                    'assigned_by': 'idp-sync',
+                }],
+            },
+            '/api/auth/user/alice%40example.com/access_token': [{
+                'token_name': 'automation',
+                'roles': ['operator'],
+            }],
+        }
+        with mock.patch.object(
+                exporter, 'fetch', side_effect=lambda _, path, __: responses[path]), \
+                mock.patch('sys.stderr') as stderr:
+            exporter.report_idp_sync_upgrade_risks(
+                'https://osmo.example.com', {}, {
+                    'operator': {'sync_mode': 'force'},
+                })
+
+        output = ''.join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn('1 force-derived user role assignment(s)', output)
+        self.assertIn('1 associated PAT grant(s)', output)
+        self.assertIn('request-driven', output)
+
+    def test_idp_sync_preflight_fails_if_assignment_audit_is_incomplete(self):
+        with mock.patch.object(exporter, 'fetch', return_value=None):
+            with self.assertRaisesRegex(ValueError, 'enumerate users'):
+                exporter.report_idp_sync_upgrade_risks(
+                    'https://osmo.example.com', {}, {
+                        'operator': {'sync_mode': 'force'},
+                    })
+
+    def test_idp_sync_preflight_rejects_malformed_audit_records(self):
+        role_config = {'operator': {'sync_mode': 'force'}}
+        cases = {
+            'user': [{
+                'users': [None], 'total_results': 1,
+            }],
+            'assignments': [{
+                'users': [{'id': 'alice'}], 'total_results': 1,
+            }, {}],
+            'PAT': [{
+                'users': [{'id': 'alice'}], 'total_results': 1,
+            }, {
+                'roles': [{
+                    'role_name': 'operator', 'assigned_by': 'idp-sync',
+                }],
+            }, [{'token_name': 'broken'}]],
+        }
+        for record_type, responses in cases.items():
+            with self.subTest(record_type=record_type), mock.patch.object(
+                    exporter, 'fetch', side_effect=responses):
+                with self.assertRaisesRegex(ValueError, 'malformed'):
+                    exporter.report_idp_sync_upgrade_risks(
+                        'https://osmo.example.com', {}, role_config)
+
+    def test_idp_sync_preflight_rejects_incomplete_pagination(self):
+        responses = [{
+            'users': [{'id': 'alice'}], 'total_results': 2,
+        }, {
+            'users': [], 'total_results': 2,
+        }]
+        with mock.patch.object(exporter, 'fetch', side_effect=responses):
+            with self.assertRaisesRegex(ValueError, 'before all users'):
+                exporter.report_idp_sync_upgrade_risks(
+                    'https://osmo.example.com', {}, {
+                        'operator': {'sync_mode': 'force'},
+                    })
+
+    def test_idp_sync_preflight_rejects_inconsistent_pagination_total(self):
+        responses = [{
+            'users': [{'id': 'alice'}], 'total_results': 3,
+        }, {
+            'users': [{'id': 'bob'}], 'total_results': 2,
+        }]
+        with mock.patch.object(exporter, 'fetch', side_effect=responses):
+            with self.assertRaisesRegex(ValueError, 'inconsistent user count'):
+                exporter.report_idp_sync_upgrade_risks(
+                    'https://osmo.example.com', {}, {
+                        'operator': {'sync_mode': 'force'},
+                    })
+
+    def test_idp_sync_preflight_enumerates_two_pages(self):
+        responses = [{
+            'users': [{'id': 'alice'}], 'total_results': 2,
+        }, {
+            'users': [{'id': 'bob'}], 'total_results': 2,
+        }, {
+            'roles': [],
+        }, {
+            'roles': [],
+        }]
+        with mock.patch.object(
+                exporter, 'fetch', side_effect=responses) as fetch:
+            exporter.report_idp_sync_upgrade_risks(
+                'https://osmo.example.com', {}, {
+                    'operator': {'sync_mode': 'force'},
+                })
+
+        self.assertIn(
+            'start_index=2', fetch.call_args_list[1].args[1])
+
+    def test_idp_sync_preflight_rejects_duplicate_users(self):
+        responses = [{
+            'users': [{'id': 'alice'}], 'total_results': 2,
+        }, {
+            'users': [{'id': 'alice'}], 'total_results': 2,
+        }]
+        with mock.patch.object(exporter, 'fetch', side_effect=responses):
+            with self.assertRaisesRegex(ValueError, 'duplicate user'):
+                exporter.report_idp_sync_upgrade_risks(
+                    'https://osmo.example.com', {}, {
+                        'operator': {'sync_mode': 'force'},
+                    })
 
 
 class ConfigVerificationTest(unittest.TestCase):
 
     @staticmethod
-    def _write_rendered_config(path, runtime):
+    def _write_rendered_config(path, runtime, inject_runtime_images=True):
+        runtime = copy.deepcopy(runtime)
+        if inject_runtime_images:
+            backend_images = runtime.setdefault(
+                'workflow', {}).setdefault('backend_images', {})
+            backend_images.setdefault(
+                'init', 'registry.example.com/osmo/init-container:6.4')
+            backend_images.setdefault(
+                'client', 'registry.example.com/osmo/client:6.4')
         with open(path, 'w', encoding='utf-8') as rendered_file:
             yaml.safe_dump_all(
                 [
@@ -384,6 +569,18 @@ class ConfigVerificationTest(unittest.TestCase):
             self._write_rendered_config(rendered_path, mismatched)
 
             with self.assertRaisesRegex(ValueError, 'does not match'):
+                exporter.verify_rendered_config(
+                    configs, rendered_path, temp_dir)
+
+    def test_rendered_config_requires_release_owned_workflow_images(self):
+        configs = _empty_export()
+        runtime = exporter.to_runtime_config(configs)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            rendered_path = os.path.join(temp_dir, 'rendered.yaml')
+            self._write_rendered_config(
+                rendered_path, runtime, inject_runtime_images=False)
+            with self.assertRaisesRegex(ValueError, 'release-owned workflow'):
                 exporter.verify_rendered_config(
                     configs, rendered_path, temp_dir)
 

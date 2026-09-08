@@ -771,7 +771,8 @@ func TestFileBackedCheck_AdminAccess(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)
 
-	req := makeFileBackedCheckRequest("admin@test.com", "/api/workflow/123", "GET", "admin-group")
+	req := makeFileBackedCheckRequest("admin@test.com", "/api/workflow/123", "GET", "osmo-admin")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -786,7 +787,8 @@ func TestFileBackedCheck_UserAccess(t *testing.T) {
 	server := newFileBackedTestServer(t, path)
 
 	// /api/profile/settings GET → profile:Read which osmo-user has
-	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "user-group")
+	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "osmo-user")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -801,7 +803,8 @@ func TestFileBackedCheck_UserDenied(t *testing.T) {
 	server := newFileBackedTestServer(t, path)
 
 	// User group doesn't have config:Write
-	req := makeFileBackedCheckRequest("user@test.com", "/api/configs/service", "PATCH", "user-group")
+	req := makeFileBackedCheckRequest("user@test.com", "/api/configs/service", "PATCH", "osmo-user")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -811,18 +814,18 @@ func TestFileBackedCheck_UserDenied(t *testing.T) {
 	}
 }
 
-func TestFileBackedCheck_ExternalRoleResolution(t *testing.T) {
+func TestFileBackedCheck_HumanRoleSyncFailsClosedWithoutPostgres(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)
 
-	// Send external IDP role "admin-group" — should resolve to osmo-admin
+	// A human IDP claim must never authorize without persisted assignment sync.
 	req := makeFileBackedCheckRequest("boss@test.com", "/api/configs/pool", "DELETE", "admin-group")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.GetDeniedResponse() != nil {
-		t.Errorf("admin-group should resolve to osmo-admin with *:* access")
+	if resp.GetDeniedResponse() == nil {
+		t.Fatal("human IDP role authorized without PostgreSQL synchronization")
 	}
 }
 
