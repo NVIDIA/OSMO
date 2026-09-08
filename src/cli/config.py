@@ -1209,9 +1209,11 @@ Creating a new backend role::
     tag_parser = config_subparsers.add_parser(
         'tag',
         help='Retired in 6.4: revision tags are no longer managed by OSMO',
-        description='Retired in 6.4: revision tags are no longer managed by OSMO. Tags were used for organizing configs by '
-                    'category and filtering output of ``osmo config history``. Tags do not '
-                    'affect the configuration itself.',
+        description=(
+            'Retired in 6.4: revision tags are no longer managed by OSMO. '
+            'Tags were used for organizing configs by category and filtering '
+            'output of ``osmo config history``. Tags do not affect the '
+            'configuration itself.'),
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
