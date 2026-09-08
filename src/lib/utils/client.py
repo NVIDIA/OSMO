@@ -167,26 +167,22 @@ def handle_response(response, mode: ResponseMode = ResponseMode.JSON):
         logging.error('Server responded with status code %s', response.status_code)
 
     if response.status_code >= 400 and response.status_code < 500:
+        # Never surface a blank error: fall back to the raw body, then to the status code.
+        body = response.text or f'Server returned HTTP {response.status_code} with an empty body.'
         try:
-            payload = json.loads(response.text)
+            payload = json.loads(body)
         except json.decoder.JSONDecodeError as err:
             raise osmo_errors.OSMOUserError(
-                response.text, status_code=response.status_code) from err
+                body, status_code=response.status_code) from err
 
-        if 'error_code' in payload:
-            if payload['error_code'] in \
-                    [member.value for member in osmo_errors.SubmissionErrorCode]:
-                raise osmo_errors.OSMOSubmissionError(payload['message'],
-                                                      workflow_id=payload.get('workflow_id', ''),
-                                                      status_code=response.status_code)
-            if payload['error_code'] == 'CREDENTIAL':
-                raise osmo_errors.OSMOCredentialError(payload['message'],
-                                                      workflow_id=payload.get('workflow_id', ''),
-                                                      status_code=response.status_code)
+        if 'error_code' not in payload:
+            raise osmo_errors.OSMOUserError(body, status_code=response.status_code)
 
-            raise osmo_errors.OSMOUserError(payload['message'], status_code=response.status_code)
-        else:
-            raise osmo_errors.OSMOUserError(response.text, status_code=response.status_code)
+        error_class = osmo_errors.ERROR_CODE_CLASSES.get(
+            payload['error_code'], osmo_errors.OSMOUserError)
+        raise error_class(payload.get('message') or body,
+                          workflow_id=payload.get('workflow_id', ''),
+                          status_code=response.status_code)
 
     # Check for a 500 status code, indicating a server error
     if response.status_code >= 500:

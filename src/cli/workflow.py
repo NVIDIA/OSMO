@@ -30,7 +30,7 @@ import sys
 import termios
 import time
 import tty
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, NoReturn, Tuple
 
 import pydantic
 import requests  # type: ignore
@@ -694,6 +694,18 @@ def is_workflow_id(potential_id: str):
     return bool(match)
 
 
+# Service errors that mean "the workflow was rejected at submission time".
+SUBMIT_FAILURES = (osmo_errors.OSMOCredentialError, osmo_errors.OSMORegistryError,
+                   osmo_errors.OSMOSubmissionError)
+
+
+def _raise_submit_failure(err: osmo_errors.OSMOError) -> NoReturn:
+    """ Re-raises a rejected submission with the workflow ID the service reported. """
+    workflow_string = f'{err.workflow_id} ' if err.workflow_id is not None else ''
+    raise osmo_errors.OSMOSubmissionError(
+        f'Workflow {workflow_string}submit failed:\n{err}', workflow_id=err.workflow_id)
+
+
 def print_submission_results(result, args: argparse.Namespace, parent_workflow_id: str = ''):
     """ Print workflow submission results. """
     if args.format_type == 'json':
@@ -754,12 +766,8 @@ def _submit_workflow(service_client: client.ServiceClient, args: argparse.Namesp
                 payload=None,
                 params=params
             )
-        except (osmo_errors.OSMOCredentialError, osmo_errors.OSMOSubmissionError) as err:
-            workflow_string = \
-                f'{err.workflow_id} ' if err.workflow_id is not None else ''
-            raise osmo_errors.OSMOSubmissionError(
-                f'Workflow {workflow_string}submit failed:\n'
-                f'{err}', workflow_id=err.workflow_id)
+        except SUBMIT_FAILURES as err:
+            _raise_submit_failure(err)
 
         print_submission_results(result, args)
 
@@ -813,12 +821,8 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
     try:
         result = service_client.request(client.RequestMethod.POST, f'api/pool/{args.pool}/workflow',
                                         payload=template_data.to_dict(), params=params)
-    except (osmo_errors.OSMOCredentialError, osmo_errors.OSMOSubmissionError) as err:
-        workflow_string = \
-            f'{err.workflow_id} ' if err.workflow_id is not None else ''
-        raise osmo_errors.OSMOSubmissionError(
-            f'Workflow {workflow_string}submit failed:\n'
-            f'{err}', workflow_id=err.workflow_id)
+    except SUBMIT_FAILURES as err:
+        _raise_submit_failure(err)
 
     print_submission_results(result, args)
 
@@ -853,12 +857,8 @@ def _restart_workflow(service_client: client.ServiceClient, args: argparse.Names
         result = service_client.request(
             client.RequestMethod.POST,
             f'api/pool/{pool_name}/workflow/{args.workflow_id}/restart')
-    except (osmo_errors.OSMOCredentialError, osmo_errors.OSMOSubmissionError) as err:
-        workflow_string = \
-            f'{err.workflow_id} ' if err.workflow_id is not None else ''
-        raise osmo_errors.OSMOSubmissionError(
-            f'Workflow {workflow_string}submit failed:\n'
-            f'{err}', workflow_id=err.workflow_id)
+    except SUBMIT_FAILURES as err:
+        _raise_submit_failure(err)
 
     print_submission_results(result, args, args.workflow_id)
 

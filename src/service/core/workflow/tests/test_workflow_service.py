@@ -55,6 +55,7 @@ class WorkflowServiceTestCase(
 
     client: testclient.TestClient
     service_auth_file: IO[str]
+    test_image_digest: str
 
     @classmethod
     def setUpClass(cls):
@@ -85,7 +86,7 @@ class WorkflowServiceTestCase(
         cls.client = testclient.TestClient(service.app)
 
         # Create a test image
-        cls.registry_container.create_image(cls.TEST_IMAGE_NAME)
+        cls.test_image_digest = cls.registry_container.create_image(cls.TEST_IMAGE_NAME)
 
     def create_backend(self, backend_name: str):
         postgres_connector = postgres.PostgresConnector.get_instance()
@@ -170,6 +171,68 @@ class WorkflowServiceTestCase(
         logger.info('Checking if job %s is in queue', job_key)
         redis_client = self.redis_container.get_client()
         return redis_client.get(job_key) is not None
+
+    def submit_image(self, pool_name: str, platform_name: str,
+                     image: str, workflow_name: str):
+        """ Submits a single-task workflow that runs the given image. """
+        workflow_template = workflow.TemplateSpec(
+            file=f'''workflow:
+  name: {workflow_name}
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+      platform: {platform_name}
+  tasks:
+  - name: task1
+    image: {image}
+    command: [sh]
+    args: ["-c", "echo hello"]
+''',
+        )
+        return self.client.post(
+            f'/api/pool/{pool_name}/workflow',
+            json=workflow_template.model_dump(),
+        )
+
+    def test_submit_workflow_with_an_unresolvable_tag_reports_image_not_found(self):
+        pool_name = 'test_pool_missing_tag'
+        backend_name = 'test_backend_missing_tag'
+        platform_name = 'test_platform_missing_tag'
+        self.create_backend(backend_name)
+        self.create_pool(pool_name, backend_name, platform_name)
+        registry_url = self.ssl_proxy.get_endpoint(
+            registry.REGISTRY_NAME, registry.REGISTRY_PORT)
+
+        response = self.submit_image(
+            pool_name, platform_name,
+            f'{registry_url}/{self.TEST_IMAGE_NAME}:no-such-tag',
+            'missing_tag_workflow')
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertEqual(payload['error_code'], 'IMAGE_NOT_FOUND')
+        self.assertIn('Could not resolve image tag', payload['message'])
+        self.assertIn('no-such-tag', payload['message'])
+        self.assertNotIn('Unable to authenticate', payload['message'])
+        self.assertTrue(payload['workflow_id'])
+
+    def test_submit_workflow_resolves_the_same_repository_by_digest(self):
+        pool_name = 'test_pool_digest'
+        backend_name = 'test_backend_digest'
+        platform_name = 'test_platform_digest'
+        self.create_backend(backend_name)
+        self.create_pool(pool_name, backend_name, platform_name)
+        registry_url = self.ssl_proxy.get_endpoint(
+            registry.REGISTRY_NAME, registry.REGISTRY_PORT)
+
+        response = self.submit_image(
+            pool_name, platform_name,
+            f'{registry_url}/{self.TEST_IMAGE_NAME}@{self.test_image_digest}',
+            'digest_workflow')
+
+        self.assertEqual(response.status_code, 200, response.json())
 
     def test_submit_workflow_success(self):
         # Arrange

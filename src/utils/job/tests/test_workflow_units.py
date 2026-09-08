@@ -414,24 +414,99 @@ class WorkflowSpecValidateCredentialsTest(unittest.TestCase):
 
 
 class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
-    def test_validate_registry_raises_when_no_credential_authenticates(self):
-        spec = workflow.WorkflowSpec(
+    def _spec(self, image: str) -> workflow.WorkflowSpec:
+        return workflow.WorkflowSpec(
             name='wf',
-            tasks=[{'name': 'task', 'image': 'nvcr.io/nvstaging/osmo/app:latest',
-                    'command': ['echo']}])
+            tasks=[{'name': 'task', 'image': image, 'command': ['echo']}])
+
+    def _validate(self, spec: workflow.WorkflowSpec, response: mock.Mock,
+                  registry_creds: list | None = None):
+        database = _mock_database()
+        database.get_matching_registry_creds.return_value = registry_creds or []
+        with mock.patch('src.utils.job.workflow.common.registry_auth',
+                        return_value=response), \
+             mock.patch.object(connectors.PostgresConnector, 'get_instance',
+                               return_value=database):
+            return spec.validate_registry('alice', spec.tasks[0], {}, [])
+
+    def test_validate_registry_raises_when_no_credential_authenticates(self):
+        spec = self._spec('nvcr.io/nvstaging/osmo/app:latest')
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            self._validate(spec, mock.Mock(status_code=401),
+                           [('nvcr.io/nvstaging/osmo', {'username': 'user', 'auth': 'token'})])
+
+        self.assertIn('Unable to authenticate for pulling image', ctx.exception.message)
+        self.assertEqual(ctx.exception.workflow_id, 'wf')
+
+    def test_validate_registry_reports_a_missing_tag_as_an_image_not_found_error(self):
+        spec = self._spec('hijkzzz/molt:0.1')
+        response = mock.Mock(status_code=404)
+        response.json.return_value = {'errors': [{'code': 'MANIFEST_UNKNOWN'}]}
+
+        with self.assertRaises(osmo_errors.OSMOImageNotFoundError) as ctx:
+            self._validate(spec, response)
+
+        self.assertIn('Could not resolve image tag hijkzzz/molt:0.1', ctx.exception.message)
+        self.assertNotIn('Unable to authenticate', ctx.exception.message)
+        self.assertEqual(ctx.exception.workflow_id, 'wf')
+
+    def test_validate_registry_resolves_the_same_repository_by_digest(self):
+        digest = 'sha256:' + 'f' * 64
+        spec = self._spec(f'hijkzzz/molt:0.1@{digest}')
+        response = mock.Mock(status_code=200, headers={})
+
+        self.assertIs(self._validate(spec, response), response)
+
+    def test_validate_registry_reports_a_rate_limited_registry(self):
+        spec = self._spec('hijkzzz/molt:0.1')
+
+        with self.assertRaises(osmo_errors.OSMORegistryRateLimitError) as ctx:
+            self._validate(spec, mock.Mock(status_code=429))
+
+        self.assertIn('rate limited', ctx.exception.message)
+
+    def test_validate_registry_reports_an_unavailable_registry(self):
+        spec = self._spec('hijkzzz/molt:0.1')
+
+        with self.assertRaises(osmo_errors.OSMORegistryUnavailableError) as ctx:
+            self._validate(spec, mock.Mock(status_code=503))
+
+        self.assertIn('unavailable', ctx.exception.message)
+
+    def test_validate_registry_skips_credentials_a_failing_registry_cannot_accept(self):
+        """Rate limits and outages are not credential problems; do not retry per credential."""
+        spec = self._spec('hijkzzz/molt:0.1')
         database = _mock_database()
         database.get_matching_registry_creds.return_value = [
-            ('nvcr.io/nvstaging/osmo', {'username': 'user', 'auth': 'token'}),
+            ('registry-1.docker.io/hijkzzz', {'username': 'user', 'auth': 'token'}),
         ]
 
         with mock.patch('src.utils.job.workflow.common.registry_auth',
-                        return_value=mock.Mock(status_code=401)), \
+                        return_value=mock.Mock(status_code=429)) as registry_auth, \
              mock.patch.object(connectors.PostgresConnector, 'get_instance',
                                return_value=database):
-            with self.assertRaises(osmo_errors.OSMOCredentialError) as ctx:
+            with self.assertRaises(osmo_errors.OSMORegistryRateLimitError):
                 spec.validate_registry('alice', spec.tasks[0], {}, [])
 
-        self.assertIn('Unable to authenticate for pulling image', ctx.exception.message)
+        self.assertEqual(registry_auth.call_count, 1)
+
+    def test_validate_registry_classifies_the_last_credential_response(self):
+        """A credential that turns a 401 into a 404 reports the missing tag, not auth."""
+        spec = self._spec('hijkzzz/molt:0.1')
+        database = _mock_database()
+        database.get_matching_registry_creds.return_value = [
+            ('registry-1.docker.io/hijkzzz', {'username': 'user', 'auth': 'token'}),
+        ]
+        not_found = mock.Mock(status_code=404)
+        not_found.json.return_value = {'errors': [{'code': 'MANIFEST_UNKNOWN'}]}
+
+        with mock.patch('src.utils.job.workflow.common.registry_auth',
+                        side_effect=[mock.Mock(status_code=401), not_found]), \
+             mock.patch.object(connectors.PostgresConnector, 'get_instance',
+                               return_value=database):
+            with self.assertRaises(osmo_errors.OSMOImageNotFoundError):
+                spec.validate_registry('alice', spec.tasks[0], {}, [])
 
 
 class WorkflowSpecValidateGenericCredTest(unittest.TestCase):

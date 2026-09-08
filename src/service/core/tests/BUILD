@@ -71,6 +71,18 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_error_handlers",
+    srcs = ["test_error_handlers.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core:service_lib",
+        osmo_requirement("fastapi"),
+        osmo_tests_requirement("httpx"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
     name = "test_asyncio_startup",
     srcs = ["test_asyncio_startup.py"],
     deps = [

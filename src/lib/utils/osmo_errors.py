@@ -71,6 +71,26 @@ class OSMOCredentialError(OSMOError):
     error_code: str = 'CREDENTIAL'
 
 
+class OSMORegistryError(OSMOError):
+    """ Exception raised for container registry failures that are not credential problems. """
+    error_code: str = 'REGISTRY'
+
+
+class OSMOImageNotFoundError(OSMORegistryError):
+    """ Exception raised when a registry cannot resolve an image tag or digest. """
+    error_code: str = 'IMAGE_NOT_FOUND'
+
+
+class OSMORegistryRateLimitError(OSMORegistryError):
+    """ Exception raised when a registry rate limits the request. """
+    error_code: str = 'REGISTRY_RATE_LIMIT'
+
+
+class OSMORegistryUnavailableError(OSMORegistryError):
+    """ Exception raised when a registry is unreachable or returns a server error. """
+    error_code: str = 'REGISTRY_UNAVAILABLE'
+
+
 class OSMOSchemaError(OSMOError):
     """ Exception raised for errors in the Schema. """
     error_code: str = 'SCHEMA'
@@ -104,3 +124,18 @@ class OSMOBackendError(OSMOError):
 class OSMODataStorageError(OSMOError):
     """ Exception raised for data storage errors. """
     error_code: str = 'DATA_STORAGE'
+
+
+# Error codes that identify a workflow submission failure to API clients.
+SUBMISSION_ERROR_CODES: frozenset[str] = frozenset(
+    [member.value for member in SubmissionErrorCode] + [OSMOSubmissionError.error_code])
+
+# Maps the error_code an API response carries to the exception a client raises for it.
+# Submission codes deliberately collapse onto OSMOSubmissionError so callers catch one type.
+ERROR_CODE_CLASSES: dict[str, type[OSMOError]] = {
+    **{error_code: OSMOSubmissionError for error_code in SUBMISSION_ERROR_CODES},
+    OSMOCredentialError.error_code: OSMOCredentialError,
+    **{error_class.error_code: error_class
+       for error_class in (OSMORegistryError, OSMOImageNotFoundError,
+                           OSMORegistryRateLimitError, OSMORegistryUnavailableError)},
+}

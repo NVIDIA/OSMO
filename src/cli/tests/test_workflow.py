@@ -807,6 +807,30 @@ class SubmitWorkflowHelperTest(unittest.TestCase):
         self.assertEqual(params['env_vars'], ['DEBUG=1'])
         self.assertIn('name: sample', service_client.request.call_args.kwargs['payload']['file'])
 
+    def test_image_not_found_is_wrapped_with_the_workflow_id_and_registry_message(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        registry_message = ('Could not resolve image tag hijkzzz/molt:0.1: registry-1.docker.io '
+                            'returned 404 MANIFEST_UNKNOWN. Verify that the tag exists or submit '
+                            'an immutable digest.')
+        service_client.request.side_effect = osmo_errors.OSMOImageNotFoundError(
+            registry_message, workflow_id='wf-1')
+        template_data = workflow.TemplateData(
+            file=PLAIN_WORKFLOW_SPEC,
+            set_variables=[],
+            set_string_variables=[],
+            is_templated=False,
+        )
+        args = argparse.Namespace(
+            pool='pool-1', dry=False, set_env=[], rsync=None, format_type='text', priority=None)
+
+        with self.assertRaises(osmo_errors.OSMOSubmissionError) as ctx:
+            workflow.submit_workflow_helper(
+                service_client, args, template_data, '/workspace/workflow.yaml', {})
+
+        self.assertIn('Workflow wf-1 submit failed', ctx.exception.message)
+        self.assertIn(registry_message, ctx.exception.message)
+        self.assertEqual(ctx.exception.workflow_id, 'wf-1')
+
     def test_templated_spec_submission_uploads_the_original_template(self):
         service_client = mock.Mock(spec=client.ServiceClient)
         service_client.request.side_effect = [
