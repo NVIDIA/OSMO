@@ -720,15 +720,6 @@ export interface LabelsConfigOutput {
 }
 
 /**
- * Legacy path-based role action retained for 6.3 ConfigMap compatibility.
- */
-export interface LegacyRoleAction {
-  base?: string;
-  path?: string;
-  method?: string;
-}
-
-/**
  * Object storing info for all backends.
  */
 export interface ListBackendsResponse {
@@ -1431,7 +1422,7 @@ export interface PutResourceValidationsRequest {
  */
 export interface RolePolicy {
   effect?: PolicyEffect;
-  actions: (string | LegacyRoleAction)[];
+  actions: string[];
   resources?: string[];
 }
 

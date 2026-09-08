@@ -5072,6 +5072,27 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/unsafe-semantic-action.out" \
         'semantic action has unknown field "resources"'
+    local legacy_action_path
+    for legacy_action_path in '/api/workflow/*' '!/api/workflow/*' '/api/workflow/123'; do
+        if helm_template legacy-role-action "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string 'configuration.roles.osmo-default.policies[0].actions[0]=*:*' \
+            --set-string 'configuration.roles.osmo-default.policies[0].resources[0]=*' \
+            --set-string 'configuration.roles.osmo-default.policies[1].effect=Deny' \
+            --set-string "configuration.roles.osmo-default.policies[1].actions[0].path=$legacy_action_path" \
+            --set-string 'configuration.roles.osmo-default.policies[1].actions[0].method=GET' \
+            >"$TEST_DIRECTORY/legacy-role-action.out" 2>&1; then
+            fail "expected legacy role actions to fail before deployment"
+        fi
+        require_contains "$TEST_DIRECTORY/legacy-role-action.out" \
+            'configuration role "osmo-default" policy 1 action 0: legacy path-based actions are not supported'
+    done
+    helm_template semantic-action-object "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string 'configuration.roles.osmo-default.policies[0].actions[0].action=workflow:Read' \
+        >"$TEST_DIRECTORY/semantic-action-object.yaml"
     helm_template authz-role-change "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

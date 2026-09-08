@@ -346,8 +346,7 @@ func parseFileRole(name string, fr fileRole) (*Role, error) {
 			policy.Resources = []string{}
 		}
 
-		// Parse actions: each element is either a string (semantic)
-		// or a map (legacy path-based).
+		// Semantic actions accept either a string or a single-key action map.
 		policy.Actions = make(RoleActions, 0, len(fp.Actions))
 		for j, action := range fp.Actions {
 			switch v := action.(type) {
@@ -357,42 +356,18 @@ func parseFileRole(name string, fr fileRole) (*Role, error) {
 				}
 				policy.Actions = append(policy.Actions, RoleAction{Action: v})
 			case map[string]any:
-				ra := RoleAction{}
-				if actionValue, semantic := v["action"]; semantic {
-					if len(v) != 1 {
-						return nil, fmt.Errorf(
-							"policy %d action %d: semantic action mapping may only contain action", i, j)
-					}
-					action, ok := actionValue.(string)
-					if !ok {
-						return nil, fmt.Errorf("policy %d action %d: action must be a string", i, j)
-					}
-					ra.Action = action
-				} else {
-					for field := range v {
-						if field != "base" && field != "path" && field != "method" {
-							return nil, fmt.Errorf(
-								"policy %d action %d: unknown legacy action field %q", i, j, field)
-						}
-					}
+				actionValue, semantic := v["action"]
+				if !semantic {
+					return nil, fmt.Errorf("policy %d action %d: legacy path-based actions are not supported; use semantic actions with explicit policy resources", i, j)
 				}
-				if s, ok := v["base"].(string); ok {
-					ra.Base = s
+				if len(v) != 1 {
+					return nil, fmt.Errorf("policy %d action %d: semantic action mapping may only contain action", i, j)
 				}
-				if s, ok := v["path"].(string); ok {
-					ra.Path = s
+				action, ok := actionValue.(string)
+				if !ok || !semanticActionPattern.MatchString(action) {
+					return nil, fmt.Errorf("policy %d action %d: action must be a valid semantic string", i, j)
 				}
-				if s, ok := v["method"].(string); ok {
-					ra.Method = s
-				}
-				if ra.Action != "" {
-					if !semanticActionPattern.MatchString(ra.Action) {
-						return nil, fmt.Errorf("policy %d action %d: invalid semantic action %q", i, j, ra.Action)
-					}
-				} else if !ra.IsLegacyAction() {
-					return nil, fmt.Errorf("policy %d action %d: action must not be empty", i, j)
-				}
-				policy.Actions = append(policy.Actions, ra)
+				policy.Actions = append(policy.Actions, RoleAction{Action: action})
 			default:
 				return nil, fmt.Errorf("policy %d action %d: unexpected type %T", i, j, action)
 			}

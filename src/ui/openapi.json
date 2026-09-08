@@ -8825,29 +8825,6 @@
         "title": "LabelsConfig",
         "description": "Curated workflow label policy; empty by default, so no policy\napplies until configured."
       },
-      "LegacyRoleAction": {
-        "properties": {
-          "base": {
-            "type": "string",
-            "title": "Base",
-            "default": ""
-          },
-          "path": {
-            "type": "string",
-            "title": "Path",
-            "default": ""
-          },
-          "method": {
-            "type": "string",
-            "title": "Method",
-            "default": ""
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "LegacyRoleAction",
-        "description": "Legacy path-based role action retained for 6.3 ConfigMap compatibility."
-      },
       "ListBackendsResponse": {
         "properties": {
           "backends": {
@@ -11762,6 +11739,7 @@
             "title": "External Roles"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name",
@@ -11812,6 +11790,7 @@
             "title": "External Roles"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name",
@@ -11829,14 +11808,7 @@
           },
           "actions": {
             "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "$ref": "#/components/schemas/LegacyRoleAction"
-                }
-              ]
+              "type": "string"
             },
             "type": "array",
             "title": "Actions"
@@ -11849,6 +11821,7 @@
             "title": "Resources"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "actions"

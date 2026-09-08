@@ -86,7 +86,7 @@
 {{- if or (not (hasKey $roleDefinition "description")) (not (hasKey $roleDefinition "policies")) -}}
 {{- fail (printf "configuration role %q requires description and policies" $roleName) -}}
 {{- end -}}
-{{- range $policy := get $roleDefinition "policies" -}}
+{{- range $policyIndex, $policy := get $roleDefinition "policies" -}}
 {{- if not (kindIs "map" $policy) -}}
 {{- fail (printf "configuration role %q policies must contain mapping definitions" $roleName) -}}
 {{- end -}}
@@ -95,7 +95,7 @@
 {{- fail (printf "configuration role %q has unknown policy field %q" $roleName $policyField) -}}
 {{- end -}}
 {{- end -}}
-{{- range $action := get $policy "actions" -}}
+{{- range $actionIndex, $action := get $policy "actions" -}}
 {{- if kindIs "map" $action -}}
 {{- if hasKey $action "action" -}}
 {{- range $actionField, $_ := $action -}}
@@ -104,11 +104,7 @@
 {{- end -}}
 {{- end -}}
 {{- else -}}
-{{- range $actionField, $_ := $action -}}
-{{- if not (has $actionField (list "base" "path" "method")) -}}
-{{- fail (printf "configuration role %q legacy action has unknown field %q" $roleName $actionField) -}}
-{{- end -}}
-{{- end -}}
+{{- fail (printf "configuration role %q policy %d action %d: legacy path-based actions are not supported; use semantic actions with explicit policy resources" $roleName $policyIndex $actionIndex) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

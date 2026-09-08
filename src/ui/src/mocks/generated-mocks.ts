@@ -700,15 +700,6 @@ export interface LabelsConfigOutput {
 }
 
 /**
- * Legacy path-based role action retained for 6.3 ConfigMap compatibility.
- */
-export interface LegacyRoleAction {
-  base?: string;
-  path?: string;
-  method?: string;
-}
-
-/**
  * Object storing info for all backends.
  */
 export interface ListBackendsResponse {
@@ -1409,7 +1400,7 @@ export interface PutResourceValidationsRequest {
  */
 export interface RolePolicy {
   effect?: PolicyEffect;
-  actions: (string | LegacyRoleAction)[];
+  actions: string[];
   resources?: string[];
 }
 
@@ -9005,14 +8996,7 @@ export const getListRolesApiConfigsRoleGetResponseMock = (): RoleOutput[] =>
     policies: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() => ({
       effect: faker.helpers.arrayElement(Object.values(PolicyEffect)),
       actions: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>
-        faker.helpers.arrayElement([
-          faker.string.alpha({ length: { min: 10, max: 20 } }),
-          {
-            base: faker.string.alpha({ length: { min: 10, max: 20 } }),
-            path: faker.string.alpha({ length: { min: 10, max: 20 } }),
-            method: faker.string.alpha({ length: { min: 10, max: 20 } }),
-          },
-        ]),
+        faker.string.alpha({ length: { min: 10, max: 20 } }),
       ),
       resources: faker.helpers.arrayElement([
         Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>
@@ -9042,14 +9026,7 @@ export const getReadRoleApiConfigsRoleNameGetResponseMock = (
   policies: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() => ({
     effect: faker.helpers.arrayElement(Object.values(PolicyEffect)),
     actions: Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>
-      faker.helpers.arrayElement([
-        faker.string.alpha({ length: { min: 10, max: 20 } }),
-        {
-          base: faker.string.alpha({ length: { min: 10, max: 20 } }),
-          path: faker.string.alpha({ length: { min: 10, max: 20 } }),
-          method: faker.string.alpha({ length: { min: 10, max: 20 } }),
-        },
-      ]),
+      faker.string.alpha({ length: { min: 10, max: 20 } }),
     ),
     resources: faker.helpers.arrayElement([
       Array.from({ length: faker.number.int({ min: 1, max: 10 }) }, (_, i) => i + 1).map(() =>

@@ -609,17 +609,36 @@ class TestValidateConfigs(unittest.TestCase):
                     'policies': [{
                         'actions': [
                             {'action': 'workflow:Read'},
-                            {
-                                'base': 'http',
-                                'path': '/api/workflow/*',
-                                'method': 'GET',
-                            },
+                            'workflow:Create',
                         ],
                     }],
                 },
             },
         })
         self.assertEqual(errors, [])
+
+    def test_legacy_role_actions_are_rejected_even_in_deny_policies(self):
+        for action in (
+            {'base': 'http', 'path': '/api/workflow/*', 'method': 'GET'},
+            {'path': '!/api/workflow/*', 'method': 'GET'},
+            {'path': '/api/workflow/123', 'method': 'GET'},
+            {'method': 'GET'},
+            {'path': 123, 'method': 'GET'},
+        ):
+            with self.subTest(action=action):
+                errors = configmap_loader._validate_configs({'roles': {
+                    'bad-role': {
+                        'description': 'Do not discard Deny',
+                        'policies': [
+                            {'actions': ['*:*'], 'resources': ['*']},
+                            {'effect': 'Deny', 'actions': [action]},
+                        ],
+                    },
+                }})
+                self.assertEqual(len(errors), 1)
+                self.assertIn('roles.bad-role', errors[0])
+                self.assertIn('policies.1.actions', errors[0])
+                self.assertIn('Action 0: legacy path-based actions', errors[0])
 
     def test_dangling_configmap_references_are_rejected(self):
         configs: Dict[str, Any] = {

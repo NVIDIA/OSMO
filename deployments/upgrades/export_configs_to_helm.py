@@ -831,6 +831,10 @@ def build_helm_values(configs, chart, mapped_secret_names):
             **configs,
         }
         return {'services': {'configs': managed}}
+    errors = configmap_loader._validate_configs(  # pylint: disable=protected-access
+        {'roles': configs.get('roles', {})})
+    if errors:
+        raise ValueError('Invalid unified-export roles: ' + '; '.join(errors))
     workflow = configs.get('workflow')
     if isinstance(workflow, dict):
         backend_images = workflow.get('backend_images')
@@ -909,15 +913,14 @@ def main():
                 configs, args.verify_rendered, args.secrets_root,
                 required_secret_paths)
             print('ConfigMap verification passed.', file=sys.stderr)
+        mapped_secret_names = [
+            reference['secretName'] for _, reference in mappings
+        ]
+        output = build_helm_values(
+            configs, args.chart, mapped_secret_names=mapped_secret_names)
     except (OSError, ValueError, yaml.YAMLError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 2
-
-    mapped_secret_names = [
-        reference['secretName'] for _, reference in mappings
-    ]
-    output = build_helm_values(
-        configs, args.chart, mapped_secret_names=mapped_secret_names)
 
     yaml.dump(output, sys.stdout, default_flow_style=False, sort_keys=False)
 

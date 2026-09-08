@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import copy
+import io
 import os
 from pathlib import Path
 import tempfile
@@ -44,6 +45,44 @@ def _empty_export() -> Dict[str, Any]:
 
 
 class SecretMappingTest(unittest.TestCase):
+
+    def test_legacy_actions_block_unified_export_without_partial_yaml(self):
+        configs = _empty_export()
+        configs['roles']['osmo-default']['policies'] = [
+            {'actions': ['*:*'], 'resources': ['*']},
+            {'effect': 'Deny', 'actions': [{
+                'base': 'http', 'path': '/api/workflow/*', 'method': 'GET',
+            }]},
+        ]
+        original = copy.deepcopy(configs)
+        with mock.patch.object(exporter, 'collect_configs', return_value=configs), \
+                mock.patch('sys.argv', ['export', '--url', 'https://osmo.example.com']), \
+                mock.patch('sys.stdout', new_callable=io.StringIO) as stdout, \
+                mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            self.assertEqual(exporter.main(), 2)
+        self.assertEqual(stdout.getvalue(), '')
+        self.assertIn('roles.osmo-default', stderr.getvalue())
+        self.assertIn('policies.1.actions', stderr.getvalue())
+        self.assertIn('Action 0: legacy path-based actions', stderr.getvalue())
+        self.assertEqual(configs, original)
+        legacy = exporter.build_helm_values(configs, 'legacy', [])
+        self.assertEqual(legacy['services']['configs']['roles'], configs['roles'])
+
+    def test_unified_export_validates_without_rewriting_role_definitions(self):
+        configs = _empty_export()
+        configs['roles']['osmo-default'].update({
+            'sync_mode': 'force',
+            'external_roles': ['idp-users'],
+            'policies': [
+                {'actions': ['workflow:Read', {'action': 'workflow:Create'}],
+                 'resources': ['pool/team-a']},
+                {'effect': 'Deny', 'actions': ['workflow:Create'], 'resources': []},
+            ],
+        })
+        original = copy.deepcopy(configs)
+        values = exporter.build_helm_values(configs, 'unified', [])
+        self.assertEqual(values['configuration']['snapshot']['roles'], original['roles'])
+        self.assertEqual(configs, original)
 
     def test_partial_api_export_is_rejected(self):
         with mock.patch.multiple(

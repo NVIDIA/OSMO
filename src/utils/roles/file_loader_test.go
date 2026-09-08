@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 package roles
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -204,21 +205,87 @@ pools: {}
 	}
 }
 
-func TestFileRoleStoreAcceptsCompatibleActionObjects(t *testing.T) {
+func TestFileRoleStoreEvaluatesSemanticActionEncodings(t *testing.T) {
 	path := writeRoleConfig(t, `
 roles:
   compatible-role:
     description: 6.3-compatible action encodings
     policies:
-    - actions:
+    - effect: Allow
+      actions:
+      - workflow:Create
       - action: workflow:Read
-      - base: http
-        path: /api/workflow/*
-        method: GET
+      resources: [pool/team-a]
+    - effect: Deny
+      actions: [{action: workflow:Create}]
+      resources: [pool/team-a]
 pools: {}
 `)
 	store := NewFileRoleStore(path, slog.Default())
 	if err := store.Load(); err != nil {
 		t.Fatalf("Load() rejected compatible action objects: %v", err)
+	}
+	role := store.GetRoles([]string{"compatible-role"})[0]
+	if result := CheckActionOnResource(role, ActionWorkflowRead, "pool/team-a"); !result.Allowed {
+		t.Fatalf("scoped Read denied: %+v", result)
+	}
+	if result := CheckActionOnResource(role, ActionWorkflowRead, "pool/team-b"); result.Allowed {
+		t.Fatalf("unrelated pool authorized: %+v", result)
+	}
+	if result := CheckActionOnResource(role, ActionWorkflowCreate, "pool/team-a"); !result.Denied || result.Allowed {
+		t.Fatalf("explicit Deny did not override Allow: %+v", result)
+	}
+}
+
+func TestFileRoleStoreRejectsLegacyActionsAtomically(t *testing.T) {
+	for _, action := range []string{
+		`{base: http, path: /api/workflow/*, method: GET}`,
+		`{path: "!/api/workflow/*", method: GET}`,
+		`{path: /api/workflow/123, method: GET}`,
+		`{method: GET}`,
+		`{path: 123, method: GET}`,
+	} {
+		t.Run(action, func(t *testing.T) {
+			path := writeRoleConfig(t, `
+roles: {original: {description: original, policies: [], external_roles: [original-idp]}}
+pools: {original: {}}
+`)
+			store := NewFileRoleStore(path, slog.Default())
+			if err := store.Load(); err != nil {
+				t.Fatal(err)
+			}
+			invalid := fmt.Sprintf(`
+roles:
+  a-valid: {description: valid, policies: []}
+  bad-role:
+    description: Must not silently discard Deny
+    external_roles: [new-idp]
+    policies:
+    - effect: Allow
+      actions: ["*:*"]
+      resources: ["*"]
+    - effect: Deny
+      actions: [%s]
+pools: {replacement: {}}
+`, action)
+			if err := os.WriteFile(path, []byte(invalid), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, candidate := range []*FileRoleStore{store, NewFileRoleStore(path, slog.Default())} {
+				err := candidate.Load()
+				if err == nil || !strings.Contains(err.Error(), `invalid role "bad-role": policy 1 action 0: legacy path-based actions`) {
+					t.Fatalf("expected actionable rejection, got %v", err)
+				}
+				if got := candidate.GetRoles([]string{"a-valid", "bad-role"}); len(got) != 0 {
+					t.Fatalf("published partial role snapshot: %+v", got)
+				}
+				if got := candidate.ResolveExternalRoles([]string{"new-idp"}); len(got) != 0 {
+					t.Fatalf("published partial mappings: %+v", got)
+				}
+			}
+			if len(store.GetRoles([]string{"original"})) != 1 || strings.Join(store.GetPoolNames(), ",") != "original" {
+				t.Fatal("failed load changed previous snapshot")
+			}
+		})
 	}
 }
