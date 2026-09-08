@@ -516,23 +516,21 @@ func TestDefaultRoleAccess(t *testing.T) {
 }
 
 func TestAdminRoleAccess(t *testing.T) {
-	// Legacy admin role format - will be converted to semantic
-	// Note: deny patterns are ignored during conversion, so admin gets full access
 	adminRole := &roles.Role{
 		Name: "osmo-admin",
 		Policies: []roles.RolePolicy{
 			{
-				Actions: []roles.RoleAction{
-					{Base: "http", Path: "*", Method: "*"},
-					// These deny patterns are ignored during conversion
-					{Base: "http", Path: "!/api/agent/*", Method: "*"},
-					{Base: "http", Path: "!/api/logger/*", Method: "*"},
-				},
+				Effect:    roles.EffectAllow,
+				Actions:   roles.RoleActions{{Action: "*:*"}},
+				Resources: []string{"*"},
+			},
+			{
+				Effect:    roles.EffectDeny,
+				Actions:   roles.RoleActions{{Action: "internal:*"}},
+				Resources: []string{"*"},
 			},
 		},
 	}
-	// Convert to semantic - deny patterns are ignored
-	adminRole = roles.ConvertRoleToSemantic(adminRole)
 
 	tests := []struct {
 		name       string
@@ -548,26 +546,32 @@ func TestAdminRoleAccess(t *testing.T) {
 		},
 		{
 			name:       "workflow POST accessible",
-			path:       "/api/workflow",
+			path:       "/api/pool/default/workflow",
 			method:     "POST",
 			wantAccess: true,
 		},
 		{
-			name:       "agent endpoint accessible (deny ignored in conversion)",
+			name:       "agent endpoint denied",
 			path:       "/api/agent/listener/status",
 			method:     "GET",
-			wantAccess: true, // Deny patterns are ignored during conversion
+			wantAccess: false,
 		},
 		{
-			name:       "logger endpoint accessible (deny ignored in conversion)",
-			path:       "/api/logger/workflow/logs",
+			name:       "logger endpoint denied",
+			path:       "/api/logger/workflow/test-workflow/osmo_ctrl/logs",
 			method:     "GET",
-			wantAccess: true, // Deny patterns are ignored during conversion
+			wantAccess: false,
+		},
+		{
+			name:       "router backend endpoint denied",
+			path:       "/api/router/exec/test-workflow/backend/connect",
+			method:     "WEBSOCKET",
+			wantAccess: false,
 		},
 		{
 			name:       "router client endpoint accessible",
 			path:       "/api/router/exec/abc/client/connect",
-			method:     "GET",
+			method:     "WEBSOCKET",
 			wantAccess: true,
 		},
 	}

@@ -10,12 +10,13 @@ INSERT INTO roles (name, description, policies, immutable) VALUES (
     TRUE
 );
 
--- Admin role: full access
+-- Admin role: full access except internal endpoints
 INSERT INTO roles (name, description, policies, immutable) VALUES (
     'osmo-admin',
-    'Full admin access',
+    'Full admin access except internal endpoints',
     ARRAY[
-        '{"actions": ["*:*"], "resources": ["*"]}'::jsonb
+        '{"actions": ["*:*"], "resources": ["*"]}'::jsonb,
+        '{"effect": "Deny", "actions": ["internal:*"], "resources": ["*"]}'::jsonb
     ],
     TRUE
 );
