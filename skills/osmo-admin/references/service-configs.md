@@ -33,8 +33,8 @@ names, pools, backends, storage, or role names.
 Use only the config files the user identifies or files reached from the provided
 config root. Some deployments render `services.configs` into service config
 data, but this public skill does not assume a deployment mechanism. Do not use
-direct CLI/API config paths for this skill, including read-only `osmo config`
-show/list/get/history/rollback commands.
+direct live configuration API paths for this skill, including read-only query,
+history, or rollback operations.
 
 ## Canonical Schema Source
 
@@ -473,5 +473,5 @@ For rollback:
 4. Show the local diff and stop before any external review or rollout process
    unless the user provides that process and explicitly asks.
 
-Do not use `osmo config history`, `osmo config rollback`, live API writes, or
-cluster mutation.
+Do not use direct live configuration history or rollback operations, live API
+writes, or cluster mutation.

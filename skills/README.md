@@ -75,8 +75,8 @@ skills/
 ```
 
 Use `osmo-user` for live workflow operations, `osmo-deploy` for standing up OSMO, and `osmo-admin` for config-file
-service administration in a user-provided config root. `osmo-admin` does not run `osmo config`, mutate live Kubernetes
-resources, run deployment syncs, or print secret payloads.
+service administration in a user-provided config root. `osmo-admin` does not use direct live configuration APIs, mutate
+live Kubernetes resources, run deployment syncs, or print secret payloads.
 
 ## License
 

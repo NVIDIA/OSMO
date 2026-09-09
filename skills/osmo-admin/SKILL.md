@@ -41,8 +41,9 @@ Before listing, searching, or reading the workspace:
 
 ## Purpose
 
-Route OSMO config-admin questions to verified service values or local file
-diffs. This skill is config-root agnostic: it does not assume a repo layout,
+Route OSMO configuration-administration questions to verified service values or
+local file diffs. This skill is config-root agnostic: it does not assume a repo
+layout,
 environment name, identity provider, storage backend, approval process, or
 deployment mechanism.
 
@@ -68,9 +69,9 @@ workflow events/logs/status, workflow exec/port-forward/rsync, live resource or
 capacity availability, node/pod/scheduler diagnostics, raw Kubernetes
 troubleshooting, live cluster operations for workloads or resources, or
 incident response. Route those to live workflow or cluster support instead.
-Activate for live OSMO service-config requests such as `osmo config`, direct
-config API calls, or service ConfigMap reads/writes only to refuse that live
-path and ask for an explicit config root or values file for local config work.
+Activate for direct live OSMO service-config API calls or service ConfigMap
+reads/writes only to refuse that live path and ask for an explicit config root
+or values file for local config work.
 If live workflow terms appear, including workflow IDs, stuck, pending, events,
 logs, status, pod/node/scheduler diagnostics, resource availability, or GPU
 capacity, stop before reading references or local configs and ask for live
@@ -88,10 +89,9 @@ Use this skill for OSMO admin questions about:
 - config history or rollback only when history is available in the provided
   config workspace
 
-If the user asks to read or mutate OSMO admin config through a live path such as
-`osmo config`, a direct OSMO API config call, or a Kubernetes ConfigMap, use
-this skill only to refuse the live path and ask for an explicit config root or
-values file for local config work.
+If the user asks to read or mutate OSMO admin config through a direct live API
+or a Kubernetes ConfigMap, use this skill only to refuse the live path and ask
+for an explicit config root or values file for local config work.
 
 Do not use this skill for user workflow submission/debugging, OSMO
 installation/deployment, or generic Kubernetes help.
@@ -133,9 +133,9 @@ installation/deployment, or generic Kubernetes help.
    placeholder names in clearly labeled examples.
 8. Do not treat the working directory as the config root unless the user
    explicitly identifies it as the config root.
-9. Never run `osmo config` commands or direct OSMO API config calls, including
-   read-only `show`, `list`, `get`, `history`, or `rollback` commands. Answer
-   from an explicit config root or values file, or ask for one.
+9. Never use direct OSMO API config calls, including read-only queries, history,
+   or rollback operations. Answer from an explicit config root or values file,
+   or ask for one.
 10. Never run live mutation commands, including cluster mutation, deployment
    sync, or rollout commands.
 11. Never run destructive shell cleanup or repo-destructive commands, including
@@ -180,6 +180,6 @@ values.
 |---|---|
 | Config root is missing | Ask for the exact config root or values file unless the user only wants a generic example. |
 | Target deployment or pool is ambiguous | Ask for the config root or values file plus the exact deployment and target name. |
-| User asks for `osmo config` | Refuse the live config path and ask for the config root or values file. |
+| User requests live configuration access | Refuse the live path and ask for the config root or values file. |
 | User asks for live mutation | Refuse the live path and offer a local config diff. |
 | Secret payload is requested | Refuse payload output; cite only secret names and keys. |
