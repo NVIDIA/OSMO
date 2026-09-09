@@ -16,10 +16,12 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 import datetime
 import unittest
 from unittest import mock
 
+from src.lib.data import storage
 from src.lib.utils import osmo_errors
 from src.service.core.app import app_service, objects as app_objects
 from src.tests.common import runner
@@ -242,7 +244,7 @@ class TestGetAppContent(unittest.TestCase):
 
         self.assertIn('credential is not set', str(ctx.exception))
 
-    def test_get_app_content_returns_stream_from_storage(self):
+    def test_get_app_content_returns_content_after_reading_storage(self):
         ready_version = _make_app_version(status=job_app.AppStatus.READY)
         workflow_config = mock.Mock()
         workflow_config.workflow_app.credential = mock.Mock(name='cred')
@@ -264,23 +266,161 @@ class TestGetAppContent(unittest.TestCase):
 
         storage_create.assert_called_once()
         storage_client.get_object_stream.assert_called_once_with(ready_version.uri)
-        # A StreamingResponse is returned; verify status is a 2xx (fastapi default).
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            b''.join(asyncio.run(self._read_streaming_response(response))),
+            b'workflow:\n  name: x\n',
+        )
+
+    def test_get_app_content_returns_large_content_without_truncation(self):
+        ready_version = _make_app_version(status=job_app.AppStatus.READY)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        chunk = b'x' * (128 * 1024)
+        storage_client.get_object_stream.return_value = iter([chunk, b'y'])
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db',
+                               return_value=ready_version), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock()
+
+            response = app_service.get_app_content(name='my_app', version=None)
+
+        response_chunks = asyncio.run(self._read_streaming_response(response))
+
+        self.assertEqual(b''.join(response_chunks), chunk + b'y')
+        self.assertLessEqual(max(len(response_chunk) for response_chunk in response_chunks),
+                             64 * 1024)
+
+    @staticmethod
+    async def _read_streaming_response(response) -> list[bytes]:
+        chunks = []
+        async for chunk in response.body_iterator:
+            chunks.append(chunk)
+        if response.background is not None:
+            await response.background()
+        return chunks
+
+    def test_get_app_content_raises_safe_error_when_storage_read_fails(self):
+        ready_version = _make_app_version(status=job_app.AppStatus.READY)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+
+        def failing_stream():
+            yield b''
+            raise RuntimeError('secret storage endpoint failed')
+
+        storage_client.get_object_stream.return_value = failing_stream()
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db',
+                               return_value=ready_version), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock()
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.get_app_content(name='my_app', version=None)
+
+        self.assertIn('retrieve app spec', str(raised.exception).lower())
+        self.assertNotIn('secret storage endpoint', str(raised.exception))
+
+    def test_get_app_content_raises_when_stored_spec_is_empty(self):
+        ready_version = _make_app_version(status=job_app.AppStatus.READY)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        storage_client.get_object_stream.return_value = iter([])
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db',
+                               return_value=ready_version), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock()
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.get_app_content(name='my_app', version=None)
+
+        self.assertIn('empty', str(raised.exception).lower())
+
+    def test_get_app_content_raises_when_stored_spec_exceeds_maximum_size(self):
+        ready_version = _make_app_version(status=job_app.AppStatus.READY)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        storage_client.get_object_stream.return_value = iter([
+            b'x' * (1024 * 1024),
+            b'y',
+        ])
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db',
+                               return_value=ready_version), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock()
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.get_app_content(name='my_app', version=None)
+
+        self.assertIn('maximum', str(raised.exception).lower())
 
 
 class TestCreateApp(unittest.TestCase):
     """Covers create_app (lines 118-128)."""
 
-    def test_create_app_validates_inserts_and_enqueues_upload(self):
+    def test_create_app_persists_content_before_returning(self):
         inserted_app = _make_app(name='my_app', owner='alice@example.com', uuid='new-uuid')
-        upload_instance = mock.Mock()
+        pending_version = _make_app_version(
+            uuid='new-uuid', status=job_app.AppStatus.PENDING)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        uploaded_content = []
+        storage_client = mock.Mock()
+
+        def capture_upload(source, **_kwargs):
+            with open(source, 'r', encoding='utf-8') as app_file:
+                uploaded_content.append(app_file.read())
+            return storage.UploadSummary(
+                start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+            )
+
+        storage_client.upload_objects.side_effect = capture_upload
 
         with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
              mock.patch.object(app_service.app, 'validate_app_content') as validate_mock, \
              mock.patch.object(app_service.app.App, 'insert_into_db',
                                return_value=inserted_app) as insert_mock, \
-             mock.patch.object(app_service.jobs, 'UploadApp',
-                               return_value=upload_instance) as upload_cls:
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db_with_uuid',
+                               return_value=pending_version), \
+             mock.patch.object(app_service.app.AppVersion, 'update_status') as update_mock, \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
             postgres_cls.get_instance.return_value = mock.Mock(name='postgres')
 
             app_service.create_app(
@@ -292,14 +432,160 @@ class TestCreateApp(unittest.TestCase):
 
         validate_mock.assert_called_once_with('workflow: {name: my_app}')
         insert_mock.assert_called_once()
-        upload_cls.assert_called_once_with(
-            app_uuid='new-uuid',
-            app_name='my_app',
-            app_version=1,
-            app_content='workflow: {name: my_app}',
-            user='alice@example.com',
+        self.assertEqual(uploaded_content, ['workflow: {name: my_app}'])
+        storage_client.upload_objects.assert_called_once_with(
+            source=mock.ANY,
+            destination_prefix='new-uuid/1',
+            destination_name='workflow_app.txt',
         )
-        upload_instance.send_job_to_queue.assert_called_once()
+        update_mock.assert_called_once_with(
+            postgres_cls.get_instance.return_value, job_app.AppStatus.READY)
+
+    def test_create_app_rolls_back_database_when_storage_write_fails(self):
+        inserted_app = _make_app(name='my_app', owner='alice@example.com', uuid='new-uuid')
+        pending_version = _make_app_version(
+            uuid='new-uuid', status=job_app.AppStatus.PENDING)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        storage_client.upload_objects.side_effect = RuntimeError(
+            'secret storage endpoint failed')
+        storage_client.delete_objects.return_value = storage.DeleteSummary(
+            start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app, 'validate_app_content'), \
+             mock.patch.object(app_service.app.App, 'insert_into_db',
+                               return_value=inserted_app), \
+             mock.patch.object(app_service.app.App,
+                               'delete_from_db_from_uuid') as delete_mock, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db_with_uuid',
+                               return_value=pending_version), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock(name='postgres')
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.create_app(
+                    name='my_app',
+                    description='a description',
+                    app_content='workflow: {name: my_app}',
+                    username='alice@example.com',
+                )
+
+        delete_mock.assert_called_once_with(
+            postgres_cls.get_instance.return_value, 'new-uuid')
+        self.assertIn('persist app spec', str(raised.exception).lower())
+        self.assertNotIn('secret storage endpoint', str(raised.exception))
+
+    def test_create_app_rolls_back_when_upload_summary_reports_failure(self):
+        inserted_app = _make_app(name='my_app', owner='alice@example.com', uuid='new-uuid')
+        pending_version = _make_app_version(
+            uuid='new-uuid', status=job_app.AppStatus.PENDING)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        storage_client.upload_objects.return_value = storage.UploadSummary(
+            start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+            failures=['secret storage endpoint failed'],
+        )
+        storage_client.delete_objects.return_value = storage.DeleteSummary(
+            start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app, 'validate_app_content'), \
+             mock.patch.object(app_service.app.App, 'insert_into_db',
+                               return_value=inserted_app), \
+             mock.patch.object(app_service.app.App,
+                               'delete_from_db_from_uuid') as delete_mock, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db_with_uuid',
+                               return_value=pending_version), \
+             mock.patch.object(app_service.app.AppVersion, 'update_status') as update_mock, \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock(name='postgres')
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.create_app(
+                    name='my_app',
+                    description='a description',
+                    app_content='workflow: {name: my_app}',
+                    username='alice@example.com',
+                )
+
+        delete_mock.assert_called_once_with(
+            postgres_cls.get_instance.return_value, 'new-uuid')
+        update_mock.assert_not_called()
+        self.assertNotIn('secret storage endpoint', str(raised.exception))
+
+    def test_create_app_removes_uploaded_object_when_status_update_fails(self):
+        inserted_app = _make_app(name='my_app', owner='alice@example.com', uuid='new-uuid')
+        pending_version = _make_app_version(
+            uuid='new-uuid', status=job_app.AppStatus.PENDING)
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='cred')
+        context = mock.Mock()
+        context.database.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+        storage_client.upload_objects.return_value = storage.UploadSummary(
+            start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+        storage_client.delete_objects.return_value = storage.DeleteSummary(
+            start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+        rollback_order = []
+
+        def record_database_rollback(*_args):
+            rollback_order.append('database')
+
+        def record_storage_cleanup(*_args, **_kwargs):
+            rollback_order.append('storage')
+            return storage.DeleteSummary(
+                start_time=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+            )
+
+        storage_client.delete_objects.side_effect = record_storage_cleanup
+
+        with mock.patch.object(app_service.connectors, 'PostgresConnector') as postgres_cls, \
+             mock.patch.object(app_service.app, 'validate_app_content'), \
+             mock.patch.object(app_service.app.App, 'insert_into_db',
+                               return_value=inserted_app), \
+             mock.patch.object(app_service.app.App, 'delete_from_db_from_uuid',
+                               side_effect=record_database_rollback) as delete_mock, \
+             mock.patch.object(app_service.app.AppVersion, 'fetch_from_db_with_uuid',
+                               return_value=pending_version), \
+             mock.patch.object(app_service.app.AppVersion, 'update_status',
+                               side_effect=osmo_errors.OSMODatabaseError(
+                                   'secret database error')), \
+             mock.patch.object(app_service.workflow_objects.WorkflowServiceContext, 'get',
+                               return_value=context), \
+             mock.patch.object(app_service.storage.Client, 'create',
+                               return_value=storage_client):
+            postgres_cls.get_instance.return_value = mock.Mock(name='postgres')
+
+            with self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+                app_service.create_app(
+                    name='my_app',
+                    description='a description',
+                    app_content='workflow: {name: my_app}',
+                    username='alice@example.com',
+                )
+
+        storage_client.delete_objects.assert_called_once_with(prefix='new-uuid/1')
+        delete_mock.assert_called_once_with(
+            postgres_cls.get_instance.return_value, 'new-uuid')
+        self.assertEqual(rollback_order, ['database', 'storage'])
+        self.assertNotIn('secret database error', str(raised.exception))
 
 
 class TestUpdateApp(unittest.TestCase):

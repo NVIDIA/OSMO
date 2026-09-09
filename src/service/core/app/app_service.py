@@ -16,7 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Dict, List
+import logging
+import tempfile
+from typing import Dict, Iterator, List
 
 import fastapi
 import fastapi.responses
@@ -31,6 +33,22 @@ from src.utils import connectors
 
 
 router = fastapi.APIRouter(tags = ['Workflow App API'])
+
+_APP_SPEC_MEMORY_LIMIT_BYTES = 64 * 1024
+_APP_SPEC_STREAM_CHUNK_SIZE_BYTES = 64 * 1024
+
+
+class _AppSpecTooLargeError(Exception):
+    pass
+
+
+def _stream_app_content(
+        app_content_file: tempfile.SpooledTemporaryFile[bytes]) -> Iterator[bytes]:
+    try:
+        while chunk := app_content_file.read(_APP_SPEC_STREAM_CHUNK_SIZE_BYTES):
+            yield chunk
+    finally:
+        app_content_file.close()
 
 
 @router.get(
@@ -87,7 +105,7 @@ def get_app(name: objects.AppNamePattern,
 
 @router.get('/api/app/user/{name}/spec', response_class=fastapi.responses.StreamingResponse)
 def get_app_content(name: objects.AppNamePattern,
-                    version: int | None = None):
+                    version: int | None = None) -> fastapi.responses.StreamingResponse:
     postgres = connectors.PostgresConnector.get_instance()
     app_info = app.AppVersion.fetch_from_db(
         postgres, common.AppStructure.from_parts(name, version=version))
@@ -100,13 +118,36 @@ def get_app_content(name: objects.AppNamePattern,
     if workflow_config.workflow_app.credential is None:
         raise osmo_errors.OSMOServerError('Workflow app credential is not set')
 
-    storage_client = storage.Client.create(
-        data_credential=workflow_config.workflow_app.credential,
-        scope_to_container=True,
-    )
+    app_content_file = tempfile.SpooledTemporaryFile(max_size=_APP_SPEC_MEMORY_LIMIT_BYTES)
+    try:
+        storage_client = storage.Client.create(
+            data_credential=workflow_config.workflow_app.credential,
+            scope_to_container=True,
+        )
+        for chunk in storage_client.get_object_stream(app_info.uri):
+            if app_content_file.tell() + len(chunk) > app.MAX_APP_SPEC_SIZE_BYTES:
+                raise _AppSpecTooLargeError
+            app_content_file.write(chunk)
+    except _AppSpecTooLargeError as error:
+        app_content_file.close()
+        raise osmo_errors.OSMODataStorageError(
+            f'Stored app spec exceeds maximum size of {app.MAX_APP_SPEC_SIZE_BYTES} bytes.'
+        ) from error
+    except Exception as error:  # pylint: disable=broad-except
+        app_content_file.close()
+        raise osmo_errors.OSMODataStorageError('Failed to retrieve app spec.') from error
 
+    if app_content_file.tell() == 0:
+        app_content_file.close()
+        raise osmo_errors.OSMODataStorageError('Stored app spec is empty.')
+
+    app_content_file.seek(0)
+    background_tasks = fastapi.BackgroundTasks()
+    background_tasks.add_task(app_content_file.close)
     return fastapi.responses.StreamingResponse(
-        storage_client.get_object_stream(app_info.uri),
+        _stream_app_content(app_content_file),
+        media_type='text/plain',
+        background=background_tasks,
     )
 
 
@@ -118,14 +159,35 @@ def create_app(name: objects.AppNamePattern,
     postgres = connectors.PostgresConnector.get_instance()
 
     app.validate_app_content(app_content)
+    context = workflow_objects.WorkflowServiceContext.get()
+    workflow_config = context.database.get_workflow_configs()
+    if workflow_config.workflow_app.credential is None:
+        raise osmo_errors.OSMOServerError('Workflow app credential is not set')
+
+    try:
+        storage_client = storage.Client.create(
+            data_credential=workflow_config.workflow_app.credential,
+        )
+    except Exception as error:  # pylint: disable=broad-except
+        raise osmo_errors.OSMODataStorageError('Failed to persist app spec.') from error
+
     app_info = app.App.insert_into_db(postgres, name, username, description)
-    upload_app = jobs.UploadApp(
-        app_uuid=app_info.uuid,
-        app_name=app_info.name,
-        app_version=1,
-        app_content=app_content,
-        user=username)
-    upload_app.send_job_to_queue()
+    try:
+        app.upload_app_content(postgres, storage_client, app_info.uuid, 1, app_content)
+    except Exception as error:  # pylint: disable=broad-except
+        try:
+            app.App.delete_from_db_from_uuid(postgres, app_info.uuid)
+        except Exception:  # pylint: disable=broad-except
+            logging.exception('Failed to roll back app %s after spec persistence failed.', name)
+        else:
+            try:
+                delete_summary = storage_client.delete_objects(prefix=f'{app_info.uuid}/1')
+                if delete_summary.failures:
+                    logging.error(
+                        'Failed to completely remove app %s content after creation failed.', name)
+            except Exception:  # pylint: disable=broad-except
+                logging.exception('Failed to remove app %s content after creation failed.', name)
+        raise osmo_errors.OSMODataStorageError('Failed to persist app spec.') from error
 
 
 @router.patch(

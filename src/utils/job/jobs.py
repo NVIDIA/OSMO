@@ -1987,21 +1987,13 @@ class UploadApp(FrontendJob):
             data_credential=workflow_config.workflow_app.credential,
         )
 
-        # Fetch app from database
-        app_info = app.AppVersion.fetch_from_db_with_uuid(
-            context.postgres, self.app_uuid, self.app_version)
-
-        with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8') as temp_file:
-            temp_file.write(self.app_content)
-            temp_file.flush()
-            storage_client.upload_objects(
-                source=temp_file.name,
-                destination_prefix=f'{self.app_uuid}/{self.app_version}',
-                destination_name=common.WORKFLOW_APP_FILE_NAME,
-            )
-
-        # Update app in database
-        app_info.update_status(context.postgres, app.AppStatus.READY)
+        app.upload_app_content(
+            context.postgres,
+            storage_client,
+            self.app_uuid,
+            self.app_version,
+            self.app_content,
+        )
 
         return JobResult()
 

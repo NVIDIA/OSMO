@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,13 +18,18 @@ SPDX-License-Identifier: Apache-2.0
 
 import datetime
 import enum
+import tempfile
 from typing import List
 
 import pydantic
 
+from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, workflow as workflow_utils
 from src.utils.job import common as job_common
 from src.utils import connectors
+
+
+MAX_APP_SPEC_SIZE_BYTES = 1024 * 1024
 
 
 class AppStatus(enum.Enum):
@@ -115,6 +120,16 @@ class App(pydantic.BaseModel):
             WHERE name = %s;
             '''
         database.execute_commit_command(delete_cmd, (app_name,))
+
+    @classmethod
+    def delete_from_db_from_uuid(cls, database: connectors.PostgresConnector,
+                                 app_uuid: str) -> None:
+        """Delete an app using its immutable identifier."""
+        delete_cmd = '''
+            DELETE FROM apps
+            WHERE uuid = %s;
+            '''
+        database.execute_commit_command(delete_cmd, (app_uuid,))
 
     @classmethod
     def insert_into_db(cls, database: connectors.PostgresConnector, name: str, user_name: str,
@@ -291,6 +306,33 @@ class AppVersion(pydantic.BaseModel):
         database.execute_commit_command(update_cmd, (status.value, self.uuid, self.version))
 
 
+def upload_app_content(database: connectors.PostgresConnector,
+                       storage_client: storage.Client,
+                       app_uuid: str,
+                       app_version: int,
+                       app_content: str) -> None:
+    """Upload an app spec and mark its database version ready."""
+    app_info = AppVersion.fetch_from_db_with_uuid(database, app_uuid, app_version)
+
+    with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8') as temp_file:
+        temp_file.write(app_content)
+        temp_file.flush()
+        upload_summary = storage_client.upload_objects(
+            source=temp_file.name,
+            destination_prefix=f'{app_uuid}/{app_version}',
+            destination_name=common.WORKFLOW_APP_FILE_NAME,
+        )
+
+    if upload_summary.failures:
+        raise osmo_errors.OSMODataStorageError('Failed to persist app spec.')
+
+    app_info.update_status(database, AppStatus.READY)
+
+
 def validate_app_content(app_content: str):
     """ Validate the app content """
+    if (len(app_content) > MAX_APP_SPEC_SIZE_BYTES or
+            len(app_content.encode('utf-8')) > MAX_APP_SPEC_SIZE_BYTES):
+        raise osmo_errors.OSMOUserError(
+            f'App spec exceeds maximum size of {MAX_APP_SPEC_SIZE_BYTES} bytes.')
     workflow_utils.parse_workflow_spec(app_content)

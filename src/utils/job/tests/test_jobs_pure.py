@@ -1930,6 +1930,39 @@ class CleanupWorkflowExecuteTest(unittest.TestCase):
         wf.update_events_to_db.assert_called_once()
 
 
+class UploadAppExecuteTest(unittest.TestCase):
+    """UploadApp.execute delegates storage persistence and finalization."""
+
+    def test_execute_uses_shared_upload_helper(self):
+        upload = jobs.UploadApp.model_construct(
+            app_uuid=WORKFLOW_UUID,
+            app_version=2,
+            app_content='workflow: {}',
+            job_id=f'{WORKFLOW_UUID}-2-upload-app',
+            job_type='UploadApp',
+            job_uuid='job-uuid-upload-app',
+        )
+        workflow_config = mock.Mock()
+        workflow_config.workflow_app.credential = mock.Mock(name='credential')
+        context = mock.Mock()
+        context.postgres.get_workflow_configs.return_value = workflow_config
+        storage_client = mock.Mock()
+
+        with mock.patch.object(jobs.storage.Client, 'create',
+                               return_value=storage_client), \
+             mock.patch.object(jobs.app, 'upload_app_content') as upload_helper:
+            result = upload.execute(context, mock.Mock())
+
+        self.assertEqual(result.status, jobs_base.JobStatus.SUCCESS)
+        upload_helper.assert_called_once_with(
+            context.postgres,
+            storage_client,
+            WORKFLOW_UUID,
+            2,
+            'workflow: {}',
+        )
+
+
 class UploadWorkflowFilesTest(unittest.TestCase):
     """UploadWorkflowFiles validators and execute."""
 

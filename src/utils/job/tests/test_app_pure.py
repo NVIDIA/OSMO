@@ -134,6 +134,22 @@ class AppDeleteFromDbTest(unittest.TestCase):
         database.execute_commit_command.assert_not_called()
 
 
+class AppDeleteFromDbFromUuidTest(unittest.TestCase):
+    """Tests for App.delete_from_db_from_uuid."""
+
+    def test_delete_from_db_from_uuid_uses_immutable_identifier(self):
+        database = _make_database()
+
+        app_module.App.delete_from_db_from_uuid(database, APP_UUID)
+
+        database.execute_fetch_command.assert_not_called()
+        database.execute_commit_command.assert_called_once()
+        args = database.execute_commit_command.call_args.args
+        self.assertIn('DELETE FROM apps', args[0])
+        self.assertIn('WHERE uuid', args[0])
+        self.assertEqual(args[1], (APP_UUID,))
+
+
 class AppInsertIntoDbTest(unittest.TestCase):
     """Tests for App.insert_into_db (app.py:120-149)."""
 
@@ -368,6 +384,26 @@ class ValidateAppContentTest(unittest.TestCase):
                                side_effect=osmo_errors.OSMOUserError('bad spec')):
             with self.assertRaises(osmo_errors.OSMOUserError):
                 app_module.validate_app_content('bad content')
+
+    def test_rejects_content_over_maximum_utf8_byte_size(self):
+        oversized_content = 'é' * ((1024 * 1024 // 2) + 1)
+
+        with mock.patch.object(app_module.workflow_utils,
+                               'parse_workflow_spec') as mock_parse:
+            with self.assertRaises(osmo_errors.OSMOUserError) as raised:
+                app_module.validate_app_content(oversized_content)
+
+        mock_parse.assert_not_called()
+        self.assertIn('maximum', str(raised.exception).lower())
+
+    def test_accepts_content_at_maximum_utf8_byte_size(self):
+        maximum_size_content = 'x' * (1024 * 1024)
+
+        with mock.patch.object(app_module.workflow_utils,
+                               'parse_workflow_spec') as mock_parse:
+            app_module.validate_app_content(maximum_size_content)
+
+        mock_parse.assert_called_once_with(maximum_size_content)
 
 
 if __name__ == '__main__':

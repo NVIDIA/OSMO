@@ -33,6 +33,7 @@ osmo_py_test(
     name = "test_app_service",
     srcs = ["test_app_service.py"],
     deps = [
+        "//src/lib/data/storage",
         "//src/lib/utils:osmo_errors",
         "//src/service/core/app:app",
         "//src/tests/common",
