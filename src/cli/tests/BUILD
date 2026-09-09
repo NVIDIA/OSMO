@@ -51,9 +51,9 @@ osmo_py_test(
 )
 
 py_test(
-    name = "test_config_update",
+    name = "test_config_show",
     srcs = [
-        "test_config_update.py"
+        "test_config_show.py"
     ],
     deps = [
         "//src/cli:cli_lib",
