@@ -331,6 +331,47 @@ class ServiceAuthBootstrapTest(unittest.TestCase):
         )
         self.assertNotIn('old-mek', migrated.canonical_json())
 
+    def test_legacy_standard_unpadded_mek_preserves_service_auth_identity(self):
+        service_auth = _authentication_config()
+        mek = jwk.JWK(
+            kty='oct',
+            kid='legacy-mek',
+            k='4OHi4-Tl5ufo6err7O3u7_Dx8vP09fb3-Pn6-_z9_v8',
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            mek_path = os.path.join(temporary_directory, 'mek.yaml')
+            _write_mek_file(mek_path, mek, [mek])
+            secret_manager = _secret_manager(mek_path)
+            encrypted_payload = service_auth.plaintext_dict()
+            active_key = encrypted_payload['active_key']
+            encrypted_payload['keys'][active_key]['private_key'] = (
+                secret_manager.encrypt(
+                    encrypted_payload['keys'][active_key]['private_key'], '').value)
+
+            with open(mek_path, encoding='utf-8') as mek_file:
+                mek_config = yaml.safe_load(mek_file)
+            encoded_jwk = mek_config['meks']['legacy-mek']
+            mek_jwk = json.loads(base64.b64decode(encoded_jwk).decode('utf-8'))
+            mek_jwk['k'] = '4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8'
+            mek_config['meks']['legacy-mek'] = base64.b64encode(
+                json.dumps(mek_jwk, separators=(',', ':')).encode('utf-8'),
+            ).decode('ascii')
+            with open(mek_path, 'w', encoding='utf-8') as mek_file:
+                yaml.safe_dump(mek_config, mek_file)
+
+            with mock.patch.object(
+                service_auth_bootstrap, '_create_bootstrap_secret',
+            ) as create_secret:
+                migrated = service_auth_bootstrap._decrypt_legacy_service_auth(
+                    json.dumps(encrypted_payload), _secret_manager(mek_path))
+
+        self.assertEqual(
+            migrated.canonical_json(include_login_info=False),
+            service_auth.canonical_json(include_login_info=False),
+        )
+        create_secret.assert_not_called()
+
     def test_invalid_legacy_payload_does_not_leak_private_value(self):
         sentinel = 'private-key-sentinel'
         payload = json.dumps({
