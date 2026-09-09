@@ -25,7 +25,8 @@ class BackendValuesConvertTest(unittest.TestCase):
                 path.write_text(yaml.safe_dump(value), encoding='utf-8')
                 paths.append(str(path))
             return subprocess.run(
-                [sys.executable, str(script), *paths, *arguments],
+                [sys.executable, str(script), *paths,
+                 '--release-name', 'test-backend-operator', *arguments],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -105,7 +106,8 @@ class BackendValuesConvertTest(unittest.TestCase):
             values_path = pathlib.Path(temporary_directory) / 'values.yaml'
             values_path.write_text(yaml.safe_dump(legacy), encoding='utf-8')
             completed = subprocess.run(
-                [sys.executable, str(script), str(values_path)],
+                [sys.executable, str(script), str(values_path),
+                 '--release-name', 'stg-dgx-h100-dev-backend-operator'],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -184,6 +186,12 @@ class BackendValuesConvertTest(unittest.TestCase):
         )
         test_runner = converted['services']['backendTestRunner']
         self.assertTrue(test_runner['enabled'])
+        self.assertEqual(test_runner['extraArgs'], ['--prefix', 'osmo'])
+        self.assertEqual(test_runner['labels'], {
+            'managed-by': 'backend-operator',
+        })
+        self.assertEqual(test_runner['serviceAccount']['name'],
+                         'stg-dgx-h100-dev-backend-operator-test-runner')
         self.assertEqual(test_runner['image'], {
             'registry': 'nvcr.io',
             'repository': 'nvstaging/osmo/backend-test-runner',
@@ -206,7 +214,8 @@ class BackendValuesConvertTest(unittest.TestCase):
             values_path = pathlib.Path(temporary_directory) / 'values.yaml'
             values_path.write_text(yaml.safe_dump(legacy), encoding='utf-8')
             completed = subprocess.run(
-                [sys.executable, str(script), str(values_path)],
+                [sys.executable, str(script), str(values_path),
+                 '--release-name', 'test-backend-operator'],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -230,6 +239,10 @@ class BackendValuesConvertTest(unittest.TestCase):
         self.assertEqual(
             converted['services']['backendWorker']['extraArgs'],
             ['--progress_iter_frequency=15s'],
+        )
+        self.assertEqual(
+            converted['services']['backendTestRunner']['extraArgs'],
+            ['--prefix', 'osmo'],
         )
 
     def test_cli_uses_explicit_global_name_as_fullname_override(self) -> None:

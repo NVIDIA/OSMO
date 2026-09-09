@@ -162,9 +162,11 @@ def _argument(name: str, value: Any) -> str:
 class _Converter:
     """Stateful backend values converter."""
 
-    def __init__(self, values: YamlObject, release_namespace: str):
+    def __init__(self, values: YamlObject, release_namespace: str,
+                 release_name: str | None):
         self.source = copy.deepcopy(values)
         self.release_namespace = release_namespace
+        self.legacy_base_name = release_name
         self.output: YamlObject = {
             'planes': {
                 'control': {'enabled': False},
@@ -231,6 +233,8 @@ class _Converter:
                 'backendTestRunner': {
                     'enabled': True,
                     'image': {'pullPolicy': 'Always'},
+                    'extraArgs': ['--prefix', 'osmo'],
+                    'labels': {'managed-by': 'backend-operator'},
                 },
             },
         }
@@ -257,6 +261,11 @@ class _Converter:
         name = _pop(self.source, 'global.name')
         if name not in (MISSING, None, ''):
             _set(self.output, 'fullnameOverride', name)
+            self.legacy_base_name = str(name)
+        if self.legacy_base_name:
+            _set(self.output,
+                 'services.backendTestRunner.serviceAccount.name',
+                 f'{self.legacy_base_name}-test-runner')
         _move(self.source, self.output, 'global.serviceUrl', 'externalUrl')
         _move(self.source, self.output, 'global.backendName',
               'compute.backendName')
@@ -566,12 +575,16 @@ class _Converter:
                      f'services.backendTestRunner.{new_key}',
                      pod_template.pop(old_key))
         service_account = pod_template.pop('serviceAccount', MISSING)
-        if service_account not in (MISSING, 'test-runner'):
-            self.issue(
-                'backendTestRunner.podTemplate.serviceAccount',
-                'custom service-account suffixes require the final rendered '
-                'legacy account name in '
-                'services.backendTestRunner.serviceAccount.name')
+        if service_account is not MISSING:
+            if (not isinstance(service_account, str)
+                    or not service_account):
+                self.issue(
+                    'backendTestRunner.podTemplate.serviceAccount',
+                    'expected a non-empty string')
+            elif self.legacy_base_name:
+                _set(self.output,
+                     'services.backendTestRunner.serviceAccount.name',
+                     f'{self.legacy_base_name}-{service_account}')
         for ignored_key in ('dnsPolicy', 'dnsConfig', 'hostnameTemplate',
                             'subdomain'):
             pod_template.pop(ignored_key, None)
@@ -584,6 +597,12 @@ class _Converter:
               'monitoring.podMonitor.compute.enabled')
         _move(self.source, self.output, 'extraConfigMaps',
               'compute.extraConfigMaps')
+        if (self.output['services']['backendTestRunner'].get('enabled', True)
+                and not self.legacy_base_name):
+            self.issue(
+                '--release-name',
+                'required to preserve the legacy backend test-runner '
+                'ServiceAccount name when global.name is unset')
         remaining = _prune_empty(self.source)
         for path in _leaf_paths(remaining):
             self.issue(path, 'no umbrella-chart mapping')
@@ -592,9 +611,10 @@ class _Converter:
 
 
 def convert_values(values: YamlObject,
-                   release_namespace: str = 'osmo') -> ConversionResult:
+                   release_namespace: str = 'osmo',
+                   release_name: str | None = None) -> ConversionResult:
     """Convert merged legacy backend values without discarding a key."""
-    converter = _Converter(values, release_namespace)
+    converter = _Converter(values, release_namespace, release_name)
     converter.convert_global()
     converter.convert_services()
     converter.convert_test_runner()
@@ -631,6 +651,10 @@ def _parser() -> argparse.ArgumentParser:
         help=('namespace where the umbrella Helm release will run; must '
               'match legacy global.agentNamespace (default: osmo)'))
     parser.add_argument(
+        '--release-name',
+        help=('existing Helm release name; required when the legacy backend '
+              'test runner is enabled and global.name is unset'))
+    parser.add_argument(
         '--allow-unmapped', action='store_true',
         help='emit safe partial output when manual follow-up is required')
     return parser
@@ -643,7 +667,8 @@ def main() -> int:
         merged: YamlObject = {}
         for path in arguments.values:
             merged = _deep_merge(merged, _load(path))
-        result = convert_values(merged, arguments.release_namespace)
+        result = convert_values(merged, arguments.release_namespace,
+                                arguments.release_name)
     except (OSError, ValueError, yaml.YAMLError) as error:
         parser.error(str(error))
     if result.issues:
