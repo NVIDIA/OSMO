@@ -152,7 +152,7 @@ Entry point: `cli.py` → `main_parser.py` (argparse). Subcommand modules:
 | `workflow.py`                                                                                                  | submit, list, cancel, exec, logs |
 | `data.py`                                                                                                      | upload, download, list, delete   |
 | `app.py`                                                                                                       | App submission/management        |
-| `config.py`                                                                                                    | Service configuration            |
+| `config.py`                                                                                                    | Read-only configuration inspection (`config show`) |
 | `profile.py`                                                                                                   | User profiles                    |
 | `login.py`                                                                                                     | Authentication                   |
 | `pool.py`, `resources.py`, `user.py`, `credential.py`, `access_token.py`, `task.py`, `version.py` | Supporting commands              |

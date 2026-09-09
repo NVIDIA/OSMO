@@ -60,7 +60,6 @@ osmo_py_library(
         "//src/lib/utils:client",
         "//src/lib/utils:client_configs",
         "//src/lib/utils:common",
-        "//src/lib/utils:config_history",
         "//src/lib/utils:credentials",
         "//src/lib/utils:logging",
         "//src/lib/utils:login",

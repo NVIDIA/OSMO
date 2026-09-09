@@ -19,38 +19,35 @@
 Configuration CLI
 =================
 
-This section describes how to configure OSMO using the ``osmo config`` commands.
+Use ``osmo config show`` to inspect the configuration currently loaded by the service.
+It is the only command under ``osmo config`` in 6.4.
 
-Management
-----------
+Configuration management
+------------------------
 
-OSMO maintains a history of all configuration changes. Each change to a config is tracked as a new "revision", allowing you to:
+OSMO 6.4 loads service configuration from a validated ConfigMap snapshot.
+To change configuration, update the unified chart's ``configuration`` Helm values
+and redeploy through your deployment workflow. Use GitOps for change history,
+diffs, and rollbacks. Configuration changes take effect as replacement pods start;
+a read during a rollout reflects the snapshot loaded by the responding API pod.
 
-* Track who made changes and when
-* View previous configurations
-* Roll back to previous revisions if needed
+The former ``update``, ``set``, ``delete``, ``list``, ``history``, ``diff``,
+``rollback``, and ``tag`` commands, and ``TYPE:revision`` lookups, are removed.
+To list current objects of a type, use commands such as ``osmo config show POOL``
+or ``osmo config show ROLE``.
 
-You can use ``--description`` and ``--tags`` to add additional information about configuration changes made with ``osmo config update``, ``osmo config delete``, and ``osmo config rollback``.
+Supported configuration types
+-----------------------------
 
-All configuration changes require admin privileges and may affect running workflows.
+``show`` accepts ``SERVICE``, ``WORKFLOW``, ``BACKEND``, ``POOL``, ``POD_TEMPLATE``,
+``GROUP_TEMPLATE``, ``RESOURCE_VALIDATION``, ``BACKEND_TEST``, and ``ROLE``.
+Optional names and indices select nested values. For pools, ``--verbose`` includes
+resolved pod templates, group templates, and resource validations.
 
-Command overview
-----------------
-
-Show help docs with ``osmo config --help``.
-
-The ``osmo config`` command provides the following sub-commands:
+Command reference
+-----------------
 
 .. toctree::
    :maxdepth: 1
 
    config_show
-   config_update
-   config_list
-   config_history
-   config_diff
-   config_delete
-   config_set
-   config_rollback
-   config_tag
-
