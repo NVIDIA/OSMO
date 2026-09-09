@@ -14,29 +14,93 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Database migration
 
-OSMO 6.4 reads and writes the nullable `workflows.labels` JSONB column. Every
-upgrade from 6.3 must apply migrations `005_v6_4_0_workflow_labels.json` and
-`006_v6_4_0_workflow_labels_gin_index.json` before the API, worker, or agent
-starts.
+OSMO 6.4 reads and writes the nullable `workflows.labels` JSONB column and uses
+ConfigMap-backed configuration instead of the legacy database fields listed
+below. Every upgrade from 6.3 must run the unified chart's ordered migrations
+before the API, worker, or agent starts.
 
-Enable the idempotent pgroll pre-upgrade Job in the service chart values:
+Before enabling `databaseMigration`, configure and validate every applicable
+destination value in the 6.4 values. SQL cannot determine whether an
+environment-specific replacement is correct. Rows marked retired have no 6.4
+runtime destination, but operators must confirm that the deployment no longer
+depends on them.
+
+| Legacy row | Disposition before cleanup |
+| --- | --- |
+| `SERVICE.service_cluster` | Retired; Helm release/resource identity replaces it |
+| `SERVICE.service_cluster_namespace` | Retired; release namespace and `POD_NAMESPACE` replace it |
+| `SERVICE.service_url` | `externalUrl` / `service.service_base_url` |
+| `SERVICE.user_data_path` | `configuration.workflow.workflow_data.base_url` |
+| `SERVICE.user_dataset_path` | Retired; no 6.4 runtime equivalent |
+| `SERVICE.workflow_backends` | `configuration.backends` plus pool backend selection |
+| `SERVICE.workflow_start_timeout` | `configuration.service.max_pod_restart_limit` |
+| `WORKFLOW.credential_validation_enabled` | `credential_config.disable_registry_validation` and `disable_data_validation` |
+| `WORKFLOW.default_workflow_backend` | Retired after pool backend selection is configured |
+| `WORKFLOW.exec_port_config` | Retired; no current port-range equivalent |
+| `WORKFLOW.workflow_alert` | `configuration.workflow.workflow_alerts`, or explicitly retired when unused |
+| Every `DATASET` row | Retired; dataset configuration is not part of the 6.4 ConfigMap schema |
+
+The cleanup migration removes all eleven enumerated legacy keys and every row
+whose type is `DATASET`. It does not remove `SERVICE.service_auth` or any
+current configuration field.
+
+After the destination-value preflight, enable the idempotent pgroll hook in the
+unified `osmo` chart values. It requires external PostgreSQL:
 
 ```yaml
-services:
-  migration:
-    enabled: true
+databaseMigration:
+  enabled: true
+  targetSchema: public
 ```
 
-For ArgoCD, run it as a PreSync hook:
+The chart includes both raw Helm `pre-install,pre-upgrade` hook annotations and
+Argo CD `PreSync` annotations. Use either raw Helm or Argo CD according to the
+existing release workflow; neither is a prerequisite for the other. If Argo CD
+must order these hooks relative to environment-owned resources, set an
+environment-specific sync wave:
 
 ```yaml
-services:
-  migration:
-    enabled: true
-    extraAnnotations:
-      argocd.argoproj.io/hook: PreSync
-      argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+databaseMigration:
+  annotations:
+    argocd.argoproj.io/sync-wave: "<environment-sync-wave>"
 ```
+
+### Existing database-backed service auth
+
+Service-auth migration is opt-in and applies only when the 6.3 installation's
+stable signing identity is stored in `SERVICE.service_auth`. Stop the old API
+writers and follow the unified chart README's
+[service-auth migration procedure](../charts/osmo/README.md#service-auth-identity)
+to pre-provision and authorize the empty destination Secret. Then enable the
+copy in the same upgrade:
+
+```yaml
+secrets:
+  serviceAuth:
+    managementMode: external
+    existingSecret:
+      name: osmo-service-auth
+      key: authentication-config.json
+    bootstrap:
+      enabled: false
+    migration:
+      enabled: true
+      attempt: "1"
+```
+
+The hook decrypts and validates the existing database identity and copies that
+same stable identity to the authorized Secret. It does not create or rotate an
+identity. Leave the migration disabled when no database-backed identity needs
+to be copied.
+
+After the hook succeeds and the Secret-backed API is ready, set
+`secrets.serviceAuth.migration.enabled: false` and retain the destination
+Secret. Keep `migration.attempt` unchanged after success. Increment it only
+when retrying a failed or interrupted service-auth migration hook, then rerun
+the upgrade. Raw Helm pre-upgrade and Argo CD PreSync execution are both
+supported for this one-time hook.
+
+### Verify the workflow-label schema
 
 Before allowing the service rollout to continue, verify the column and generic
 GIN index exist:

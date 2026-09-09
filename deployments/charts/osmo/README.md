@@ -506,6 +506,35 @@ secrets:
       key: mek.yaml
 ```
 
+For an external PostgreSQL server that supports encrypted connections but for
+which no CA trust bundle is available, configure `require` without a CA:
+
+```yaml
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      sslMode: require
+      caExistingSecret: ''
+```
+
+`require` encrypts the PostgreSQL transport but does not authenticate the
+server. Prefer `verify-full` whenever server CA trust material is available.
+Pre-provision a Secret containing the trust bundle, then select its key:
+
+```yaml
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      sslMode: verify-full
+      caExistingSecret: osmo-postgresql-ca
+      caKey: ca.crt
+```
+
+Both modes apply consistently to OSMO services and the database and
+service-auth migration Jobs.
+
 Keep `embeddedDependencies.postgresql.enabled: false` as set by the
 split-plane control profile, then
 install the chart by layering the environment values after the profile:
@@ -533,13 +562,14 @@ databaseMigration:
 ```
 
 The chart loads the ordered OSMO 6.4 migration JSON files from `migrations/`
-and runs them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job
-before OSMO workloads start. The source database must already have the OSMO
-6.3 schema; upgrades from earlier releases must first use the applicable legacy
-service-chart migrations. The migration reads the same PostgreSQL Secret key
-as the services and runs before the service-auth database migration. It
-downloads the pinned pgroll release from GitHub at runtime, so the Job requires
-outbound HTTPS access to GitHub.
+and runs them before OSMO workloads start. Raw Helm executes the built-in
+`pre-install,pre-upgrade` hooks, while Argo CD recognizes the same resources as
+`PreSync` hooks; use the reconciliation path that manages the release. The
+source database must already have the OSMO 6.3 schema; upgrades from earlier
+releases must first use the applicable legacy service-chart migrations. The
+migration reads the same PostgreSQL Secret key as the services and runs before
+the service-auth database migration. It downloads the pinned pgroll release
+from GitHub at runtime, so the Job requires outbound HTTPS access to GitHub.
 
 Argo CD sync waves are environment-owned. Set
 `databaseMigration.annotations.argocd.argoproj.io/sync-wave` in environment
@@ -921,10 +951,11 @@ migration. An already populated Secret is preserved only when its complete
 stable identity matches. Temporary hook RBAC grants only `get` and `update` on
 that named Secret and is removed after the hook completes.
 
-This Job is transitional upgrade compatibility for installations coming from
-DB-backed releases. It remains disabled by default and should stay in the chart
-until direct upgrades from those releases are no longer supported; it does not
-create a persistent runtime component.
+This Job is opt-in transitional upgrade compatibility for installations coming
+from DB-backed releases. It remains disabled by default and should stay in the
+chart until direct upgrades from those releases are no longer supported. It
+copies and validates the existing stable identity; it does not create or rotate
+an identity and does not create a persistent runtime component.
 
 After the first sync succeeds, wait for every enabled non-API ConfigMap consumer
 (worker, logger, agent, and gateway-authz) to finish rolling out. Confirm the API
@@ -960,6 +991,11 @@ suspended or an in-flight operation cannot be drained, the cutover is blocked.
 
 Retain the legacy DB row and its MEK through the rollback window so an older
 binary can still use the same identity; 6.4 runtime services ignore that row.
+
+Leave `secrets.serviceAuth.migration.attempt` unchanged after a successful
+migration. Increment it only when retrying a failed or interrupted migration
+hook; the new attempt gives the retry a distinct Job identity while the
+release-scoped support resources remain stable for raw Helm cleanup.
 
 ```bash
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
