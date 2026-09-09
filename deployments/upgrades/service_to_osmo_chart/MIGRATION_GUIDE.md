@@ -415,6 +415,130 @@ meaningful.
   complete regression suite; matching images does not remove template/config
   compatibility risk.
 
+## Backend operator chart migration
+
+Migrate compute-plane releases independently from the control-plane release.
+The legacy `backend-operator` chart deploys its agents into
+`global.agentNamespace`, even when Argo CD's destination namespace is
+different. The umbrella chart instead deploys agents into the Helm release
+namespace. Preserve the effective legacy agent namespace as the new Argo CD
+destination, while retaining `global.backendNamespace` as
+`compute.workloadNamespace.name`. Changing both to the workflow namespace
+would move the agents and their Secret mount to the wrong namespace.
+
+### Backend values converter
+
+`backend_values_convert.py` accepts one or more legacy backend values files.
+Inputs merge from left to right using Helm's map-merge/list-replace behavior:
+
+```bash
+python3 deployments/upgrades/service_to_osmo_chart/backend_values_convert.py \
+  --release-namespace osmo \
+  legacy-backend-values.yaml \
+  --output umbrella-backend-values.yaml
+```
+
+`--release-namespace` must equal the effective legacy
+`global.agentNamespace`; its default is `osmo`, which is also the legacy chart
+default. As with the control-plane converter, unsupported or ambiguous values
+suppress YAML and exit 2. `--allow-unmapped` emits a partial inspection
+artifact, but that output is not deployable until every diagnostic is
+resolved.
+
+The converter selects a compute-only composition and disables embedded
+PostgreSQL, Valkey, and object storage. It preserves the backend identity,
+external service URL, workflow and test namespaces, token Secret and key,
+image repository and tag, image pull Secret, logging, scheduling, resource
+requests and limits, priority classes, workflow NetworkPolicy, RBAC additions,
+test-runner configuration, and compute PodMonitor. Password authentication is
+rejected because the umbrella compute plane supports token authentication
+only.
+
+Legacy backend defaults are made explicit when their umbrella defaults differ:
+
+- listener and worker image pull policy remains `Always`;
+- the listener retains `max_unacked_messages=100`, pod-event cache TTL `15`,
+  namespace-usage selection, API QPS `20`, and burst `30`, unless overridden;
+- the worker retains `progress_iter_frequency=15s`;
+- the legacy `ops` toleration and listener/worker resource defaults remain in
+  effect; and
+- the backend test runner remains enabled with its legacy image pull policy.
+
+The old and new argument spellings may render as `--flag value` and
+`--flag=value`; both pass the same value to the Python argument parser. The
+token remains mounted from the same Secret and key at exactly
+`/opt/osmo/secrets/token.txt` in both agent containers.
+
+### Render and review
+
+Use the existing Argo CD Application name as the Helm release name. Render the
+old chart with its current Argo destination namespace and the new chart with
+the effective legacy agent namespace:
+
+```bash
+helm template BACKEND_RELEASE deployments/charts/backend-operator \
+  --namespace LEGACY_ARGO_DESTINATION \
+  -f legacy-backend-values.yaml >backend-old.yaml
+
+helm template BACKEND_RELEASE deployments/charts/osmo \
+  --namespace LEGACY_AGENT_NAMESPACE \
+  -f umbrella-backend-values.yaml >backend-new.yaml
+```
+
+Compare resources by kind, namespace, and component rather than document
+order. Confirm at minimum:
+
+- both renders contain two Deployments, three ServiceAccounts, equivalent
+  namespaced and cluster RBAC rules, one test-runner ConfigMap, and the same
+  optional NetworkPolicy, PriorityClasses, and PodMonitor;
+- listener and worker images, arguments, resources, probes, node selectors,
+  tolerations, image pull Secrets, and test-runner configuration agree;
+- agents remain in the old agent namespace while workload and test resources
+  remain in their existing namespaces; and
+- both agent containers use the same token Secret/key and mount path.
+
+Resource names are not all identical. The legacy Deployment names contain an
+extra `osmo-` segment, while the umbrella chart uses component names directly.
+The umbrella chart also release-scopes namespaced policy resources and hashes
+cluster-scoped RBAC names to prevent collisions across releases. Consequently,
+the cutover replaces those resources rather than rolling the old Deployments
+in place. `nameOverride: backend-operator` retains the established release
+prefix, and an explicit legacy `global.name` becomes `fullnameOverride`, but
+neither removes the intentional component-name differences.
+
+### Argo CD cutover, verification, and rollback
+
+1. Keep unrelated control-plane, SQA, and production Applications unchanged.
+   Disable automated sync only for the staging backend ApplicationSet being
+   migrated, retaining `CreateNamespace=true` and `PruneLast=true`.
+2. Change the chart path from `deployments/charts/backend-operator` to
+   `deployments/charts/osmo`. Keep the chart and values revisions on their
+   reviewed branches, keep each Application/release name unchanged, and point
+   its values reference at the converted file.
+3. Change Argo's destination namespace to the effective legacy agent namespace.
+   Do not change `compute.workloadNamespace.name` or
+   `compute.backendTestNamespace` as part of this chart migration.
+4. Review Argo's desired-state diff before syncing. Expect replacement names,
+   selector/standard-label changes, and collision-safe cluster RBAC names; do
+   not accept image, Secret, namespace, scheduling, probe, resource, RBAC-rule,
+   or NetworkPolicy drift.
+5. During a maintenance window, manually sync one staging backend with pruning
+   enabled. `PruneLast=true` allows replacements to become healthy before old
+   resources are deleted, but a short backend reconnect blip is expected.
+6. Verify both Deployments are available, the backend reconnects with its
+   original identity, node/pod/event streams recover, test-runner configuration
+   is readable, metrics are scraped, and a small workflow can be scheduled and
+   completed in the unchanged workload namespace. Repeat one backend at a time.
+7. After all staging backends are healthy and the rollback window closes,
+   decide separately whether to restore automated sync. Do not enable it merely
+   because the chart migration completed.
+
+To roll back, restore the legacy chart path, values, and Argo destination
+namespace together, then manually sync with pruning. Keep the token Secret,
+legacy values, and exact old/new chart revisions throughout the rollback
+window. A values-only rollback against the umbrella chart does not restore the
+legacy resource names.
+
 ## Azure object-storage safety
 
 If the recovered SQA or staging endpoints use Azure Blob Storage, verify both
