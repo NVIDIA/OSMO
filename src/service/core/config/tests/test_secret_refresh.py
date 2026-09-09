@@ -104,6 +104,112 @@ class SecretRefreshTest(unittest.TestCase):
     def credential(self):
         return self.snapshot()['workflow']['workflow_data']['credential']
 
+    def rotate_during_read(self, *, remove_old=False, repeat=False):
+        track = secret_snapshot.DependencySnapshot._track
+        rotated = False
+
+        def rotating_track(dependency, path):
+            nonlocal rotated
+            first_read = path not in dependency.signatures
+            track(dependency, path)
+            if (path == self.secret / 'cred.yaml' and first_read
+                    and (repeat or not rotated)):
+                old_key = path.resolve(strict=True)
+                self.project('B')
+                if remove_old:
+                    old_key.unlink()
+                rotated = True
+
+        return mock.patch.object(secret_snapshot.DependencySnapshot, '_track', rotating_track)
+
+    def test_startup_rotation_is_transient_without_publication_or_reconciliation(self):
+        self.watcher._enable_reconciliation = True
+        state = mock.Mock()
+        state.load_reconciliation_state.return_value = None
+        self.watcher._reconciliation_state_store = state
+        with mock.patch.object(configmap_loader, '_reconcile_backend_side_effects',
+                               return_value=True) as reconcile:
+            with self.rotate_during_read():
+                result = self.watcher._load_and_apply()
+            self.assertEqual(result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
+            self.assertIsNone(configmap_state.get_snapshot())
+            self.assertEqual(self.watcher.refresh_status.sequence, 0)
+            reconcile.assert_not_called()
+            state.save_reconciliation_state.assert_not_called()
+            self.postgres.get_service_auth.assert_not_called()
+            self.load()
+            self.assertEqual(self.credential()['access_key_id'], 'fake-id-B')
+            self.assertEqual(self.watcher.refresh_status.sequence, 1)
+            reconcile.assert_called_once()
+            state.save_reconciliation_state.assert_called_once()
+
+    def test_startup_retries_mid_read_rotation_and_old_generation_removal(self):
+        for remove_old in (False, True):
+            with self.subTest(remove_old=remove_old):
+                self.project('A')
+                watcher = configmap_loader.ConfigMapWatcher(str(self.config_path), self.postgres)
+                self.watcher = watcher
+                try:
+                    with self.rotate_during_read(remove_old=remove_old), \
+                         mock.patch.object(configmap_loader.time, 'sleep') as sleep, \
+                         mock.patch.object(watcher, '_load_and_apply',
+                                           wraps=watcher._load_and_apply) as attempts:
+                        watcher.start()
+                    self.assertEqual(attempts.call_count, 2)
+                    sleep.assert_called_once_with(1.0)
+                    self.assertEqual(watcher.refresh_status.sequence, 1)
+                    self.assertEqual(self.credential()['access_key_id'], 'fake-id-B')
+                    self.assertEqual(self.snapshot()['service']['service_auth'],
+                                     self.service_auth.plaintext_dict())
+                finally:
+                    watcher.stop()
+                    configmap_state.set_parsed_configs(None)
+                    configmap_state.set_configmap_mode(False)
+
+    def test_startup_repeated_rotations_exhaust_existing_retry_deadline(self):
+        with self.rotate_during_read(repeat=True), \
+             mock.patch.object(configmap_loader.time, 'monotonic', side_effect=[0, 1, 31]), \
+             mock.patch.object(configmap_loader.time, 'sleep') as sleep, \
+             mock.patch.object(self.watcher, '_load_and_apply',
+                               wraps=self.watcher._load_and_apply) as attempts:
+            with self.assertRaisesRegex(RuntimeError, 'after 30s'):
+                self.watcher.start()
+        self.assertEqual(attempts.call_count, 2)
+        sleep.assert_called_once_with(1.0)
+        self.assertEqual(self.watcher.refresh_status.sequence, 0)
+        self.assertIsNone(configmap_state.get_snapshot())
+
+    def test_stable_invalid_startup_credentials_still_fail_fast(self):
+        for invalid in ('malformed', 'missing', 'incomplete', 'non-utf8'):
+            with self.subTest(invalid=invalid):
+                fields = {'cred.yaml': 'access_key: [invalid'}
+                if invalid == 'missing':
+                    fields = {}
+                elif invalid == 'incomplete':
+                    fields = {'cred.yaml': 'access_key_id: incomplete'}
+                self.project('invalid', fields=fields)
+                if invalid == 'non-utf8':
+                    (self.secret / 'cred.yaml').write_bytes(b'\xff')
+                with mock.patch.object(configmap_loader.time, 'sleep') as sleep, \
+                     mock.patch.object(self.watcher, '_load_and_apply',
+                                       wraps=self.watcher._load_and_apply) as attempts:
+                    with self.assertRaisesRegex(RuntimeError, 'malformed or invalid'):
+                        self.watcher.start()
+                attempts.assert_called_once()
+                sleep.assert_not_called()
+                self.assertIsNone(configmap_state.get_snapshot())
+
+    def test_invalid_projected_path_still_fails_startup_without_retry(self):
+        outside = self.root / 'outside-volume'
+        self.project('B', root=outside)
+        (self.secret / '..data').unlink()
+        (self.secret / '..data').symlink_to((outside / '..data').resolve())
+        with mock.patch.object(configmap_loader.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(RuntimeError, 'malformed or invalid'):
+                self.watcher.start()
+        sleep.assert_not_called()
+        self.assertIsNone(configmap_state.get_snapshot())
+
     def test_rotation_updates_task_serialization_without_mutating_old_snapshot(self):
         self.load()
         previous = self.snapshot()
@@ -306,7 +412,7 @@ class SecretRefreshTest(unittest.TestCase):
         dependency = secret_snapshot.DependencySnapshot()
         dependency.read_file(str(self.secret / 'cred.yaml'))
         self.project('B')
-        with self.assertRaises(secret_snapshot.DependencyReadError):
+        with self.assertRaises(secret_snapshot.DependencyChangedError):
             dependency.read_file(str(self.secret / 'cred.yaml'))
 
     def test_rotation_during_validation_is_not_published(self):

@@ -225,6 +225,40 @@ Credential
      - Cloud storage region.
      - ``None``
 
+.. _rotating_mounted_credentials:
+
+Rotating mounted credentials
+----------------------------
+
+Each service process checks explicitly referenced credential files every 30 seconds.
+This applies to ``workflow_data``, ``workflow_log``, and ``workflow_app`` access keys,
+and ``backend_images`` registry login credentials. Use ``secretName`` / ``secretKey``
+or ``secret_file`` directly under the corresponding ``credential`` setting.
+Kubernetes must first project the updated Secret into the pod, so total propagation
+time includes the kubelet's projection delay. Mount Secret directories, not ``subPath``
+files, to receive Kubernetes updates.
+
+At startup, detected dependency changes during credential reads are retried within
+the existing 30-second startup retry window. Stable malformed, missing, or invalid
+credential references remain startup errors.
+
+Valid replacements are published together for subsequent credential reads. Missing,
+invalid, or concurrently changing files leave the last accepted credentials active;
+the next check retries automatically. Already-created task pods and in-flight
+operations retain their captured credentials. Keep old credentials valid until
+those tasks finish and all service replicas have observed the replacement.
+
+Kubernetes event notifications are best effort: their separate client uses one-second
+connection and read timeouts with automatic retries disabled. Notification failures
+do not prevent subsequent credential-refresh attempts. Durable startup reconciliation
+uses its existing client and is not affected by these event-delivery limits.
+
+The ConfigMap remains startup-only. Changing Secret references, storage endpoints,
+regions, addressing options, registry addresses, or authentication mode requires a
+restart. Generic Secret-backed configuration and other secrets (including database,
+signing, and encryption keys) are not refreshed by this mechanism. ConfigMap changes
+do not affect which credential files an already running process checks.
+
 Workflow Information
 =====================
 

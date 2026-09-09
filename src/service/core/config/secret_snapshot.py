@@ -13,6 +13,10 @@ class DependencyReadError(ValueError):
     """Safe to report: deliberately contains no file contents or exception text."""
 
 
+class DependencyChangedError(DependencyReadError):
+    """A previously observed dependency changed; retry with a fresh snapshot."""
+
+
 def _file_signature(path: Path) -> tuple:
     info = path.stat()
     return (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
@@ -40,7 +44,7 @@ class DependencySnapshot:
         signature = _signature(path)
         previous = self.signatures.setdefault(path, signature)
         if previous != signature:
-            raise DependencyReadError('Configuration dependency changed during read')
+            raise DependencyChangedError('Configuration dependency changed during read')
 
     def _pin(self, path: Path) -> Path:
         # Find the mounted volume root even for an explicit key in a subdirectory.
@@ -66,6 +70,9 @@ class DependencySnapshot:
             self._track(source)
             return content
         except (OSError, UnicodeError, RuntimeError):
+            if self.signatures and not self.unchanged():
+                raise DependencyChangedError(
+                    'Configuration dependency changed during read') from None
             raise DependencyReadError('Unable to read configuration dependency') from None
 
     def read_directory(self, path: str) -> dict[str, str]:
@@ -83,6 +90,9 @@ class DependencySnapshot:
             self._track(source)
             return fields
         except (OSError, UnicodeError, RuntimeError):
+            if self.signatures and not self.unchanged():
+                raise DependencyChangedError(
+                    'Configuration dependency changed during read') from None
             raise DependencyReadError('Unable to read credential dependency') from None
 
     def unchanged(self) -> bool:

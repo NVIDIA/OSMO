@@ -320,14 +320,17 @@ class ConfigMapWatcher:
         credential_sources = _extract_refreshable_credentials(managed_configs)
         dependencies = secret_snapshot.DependencySnapshot()
 
-        # Resolve mounted Secret references. Any missing, malformed, or
-        # out-of-root reference is a permanent startup error; serving with
-        # partially resolved credentials is never safe.
+        # Stable missing, malformed, or out-of-root references are permanent
+        # errors. Observed changes (including removal of an old pinned generation)
+        # are retryable; never publish partially resolved credentials.
         try:
             for section in managed_configs.values():
                 if isinstance(section, dict):
                     _resolve_secret_file_references(section)
             _resolve_refreshable_credentials(managed_configs, credential_sources, dependencies)
+        except secret_snapshot.DependencyChangedError as error:
+            self._record_failure(f'ConfigMap Secret resolution failed: {error}')
+            return LoadResult.TRANSIENT_FAILURE
         except (TypeError, ValueError) as error:
             self._record_failure(f'ConfigMap Secret resolution failed: {error}')
             return LoadResult.PERMANENT_FAILURE
