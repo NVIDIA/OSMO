@@ -552,8 +552,18 @@ helm upgrade --install osmo deployments/charts/osmo \
 
 ### Database migrations
 
-For an upgrade backed by an existing external PostgreSQL database, enable the
-pgroll hook in the environment values:
+For an upgrade backed by an existing external PostgreSQL database, first stop
+every legacy OSMO workload or external process that can write PostgreSQL or
+initialize database configuration. Disable or suspend every HPA, GitOps
+self-heal loop, operator, and other reconciler that could restart or scale
+those 6.3 writers, then verify that no legacy writer Pod, Job, or external
+process remains. Keep that fence in place while the migration hook runs and
+until the upgraded manifests are applied. If the hook or manifest application
+fails, keep the 6.3 writers stopped; resume only workloads verified to use the
+6.4 image and configuration. This requirement applies equally to raw Helm and
+Argo CD; Argo CD is not required. Complete the
+[6.3-to-6.4 legacy-writer quiescence procedure](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence)
+before enabling the pgroll hook in the environment values:
 
 ```yaml
 databaseMigration:
@@ -893,16 +903,13 @@ disable `bootstrap.enabled` to remove its Job and RBAC. Use the migration below
 for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
-window that prevents the old configuration API from changing `service_auth`.
-For Argo CD, disable automated sync and self-heal on the Application and wait
-until no sync, rollback, or refresh operation is in flight. Keep reconciliation
-suspended through both cutover phases below. A manual scale-down is not stable
-while self-heal is active, and Argo pruning occurs after PreSync hooks, so this
-is a hard prerequisite rather than an optional maintenance step.
-
-Delete its HPA, scale the old API deployment to zero, and verify that no old API
-pod remains before starting the upgrade. Replace the example release and
-namespace if needed.
+window using the full
+[legacy-writer quiescence fence](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence).
+That fence must already prevent every 6.3 database writer and its automation
+from returning. In addition, verify specifically that the old configuration API
+cannot change `service_auth`; scaling only this API is not a substitute for the
+full database-migration fence. Replace the example release and namespace if
+needed.
 
 ```bash
 OSMO_RELEASE_NAME=osmo
@@ -1058,6 +1065,13 @@ then logs one machine-readable
 `OSMO_MEK_DESCRIPTOR` containing only the current key ID, loaded key IDs,
 generation, and non-secret bundle digest. There are no MEK database tables,
 triggers, polling loops, or hot reloads.
+
+The 6.4 runtime does not treat legacy `configs` rows as MEK persistence;
+the ordered database migration handles those compatibility rows before
+rollout. A MEK inventory blocker therefore indicates a UEK-wrapper,
+key-material, or ciphertext failure. Restore the required MEK/key material and
+investigate the named authentication failure; do not automatically generate,
+replace, or rotate the service identity or MEK.
 
 Rotation is an explicit three-phase operation. Use one unique request ID for
 the whole rotation and keep every previous key in the Secret:

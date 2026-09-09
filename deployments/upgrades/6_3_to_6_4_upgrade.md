@@ -19,6 +19,42 @@ ConfigMap-backed configuration instead of the legacy database fields listed
 below. Every upgrade from 6.3 must run the unified chart's ordered migrations
 before the API, worker, or agent starts.
 
+### Legacy-writer quiescence fence
+
+Migrations 007 and 009 change or remove database state that a running 6.3
+process can recreate after the migration transaction releases its locks.
+Therefore, `databaseMigration.enabled: true` is safe only inside this cutover
+fence:
+
+1. Before enabling `databaseMigration`, stop every 6.3 OSMO workload, Job, and
+   external process that can write PostgreSQL or initialize database
+   configuration. Inventory all legacy control-plane workloads with PostgreSQL
+   credentials; stopping only the API is not sufficient. Keep PostgreSQL itself
+   running for the migration.
+2. Disable or suspend every mechanism that could recreate or scale those
+   writers, including HPAs, GitOps automated sync or self-heal, operators, and
+   environment-owned automation. Either pause the reconciler or first commit
+   and apply a desired state with the legacy writers at zero and their
+   autoscaling disabled.
+3. Verify the fence before proceeding: there must be no running 6.3 writer Pod,
+   migration/config-initializer Job, or external writer process, and no active
+   autoscaler or reconciler capable of bringing one back. Check both the legacy
+   release namespace and environment-owned processes; do not infer quiescence
+   from a single Deployment's replica count.
+4. While the verified fence remains in place, enable `databaseMigration` and
+   apply the 6.4 release through either a raw Helm upgrade or the installation's
+   existing Argo CD workflow. Argo CD is optional. When Argo CD is used, make
+   quiescence a completed, separately verified sync before syncing the
+   migration and 6.4 manifests.
+5. Keep every 6.3 writer and its autoscaling/reconciliation stopped throughout
+   the pre-upgrade or PreSync hook and until all upgraded manifests have been
+   applied. If the migration or manifest application fails, keep the fence in
+   place and repair or retry the 6.4 cutover; do not restart 6.3 workloads
+   against the migrated database.
+6. Resume reconciliation and autoscaling only after the migration succeeds and
+   every workload being started is verified to use the 6.4 image and
+   configuration. No 6.3 database writer may resume.
+
 Before enabling `databaseMigration`, configure and validate every applicable
 destination value in the 6.4 values. SQL cannot determine whether an
 environment-specific replacement is correct. Rows marked retired have no 6.4
@@ -68,8 +104,9 @@ databaseMigration:
 ### Existing database-backed service auth
 
 Service-auth migration is opt-in and applies only when the 6.3 installation's
-stable signing identity is stored in `SERVICE.service_auth`. Stop the old API
-writers and follow the unified chart README's
+stable signing identity is stored in `SERVICE.service_auth`. Establish and
+verify the complete legacy-writer quiescence fence above, then follow the
+unified chart README's
 [service-auth migration procedure](../charts/osmo/README.md#service-auth-identity)
 to pre-provision and authorize the empty destination Secret. Then enable the
 copy in the same upgrade:
