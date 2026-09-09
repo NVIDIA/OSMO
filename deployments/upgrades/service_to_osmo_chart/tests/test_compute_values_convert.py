@@ -248,6 +248,26 @@ class ComputeValuesConvertTest(unittest.TestCase):
             ['--prefix', 'osmo'],
         )
 
+    def test_cli_merges_partial_logging_with_legacy_defaults(self) -> None:
+        completed = self.run_converter([{
+            'global': {
+                'loginMethod': 'token',
+                'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
+                'logs': {'logFormat': 'json'},
+            },
+        }])
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        converted = yaml.safe_load(completed.stdout)
+        self.assertEqual(converted['logging'], {
+            'enabled': True,
+            'logLevel': 'DEBUG',
+            'k8sLogLevel': 'WARNING',
+            'logFormat': 'json',
+        })
+
     def test_cli_uses_explicit_global_name_as_fullname_override(self) -> None:
         completed = self.run_converter([{
             'global': {
