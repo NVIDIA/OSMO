@@ -2232,6 +2232,115 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
         "secretName: postgresql-ca"
 
+    helm_template pg-require "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set secrets.serviceAuth.migration.enabled=true \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set configuration.enabled=false \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.sslMode=require \
+        >"$TEST_DIRECTORY/postgresql-require.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "pg-require-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/postgresql-require-pgroll.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "pg-require-osmo-service-auth-db-migration" \
+        >"$TEST_DIRECTORY/postgresql-require-service-auth.yaml"
+    local postgresql_require_mek_name
+    postgresql_require_mek_name=$(resource_names \
+        "$TEST_DIRECTORY/postgresql-require.yaml" Job | \
+        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_require_mek_name=${postgresql_require_mek_name#\"}
+    postgresql_require_mek_name=${postgresql_require_mek_name%\"}
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "$postgresql_require_mek_name" \
+        >"$TEST_DIRECTORY/postgresql-require-mek.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Deployment \
+        "pg-require-osmo-api" \
+        >"$TEST_DIRECTORY/postgresql-require-api.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Deployment \
+        "pg-require-osmo-gateway-authz" \
+        >"$TEST_DIRECTORY/postgresql-require-authz.yaml"
+    local postgresql_require_resource
+    for postgresql_require_resource in pgroll service-auth mek api authz; do
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "PGSSLROOTCERT"
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "postgresql-ca"
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "sslrootcert="
+    done
+    require_contains "$TEST_DIRECTORY/postgresql-require-pgroll.yaml" \
+        'value: "require"'
+    require_contains "$TEST_DIRECTORY/postgresql-require-service-auth.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-mek.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-api.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-authz.yaml" \
+        "--postgres-ssl-mode=require"
+
+    helm_template pg-require "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/postgresql-disable-mek.yaml"
+    local postgresql_disable_mek_name
+    postgresql_disable_mek_name=$(resource_names \
+        "$TEST_DIRECTORY/postgresql-disable-mek.yaml" Job | \
+        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_disable_mek_name=${postgresql_disable_mek_name#\"}
+    postgresql_disable_mek_name=${postgresql_disable_mek_name%\"}
+    if [[ "$postgresql_require_mek_name" == "$postgresql_disable_mek_name" ]]; then
+        fail "PostgreSQL SSL mode change reused the MEK bootstrap Job name"
+    fi
+
+    if helm_template invalid-postgresql-verify-full-without-ca "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=verify-full \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret= \
+            >"$TEST_DIRECTORY/invalid-postgresql-verify-full-without-ca.out" 2>&1; then
+        fail "expected PostgreSQL verify-full without a CA Secret to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/invalid-postgresql-verify-full-without-ca.out" \
+        "caExistingSecret is required when sslMode=verify-full"
+
+    if helm_template invalid-postgresql-require-with-ca "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=require \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret=configured-ca \
+            >"$TEST_DIRECTORY/invalid-postgresql-require-with-ca.out" 2>&1; then
+        fail "expected PostgreSQL require with a CA Secret to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-postgresql-require-with-ca.out" \
+        "caExistingSecret must be empty when sslMode=require"
+
+    if helm_template invalid-postgresql-ssl-mode "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=prefer \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret= \
+            >"$TEST_DIRECTORY/invalid-postgresql-ssl-mode.out" 2>&1; then
+        fail "expected an unsupported PostgreSQL SSL mode to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-postgresql-ssl-mode.out" \
+        "externalDependencies.postgresql.tls.sslMode"
+
     if helm_template invalid-compute-database-migration "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
             --set compute.backendName=test-backend \

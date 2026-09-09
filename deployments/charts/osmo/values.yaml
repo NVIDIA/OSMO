@@ -103,6 +103,7 @@ externalDependencies:
     username: postgres
     tls:
       enabled: false
+      sslMode: verify-full
       caExistingSecret: ''
       caKey: ca.crt
   # Valkey provides queues, caches, events, and distributed coordination. TLS

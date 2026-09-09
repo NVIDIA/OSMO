@@ -28,6 +28,7 @@ set -euo pipefail
 command_name=$1
 shift
 printf '%s %s\n' "$command_name" "$*" >>"$FAKE_CALL_DIRECTORY/pgroll"
+env >"$FAKE_CALL_DIRECTORY/pgroll-env"
 
 case "$command_name" in
     init)
@@ -79,7 +80,7 @@ chmod +x "$FAKE_BIN/pgroll" "$FAKE_BIN/psql"
 
 run_runner() {
     rm -f "$CALL_DIRECTORY/pgroll" "$CALL_DIRECTORY/psql" \
-        "$CALL_DIRECTORY/status-count"
+        "$CALL_DIRECTORY/pgroll-env" "$CALL_DIRECTORY/status-count"
     env \
         PATH="$FAKE_BIN:$PATH" \
         FAKE_CALL_DIRECTORY="$CALL_DIRECTORY" \
@@ -105,6 +106,18 @@ if grep -Fq 'sslrootcert=' "$CALL_DIRECTORY/pgroll"; then
 fi
 grep -Fq 'start ' "$CALL_DIRECTORY/pgroll" || \
     fail "runner did not use the per-file pgroll start loop"
+
+run_runner PGSSLMODE=require >"$TEST_DIRECTORY/require-output"
+grep -Fq 'sslmode=require' "$CALL_DIRECTORY/pgroll" || \
+    fail "runner did not propagate sslmode=require"
+if grep -Fq 'sslrootcert=' "$CALL_DIRECTORY/pgroll"; then
+    fail "runner added sslrootcert for sslmode=require"
+fi
+grep -Fq 'PGSSLMODE=require' "$CALL_DIRECTORY/pgroll-env" || \
+    fail "runner did not export PGSSLMODE=require"
+if grep -Fiq 'sslrootcert' "$CALL_DIRECTORY/pgroll-env"; then
+    fail "runner exported an SSL root certificate for sslmode=require"
+fi
 
 run_runner \
     PGSSLMODE=verify-full \

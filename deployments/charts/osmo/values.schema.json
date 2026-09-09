@@ -1303,6 +1303,17 @@
         "caKey": { "type": "string", "minLength": 1 }
       }
     },
+    "postgresqlTlsConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "sslMode": { "type": "string", "enum": ["require", "verify-full"] },
+        "caExistingSecret": { "type": "string" },
+        "caKey": { "type": "string", "minLength": 1 }
+      },
+      "required": ["enabled", "sslMode", "caExistingSecret", "caKey"]
+    },
     "databaseConnection": {
       "type": "object",
       "properties": {
@@ -1310,7 +1321,7 @@
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "database": { "type": "string" },
         "username": { "type": "string" },
-        "tls": { "$ref": "#/definitions/tlsConnection" }
+        "tls": { "$ref": "#/definitions/postgresqlTlsConnection" }
       }
     },
     "valkeyConnection": {

@@ -107,7 +107,7 @@ spec:
               key: {{ include "osmo.postgresql.passwordKey" . | quote }}
         - name: PGSSLMODE
           value: {{ include "osmo.postgresql.sslMode" . | quote }}
-        {{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+        {{- if eq (include "osmo.postgresql.customCaEnabled" .) "true" }}
         - name: PGSSLROOTCERT
           value: /etc/osmo/ca/postgresql/ca.crt
         {{- end }}
