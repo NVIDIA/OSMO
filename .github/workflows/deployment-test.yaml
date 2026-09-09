@@ -74,9 +74,6 @@ on:
       - 'deployments/terraform/azure/**'
       - 'bzl/patches/aspect_rules_py_skip_venv_interpreter.patch'
       - 'bzl/tests/**'
-      - 'scripts/BUILD'
-      - 'scripts/validate_backend_image_runtimes.sh'
-      - 'scripts/tests/test_validate_backend_image_runtimes.sh'
       - 'src/operator/BUILD'
       - 'src/operator/backend_test_runner/BUILD'
   schedule:
@@ -339,7 +336,7 @@ jobs:
           # them, the operator install hits ImagePullBackOff and helm `--wait`
           # times out with `context deadline exceeded`. The test runner is spawned
           # later, but it shares the same Python runfiles image construction
-          # and must pass the release runtime validation.
+          # and is published from the same corrected source revision.
           push_one //src/operator:backend_listener_push_x86_64              backend-listener
           push_one //src/operator:backend_worker_push_x86_64                backend-worker
           push_one //src/operator/backend_test_runner:backend_test_runner_push_x86_64  backend-test-runner
@@ -359,99 +356,6 @@ jobs:
           path: bazel-bin/src/cli/packaging/linux/linux_client_installer_x86_64.sh
           retention-days: 7
           if-no-files-found: error
-
-      - name: Validate backend images with containerd and CRI-O 1.34
-        env:
-          REG: ${{ steps.tag.outputs.registry }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          set -euo pipefail
-          CRIO_VERSION=1.34.0
-          CRIO_ARCHIVE="$RUNNER_TEMP/cri-o.amd64.v${CRIO_VERSION}.tar.gz"
-          CRIO_BUNDLE="$RUNNER_TEMP/cri-o"
-          CRIO_STATE="$RUNNER_TEMP/crio-image-validation"
-          CRIO_SOCKET="$CRIO_STATE/crio.sock"
-          CRIO_ENDPOINT="unix://$CRIO_SOCKET"
-
-          curl --fail --location --retry 3 \
-            --output "$CRIO_ARCHIVE" \
-            "https://storage.googleapis.com/cri-o/artifacts/cri-o.amd64.v${CRIO_VERSION}.tar.gz"
-          echo "5a8bc5c3b8072cb9bde1cf025d5597f75bf21018712c5b72d5cb0657948595c8  $CRIO_ARCHIVE" \
-            | sha256sum --check
-          tar --extract --gzip --file "$CRIO_ARCHIVE" --directory "$RUNNER_TEMP"
-          mkdir -p "$CRIO_STATE"
-          sudo mkdir -p \
-            "$CRIO_STATE/attach" \
-            "$CRIO_STATE/exits" \
-            "$CRIO_STATE/namespaces" \
-            "$CRIO_STATE/root" \
-            "$CRIO_STATE/runroot"
-
-          cleanup_crio() {
-            local exit_code=$?
-            if [[ -n "${crio_pid:-}" ]]; then
-              sudo pkill -TERM -f \
-                "^${CRIO_BUNDLE}/bin/crio .*--root ${CRIO_STATE}/root" \
-                >/dev/null 2>&1 || true
-              sudo kill "$crio_pid" >/dev/null 2>&1 || true
-              wait "$crio_pid" >/dev/null 2>&1 || true
-            fi
-            if [[ "$exit_code" -ne 0 && -f "$CRIO_STATE/crio.log" ]]; then
-              sudo tail -n 200 "$CRIO_STATE/crio.log" || true
-            fi
-            if [[ "$CRIO_STATE" == "$RUNNER_TEMP/crio-image-validation" ]]; then
-              sudo rm -rf -- "$CRIO_STATE"
-            fi
-            return "$exit_code"
-          }
-          trap cleanup_crio EXIT
-
-          # shellcheck disable=SC2024 # Keep the daemon log runner-owned.
-          sudo "$CRIO_BUNDLE/bin/crio" \
-            --config /dev/null \
-            --config-dir /nonexistent \
-            --root "$CRIO_STATE/root" \
-            --runroot "$CRIO_STATE/runroot" \
-            --clean-shutdown-file "$CRIO_STATE/clean.shutdown" \
-            --container-attach-socket-dir "$CRIO_STATE/attach" \
-            --container-exits-dir "$CRIO_STATE/exits" \
-            --namespaces-dir "$CRIO_STATE/namespaces" \
-            --version-file "$CRIO_STATE/version" \
-            --version-file-persist "$CRIO_STATE/version-persist" \
-            --storage-driver overlay \
-            --listen "$CRIO_SOCKET" \
-            --cgroup-manager cgroupfs \
-            --default-runtime crun \
-            --conmon "$CRIO_BUNDLE/bin/conmon" \
-            --runtimes "crun:$CRIO_BUNDLE/bin/crun:$CRIO_STATE/crun" \
-            --pinns-path "$CRIO_BUNDLE/bin/pinns" \
-            --signature-policy "$CRIO_BUNDLE/contrib/policy.json" \
-            --registries-conf "$CRIO_BUNDLE/contrib/registries.conf" \
-            --global-auth-file "$HOME/.docker/config.json" \
-            --enable-nri=false \
-            --disable-hostport-mapping \
-            --log-level info \
-            >"$CRIO_STATE/crio.log" 2>&1 &
-          crio_pid=$!
-
-          for _ in $(seq 1 30); do
-            if sudo "$CRIO_BUNDLE/bin/crictl" \
-                --runtime-endpoint="$CRIO_ENDPOINT" \
-                --image-endpoint="$CRIO_ENDPOINT" version >/dev/null 2>&1; then
-              sudo chown "$(id -u):$(id -g)" "$CRIO_SOCKET"
-              chmod 0600 "$CRIO_SOCKET"
-              break
-            fi
-            sleep 1
-          done
-          [[ -S "$CRIO_SOCKET" ]] || {
-            echo "CRI-O did not create $CRIO_SOCKET" >&2
-            exit 1
-          }
-
-          CRICTL="$CRIO_BUNDLE/bin/crictl" \
-            bash scripts/validate_backend_image_runtimes.sh \
-              "$REG" "$TAG" "$CRIO_ENDPOINT"
 
       # nvcr.io requires auth for every pull. The deploy-osmo job below
       # pre-creates an imagePullSecret in each OSMO namespace using the

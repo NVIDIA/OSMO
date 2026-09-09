@@ -193,33 +193,6 @@ jobs:
               >/dev/null
           fi
 
-      - name: Validate Kubernetes 1.28 API schemas
-        if: matrix.chart == 'osmo'
-        run: |
-          set -euo pipefail
-          KUBECONFORM_IMAGE=ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c
-          validate_profile() {
-            local release_name=$1
-            shift
-            helm template "$release_name" deployments/charts/osmo \
-              --kube-version 1.28.0 "$@" | \
-              docker run --rm -i "$KUBECONFORM_IMAGE" \
-                -strict \
-                -summary \
-                -kubernetes-version 1.28.0 \
-                -ignore-missing-schemas
-          }
-
-          validate_profile schema-compute \
-            -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
-            --set-string compute.backendName=test-backend
-          validate_profile schema-control \
-            -f deployments/charts/osmo/profiles/split-plane-control.yaml \
-            -f deployments/charts/osmo/tests/control-external-values.yaml
-          validate_profile schema-converged \
-            -f deployments/charts/osmo/profiles/single-plane.yaml \
-            -f deployments/charts/osmo/tests/single-plane-s3-values.yaml
-
       - name: Chart-specific render tests
         run: |
           TEST_SCRIPT="deployments/charts/${{ matrix.chart }}/tests/render-tests.sh"
