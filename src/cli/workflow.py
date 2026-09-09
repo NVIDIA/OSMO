@@ -1221,7 +1221,11 @@ def _load_workflow_text(workflow_file: str) -> str:
 
 
 def _load_local_files_helper(workflow_file: str, section_dict: Dict):
-    for each_file in section_dict.get('files', []):
+    files = section_dict.get('files')
+    if files is None:
+        return
+
+    for each_file in files:
         if 'localpath' in each_file and 'contents' in each_file:
             raise osmo_errors.OSMOSubmissionError(
                 'Files tag dont support contents and localpath together')
