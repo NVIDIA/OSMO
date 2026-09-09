@@ -17,3 +17,17 @@ osmo_py_binary(
     main = "values_convert.py",
     deps = [requirement("pyyaml")],
 )
+
+osmo_py_library(
+    name = "backend_values_convert_lib",
+    srcs = ["backend_values_convert.py"],
+    deps = [requirement("pyyaml")],
+    visibility = ["//deployments/upgrades/service_to_osmo_chart/tests:__pkg__"],
+)
+
+osmo_py_binary(
+    name = "backend_values_convert",
+    srcs = ["backend_values_convert.py"],
+    main = "backend_values_convert.py",
+    deps = [requirement("pyyaml")],
+)

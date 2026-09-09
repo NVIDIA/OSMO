@@ -12,3 +12,12 @@ osmo_py_test(
         requirement("pyyaml"),
     ],
 )
+
+osmo_py_test(
+    name = "test_backend_values_convert",
+    srcs = ["test_backend_values_convert.py"],
+    deps = [
+        "//deployments/upgrades/service_to_osmo_chart:backend_values_convert_lib",
+        requirement("pyyaml"),
+    ],
+)
