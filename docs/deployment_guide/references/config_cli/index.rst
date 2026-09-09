@@ -32,7 +32,7 @@ diffs, and rollbacks. Configuration changes take effect as replacement pods star
 a read during a rollout reflects the snapshot loaded by the responding API pod.
 
 The former ``update``, ``set``, ``delete``, ``list``, ``history``, ``diff``,
-``rollback``, and ``tag`` commands, and ``TYPE:revision`` lookups, are removed.
+``rollback``, and ``tag`` commands, and ``TYPE:revision`` syntax, are removed.
 To list current objects of a type, use commands such as ``osmo config show POOL``
 or ``osmo config show ROLE``.
 
