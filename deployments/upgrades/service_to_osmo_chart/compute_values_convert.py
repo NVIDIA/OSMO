@@ -279,7 +279,12 @@ class _Converter:
               'podDefaults.nodeSelector')
         _move(self.source, self.output, 'global.tolerations',
               'podDefaults.tolerations')
-        _move(self.source, self.output, 'global.logs', 'logging')
+        logs = _pop(self.source, 'global.logs')
+        if isinstance(logs, dict):
+            _set(self.output, 'logging',
+                 _deep_merge(self.output['logging'], logs))
+        elif logs is not MISSING:
+            self.issue('global.logs', 'expected a mapping')
         _move(self.source, self.output, 'global.enableNonClusterRoles',
               'compute.rbac.create')
         _move(self.source, self.output, 'global.enableClusterRoles',

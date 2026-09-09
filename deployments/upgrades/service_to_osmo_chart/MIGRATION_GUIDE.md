@@ -138,11 +138,29 @@ configuration, and Secret-reference settings. It disables unified-chart
 defaults that would otherwise add behavior not present in the legacy release,
 such as component PodDisruptionBudgets.
 
-### Review control-plane dependencies
+### Review control-plane supporting services
 
-For PostgreSQL, Valkey, and object storage, decide whether the unified release
-owns an embedded dependency or connects to an external one. Do not enable an
-embedded dependency simply because it is the chart default.
+The legacy `service` chart has no Helm chart dependencies. It can, however,
+render optional single-instance PostgreSQL and Redis workloads and a LocalStack
+S3 emulator from its own templates. All three are disabled by default, and
+LocalStack is intended only for development and testing.
+
+First determine how PostgreSQL, Redis, and object storage are currently
+provided. Keep an existing external service external unless changing its
+ownership or implementation is an explicit part of the migration.
+
+The unified chart's embedded CloudNativePG, Valkey, and RustFS deployments are
+not in-place upgrades of the legacy workloads. They use different resources,
+ownership, and storage layouts. If the legacy chart currently owns PostgreSQL
+or Redis, migrate or externalize its data separately before removing the legacy
+release. The converter reports `services.postgres.enabled: true` and
+`services.redis.enabled: true` for manual follow-up and leaves the corresponding
+unified embedded dependency disabled in partial output. LocalStack has no
+lossless embedded-storage mapping.
+
+After planning any required data transition, decide whether the unified release
+will own a new embedded service or connect to an external one. Do not enable an
+embedded service simply because it is the unified chart default.
 
 For an external dependency:
 
@@ -295,6 +313,31 @@ install the unified release in that namespace. The converter maps the workflow
 namespace to `compute.workloadNamespace.name` and preserves the separate test
 namespace. This keeps agents, their token Secret, workflows, and test resources
 in their established namespaces.
+
+### Plan for a compute release namespace change
+
+Helm identifies a release by both its name and namespace. If the legacy release
+namespace differs from `global.agentNamespace`, installing the unified chart in
+the agent namespace creates a new Helm release even when the release name stays
+the same. Resources rendered into the agent namespace by the legacy release
+remain owned by the old release and cannot also be adopted safely by the new
+one.
+
+Before the maintenance window, save the old release manifest and list the
+namespaced and cluster-scoped resources it owns. Check their
+`meta.helm.sh/release-name` and `meta.helm.sh/release-namespace` annotations.
+Separate resources that must survive the replacement, especially externally
+managed Secrets and pre-existing Namespaces, from resources that the unified
+release will recreate.
+
+During cutover, pause reconciliation and retire the old Helm release before
+installing the new release in the agent namespace. Expect the compute agents to
+be temporarily unavailable. Ensure uninstalling the old release cannot remove
+an externally owned Secret, Namespace, or shared cluster-scoped resource. Do
+not run both releases concurrently or transfer ownership annotations while the
+old release still manages the resources. Install the unified release, verify
+that the backend reconnects and can run a small workflow, and only then remove
+any remaining legacy resources.
 
 The converter supports token authentication. Confirm that
 `compute.authentication.existingSecret` exists in the release namespace and

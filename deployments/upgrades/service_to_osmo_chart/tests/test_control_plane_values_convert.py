@@ -248,12 +248,26 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
 
         self.assertFalse(result.values['secrets']['valkey']['generate'])
 
-    def test_generates_credentials_for_embedded_valkey(self):
+    def test_rejects_legacy_in_chart_postgresql(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'postgres': {'enabled': True}},
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn('services.postgres.enabled', issue_paths)
+        self.assertFalse(
+            result.values['embeddedDependencies']['postgresql']['enabled'])
+
+    def test_rejects_legacy_in_chart_redis(self):
         result = control_plane_values_convert.convert_values({
             'services': {'redis': {'enabled': True}},
         })
 
-        self.assertTrue(result.values['secrets']['valkey']['generate'])
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn('services.redis.enabled', issue_paths)
+        self.assertFalse(
+            result.values['embeddedDependencies']['valkey']['enabled'])
+        self.assertFalse(result.values['secrets']['valkey']['generate'])
 
     def test_ignores_empty_unsupported_container(self):
         result = control_plane_values_convert.convert_values({
@@ -338,6 +352,49 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                 'base_url': 'https://swift.example.com/workflows',
                 'download_type': 'download',
             })
+
+    def test_reports_inline_storage_credentials_without_values(self):
+        secret_value = 'must-not-appear-in-diagnostics'
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'configs': {
+                    'workflow': {
+                        'workflow_data': {
+                            'credential': {
+                                'endpoint': 's3://workflows/data',
+                                'access_key': secret_value,
+                            },
+                        },
+                        'workflow_log': {
+                            'credential': {
+                                'endpoint': 's3://logs/data',
+                                'secret_key': secret_value,
+                            },
+                        },
+                        'workflow_app': {
+                            'credential': {
+                                'endpoint': 's3://apps/data',
+                                'nested_auth': {'token': secret_value},
+                            },
+                        },
+                    },
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        messages = '\n'.join(issue.message for issue in result.issues)
+        self.assertIn(
+            'configuration.workflow.workflow_data.credential.access_key',
+            issue_paths)
+        self.assertIn(
+            'configuration.workflow.workflow_log.credential.secret_key',
+            issue_paths)
+        self.assertIn(
+            'configuration.workflow.workflow_app.credential.'
+            'nested_auth.token',
+            issue_paths)
+        self.assertNotIn(secret_value, messages)
 
     def test_reports_unsupported_storage_scheme(self):
         result = control_plane_values_convert.convert_values({

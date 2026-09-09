@@ -355,9 +355,15 @@ class _Converter:
                 self.issue(path, 'no umbrella-chart mapping')
 
     def convert_dependencies(self) -> None:
-        postgres_enabled = _move(
-            self.source, self.output, 'services.postgres.enabled',
-            'embeddedDependencies.postgresql.enabled')
+        postgres_enabled = _pop(self.source, 'services.postgres.enabled')
+        if postgres_enabled is True:
+            self.issue(
+                'services.postgres.enabled',
+                'legacy in-chart PostgreSQL cannot be upgraded in place to '
+                'embedded CloudNativePG; migrate or externalize its data and '
+                'configure the destination manually')
+        elif postgres_enabled not in (MISSING, False):
+            self.issue('services.postgres.enabled', 'expected a boolean')
         _move(self.source, self.output, 'services.postgres.serviceName',
               'externalDependencies.postgresql.host')
         _move(self.source, self.output, 'services.postgres.port',
@@ -376,11 +382,15 @@ class _Converter:
                        'inline database passwords are not converted; create a '
                        'Kubernetes Secret and set secrets.postgresql')
 
-        valkey_enabled = _move(
-            self.source, self.output, 'services.redis.enabled',
-            'embeddedDependencies.valkey.enabled')
+        valkey_enabled = _pop(self.source, 'services.redis.enabled')
         if valkey_enabled is True:
-            _set(self.output, 'secrets.valkey.generate', True)
+            self.issue(
+                'services.redis.enabled',
+                'legacy in-chart Redis cannot be upgraded in place to '
+                'embedded Valkey; migrate or externalize its data and '
+                'configure the destination manually')
+        elif valkey_enabled not in (MISSING, False):
+            self.issue('services.redis.enabled', 'expected a boolean')
         _move(self.source, self.output, 'services.redis.serviceName',
               'externalDependencies.valkey.host')
         _move(self.source, self.output, 'services.redis.port',
@@ -499,6 +509,21 @@ class _Converter:
                     self.output,
                     f'secrets.objectStorage.credentialSecretRefs.{new_name}',
                     {'name': secret_name, 'key': ''})
+            supported_credential_keys = {
+                'endpoint', 'secretName', 'region', 'override_url',
+            }
+            residual = {
+                key: value for key, value in credential.items()
+                if key not in supported_credential_keys
+            }
+            for path in _leaf_paths(
+                    residual,
+                    f'configuration.workflow.{old_name}.credential'):
+                self.issue(
+                    path,
+                    'inline or unsupported credential data is not converted; '
+                    'move it to a Kubernetes Secret and reference it with '
+                    'secretName')
         endpoints = [credential.get('endpoint', '')
                      for credential in credentials.values()]
         schemes = {str(endpoint).split('://', 1)[0]
