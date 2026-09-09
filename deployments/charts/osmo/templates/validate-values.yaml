@@ -120,11 +120,6 @@
   .Values.services.api.enabled -}}
 {{- fail "services.api.enabled must be false during service-auth migration so the 6.4 ConfigMap rollout remains quiesced" -}}
 {{- end -}}
-{{- if and
-  .Values.services.api.enabled
-  (ne (dig "type" "" .Values.services.api.deploymentStrategy) "Recreate") -}}
-{{- fail "services.api.deploymentStrategy.type must be Recreate so ConfigMap authority changes cannot race workflow submission" -}}
-{{- end -}}
 {{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
 {{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
 {{- end -}}

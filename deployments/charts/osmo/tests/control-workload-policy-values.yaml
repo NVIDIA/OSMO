@@ -21,7 +21,10 @@ podDefaults:
 services:
   api:
     deploymentStrategy:
-      type: Recreate
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 2
     pod:
       affinity:
         podAntiAffinity:

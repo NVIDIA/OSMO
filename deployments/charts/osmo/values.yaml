@@ -993,10 +993,13 @@ services:
   # Main OSMO REST API and control-plane service.
   api:
     enabled: true
-    # Config snapshots are immutable per pod. Recreate prevents an old ready
-    # API from accepting work against authority removed by a new snapshot.
+    # Keep ready replicas serving while replacements load their config snapshot.
+    # Old and new snapshots may coexist until the rolling update completes.
     deploymentStrategy:
-      type: Recreate
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     autoscaling:
       enabled: false
       minReplicas: 3
@@ -1562,10 +1565,13 @@ gateway:
   # Optional external-authorization service backed by OSMO role policies.
   authz:
     enabled: false
-    # Prevent old and new ConfigMap/IDP synchronization semantics from running
-    # concurrently during upgrades.
+    # Keep authorization available while replacements load their role snapshot.
+    # Role changes reach every replica only after the rolling update completes.
     deploymentStrategy:
-      type: Recreate
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     autoscaling:
       enabled: false
       minReplicas: 1

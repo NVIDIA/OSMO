@@ -1540,7 +1540,9 @@ test_control_umbrella() {
             "topologyKey: example.com/zone"
     done
     require_contains "$TEST_DIRECTORY/conventions-api.yaml" API_CONVENTION
-    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "type: Recreate"
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "maxSurge: 1"
     require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
         COMPUTE_CONVENTION
     require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
@@ -5019,7 +5021,11 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
         "name: OSMO_POSTGRES_PASSWORD"
     require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
-        "type: Recreate"
+        "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "maxSurge: 1"
     if helm_template empty-roles "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -5093,22 +5099,30 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set-string 'configuration.roles.osmo-default.policies[0].actions[0].action=workflow:Read' \
         >"$TEST_DIRECTORY/semantic-action-object.yaml"
-    helm_template authz-role-change "$charts_copy/osmo" \
+    helm_template authz-configmap "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set gateway.authz.enabled=true \
         --set-string configuration.roles.osmo-default.description=changed \
         >"$TEST_DIRECTORY/osmo-authz-role-change.yaml"
-    resource_document "$TEST_DIRECTORY/osmo-authz-role-change.yaml" Deployment \
-        authz-role-change-osmo-gateway-authz \
-        >"$TEST_DIRECTORY/osmo-authz-role-change-deployment.yaml"
-    base_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
-        "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml")
-    changed_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
-        "$TEST_DIRECTORY/osmo-authz-role-change-deployment.yaml")
-    if [[ -z "$base_config_checksum" || "$base_config_checksum" == "$changed_config_checksum" ]]; then
-        fail "expected a ConfigMap role change to update the authz pod checksum"
-    fi
+    # Keep the release name fixed so only the role edit can change the checksum.
+    local config_consumer
+    for config_consumer in api gateway-authz worker; do
+        resource_document "$TEST_DIRECTORY/osmo-authz-configmap.yaml" Deployment \
+            "authz-configmap-osmo-$config_consumer" \
+            >"$TEST_DIRECTORY/config-consumer-base.yaml"
+        resource_document "$TEST_DIRECTORY/osmo-authz-role-change.yaml" Deployment \
+            "authz-configmap-osmo-$config_consumer" \
+            >"$TEST_DIRECTORY/config-consumer-changed.yaml"
+        base_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
+            "$TEST_DIRECTORY/config-consumer-base.yaml")
+        changed_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
+            "$TEST_DIRECTORY/config-consumer-changed.yaml")
+        if [[ -z "$base_config_checksum" || -z "$changed_config_checksum" || \
+              "$base_config_checksum" == "$changed_config_checksum" ]]; then
+            fail "expected a ConfigMap role change to update the $config_consumer pod checksum"
+        fi
+    done
     if helm_template removed-configuration-toggle "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -5369,16 +5383,11 @@ EOF
         workload-policy-osmo-api \
         >"$TEST_DIRECTORY/osmo-workload-policy-api.yaml"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
-        "type: Recreate"
-    if helm_template invalid-api-rolling-strategy "$charts_copy/osmo" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-workload-policy-values.yaml" \
-        --set services.api.deploymentStrategy.type=RollingUpdate \
-        >"$TEST_DIRECTORY/invalid-api-rolling-strategy.out" 2>&1; then
-        fail "expected a rolling API deployment strategy to fail"
-    fi
-    require_contains "$TEST_DIRECTORY/invalid-api-rolling-strategy.out" \
-        "services.api.deploymentStrategy.type must be Recreate"
+        "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "maxSurge: 2"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
         "terminationGracePeriodSeconds: 75"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
