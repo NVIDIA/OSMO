@@ -458,6 +458,14 @@ test-runner configuration, and compute PodMonitor. Password authentication is
 rejected because the umbrella compute plane supports token authentication
 only.
 
+The generated `secrets` section intentionally neutralizes control-plane and
+embedded-dependency Secret defaults that do not apply to a compute-only
+release. It cannot currently be omitted: with the chart defaults, a
+compute-only render fails validation because service-auth bootstrap and
+generated Valkey, object-storage, and backend-token Secrets remain enabled.
+This explicit section can be removed in a follow-up after the umbrella chart
+provides compute-only Secret defaults that render without these overrides.
+
 Legacy backend defaults are made explicit when their umbrella defaults differ:
 
 - listener and worker image pull policy remains `Always`;
@@ -516,7 +524,9 @@ neither removes the intentional component-name differences.
 
 1. Keep unrelated control-plane, SQA, and production Applications unchanged.
    Disable automated sync only for the staging backend ApplicationSet being
-   migrated, retaining `CreateNamespace=true` and `PruneLast=true`.
+   migrated by setting `automated.enabled=false`. Retain
+   `automated.prune=true`, `CreateNamespace=true`, and `PruneLast=true` so the
+   pruning policy is preserved while staging remains manually synchronized.
 2. Change the chart path from `deployments/charts/backend-operator` to
    `deployments/charts/osmo`. Keep the chart and values revisions on their
    reviewed branches, keep each Application/release name unchanged, and point
