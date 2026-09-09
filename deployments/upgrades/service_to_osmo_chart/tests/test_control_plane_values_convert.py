@@ -24,10 +24,10 @@ import unittest
 
 import yaml
 
-from deployments.upgrades.service_to_osmo_chart import values_convert
+from deployments.upgrades.service_to_osmo_chart import control_plane_values_convert
 
 
-class ValuesConvertTest(unittest.TestCase):
+class ControlPlaneValuesConvertTest(unittest.TestCase):
     """Tests lossless mappings and explicit conversion boundaries."""
 
     def test_maps_control_plane_values(self):
@@ -36,7 +36,7 @@ class ValuesConvertTest(unittest.TestCase):
                 'osmoImageLocation': 'registry.example.com/team/osmo',
                 'osmoImageTag': '6.4.0',
                 'imagePullSecret': 'registry-credential',
-                'hostname': 'staging.example.com',
+                'hostname': 'osmo.example.com',
                 'serviceAccountName': 'osmo-workload',
             },
             'services': {
@@ -139,7 +139,7 @@ class ValuesConvertTest(unittest.TestCase):
             'podMonitor': {'enabled': True},
         }
 
-        result = values_convert.convert_values(legacy)
+        result = control_plane_values_convert.convert_values(legacy)
 
         self.assertEqual(result.issues, [])
         converted = result.values
@@ -147,7 +147,7 @@ class ValuesConvertTest(unittest.TestCase):
         self.assertEqual(converted['imageRepository'], 'team/osmo')
         self.assertEqual(converted['fullnameOverride'], 'osmo')
         self.assertEqual(converted['externalUrl'],
-                         'https://staging.example.com')
+                         'https://osmo.example.com')
         self.assertEqual(converted['externalDependencies']['postgresql'], {
             'host': 'postgres.example.com',
             'port': 5433,
@@ -213,7 +213,7 @@ class ValuesConvertTest(unittest.TestCase):
             converted['monitoring']['podMonitor']['control']['enabled'])
 
     def test_preserves_explicitly_disabled_autoscaling(self):
-        result = values_convert.convert_values({
+        result = control_plane_values_convert.convert_values({
             'services': {
                 'worker': {'scaling': {'enabled': False}},
             },
@@ -227,8 +227,36 @@ class ValuesConvertTest(unittest.TestCase):
         self.assertFalse(
             result.values['gateway']['envoy']['autoscaling']['enabled'])
 
+    def test_preserves_existing_service_auth_identity(self):
+        result = control_plane_values_convert.convert_values({})
+
+        self.assertEqual(result.values['secrets']['serviceAuth'], {
+            'managementMode': 'external',
+            'bootstrap': {'enabled': False},
+        })
+
+    def test_disables_generated_credentials_for_external_valkey(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'redis': {
+                    'enabled': False,
+                    'serviceName': 'valkey.example.com',
+                    'passwordSecretName': 'valkey-credential',
+                },
+            },
+        })
+
+        self.assertFalse(result.values['secrets']['valkey']['generate'])
+
+    def test_generates_credentials_for_embedded_valkey(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'redis': {'enabled': True}},
+        })
+
+        self.assertTrue(result.values['secrets']['valkey']['generate'])
+
     def test_ignores_empty_unsupported_container(self):
-        result = values_convert.convert_values({
+        result = control_plane_values_convert.convert_values({
             'services': {
                 'localstackS3': {'enabled': False},
             },
@@ -238,7 +266,7 @@ class ValuesConvertTest(unittest.TestCase):
         self.assertNotIn('services.localstackS3', issue_paths)
 
     def test_reports_every_unmapped_leaf_without_values(self):
-        result = values_convert.convert_values({
+        result = control_plane_values_convert.convert_values({
             'unknown': {
                 'token': 'must-not-appear-in-diagnostic',
                 'nested': {'setting': True},
@@ -252,7 +280,7 @@ class ValuesConvertTest(unittest.TestCase):
         self.assertNotIn('must-not-appear-in-diagnostic', messages)
 
     def test_maps_swift_storage_and_per_location_secrets(self):
-        result = values_convert.convert_values({
+        result = control_plane_values_convert.convert_values({
             'services': {
                 'configs': {
                     'secretRefs': [{'secretName': 'workflow-data'}],
@@ -312,7 +340,7 @@ class ValuesConvertTest(unittest.TestCase):
             })
 
     def test_reports_unsupported_storage_scheme(self):
-        result = values_convert.convert_values({
+        result = control_plane_values_convert.convert_values({
             'services': {
                 'configs': {
                     'workflow': {
@@ -329,7 +357,7 @@ class ValuesConvertTest(unittest.TestCase):
                       issue_paths)
 
     def test_cli_is_strict_unless_partial_output_is_requested(self):
-        script = pathlib.Path(values_convert.__file__)
+        script = pathlib.Path(control_plane_values_convert.__file__)
         with tempfile.TemporaryDirectory() as temporary_directory:
             values_path = pathlib.Path(temporary_directory) / 'values.yaml'
             values_path.write_text(

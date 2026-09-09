@@ -238,7 +238,7 @@ class _Converter:
                 },
             },
         }
-        self.include_namespace_usage: Any = 'osmo-staging,osmo-prod'
+        self.include_namespace_usage: Any = MISSING
         self.issues: list[ConversionIssue] = []
 
     def issue(self, path: str, message: str) -> None:
@@ -312,12 +312,16 @@ class _Converter:
                 'global.agentNamespace',
                 'the umbrella chart uses the Helm release namespace for '
                 'backend agents; set --release-namespace to the legacy '
-                'agent namespace and configure Argo destination.namespace '
-                'to match')
+                'agent namespace and install the unified release there')
 
         include_namespaces = _pop(
             self.source, 'global.includeNamespaceUsage')
-        if include_namespaces is not MISSING:
+        if include_namespaces is MISSING:
+            self.issue(
+                'global.includeNamespaceUsage',
+                'set the workflow namespaces whose usage the backend '
+                'listener should monitor')
+        else:
             self.include_namespace_usage = include_namespaces
 
         priority_classes = _pop(self.source, 'global.priorityClasses')
@@ -387,8 +391,9 @@ class _Converter:
                 generated_arguments.append(
                     _argument(argument_name,
                               default if value is MISSING else value))
-            generated_arguments.append(_argument(
-                'include_namespace_usage', self.include_namespace_usage))
+            if self.include_namespace_usage is not MISSING:
+                generated_arguments.append(_argument(
+                    'include_namespace_usage', self.include_namespace_usage))
             for old_field, argument_name, default in (
                     ('apiQps', 'api_qps', 20),
                     ('apiBurst', 'api_burst', 30)):
@@ -603,6 +608,12 @@ class _Converter:
                 '--release-name',
                 'required to preserve the legacy backend test-runner '
                 'ServiceAccount name when global.name is unset')
+        if (self.output['services']['backendTestRunner'].get('enabled', True)
+                and not self.output['compute'].get('backendTestNamespace')):
+            self.issue(
+                'global.backendTestNamespace',
+                'required when the legacy backend test runner is enabled; '
+                'set it explicitly or disable backendTestRunner.enabled')
         remaining = _prune_empty(self.source)
         for path in _leaf_paths(remaining):
             self.issue(path, 'no umbrella-chart mapping')

@@ -265,9 +265,15 @@ class _Converter:
                 'podTemplates': {'default_gpu_user': None},
             },
             'secrets': {
+                'valkey': {'generate': False},
                 'backendApiTokens': {
                     'enabled': False,
                     'credentials': [],
+                },
+                # Existing releases must preserve their signing identity.
+                'serviceAuth': {
+                    'managementMode': 'external',
+                    'bootstrap': {'enabled': False},
                 },
             },
         }
@@ -323,8 +329,8 @@ class _Converter:
                 _set(self.output, f'gateway.{component}.serviceAccount',
                      _service_account(common_account))
             # The legacy chart owns one shared ServiceAccount. Render it once
-            # through the API component so an Argo prune cannot delete the
-            # account while every other component still references it.
+            # through the API component so a deployment-controller prune
+            # cannot delete it while every other component still references it.
             _set(self.output, 'services.api.serviceAccount.create', True)
         legacy_account = _pop(self.source, 'serviceAccount')
         if isinstance(legacy_account, dict):
@@ -373,6 +379,8 @@ class _Converter:
         valkey_enabled = _move(
             self.source, self.output, 'services.redis.enabled',
             'embeddedDependencies.valkey.enabled')
+        if valkey_enabled is True:
+            _set(self.output, 'secrets.valkey.generate', True)
         _move(self.source, self.output, 'services.redis.serviceName',
               'externalDependencies.valkey.host')
         _move(self.source, self.output, 'services.redis.port',
@@ -572,8 +580,8 @@ class _Converter:
             'the umbrella chart does not include the legacy MCP OIDC proxy')
         self.unsupported(
             'services.migration',
-            'the legacy pgroll migration Job has no umbrella-chart equivalent; '
-            'complete schema migration before switching charts')
+            'configure the unified chart databaseMigration settings manually '
+            'in a separate override file')
         self.unsupported(
             'services.configFile',
             'an injected whole-service config file cannot be translated; use '
