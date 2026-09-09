@@ -77,7 +77,10 @@ def setup_parser(parser: argparse._SubParsersAction):
         parser: The parser to be configured.
     '''
     workflow_parser = parser.add_parser('workflow',
-        help='Manage workflows submitted to the workflow service.')
+        help='Manage workflows submitted to the workflow service.',
+        epilog='In 6.4, workflow tags are removed from the CLI. Use submit --label KEY=VALUE '
+               'and list --label KEY=SELECTOR or --no-label KEY. '
+               'Labels cannot be changed on existing runs.')
     subparsers = workflow_parser.add_subparsers(dest='command')
     subparsers.required = True
 
@@ -331,9 +334,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                   'Example: --submitted-after 2023-05-02 --submitted-before '
                                   '2023-05-04 includes all workflows that were submitted any '
                                   'time on May 2nd and May 3rd only.')
-    list_parser.add_argument('--tags',
-                             nargs='+',
-                             help='Filter for workflows that contain the tag(s).')
     list_parser.add_argument('--priority',
                              type=lambda x: x.upper(),
                              nargs='+',
@@ -377,25 +377,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  'For a specific app or app version, use the format '
                                  '<app>:<version>.')
     list_parser.set_defaults(func=_list_workflows)
-
-    # Handle 'tag' command
-    tag_parser = subparsers.add_parser('tag',
-                                       help='List or change tags from workflow(s) '
-                                            'if no workflow is specified. '
-                                            'Remove is applied before add')
-    tag_parser.add_argument('--workflow', '-w',
-                            nargs='+',
-                            help='List of workflows to update. If not set, the CLI will '
-                                 'return the list of available tags to assign.')
-    tag_parser.add_argument('--add', '-a',
-                            nargs='+',
-                            default=[],
-                            help='List of tags to add.')
-    tag_parser.add_argument('--remove', '-r',
-                            nargs='+',
-                            default=[],
-                            help='List of tags to remove.')
-    tag_parser.set_defaults(func=_tag_workflows)
 
     # Handle 'exec' command
     exec_parser = subparsers.add_parser('exec', help='Exec into a task of a workflow.')
@@ -1099,8 +1080,6 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
         params['order'] = 'DESC'
     if args.all_users:
         params['all_users'] = True
-    if args.tags:
-        params['tags'] = args.tags
     if args.pool:
         params['pools'] = args.pool
     else:
@@ -1162,38 +1141,6 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
             print(table.draw())
         else:
             print('There are no workflows to view.')
-
-
-def _tag_workflows(service_client: client.ServiceClient, args: argparse.Namespace):
-    if (args.add or args.remove) and not args.workflow:
-        raise osmo_errors.OSMOUserError('No workflow specified to add/remove tags from!')
-    if args.workflow and not (args.add or args.remove):
-        raise osmo_errors.OSMOUserError('No tags specified to add/remove!')
-
-    # Add/remove tags
-    if args.workflow:
-        params = {'add': args.add, 'remove': args.remove}
-        for workflow in args.workflow:
-            try:
-                service_client.request(
-                    client.RequestMethod.POST,
-                    f'api/workflow/{workflow}/tag',
-                    params=params)
-                print(f'Workflow {workflow} updated.')
-            except osmo_errors.OSMOUserError as err:
-                print(err)
-        return
-
-    # Get Tags
-    tags_response = service_client.request(
-        client.RequestMethod.GET,
-        'api/tag')
-    tags = tags_response.get('tags', [])
-    if not tags:
-        print('No tags have been set by admins.')
-    print('Tags:')
-    for tag in tags:
-        print(f'- {tag}')
 
 
 def _get_spec(service_client: client.ServiceClient, args: argparse.Namespace):

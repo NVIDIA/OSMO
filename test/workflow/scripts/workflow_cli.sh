@@ -33,20 +33,15 @@ if [ $? -ne 0 ]; then
 fi
 echo "[Workflow Query Done]"
 
-echo "[Workflow Tag Start] ------------------------------------------------"
-osmo workflow tag --workflow {{workflow_id}} --add test
-if [ $? -ne 0 ]; then
-    echo "[Workflow Tag Failed] Failed to add tag to workflow"
+echo "[Workflow Tag Removal Start] ----------------------------------------"
+tag_output=$(osmo workflow tag --help 2>&1)
+tag_status=$?
+if [ "$tag_status" -ne 2 ] || ! printf '%s\n' "$tag_output" | grep -Fq "invalid choice: 'tag'"; then
+    echo "[Workflow Tag Removal Failed] Expected argument-parser rejection"
+    printf '%s\n' "$tag_output"
     exit 1
 fi
-
-echo "[Workflow Tag] Remove 'test' tag from workflow"
-osmo workflow tag --workflow {{workflow_id}} --remove test
-if [ $? -ne 0 ]; then
-    echo "[Workflow Tag Failed] Failed to remove tag from workflow"
-    exit 1
-fi
-echo "[Workflow Tag Done]"
+echo "[Workflow Tag Removal Done]"
 
 echo "[Workflow Spec Start] ------------------------------------------------"
 osmo workflow spec {{workflow_id}}

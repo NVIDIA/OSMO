@@ -220,6 +220,38 @@ class TestAsyncioEntrypoints(unittest.TestCase):
 
 
 class TestRemovedCommands(unittest.TestCase):
+    def test_workflow_tags_reject_before_login_or_requests(self):
+        cases = (
+            ['workflow', 'tag'],
+            ['workflow', 'tag', '--help'],
+            ['workflow', 'tag', '--workflow', 'wf-1', '--add', 'nightly'],
+            ['workflow', 'tag', '--workflow', 'wf-1', '--remove', 'nightly'],
+            ['workflow', 'list', '--tags', 'nightly'],
+            ['workflow', 'list', '--tag', 'nightly'],
+        )
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                output = io.StringIO()
+                errors = io.StringIO()
+                with mock.patch.object(cli.sys, 'argv', ['osmo', *arguments]), \
+                     mock.patch.object(cli, 'configure_logging') as configure_logging, \
+                     mock.patch.object(cli.client, 'LoginManager') as login_manager, \
+                     mock.patch.object(cli.client, 'ServiceClient') as service_client, \
+                     contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                    service_client.return_value.request.return_value = {
+                        'tags': [], 'workflows': [], 'more_entries': False,
+                    }
+                    with self.assertRaises(SystemExit) as raised:
+                        cli.main()
+
+                self.assertEqual(raised.exception.code, 2)
+                diagnostic = 'invalid choice' if arguments[1] == 'tag' else 'unrecognized arguments'
+                self.assertIn(diagnostic, errors.getvalue())
+                configure_logging.assert_not_called()
+                login_manager.assert_not_called()
+                service_client.assert_not_called()
+                service_client.return_value.request.assert_not_called()
+
     def test_dataset_command_is_not_registered(self):
         parser = main_parser.create_cli_parser()
 

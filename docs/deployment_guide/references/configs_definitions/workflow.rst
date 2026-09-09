@@ -238,7 +238,8 @@ Workflow Information
      - **Default Values**
    * - ``tags``
      - Array[String]
-     - The list contains the available tags the user can mark their workflow
+     - Available legacy tags for the tag API and older clients. The 6.4 CLI
+       uses :ref:`workflow_spec_labels` for new workflows instead.
      - ``[]``
    * - ``max_name_length``
      - Integer

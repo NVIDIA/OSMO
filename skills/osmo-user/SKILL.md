@@ -96,9 +96,14 @@ Workflow submit/list/query/log/event/spec subcommand and flag lookup.
 - "Validate this workflow", "Dry run it", "What flags does workflow list support?", "How do I fetch logs?", "Show the rendered spec"
 - Use for command syntax only; use `references/workflow-submit.md`, `references/workflow-status.md`, or `references/troubleshooting.md` for procedures.
 
+For requests to add workflow tags, explain that the tag CLI was removed in 6.4.
+Use the label guidance in `references/workflow-commands.md`: labels are set at
+submission and cannot be changed on existing runs. Do not resubmit without an
+explicit user request.
+
 ### `references/workflow-runtime-commands.md`
 Live workflow runtime operations.
-- "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow", "Add a tag to this workflow"
+- "Cancel workflow X", "Exec into task Y", "Port-forward task Z", "Rsync files into this workflow"
 - Ask for confirmation before cancellation and other destructive operations. A
   bare request like "Cancel workflow X" is not confirmation.
 

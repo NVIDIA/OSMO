@@ -97,8 +97,12 @@ _PARITY_CONTRACTS = {
         ),
     ),
     'osmo_list_workflows': _ParityContract(
-        _SEMANTIC_PROJECTION,
+        _INTENTIONAL_DIFFERENCE,
         'osmo workflow list --format-type json',
+        (
+            'MCP retains its optional legacy tags filter for compatibility; '
+            'the 6.4 CLI removes it. Both surfaces keep label selectors.'
+        ),
     ),
     'osmo_list_tasks': _ParityContract(
         _SEMANTIC_PROJECTION,

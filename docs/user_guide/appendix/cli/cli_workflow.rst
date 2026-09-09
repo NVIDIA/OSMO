@@ -23,6 +23,14 @@
 osmo workflow
 ================================================
 
+.. note::
+
+   In 6.4, ``osmo workflow tag``, ``osmo workflow list --tags``, and the former
+   ``--tag`` abbreviation are removed.
+   Use :ref:`workflow_spec_labels` to classify new workflows at submission with
+   ``--label KEY=VALUE`` and filter lists with ``--label KEY=SELECTOR`` or
+   ``--no-label KEY``. Labels cannot be changed on existing runs.
+
 .. argparse-with-postprocess::
    :module: src.cli.main_parser
    :func: create_cli_parser

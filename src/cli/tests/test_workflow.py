@@ -59,7 +59,6 @@ def _make_list_args(**overrides) -> argparse.Namespace:
         'name': None,
         'order': 'asc',
         'all_users': False,
-        'tags': None,
         'pool': [],
         'app': None,
         'priority': None,
@@ -226,7 +225,6 @@ class TestWorkflowLabelParser(unittest.TestCase):
             name=None,
             order='asc',
             all_users=False,
-            tags=None,
             pool=[],
             app=None,
             priority=None,
@@ -264,7 +262,6 @@ class TestWorkflowLabelParser(unittest.TestCase):
             name=None,
             order='asc',
             all_users=False,
-            tags=None,
             pool=[],
             app=None,
             priority=None,
@@ -1344,10 +1341,17 @@ class ListWorkflowsTest(unittest.TestCase):
 
         self.assertEqual(service_client.request.call_args.kwargs['params']['all_users'], True)
 
-    def test_tag_filter_sets_the_tags_param(self):
-        service_client = self._run_list(_make_list_args(tags=['nightly']))
+    def test_default_list_from_parser_omits_tags(self):
+        parser = argparse.ArgumentParser()
+        workflow.setup_parser(parser.add_subparsers())
+        args = parser.parse_args(['workflow', 'list'])
+        service_client = self._run_list(args)
 
-        self.assertEqual(service_client.request.call_args.kwargs['params']['tags'], ['nightly'])
+        service_client.request.assert_called_once()
+        params = service_client.request.call_args.kwargs['params']
+        self.assertNotIn('tags', params)
+        self.assertEqual(params['limit'], args.count)
+        self.assertTrue(params['all_pools'])
 
     def test_pool_filter_sets_the_pools_param_instead_of_all_pools(self):
         service_client = self._run_list(_make_list_args(pool=['pool-1']))
@@ -1420,66 +1424,34 @@ class ListWorkflowsTest(unittest.TestCase):
         self.assertIn('There are no workflows to view.', _joined_print_output(mock_print))
 
 
-class TagWorkflowsTest(unittest.TestCase):
-    """Test the 'workflow tag' command handler."""
+class WorkflowTagRetirementTest(unittest.TestCase):
+    """Help exposes label filters and no callable workflow tag interface."""
 
-    def test_tag_changes_without_a_workflow_raises_user_error(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        args = argparse.Namespace(workflow=None, add=['nightly'], remove=[])
+    def test_workflow_help_omits_tag_choices(self):
+        parser = argparse.ArgumentParser()
+        workflow.setup_parser(parser.add_subparsers())
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as raised:
+            parser.parse_args(['workflow', '--help'])
 
-        with self.assertRaisesRegex(osmo_errors.OSMOUserError, 'No workflow specified'):
-            workflow._tag_workflows(service_client, args)
+        self.assertEqual(raised.exception.code, 0)
+        help_text = output.getvalue()
+        self.assertNotIn(',tag,', help_text)
+        self.assertNotRegex(help_text, r'(?m)^\s+tag\s')
+        self.assertIn('submit', help_text)
+        self.assertIn('list', help_text)
 
-    def test_workflow_without_tag_changes_raises_user_error(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        args = argparse.Namespace(workflow=['wf-1'], add=[], remove=[])
+    def test_list_help_keeps_label_filters_and_omits_tags(self):
+        parser = argparse.ArgumentParser()
+        workflow.setup_parser(parser.add_subparsers())
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as raised:
+            parser.parse_args(['workflow', 'list', '--help'])
 
-        with self.assertRaisesRegex(osmo_errors.OSMOUserError, 'No tags specified'):
-            workflow._tag_workflows(service_client, args)
-
-    def test_added_and_removed_tags_are_forwarded_per_workflow(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        args = argparse.Namespace(workflow=['wf-1'], add=['nightly'], remove=['draft'])
-
-        with mock.patch('builtins.print') as mock_print:
-            workflow._tag_workflows(service_client, args)
-
-        self.assertEqual(
-            service_client.request.call_args.kwargs['params'],
-            {'add': ['nightly'], 'remove': ['draft']})
-        self.assertIn('Workflow wf-1 updated.', _joined_print_output(mock_print))
-
-    def test_rejected_tag_update_prints_the_user_error(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        service_client.request.side_effect = osmo_errors.OSMOUserError('unknown tag nightly')
-        args = argparse.Namespace(workflow=['wf-1'], add=['nightly'], remove=[])
-
-        with mock.patch('builtins.print') as mock_print:
-            workflow._tag_workflows(service_client, args)
-
-        self.assertIn('unknown tag nightly', _joined_print_output(mock_print))
-
-    def test_no_workflow_lists_the_available_tags(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        service_client.request.return_value = {'tags': ['nightly', 'release']}
-        args = argparse.Namespace(workflow=None, add=[], remove=[])
-
-        with mock.patch('builtins.print') as mock_print:
-            workflow._tag_workflows(service_client, args)
-
-        output = _joined_print_output(mock_print)
-        self.assertIn('- nightly', output)
-        self.assertIn('- release', output)
-
-    def test_empty_tag_list_reports_that_admins_set_no_tags(self):
-        service_client = mock.Mock(spec=client.ServiceClient)
-        service_client.request.return_value = {'tags': []}
-        args = argparse.Namespace(workflow=None, add=[], remove=[])
-
-        with mock.patch('builtins.print') as mock_print:
-            workflow._tag_workflows(service_client, args)
-
-        self.assertIn('No tags have been set by admins.', _joined_print_output(mock_print))
+        self.assertEqual(raised.exception.code, 0)
+        self.assertNotIn('--tags', output.getvalue())
+        self.assertIn('--label KEY=SELECTOR', output.getvalue())
+        self.assertIn('--no-label KEY', output.getvalue())
 
 
 class GetWorkflowSpecTest(unittest.TestCase):
