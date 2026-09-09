@@ -1,7 +1,8 @@
 ---
 name: osmo-user
 description: >
-  Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
+  Drive OSMO through its CLI or a connected MCP for cloud-robotics compute on
+  behalf of an end user:
   check resources, submit/monitor/debug/explain workflows, fetch logs and
   Grafana/Kubernetes links, inspect direct data storage, manage workflow apps,
   and set workflow credentials.
@@ -20,9 +21,13 @@ description: >
 Run OSMO CLI workflows from natural-language requests. Keep this file as a
 router: load only the reference files needed for the current task.
 
-## Prerequisites
+## Interface selection and prerequisites
 
-Before the first OSMO command in a conversation:
+Before the first OSMO operation, read `references/interface-routing.md`. It
+chooses one interface per operation and defines the lock, consent, and retry
+rules. An assigned interface always wins.
+
+For a CLI operation:
 
 0. For cancel/delete/force/destructive requests, ask for explicit confirmation
    before running any `osmo` command, including `osmo --version` or query
@@ -34,10 +39,17 @@ Before the first OSMO command in a conversation:
 3. Resource and workflow operations rely on the user's profile and pool access
    (`osmo profile list`, `osmo pool list`).
 
+For an MCP operation, use only tools advertised by the connected OSMO MCP and
+their current schemas. Do not run the CLI, probe a second interface, or use raw
+HTTP. Follow the MCP remediation on authentication failure; do not ask the user
+to run `osmo login`.
+
 ## Operating Rules
 
 - Classify the request using the Reference Routing section below, then load only
   the reference file(s) it names before running commands.
+- Keep each OSMO operation on its selected interface. Do not switch interfaces
+  after an error, capability gap, or authentication failure.
 - Do not guess command names or flags from memory. Use the linked reference for
   the user's use case, then run the commands yourself.
 - Obtain workflow and resource state (status, logs, events, capacity, spec) by
@@ -58,8 +70,8 @@ Before the first OSMO command in a conversation:
 
 ## Default Workflow
 
-1. Complete the Prerequisites above (CLI check, auth, profile/pool access)
-   before the first OSMO command.
+1. Complete the selected interface's prerequisites before the first OSMO
+   operation.
 2. Classify the request and read only the reference file(s) named in the
    Reference Routing section below.
 3. Run the `osmo` commands yourself — cache the query JSON and never infer state
@@ -78,6 +90,12 @@ Classify the request and read only the reference file(s) for the matched intent.
 Each heading is a reference file; the bullets under it are the user intents and
 example wordings that route there. Error and failure cases are listed under the
 reference that handles them. These are routing cues, not complete command recipes.
+The command blocks in these references are the CLI form; when MCP is selected,
+preserve the procedure and use the matching tool in
+`references/interface-routing.md`.
+
+### `references/interface-routing.md`
+Choose and lock CLI or MCP before an OSMO operation.
 
 ### `references/resource-check-format.md`
 Resources, pools, GPUs, nodes, or quota.

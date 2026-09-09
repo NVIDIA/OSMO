@@ -3,6 +3,9 @@
 Use this reference when the user wants to submit a workflow, generate a
 workflow spec for submission, or choose a pool for submission.
 
+The command blocks below are the CLI form. When MCP is selected, preserve the
+same procedure and use the matching tool in `interface-routing.md`.
+
 ## Generate and Submit a Workflow
 
 Use when the user wants to submit a workflow and does not require live
