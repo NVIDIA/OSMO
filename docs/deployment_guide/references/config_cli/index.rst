@@ -44,10 +44,15 @@ Supported configuration types
 Optional names and indices select nested values. For pools, ``--verbose`` includes
 resolved pod templates, group templates, and resource validations.
 
-Command reference
------------------
+.. _cli_reference_config_show:
 
-.. toctree::
-   :maxdepth: 1
+osmo config show
+----------------
 
-   config_show
+.. argparse-with-postprocess::
+   :module: src.cli.main_parser
+   :func: create_cli_parser
+   :prog: osmo
+   :path: config show
+   :ref-prefix: cli_reference_config_show
+   :argument-anchor:
