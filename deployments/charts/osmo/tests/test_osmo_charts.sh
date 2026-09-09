@@ -1880,6 +1880,8 @@ test_control_umbrella() {
         "osmo/migrations/run_migrations.sh"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/migrations/008_v6_4_0_configmap_user_roles.json"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/009_v6_4_0_legacy_configs_cleanup.json"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/migrations/004_v6_2_0_data.json"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
@@ -2180,6 +2182,8 @@ test_control_umbrella() {
         "005_v6_4_0_workflow_labels.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "008_v6_4_0_configmap_user_roles.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "009_v6_4_0_legacy_configs_cleanup.json: |"
     require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "004_v6_2_0_data.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \

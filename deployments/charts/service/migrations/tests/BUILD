@@ -30,3 +30,16 @@ osmo_py_test(
     size = "medium",
     tags = ["requires-network"],
 )
+
+osmo_py_test(
+    name = "test_configmap_user_roles_migration",
+    srcs = ["test_configmap_user_roles_migration.py"],
+    data = ["//deployments/charts/service/migrations:migration_files"],
+    deps = [
+        "//src/tests/common",
+        "@rules_python//python/runfiles",
+        requirement("psycopg2-binary"),
+    ],
+    size = "medium",
+    tags = ["requires-network"],
+)

@@ -74,6 +74,22 @@ class UsersBackfillMigrationTest(
                     cred_name TEXT,
                     PRIMARY KEY (user_name, cred_name)
                 );
+                CREATE TABLE profile (
+                    user_name TEXT PRIMARY KEY
+                );
+                CREATE TABLE ueks (
+                    uid TEXT PRIMARY KEY
+                );
+                CREATE TABLE user_roles (
+                    user_id TEXT,
+                    role_name TEXT,
+                    PRIMARY KEY (user_id, role_name)
+                );
+                CREATE TABLE access_token (
+                    user_name TEXT,
+                    token_name TEXT,
+                    PRIMARY KEY (user_name, token_name)
+                );
                 ''')
 
     def tearDown(self):
@@ -193,30 +209,73 @@ class UsersBackfillMigrationTest(
                 ''')
             self.assertEqual(cursor.fetchone(), (0, 1, 1, 1))
 
-    def test_rejects_empty_persistent_identities(self):
+    def test_removes_only_empty_profile_user_pair_and_is_idempotent(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute("INSERT INTO users (id) VALUES ('')")
+            cursor.execute("INSERT INTO profile (user_name) VALUES ('')")
+
+        self._run_migration()
+        self._run_migration()
+
+        with self.connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM profile WHERE user_name = ''")
+            self.assertEqual(cursor.fetchone()[0], 0)
+            cursor.execute("SELECT COUNT(*) FROM users WHERE id = ''")
+            self.assertEqual(cursor.fetchone()[0], 0)
+
+    def test_rejects_empty_identity_references_outside_profile(self):
         cases = (
-            ("INSERT INTO users (id) VALUES ('')", "DELETE FROM users WHERE id = ''"),
             (
+                'workflows',
                 "INSERT INTO workflows VALUES ('empty-workflow', '')",
                 "DELETE FROM workflows WHERE workflow_uuid = 'empty-workflow'",
             ),
             (
+                'apps',
                 "INSERT INTO apps VALUES ('empty-app', '')",
                 "DELETE FROM apps WHERE uuid = 'empty-app'",
             ),
             (
+                'app_versions',
                 "INSERT INTO app_versions VALUES ('empty-app', 1, '')",
                 "DELETE FROM app_versions WHERE uuid = 'empty-app' AND version = 1",
             ),
+            (
+                'credential',
+                "INSERT INTO credential VALUES ('', 'empty-credential')",
+                "DELETE FROM credential WHERE user_name = ''",
+            ),
+            (
+                'ueks',
+                "INSERT INTO ueks VALUES ('')",
+                "DELETE FROM ueks WHERE uid = ''",
+            ),
+            (
+                'user_roles',
+                "INSERT INTO user_roles VALUES ('', 'empty-role')",
+                "DELETE FROM user_roles WHERE user_id = ''",
+            ),
+            (
+                'access_token',
+                "INSERT INTO access_token VALUES ('', 'empty-token')",
+                "DELETE FROM access_token WHERE user_name = ''",
+            ),
         )
-        for insert_sql, cleanup_sql in cases:
-            with self.subTest(insert_sql=insert_sql):
+        for table_name, insert_sql, cleanup_sql in cases:
+            with self.subTest(table_name=table_name):
                 with self.connection.cursor() as cursor:
+                    cursor.execute("INSERT INTO users (id) VALUES ('')")
+                    cursor.execute("INSERT INTO profile (user_name) VALUES ('')")
                     cursor.execute(insert_sql)
-                    with self.assertRaisesRegex(
-                            psycopg2.Error, 'empty persistent user identity'):
-                        cursor.execute(self._migration_sql(MIGRATION))
-                    cursor.execute(cleanup_sql)
+                    try:
+                        with self.assertRaisesRegex(
+                                psycopg2.Error,
+                                f'empty user identity.*{table_name}'):
+                            cursor.execute(self._migration_sql(MIGRATION))
+                    finally:
+                        cursor.execute(cleanup_sql)
+                        cursor.execute("DELETE FROM profile WHERE user_name = ''")
+                        cursor.execute("DELETE FROM users WHERE id = ''")
 
     def test_migration_blocks_concurrent_persistent_writes(self):
         connection_parameters = {
