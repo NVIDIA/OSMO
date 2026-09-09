@@ -11,13 +11,13 @@ import unittest
 import yaml
 
 
-class BackendValuesConvertTest(unittest.TestCase):
+class ComputeValuesConvertTest(unittest.TestCase):
     """Tests observable conversion behavior through the command-line tool."""
 
     def run_converter(self, values: list[dict], *arguments: str
                       ) -> subprocess.CompletedProcess[str]:
         """Run the converter against temporary values files."""
-        script = pathlib.Path(__file__).parents[1] / 'backend_values_convert.py'
+        script = pathlib.Path(__file__).parents[1] / 'compute_values_convert.py'
         with tempfile.TemporaryDirectory() as temporary_directory:
             paths = []
             for index, value in enumerate(values):
@@ -35,20 +35,21 @@ class BackendValuesConvertTest(unittest.TestCase):
     def test_cli_maps_token_backend_values(self) -> None:
         legacy = {
             'global': {
-                'osmoImageLocation': 'nvcr.io/nvstaging/osmo',
+                'osmoImageLocation': 'registry.example.com/team/osmo',
                 'osmoImageTag': '6.4.0-test',
                 'imagePullSecret': 'nvcr-secret',
-                'backendName': 'dgx-h100-dev',
-                'backendNamespace': 'osmo-staging',
-                'backendTestNamespace': 'osmo-staging-test',
-                'serviceUrl': 'https://staging.osmo.example.com',
+                'backendName': 'compute-a',
+                'backendNamespace': 'workflows',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
+                'serviceUrl': 'https://osmo.example.com',
                 'accountUsername': 'unused-token-user',
                 'accountPasswordSecret': 'unused-password-secret',
                 'loginMethod': 'token',
-                'accountTokenSecret': 'staging-access-token',
+                'accountTokenSecret': 'backend-access-token',
                 'accountTokenSecretKey': 'token',
                 'serviceAccountName': 'unused-legacy-value',
-                'nodeConditionPrefix': 'staging.osmo.example.com/',
+                'nodeConditionPrefix': 'compute.osmo.example.com/',
                 'nodeSelector': {'nodeGroup': 'monitoring'},
                 'tolerations': [{
                     'key': 'dedicated',
@@ -85,29 +86,29 @@ class BackendValuesConvertTest(unittest.TestCase):
                 'podTemplate': {
                     'image': {
                         'repository': (
-                            'nvcr.io/nvstaging/osmo/backend-test-runner'),
+                            'registry.example.com/team/osmo/backend-test-runner'),
                     },
                 },
                 'extraRoles': [{
                     'apiVersion': 'rbac.authorization.k8s.io/v1',
                     'kind': 'Role',
                     'metadata': {
-                        'name': 'test-runner-osmo-staging',
-                        'namespace': 'osmo-staging',
+                        'name': 'test-runner-backend-tests',
+                        'namespace': 'backend-tests',
                     },
                     'rules': [],
                 }],
             },
             'podMonitor': {'enabled': True},
         }
-        script = pathlib.Path(__file__).parents[1] / 'backend_values_convert.py'
+        script = pathlib.Path(__file__).parents[1] / 'compute_values_convert.py'
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             values_path = pathlib.Path(temporary_directory) / 'values.yaml'
             values_path.write_text(yaml.safe_dump(legacy), encoding='utf-8')
             completed = subprocess.run(
                 [sys.executable, str(script), str(values_path),
-                 '--release-name', 'stg-dgx-h100-dev-backend-operator'],
+                 '--release-name', 'compute-a-backend-operator'],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -126,27 +127,27 @@ class BackendValuesConvertTest(unittest.TestCase):
         })
         self.assertEqual(converted['nameOverride'], 'backend-operator')
         self.assertEqual(converted['fullnameOverride'], '')
-        self.assertEqual(converted['imageRegistry'], 'nvcr.io')
-        self.assertEqual(converted['imageRepository'], 'nvstaging/osmo')
+        self.assertEqual(converted['imageRegistry'], 'registry.example.com')
+        self.assertEqual(converted['imageRepository'], 'team/osmo')
         self.assertEqual(converted['imageTag'], '6.4.0-test')
         self.assertEqual(converted['imagePullSecrets'], [
             {'name': 'nvcr-secret'},
         ])
         self.assertEqual(converted['externalUrl'],
-                         'https://staging.osmo.example.com')
-        self.assertEqual(converted['compute']['backendName'], 'dgx-h100-dev')
+                         'https://osmo.example.com')
+        self.assertEqual(converted['compute']['backendName'], 'compute-a')
         self.assertEqual(converted['compute']['workloadNamespace'], {
-            'name': 'osmo-staging',
+            'name': 'workflows',
             'create': False,
         })
         self.assertEqual(converted['compute']['backendTestNamespace'],
-                         'osmo-staging-test')
+                         'backend-tests')
         self.assertEqual(converted['compute']['authentication'], {
-            'existingSecret': 'staging-access-token',
+            'existingSecret': 'backend-access-token',
             'tokenKey': 'token',
         })
         self.assertEqual(converted['compute']['nodeConditionPrefix'],
-                         'staging.osmo.example.com/')
+                         'compute.osmo.example.com/')
         self.assertEqual(converted['compute']['workflowNetworkPolicy'], {
             'enabled': True,
             'clusterCIDRs': ['10.244.0.0/16'],
@@ -166,7 +167,7 @@ class BackendValuesConvertTest(unittest.TestCase):
         self.assertEqual(listener['extraArgs'], [
             '--max_unacked_messages=100',
             '--pod_event_cache_ttl=15',
-            '--include_namespace_usage=osmo-staging,osmo-prod',
+            '--include_namespace_usage=workflows,backend-tests',
             '--api_qps=200',
             '--api_burst=1000',
         ])
@@ -191,10 +192,10 @@ class BackendValuesConvertTest(unittest.TestCase):
             'managed-by': 'backend-operator',
         })
         self.assertEqual(test_runner['serviceAccount']['name'],
-                         'stg-dgx-h100-dev-backend-operator-test-runner')
+                         'compute-a-backend-operator-test-runner')
         self.assertEqual(test_runner['image'], {
-            'registry': 'nvcr.io',
-            'repository': 'nvstaging/osmo/backend-test-runner',
+            'registry': 'registry.example.com',
+            'repository': 'team/osmo/backend-test-runner',
             'pullPolicy': 'Always',
         })
         self.assertEqual(test_runner['extraRoles'][0]['kind'], 'Role')
@@ -206,9 +207,11 @@ class BackendValuesConvertTest(unittest.TestCase):
             'global': {
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
             },
         }
-        script = pathlib.Path(__file__).parents[1] / 'backend_values_convert.py'
+        script = pathlib.Path(__file__).parents[1] / 'compute_values_convert.py'
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             values_path = pathlib.Path(temporary_directory) / 'values.yaml'
@@ -232,7 +235,7 @@ class BackendValuesConvertTest(unittest.TestCase):
             converted['services']['backendListener']['extraArgs'], [
                 '--max_unacked_messages=100',
                 '--pod_event_cache_ttl=15',
-                '--include_namespace_usage=osmo-staging,osmo-prod',
+                '--include_namespace_usage=workflows,backend-tests',
                 '--api_qps=20',
                 '--api_burst=30',
             ])
@@ -251,6 +254,8 @@ class BackendValuesConvertTest(unittest.TestCase):
                 'name': 'stable-backend-name',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
             },
         }])
 
@@ -276,6 +281,8 @@ class BackendValuesConvertTest(unittest.TestCase):
                 'agentNamespace': 'backend-agents',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
             },
         }
 
@@ -327,6 +334,8 @@ class BackendValuesConvertTest(unittest.TestCase):
                     'accountTokenSecret': 'backend-token',
                     'backendName': 'base-name',
                     'nodeSelector': {'pool': 'base', 'arch': 'amd64'},
+                    'backendTestNamespace': 'backend-tests',
+                    'includeNamespaceUsage': 'workflows,backend-tests',
                 },
             },
             {
@@ -344,6 +353,31 @@ class BackendValuesConvertTest(unittest.TestCase):
             'pool': 'override',
             'arch': 'amd64',
         })
+
+    def test_cli_requires_test_namespace_when_test_runner_is_enabled(
+            self) -> None:
+        completed = self.run_converter([{
+            'global': {
+                'loginMethod': 'token',
+                'accountTokenSecret': 'backend-token',
+                'includeNamespaceUsage': 'workflows',
+            },
+        }])
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn('global.backendTestNamespace', completed.stderr)
+
+    def test_cli_requires_explicit_namespace_usage(self) -> None:
+        completed = self.run_converter([{
+            'global': {
+                'loginMethod': 'token',
+                'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+            },
+        }])
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn('global.includeNamespaceUsage', completed.stderr)
 
 
 if __name__ == '__main__':
