@@ -236,9 +236,11 @@ resource_name_with_hash_suffix() {
     local suffix=$3
     local matches
     matches=$(resource_names "$file" "$kind" | \
-        grep -E -- "-${suffix}-[0-9a-f]{10}$" || true)
+        grep -E -- "-${suffix}-[0-9a-f]{10}\"?$" || true)
     [[ $(awk 'NF { count += 1 } END { print count + 0 }' <<<"$matches") -eq 1 ]] || \
         fail "expected exactly one $kind ending in ${suffix}-<hash>"
+    matches=${matches#\"}
+    matches=${matches%\"}
     printf '%s\n' "$matches"
 }
 
@@ -2251,8 +2253,12 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
         "pg-require-osmo-pgroll-migration" \
         >"$TEST_DIRECTORY/postgresql-require-pgroll.yaml"
+    local postgresql_require_service_auth_name
+    postgresql_require_service_auth_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "service-auth-db-migration")
     resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
-        "pg-require-osmo-service-auth-db-migration" \
+        "$postgresql_require_service_auth_name" \
         >"$TEST_DIRECTORY/postgresql-require-service-auth.yaml"
     local postgresql_require_mek_name
     postgresql_require_mek_name=$(resource_names \
@@ -2844,8 +2850,8 @@ EOF
         "osmo-service-auth"
     require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
         "service_auth_database_write_lock"
-    require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
-        "service-auth-osmo-service-auth-db-migration"
+    require_no_resource_with_hash_suffix "$TEST_DIRECTORY/service-auth.yaml" Job \
+        "service-auth-db-migration"
 
     helm_template service-auth-bootstrap "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -2985,6 +2991,7 @@ EOF
         --set gateway.authz.enabled=true \
         --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
         --set secrets.serviceAuth.migration.enabled=true \
+        --set-string secrets.serviceAuth.migration.attempt=1 \
         >"$TEST_DIRECTORY/service-auth-migration.yaml"
     require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
         "service-auth-migration-osmo-api"
@@ -2998,26 +3005,71 @@ EOF
         "service-auth-migration-osmo-agent"
     require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
         "service-auth-migration-osmo-gateway-authz"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" ServiceAccount \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" RoleBinding \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Job \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    resource_document "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
-        "service-auth-migration-osmo-service-auth-db-migration" \
-        >"$TEST_DIRECTORY/service-auth-role.yaml"
-    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
-        'resourceNames: ["osmo-service-auth"]'
-    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
-        'verbs: ["get", "update"]'
-    require_not_contains "$TEST_DIRECTORY/service-auth-role.yaml" '"create"'
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'helm.sh/hook: pre-upgrade'
-    require_occurrences "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/hook: PreSync' 4
+    helm_template service-auth-migration "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.enabled=false \
+        --set gateway.authz.enabled=true \
+        --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+        --set secrets.serviceAuth.migration.enabled=true \
+        --set-string secrets.serviceAuth.migration.attempt=2 \
+        >"$TEST_DIRECTORY/service-auth-migration-retry.yaml"
+    local service_auth_migration_name
+    local service_auth_migration_retry_name
+    service_auth_migration_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-migration.yaml" Job \
+        "service-auth-db-migration")
+    service_auth_migration_retry_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-migration-retry.yaml" Job \
+        "service-auth-db-migration")
+    [[ "$service_auth_migration_name" != "$service_auth_migration_retry_name" ]] || \
+        fail "service auth migration attempt did not change the hook resource name"
+    for migration_render in service-auth-migration service-auth-migration-retry; do
+        local migration_file="$TEST_DIRECTORY/$migration_render.yaml"
+        local migration_name
+        migration_name=$(resource_name_with_hash_suffix \
+            "$migration_file" Job "service-auth-db-migration")
+        [[ "$migration_name" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || \
+            fail "service auth migration resource name is not DNS-safe: $migration_name"
+        [[ ${#migration_name} -le 63 ]] || \
+            fail "service auth migration resource name exceeds the Kubernetes limit"
+        for migration_kind in ServiceAccount Role RoleBinding Job; do
+            local migration_kind_name
+            migration_kind_name=$(resource_name_with_hash_suffix \
+                "$migration_file" "$migration_kind" \
+                "service-auth-db-migration")
+            [[ "$migration_kind_name" == "$migration_name" ]] || \
+                fail "service auth migration resources do not share one name"
+            require_resource "$migration_file" "$migration_kind" "$migration_name"
+            resource_document "$migration_file" "$migration_kind" "$migration_name" \
+                >"$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml"
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook: pre-upgrade'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'argocd.argoproj.io/hook: PreSync'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
+        done
+        resource_document "$migration_file" Role "$migration_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-role.yaml"
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            'resourceNames: ["osmo-service-auth"]'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            'verbs: ["get", "update"]'
+        require_occurrences \
+            "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            '  verbs:' 1
+        require_not_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            '"create"'
+        require_not_contains "$migration_file" 'Force=true'
+        require_not_contains "$migration_file" 'Replace=true'
+    done
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'argocd.argoproj.io/sync-wave: "-20"'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
@@ -3043,6 +3095,18 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/service-auth-migration-with-api.out" \
         "services.api.enabled must be false during service-auth migration"
+    if helm_template invalid-service-auth-migration-attempt "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set services.api.enabled=false \
+            --set secrets.serviceAuth.migration.enabled=true \
+            --set-string secrets.serviceAuth.migration.attempt= \
+            >"$TEST_DIRECTORY/invalid-service-auth-migration-attempt.out" 2>&1; then
+        fail "expected an empty service auth migration attempt to fail schema validation"
+    fi
+    require_schema_path \
+        "$TEST_DIRECTORY/invalid-service-auth-migration-attempt.out" \
+        "secrets.serviceAuth.migration.attempt"
 
     if helm_template missing-service-auth-secret "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

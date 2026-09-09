@@ -1453,11 +1453,12 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
+            "attempt": { "type": "string", "minLength": 1 },
             "nodeSelector": { "$ref": "#/definitions/stringMap" },
             "tolerations": { "type": "array" },
             "resources": { "type": "object" }
           },
-          "required": ["enabled", "nodeSelector", "tolerations", "resources"]
+          "required": ["enabled", "attempt", "nodeSelector", "tolerations", "resources"]
         }
       },
       "required": ["managementMode", "existingSecret", "rolloutNonce", "bootstrap", "migration"]

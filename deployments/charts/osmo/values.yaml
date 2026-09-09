@@ -402,6 +402,8 @@ secrets:
       # access and target-scoped Secret update permission. Disable after
       # migration. Remove only when DB-backed upgrades are no longer supported.
       enabled: false
+      # Increment after a failed GitOps attempt or credential correction.
+      attempt: "1"
       nodeSelector: {}
       tolerations: []
       resources: {}
