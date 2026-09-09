@@ -433,11 +433,15 @@ Inputs merge from left to right using Helm's map-merge/list-replace behavior:
 
 ```bash
 python3 deployments/upgrades/service_to_osmo_chart/backend_values_convert.py \
+  --release-name BACKEND_RELEASE \
   --release-namespace osmo \
   legacy-backend-values.yaml \
   --output umbrella-backend-values.yaml
 ```
 
+`--release-name` is the existing Argo CD Application and Helm release name. It
+lets the converter preserve the legacy test-runner ServiceAccount name and is
+required when the test runner is enabled and `global.name` is unset.
 `--release-namespace` must equal the effective legacy
 `global.agentNamespace`; its default is `osmo`, which is also the legacy chart
 default. As with the control-plane converter, unsupported or ambiguous values
@@ -462,7 +466,9 @@ Legacy backend defaults are made explicit when their umbrella defaults differ:
 - the worker retains `progress_iter_frequency=15s`;
 - the legacy `ops` toleration and listener/worker resource defaults remain in
   effect; and
-- the backend test runner remains enabled with its legacy image pull policy.
+- the backend test runner remains enabled with its legacy image pull policy,
+  `--prefix osmo` argument, `managed-by` label, and exact legacy
+  test-runner ServiceAccount name.
 
 The old and new argument spellings may render as `--flag value` and
 `--flag=value`; both pass the same value to the Python argument parser. The
