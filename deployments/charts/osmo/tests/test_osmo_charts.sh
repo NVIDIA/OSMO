@@ -3014,38 +3014,40 @@ EOF
         --set secrets.serviceAuth.migration.enabled=true \
         --set-string secrets.serviceAuth.migration.attempt=2 \
         >"$TEST_DIRECTORY/service-auth-migration-retry.yaml"
-    local service_auth_migration_name
-    local service_auth_migration_retry_name
-    service_auth_migration_name=$(resource_name_with_hash_suffix \
+    local service_auth_migration_job_name
+    local service_auth_migration_retry_job_name
+    local service_auth_migration_support_name
+    service_auth_migration_job_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-migration.yaml" Job \
         "service-auth-db-migration")
-    service_auth_migration_retry_name=$(resource_name_with_hash_suffix \
+    service_auth_migration_retry_job_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-migration-retry.yaml" Job \
         "service-auth-db-migration")
-    [[ "$service_auth_migration_name" != "$service_auth_migration_retry_name" ]] || \
-        fail "service auth migration attempt did not change the hook resource name"
+    [[ "$service_auth_migration_job_name" != \
+            "$service_auth_migration_retry_job_name" ]] || \
+        fail "service auth migration attempt did not change the Job name"
+    service_auth_migration_support_name="service-auth-migration-osmo-service-auth-db-migration"
     for migration_render in service-auth-migration service-auth-migration-retry; do
         local migration_file="$TEST_DIRECTORY/$migration_render.yaml"
-        local migration_name
-        migration_name=$(resource_name_with_hash_suffix \
+        local migration_job_name
+        migration_job_name=$(resource_name_with_hash_suffix \
             "$migration_file" Job "service-auth-db-migration")
-        [[ "$migration_name" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || \
-            fail "service auth migration resource name is not DNS-safe: $migration_name"
-        [[ ${#migration_name} -le 63 ]] || \
-            fail "service auth migration resource name exceeds the Kubernetes limit"
-        for migration_kind in ServiceAccount Role RoleBinding Job; do
-            local migration_kind_name
-            migration_kind_name=$(resource_name_with_hash_suffix \
-                "$migration_file" "$migration_kind" \
-                "service-auth-db-migration")
-            [[ "$migration_kind_name" == "$migration_name" ]] || \
-                fail "service auth migration resources do not share one name"
-            require_resource "$migration_file" "$migration_kind" "$migration_name"
-            resource_document "$migration_file" "$migration_kind" "$migration_name" \
+        [[ "$migration_job_name" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]] || \
+            fail "service auth migration Job name is not DNS-safe: $migration_job_name"
+        [[ ${#migration_job_name} -le 63 ]] || \
+            fail "service auth migration Job name exceeds the Kubernetes limit"
+        for migration_kind in ServiceAccount Role RoleBinding; do
+            require_resource "$migration_file" "$migration_kind" \
+                "$service_auth_migration_support_name"
+            resource_document "$migration_file" "$migration_kind" \
+                "$service_auth_migration_support_name" \
                 >"$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml"
             require_contains \
                 "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
                 'helm.sh/hook: pre-upgrade'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook-weight: "-20"'
             require_contains \
                 "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
                 'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
@@ -3056,7 +3058,23 @@ EOF
                 "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
                 'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
         done
-        resource_document "$migration_file" Role "$migration_name" \
+        require_resource "$migration_file" Job "$migration_job_name"
+        resource_document "$migration_file" Job "$migration_job_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml"
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook: pre-upgrade'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook-weight: "-10"'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'argocd.argoproj.io/hook: PreSync'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            "serviceAccountName: \"$service_auth_migration_support_name\""
+        resource_document "$migration_file" Role \
+            "$service_auth_migration_support_name" \
             >"$TEST_DIRECTORY/service-auth-$migration_render-role.yaml"
         require_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
             'resourceNames: ["osmo-service-auth"]'
@@ -3067,6 +3085,12 @@ EOF
             '  verbs:' 1
         require_not_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
             '"create"'
+        resource_document "$migration_file" RoleBinding \
+            "$service_auth_migration_support_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-role-binding.yaml"
+        require_occurrences \
+            "$TEST_DIRECTORY/service-auth-$migration_render-role-binding.yaml" \
+            "  name: \"$service_auth_migration_support_name\"" 3
         require_not_contains "$migration_file" 'Force=true'
         require_not_contains "$migration_file" 'Replace=true'
     done

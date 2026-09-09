@@ -9,8 +9,9 @@
       "secretKey" $secretKey
       "attempt" $serviceAuth.migration.attempt
       "image" (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) -}}
-{{- $baseName := printf "%s-service-auth-db-migration" (include "osmo.fullname" . | trunc 26 | trimSuffix "-") -}}
-{{- $name := printf "%s-%s" $baseName ($identity | toJson | sha256sum | trunc 10) | trunc 63 | trimSuffix "-" -}}
+{{- $supportName := include "osmo.component.fullname" (dict "root" . "suffix" "service-auth-db-migration") -}}
+{{- $jobBaseName := printf "%s-service-auth-db-migration" (include "osmo.fullname" . | trunc 26 | trimSuffix "-") -}}
+{{- $jobName := printf "%s-%s" $jobBaseName ($identity | toJson | sha256sum | trunc 10) | trunc 63 | trimSuffix "-" -}}
 {{- $rbacAnnotations := dict
       "helm.sh/hook" "pre-upgrade"
       "helm.sh/hook-weight" "-20"
@@ -30,7 +31,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ $name | quote }}
+  name: {{ $supportName | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
@@ -41,7 +42,7 @@ automountServiceAccountToken: false
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ $name | quote }}
+  name: {{ $supportName | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
@@ -56,7 +57,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ $name | quote }}
+  name: {{ $supportName | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
@@ -64,17 +65,17 @@ metadata:
     {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $rbacAnnotations) | nindent 4 }}
 subjects:
 - kind: ServiceAccount
-  name: {{ $name | quote }}
+  name: {{ $supportName | quote }}
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ $name | quote }}
+  name: {{ $supportName | quote }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $name | quote }}
+  name: {{ $jobName | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}
@@ -88,7 +89,7 @@ spec:
         {{- include "osmo.component.standardLabels" (dict "root" . "component" "service-auth-db-migration") | nindent 8 }}
     spec:
       restartPolicy: Never
-      serviceAccountName: {{ $name | quote }}
+      serviceAccountName: {{ $supportName | quote }}
       automountServiceAccountToken: false
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
       {{- with $serviceAuth.migration.nodeSelector }}

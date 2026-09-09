@@ -188,3 +188,157 @@ an existing awk warning about `\\\"` being an unknown regular-expression escape;
 it is outside this task's changed assertions and did not affect the exit code.
 The suite and standalone inspection also require network access when their
 pinned OCI chart dependencies are not already present locally.
+
+## Fix round 1: stable Helm retry support resources
+
+This section supersedes the original report's common-name conclusion for the
+ServiceAccount, Role, and RoleBinding. The original attempt-hashed common name
+is safe under newer Helm cleanup behavior but is not a reliable retry cleanup
+contract for older Helm 3 clients that this chart does not exclude.
+
+### Helm lifecycle verification
+
+The installed client is Helm `v4.0.4`. I inspected the matching upstream
+`pkg/action/hooks.go`, then inspected Helm `v3.19.4`, `v3.18.6`, and `v3.14.4`
+for the same failed-hook branch.
+
+- Helm 4.0.4 and Helm 3.19.4 call `deleteHooksByPolicy` with
+  `HookSucceeded` for prior successful hooks when a later hook fails. With
+  these versions, the successful `-20` support hooks are deleted when the
+  `-10` Job fails because they include `hook-succeeded`.
+- Helm 3.18.6 and Helm 3.14.4 delete only the currently failed hook under
+  `HookFailed` and return. They do not apply cleanup to earlier successful
+  hooks in the failed event.
+- The chart declares Kubernetes compatibility but no minimum Helm version, so
+  raw Helm compatibility cannot depend on the newer cleanup branch.
+
+With the original common attempt-hashed name, an older Helm client could leave
+the successful ServiceAccount, Role, and RoleBinding behind after the Job
+failed. Changing `migration.attempt` also changed those names, so the next
+run's `before-hook-creation` policy addressed only the new names and could not
+reconcile the earlier support objects.
+
+### Corrected contract and tradeoff
+
+The smallest cross-version correction separates the two identity lifecycles:
+
+- ServiceAccount, Role, and RoleBinding use the stable release-scoped
+  `osmo.component.fullname` ending in `service-auth-db-migration`.
+- Job alone uses the full-input, attempt-scoped ten-character hash introduced
+  in Task 5.
+- RoleBinding subject and `roleRef`, plus the Job's `serviceAccountName`, all
+  reference the stable support name.
+
+On older Helm 3, support resources can still remain temporarily after a failed
+Job because `hook-failed` does not apply to already-successful hooks. Their
+stable names make cleanup deterministic on the next retry: each `-20` hook's
+`before-hook-creation` deletes its prior object before recreating it, even when
+the attempt, target Secret correction, or migration image changes. The Job
+retains its attempt-hashed name to avoid retry collisions. Newer Helm versions
+also delete the support hooks immediately through `hook-succeeded` when the Job
+fails.
+
+This intentionally replaces the original “one common attempt-hashed name for
+all four kinds” requirement. Retaining that requirement is incompatible with
+reliable retry reconciliation on older Helm 3 without adding broader cleanup
+RBAC or a separate cleanup controller/Job. The split-name contract preserves
+the existing raw Helm and Argo CD sequencing and cleanup annotations with no
+new privileges or global force behavior.
+
+### Test-first change
+
+The render assertions were amended before the template:
+
+- attempts `1` and `2` must produce different hashed Job names;
+- both attempts must use the same stable ServiceAccount, Role, and RoleBinding
+  name;
+- the Job must reference the stable ServiceAccount;
+- the RoleBinding must reference the stable ServiceAccount and Role;
+- support hooks remain at Helm weight and Argo sync wave `-20`;
+- the Job remains at Helm weight and Argo sync wave `-10`;
+- every hook retains Helm/Argo failed-hook cleanup;
+- Secret RBAC remains exactly one `get,update` verbs entry scoped to the
+  configured Secret, with no `create`;
+- Argo CD `Force=true` and `Replace=true` remain absent.
+
+Fix-round RED command:
+
+```bash
+bash deployments/charts/osmo/tests/test_osmo_charts.sh
+```
+
+Expected result, exit code `1`:
+
+```text
+PASS: OSMO database migration runner tests
+resource not found: ServiceAccount/service-auth-migration-osmo-service-auth-db-migration
+```
+
+After splitting the template names, the same covering command completed with
+exit code `0`:
+
+```text
+PASS: OSMO database migration runner tests
+PASS: OSMO Helm chart tests (all)
+```
+
+The successful run retained the pre-existing non-fatal awk escape warning
+already noted above.
+
+### Raw Helm render evidence
+
+I rendered `templates/service-auth-db-migration.yaml` through raw
+`helm template` for both attempts after building the pinned dependencies in a
+temporary chart copy.
+
+Attempt `1`:
+
+```text
+ServiceAccount/task5-inspect-osmo-service-auth-db-migration
+Role/task5-inspect-osmo-service-auth-db-migration
+RoleBinding/task5-inspect-osmo-service-auth-db-migration
+Job/task5-inspect-osmo-service-auth-db-migration-0a57564b96
+serviceAccountName: "task5-inspect-osmo-service-auth-db-migration"
+```
+
+Attempt `2`:
+
+```text
+ServiceAccount/task5-inspect-osmo-service-auth-db-migration
+Role/task5-inspect-osmo-service-auth-db-migration
+RoleBinding/task5-inspect-osmo-service-auth-db-migration
+Job/task5-inspect-osmo-service-auth-db-migration-50b9399dea
+serviceAccountName: "task5-inspect-osmo-service-auth-db-migration"
+```
+
+Each attempt also produced:
+
+```text
+weight -20: 3
+weight -10: 1
+Helm complete delete policies: 4
+Argo complete delete policies: 4
+verbs: ["get", "update"]
+Argo force/replace options: absent
+```
+
+### Fix-round self-review
+
+- Only the migration template, its unified render tests, and this report were
+  changed in fix round 1.
+- The attempt value/schema and full Job identity tuple are unchanged.
+- The Job name remains deterministic, DNS safe, no longer than 63 characters,
+  and changes with `migration.attempt`.
+- Support names remain deterministic and stable for all retries of the same
+  Helm release.
+- Raw Helm `pre-upgrade` type, weights, and all delete policies are unchanged.
+- Argo CD PreSync type, sync waves, and all delete policies are unchanged.
+- The Role still grants only `get,update` on the configured Secret; no Secret
+  `create`, cleanup privilege, identity rotation, Force/Replace, or Deployment
+  adoption was added.
+- PostgreSQL SSL-mode coverage remains unchanged and passes.
+
+No fix-round blocker remains. On Helm versions before the prior-successful-hook
+cleanup enhancement, successful support hooks may exist between a failed run
+and its retry; the stable identity ensures the retry cleans and recreates them
+deterministically.
