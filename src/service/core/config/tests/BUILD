@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
@@ -61,4 +61,26 @@ osmo_py_test(
     size = "large",
     tags = ["requires-network"],
     visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
+    name = "test_secret_refresh",
+    srcs = ["test_secret_refresh.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/service/core/config:configmap_loader_lib",
+        "//src/utils:auth",
+        "//src/utils:configmap_state",
+        "//src/utils/connectors",
+        "//src/utils/job:job",
+    ],
+)
+
+# Explicit opt-in: creates only uniquely named, synthetic-only Kubernetes probes.
+osmo_py_binary(
+    name = "verify_secret_refresh_kubernetes",
+    srcs = ["verify_secret_refresh_kubernetes.py"],
+    main = "verify_secret_refresh_kubernetes.py",
+    data = ["secret_refresh_probe.py"],
+    tags = ["manual"],
 )

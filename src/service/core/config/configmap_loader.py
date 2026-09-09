@@ -18,12 +18,14 @@ SPDX-License-Identifier: Apache-2.0
 
 import base64
 import copy
+import dataclasses
 import datetime
 import enum
 import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from typing import Any, Callable, Dict, List
 
@@ -32,7 +34,7 @@ import yaml
 
 from src.lib.utils import jinja_sandbox, osmo_errors
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
-from src.service.core.config import configmap_events, configmap_guard
+from src.service.core.config import configmap_events, configmap_guard, secret_snapshot
 from src.utils import auth, connectors
 
 
@@ -40,6 +42,23 @@ from src.utils import auth, connectors
 # ConfigMap volume on a new pod, so we retry the initial load before giving up.
 _STARTUP_RETRY_DEADLINE_S = 30.0
 _STARTUP_RETRY_INTERVAL_S = 1.0
+_DEPENDENCY_CHECK_INTERVAL_S = 30.0
+_REFRESHABLE_CREDENTIALS = {
+    'workflow_data': frozenset({'access_key_id', 'access_key'}),
+    'workflow_log': frozenset({'access_key_id', 'access_key'}),
+    'workflow_app': frozenset({'access_key_id', 'access_key'}),
+    'backend_images': frozenset({'username', 'auth', 'password'}),
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class RefreshStatus:
+    """Process-local freshness, not an attestation of cluster-wide rotation."""
+
+    sequence: int
+    last_success_time: float | None
+    failures: int
+    stale: bool
 
 
 class LoadResult(enum.Enum):
@@ -78,7 +97,7 @@ class ConfigFileMixin(pydantic.BaseModel):
 
 
 class ConfigMapWatcher:
-    """Loads one immutable ConfigMap snapshot during process startup."""
+    """Load immutable configuration; refresh only referenced authentication material."""
 
     def __init__(
         self,
@@ -104,6 +123,15 @@ class ConfigMapWatcher:
         # Only emit "reload succeeded" events when recovering from a
         # previous failure — successful reloads on their own are noise.
         self._last_reload_failed = False
+        self._reload_lock = threading.RLock()
+        self._stop_event = threading.Event()
+        self._dependency_thread: threading.Thread | None = None
+        self._credential_sources: Dict[str, Dict[str, Any]] = {}
+        self._startup_snapshot: Dict[str, Any] | None = None
+        self._loaded_dependencies: secret_snapshot.DependencySnapshot | None = None
+        self._sequence = 0
+        self._last_success_time: float | None = None
+        self._refresh_failures = 0
 
     def start(self) -> None:
         """Load configs and activate immutable ConfigMap mode.
@@ -141,25 +169,106 @@ class ConfigMapWatcher:
         logging.info(
             'Immutable ConfigMap snapshot loaded from %s; changes require a pod restart',
             self._config_file_path)
+        if self._credential_sources and not self._stop_event.is_set():
+            self._dependency_thread = threading.Thread(
+                target=self._watch_dependencies, name='credential-dependencies', daemon=True)
+            self._dependency_thread.start()
 
     def stop(self) -> None:
-        """Compatibility no-op; immutable snapshots have no background watcher."""
+        """Stop polling and wait for any in-flight publication."""
+        self._stop_event.set()
+        if self._dependency_thread:
+            self._dependency_thread.join(timeout=5)
+        with self._reload_lock:
+            pass
+
+    @property
+    def refresh_status(self) -> RefreshStatus:
+        with self._reload_lock:
+            return RefreshStatus(
+                self._sequence, self._last_success_time, self._refresh_failures,
+                self._last_reload_failed or self._loaded_dependencies is None
+                or not self._loaded_dependencies.unchanged())
+
+    def _watch_dependencies(self) -> None:
+        while not self._stop_event.wait(_DEPENDENCY_CHECK_INTERVAL_S):
+            self._check_dependencies()
+
+    def _check_dependencies(self) -> None:
+        with self._reload_lock:
+            if (self._stop_event.is_set() or self._startup_snapshot is None
+                    or not self._credential_sources):
+                return
+            if (self._last_reload_failed or self._loaded_dependencies is None
+                    or not self._loaded_dependencies.unchanged()):
+                self._refresh_secrets()
+
+    def _refresh_secrets(self) -> None:
+        # Called under the reload lock. Never read config.yaml or re-run startup
+        # reconciliation: only fixed credential subtrees may change after startup.
+        try:
+            if self._startup_snapshot is None:
+                return
+            candidate = copy.deepcopy(self._startup_snapshot)
+            dependencies = secret_snapshot.DependencySnapshot()
+            _resolve_refreshable_credentials(candidate, self._credential_sources, dependencies)
+            for name, fields in _REFRESHABLE_CREDENTIALS.items():
+                if name not in self._credential_sources:
+                    continue
+                previous = self._startup_snapshot['workflow'][name]['credential']
+                current = candidate['workflow'][name]['credential']
+                if not isinstance(current, dict) or not isinstance(previous, dict):
+                    raise ValueError('Credential must remain a mapping')
+                # Forbid changes to storage/registry routing and auth mode. Only
+                # replace authentication fields that existed at startup.
+                if (current.keys() != previous.keys()
+                        or {key: value for key, value in current.items() if key not in fields}
+                        != {key: value for key, value in previous.items() if key not in fields}):
+                    raise ValueError('Credential configuration changed; restart required')
+            if validate_configmap_snapshot(candidate):
+                raise ValueError('Credential candidate failed validation')
+            if self._stop_event.is_set() or not dependencies.unchanged():
+                raise secret_snapshot.DependencyReadError('Credential changed during validation')
+            configmap_guard.set_parsed_configs(candidate)
+            self._loaded_dependencies = dependencies
+            self._sequence += 1
+            self._last_success_time = time.time()
+            logging.info('Credential snapshot refreshed (sequence %d)', self._sequence)
+            self._record_success()
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Parser/model exceptions can contain credential input. Keep both
+            # logging and event notifications value-free, and keep polling alive.
+            self._record_failure('Credential refresh failed; keeping previous snapshot')
 
     def _record_failure(self, message: str) -> None:
         """Log + emit a K8s Warning event for a reload failure."""
         logging.error(message)
-        if self._event_recorder is not None:
-            self._event_recorder.emit_reload_failed(message)
         self._last_reload_failed = True
+        self._refresh_failures += 1
+        if self._event_recorder is not None:
+            try:
+                self._event_recorder.emit_reload_failed(message)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.warning('Unable to emit configuration refresh event')
 
     def _record_success(self) -> None:
         """Emit a Normal event only if we just recovered from a failure."""
-        if self._last_reload_failed and self._event_recorder is not None:
-            self._event_recorder.emit_reload_succeeded(
-                'ConfigMap reload succeeded after previous failure')
+        recovered = self._last_reload_failed
         self._last_reload_failed = False
+        if recovered and self._event_recorder is not None:
+            try:
+                self._event_recorder.emit_reload_succeeded(
+                    'ConfigMap reload succeeded after previous failure')
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.warning('Unable to emit configuration refresh event')
 
     def _load_and_apply(self) -> LoadResult:
+        with self._reload_lock:
+            if self._stop_event.is_set():
+                return LoadResult.TRANSIENT_FAILURE
+            return self._load_startup_snapshot()
+
+    def _load_startup_snapshot(self) -> LoadResult:
         """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
         TRANSIENT_FAILURE means retrying may succeed (file not yet
@@ -206,6 +315,11 @@ class ConfigMapWatcher:
         if isinstance(service_config, dict):
             service_config.pop('service_auth', None)
 
+        # Extract only direct, explicit credential references. Generic Secret-
+        # backed configuration still resolves once and is never watched.
+        credential_sources = _extract_refreshable_credentials(managed_configs)
+        dependencies = secret_snapshot.DependencySnapshot()
+
         # Resolve mounted Secret references. Any missing, malformed, or
         # out-of-root reference is a permanent startup error; serving with
         # partially resolved credentials is never safe.
@@ -213,6 +327,7 @@ class ConfigMapWatcher:
             for section in managed_configs.values():
                 if isinstance(section, dict):
                     _resolve_secret_file_references(section)
+            _resolve_refreshable_credentials(managed_configs, credential_sources, dependencies)
         except (TypeError, ValueError) as error:
             self._record_failure(f'ConfigMap Secret resolution failed: {error}')
             return LoadResult.PERMANENT_FAILURE
@@ -234,6 +349,10 @@ class ConfigMapWatcher:
         # YAML that only contains reference names, not expanded content.
         _resolve_backend_test_computed_fields(managed_configs)
         _resolve_pool_computed_fields(managed_configs)
+
+        if not dependencies.unchanged():
+            self._record_failure('Credential changed during startup validation')
+            return LoadResult.TRANSIENT_FAILURE
 
         if self._enable_reconciliation:
             try:
@@ -264,7 +383,15 @@ class ConfigMapWatcher:
 
         # Publish the validated snapshot only after every required backend side
         # effect is durably queued and its cleanup checkpoint is persisted.
+        if self._stop_event.is_set() or not dependencies.unchanged():
+            self._record_failure('Credential changed before startup publication')
+            return LoadResult.TRANSIENT_FAILURE
         configmap_guard.set_parsed_configs(managed_configs)
+        self._startup_snapshot = copy.deepcopy(managed_configs)
+        self._credential_sources = credential_sources
+        self._loaded_dependencies = dependencies
+        self._sequence += 1
+        self._last_success_time = time.time()
         if not configmap_guard.is_configmap_mode():
             configmap_guard.set_configmap_mode(True)
             logging.info(
@@ -1292,6 +1419,34 @@ def _resolve_platform_fields(
 SECRETS_ROOT = '/etc/osmo/secrets'
 
 
+def _extract_refreshable_credentials(config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Temporarily remove explicit credential refs for a separate coherent read."""
+    references: Dict[str, Dict[str, Any]] = {}
+    workflow = config.get('workflow')
+    if not isinstance(workflow, dict):
+        return references
+    for name in _REFRESHABLE_CREDENTIALS:
+        value = workflow.get(name)
+        if not isinstance(value, dict):
+            continue
+        credential = value.get('credential')
+        if isinstance(credential, dict) and (
+                'secret_file' in credential
+                or ('secretName' in credential and 'secretKey' in credential)):
+            references[name] = copy.deepcopy(value.pop('credential'))
+    return references
+
+
+def _resolve_refreshable_credentials(
+    config: Dict[str, Any], sources: Dict[str, Dict[str, Any]],
+    dependencies: secret_snapshot.DependencySnapshot,
+) -> None:
+    for name, source in sources.items():
+        resolved = {'credential': copy.deepcopy(source)}
+        _resolve_secret_file_references(resolved, f'workflow.{name}', snapshot=dependencies)
+        config['workflow'][name]['credential'] = resolved['credential']
+
+
 def _decode_dockerconfig_identity(
     auth_b64: str, username: str,
 ) -> tuple[str, str]:
@@ -1321,7 +1476,9 @@ def _decode_dockerconfig_identity(
 
 
 def _resolve_secret_file_references(config_data: Dict[str, Any],
-                                     parent_key: str = '') -> None:
+                                     parent_key: str = '', *,
+                                     snapshot: secret_snapshot.DependencySnapshot | None = None,
+                                     ) -> None:
     """Resolve explicit OSMO config Secret references without touching pod specs.
 
     Walks the dict tree. A Kubernetes Secret reference is recognized only when
@@ -1357,7 +1514,7 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
                     f'{label}: secret_file must resolve below the mounted '
                     'Kubernetes Secret root')
             _resolve_single_secret(
-                config_data, key, value, secret_file_path, label)
+                config_data, key, value, secret_file_path, label, snapshot=snapshot)
             continue
 
         if 'secretName' in value and 'secretKey' in value:
@@ -1379,15 +1536,16 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
                     'Kubernetes Secret root')
             _resolve_single_secret(
                 config_data, key, value,
-                os.path.join(secret_dir, explicit_key), label)
+                os.path.join(secret_dir, explicit_key), label, snapshot=snapshot)
             continue
 
-        _resolve_secret_file_references(value, label)
+        _resolve_secret_file_references(value, label, snapshot=snapshot)
 
 
 def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                            current_value: Dict[str, Any],
-                           secret_file_path: str, path_label: str) -> None:
+                           secret_file_path: str, path_label: str, *,
+                           snapshot: secret_snapshot.DependencySnapshot | None = None) -> None:
     """Read a secret file and replace the reference with actual values.
 
     Supports three formats:
@@ -1396,8 +1554,11 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
     3. YAML dict: merges all keys into the current dict
     """
     try:
-        with open(secret_file_path, encoding='utf-8') as secret_file:
-            content = secret_file.read()
+        if snapshot is not None:
+            content = snapshot.read_file(secret_file_path)
+        else:
+            with open(secret_file_path, encoding='utf-8') as secret_file:
+                content = secret_file.read()
     except OSError as error:
         raise ValueError(f'{path_label}: mounted Secret file is unreadable') from error
 
@@ -1453,8 +1614,7 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
             current_value.pop('secretName', None)
             current_value.pop('secretKey', None)
             current_value.update(extracted)
-            logging.info('Loaded Docker registry credentials for %s from %s',
-                         path_label, registry_url)
+            logging.info('Loaded Docker registry credentials for %s', path_label)
             return
 
     current_value.pop('secret_file', None)

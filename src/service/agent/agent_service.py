@@ -148,6 +148,7 @@ def main():
         try:
             await uvicorn_server.serve()
         finally:
+            app.state.config_watcher.stop()
             liveness_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await liveness_task

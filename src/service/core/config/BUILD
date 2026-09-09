@@ -26,6 +26,7 @@ osmo_py_library(
         "configmap_events.py",
         "configmap_guard.py",
         "configmap_loader.py",
+        "secret_snapshot.py",
     ],
     deps = [
         requirement("kubernetes"),
