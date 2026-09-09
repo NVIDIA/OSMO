@@ -126,23 +126,23 @@ jobs:
           echo "Linting chart: $CHART"
           if [ "$CHART" = "osmo" ]; then
             helm lint deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/split-plane-control.yaml \
               -f deployments/charts/osmo/tests/control-external-values.yaml
             helm lint deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
               --set-string compute.backendName=test-backend
             helm lint deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/self-contained.yaml \
               -f deployments/charts/osmo/tests/self-contained-lint-values.yaml
             helm lint deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/single-plane.yaml \
               -f deployments/charts/osmo/tests/single-plane-azure-values.yaml
             helm lint deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/single-plane.yaml \
               -f deployments/charts/osmo/tests/single-plane-s3-values.yaml
           else
@@ -158,7 +158,7 @@ jobs:
           HELM_ARGS=()
           if [ "$CHART" = "osmo" ]; then
             HELM_ARGS+=(
-              --kube-version 1.30.0
+              --kube-version 1.28.0
               -f deployments/charts/osmo/profiles/split-plane-control.yaml
               -f deployments/charts/osmo/tests/control-external-values.yaml
             )
@@ -171,27 +171,54 @@ jobs:
           echo "✓ Template rendering successful"
           if [ "$CHART" = "osmo" ]; then
             helm template test-compute deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
               --set-string compute.backendName=test-backend \
               >/dev/null
             helm template test-single-plane-azure deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/single-plane.yaml \
               -f deployments/charts/osmo/tests/single-plane-azure-values.yaml \
               >/dev/null
             helm template test-single-plane-s3 deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               -f deployments/charts/osmo/profiles/single-plane.yaml \
               -f deployments/charts/osmo/tests/single-plane-s3-values.yaml \
               >/dev/null
             helm template test-self-contained deployments/charts/osmo \
-              --kube-version 1.30.0 \
+              --kube-version 1.28.0 \
               --api-versions postgresql.cnpg.io/v1 \
               -f deployments/charts/osmo/profiles/self-contained.yaml \
               -f deployments/charts/osmo/examples/self-contained-environment-values.yaml \
               >/dev/null
           fi
+
+      - name: Validate Kubernetes 1.28 API schemas
+        if: matrix.chart == 'osmo'
+        run: |
+          set -euo pipefail
+          KUBECONFORM_IMAGE=ghcr.io/yannh/kubeconform@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c
+          validate_profile() {
+            local release_name=$1
+            shift
+            helm template "$release_name" deployments/charts/osmo \
+              --kube-version 1.28.0 "$@" | \
+              docker run --rm -i "$KUBECONFORM_IMAGE" \
+                -strict \
+                -summary \
+                -kubernetes-version 1.28.0 \
+                -ignore-missing-schemas
+          }
+
+          validate_profile schema-compute \
+            -f deployments/charts/osmo/profiles/split-plane-compute.yaml \
+            --set-string compute.backendName=test-backend
+          validate_profile schema-control \
+            -f deployments/charts/osmo/profiles/split-plane-control.yaml \
+            -f deployments/charts/osmo/tests/control-external-values.yaml
+          validate_profile schema-converged \
+            -f deployments/charts/osmo/profiles/single-plane.yaml \
+            -f deployments/charts/osmo/tests/single-plane-s3-values.yaml
 
       - name: Chart-specific render tests
         run: |

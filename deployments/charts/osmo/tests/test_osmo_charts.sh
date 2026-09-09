@@ -24,7 +24,7 @@ for required_command in awk base64 grep helm tar; do
 done
 
 helm_template() {
-    helm template "$@" --kube-version 1.30.0
+    helm template "$@" --kube-version 1.28.0
 }
 
 helm_template_with_backend() {
@@ -453,6 +453,7 @@ require_clean_osmo_sources() {
     require_not_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: backend-operator"
     require_not_contains "$CHARTS_ROOT/osmo/Chart.lock" "name: backend-operator"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'appVersion: "6.3.1"'
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'kubeVersion: ">=1.28.0-0"'
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: cluster"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
@@ -582,6 +583,18 @@ test_control_umbrella() {
         "https://osmo.example.com"
     require_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "secretName: osmo-backend-token"
+    require_resource "$TEST_DIRECTORY/split-compute.yaml" Role \
+        split-compute-osmo-backend-listener-events
+    require_resource "$TEST_DIRECTORY/split-compute.yaml" RoleBinding \
+        split-compute-osmo-backend-listener-events
+    require_resource "$TEST_DIRECTORY/split-compute.yaml" Role \
+        split-compute-osmo-backend-worker
+    require_resource "$TEST_DIRECTORY/split-compute.yaml" RoleBinding \
+        split-compute-osmo-backend-worker
+    require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
+        "argocd.argoproj.io/sync-options"
+    require_not_contains "$TEST_DIRECTORY/split-compute.yaml" "Force=true"
+    require_not_contains "$TEST_DIRECTORY/split-compute.yaml" "Replace=true"
     resource_document "$TEST_DIRECTORY/split-compute.yaml" Deployment \
         split-compute-osmo-backend-listener \
         >"$TEST_DIRECTORY/split-compute-listener.yaml"

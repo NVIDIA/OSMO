@@ -54,6 +54,7 @@ jobs:
               - 'BUILD'
               - 'MODULE.bazel'
               - 'bzl/**'
+              - 'scripts/**'
               - 'src/**'
               - 'run/**'
             docs:
