@@ -31,6 +31,7 @@ from typing import Any, Dict
 from unittest import mock
 
 from fastapi import responses
+import urllib3
 import yaml
 
 from src.lib.utils import osmo_errors
@@ -1087,6 +1088,62 @@ class TestConfigMapEventRecorder(unittest.TestCase):
         recorder.emit_reload_failed('second')
         recorder.emit_reload_failed('third')
         self.assertEqual(mock_api.read_namespaced_config_map.call_count, 1)
+
+    def test_every_event_operation_has_connect_and_read_timeouts(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = self._not_found_api_exception()
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('first failure')
+        for operation in (mock_api.read_namespaced_event,
+                          mock_api.read_namespaced_config_map,
+                          mock_api.create_namespaced_event):
+            self.assertEqual(operation.call_args.kwargs['_request_timeout'], (1.0, 1.0))
+        mock_api.read_namespaced_event.side_effect = None
+        mock_api.read_namespaced_event.return_value.count = 1
+        recorder.emit_reload_succeeded('recovered')
+        self.assertEqual(mock_api.patch_namespaced_event.call_args.kwargs['_request_timeout'],
+                         (1.0, 1.0))
+
+    def test_event_client_does_not_retry_or_change_reconciliation_client(self):
+        default_retries = configmap_events.client.Configuration.get_default_copy().retries
+        with mock.patch.object(configmap_events.kube_config, 'load_incluster_config'):
+            recorder = configmap_events.ConfigMapEventRecorder('ns', 'synthetic-config')
+        assert recorder._event_api is not None
+        assert recorder._core_v1 is not None
+        try:
+            self.assertIsNot(recorder._event_api.api_client, recorder._core_v1.api_client)
+            self.assertEqual(recorder._core_v1.api_client.configuration.retries, default_retries)
+            self.assertEqual(configmap_events.client.Configuration.get_default_copy().retries,
+                             default_retries)
+            manager = recorder._event_api.api_client.rest_client.pool_manager
+            self.assertEqual(urllib3.util.Retry.from_int(
+                manager.connection_pool_kw['retries']).total, 0)
+            pool = manager.connection_from_url(
+                recorder._event_api.api_client.configuration.host)
+            self.assertEqual(pool.retries.total, 0)
+            # Exercise urllib3's real retry loop, not a mocked request() shortcut.
+            for status in (429, 503):
+                response = urllib3.HTTPResponse(
+                    status=status, headers={'Retry-After': '3600'}, body=b'busy')
+                with self.subTest(status=status), \
+                     mock.patch.object(pool, '_make_request', return_value=response) as request, \
+                     mock.patch('urllib3.util.retry.time.sleep') as sleep:
+                    recorder.emit_reload_failed('synthetic error')
+                    request.assert_called_once()
+                    sleep.assert_not_called()
+        finally:
+            recorder._event_api.api_client.close()
+            recorder._core_v1.api_client.close()
+
+    def test_event_read_transport_timeout_is_swallowed(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = TimeoutError('sensitive transport details')
+        recorder = self._build_recorder(mock_api)
+        with self.assertLogs(level='WARNING') as logs:
+            recorder.emit_reload_failed('synthetic error')
+        self.assertNotIn('sensitive transport details', '\n'.join(logs.output))
+        mock_api.create_namespaced_event.assert_not_called()
+        mock_api.patch_namespaced_event.assert_not_called()
 
     def test_reconciliation_checkpoint_round_trip_uses_annotation(self):
         mock_api = mock.MagicMock()

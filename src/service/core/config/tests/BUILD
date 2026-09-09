@@ -45,6 +45,7 @@ osmo_py_test(
     deps = [
         requirement("fastapi"),
         requirement("pyyaml"),
+        requirement("urllib3"),
         "//src/service/core/config:config",
     ],
 )
@@ -68,6 +69,7 @@ osmo_py_test(
     srcs = ["test_secret_refresh.py"],
     deps = [
         requirement("pyyaml"),
+        requirement("urllib3"),
         "//src/service/core/config:configmap_loader_lib",
         "//src/utils:auth",
         "//src/utils:configmap_state",

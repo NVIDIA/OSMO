@@ -19,8 +19,9 @@ import unittest
 from unittest import mock
 
 import yaml
+from urllib3.exceptions import ReadTimeoutError
 
-from src.service.core.config import configmap_loader, secret_snapshot
+from src.service.core.config import configmap_events, configmap_loader, secret_snapshot
 from src.utils import auth, configmap_state, connectors
 from src.utils.job import task
 
@@ -359,6 +360,63 @@ class SecretRefreshTest(unittest.TestCase):
 
     def test_default_interval_is_thirty_seconds(self):
         self.assertEqual(configmap_loader._DEPENDENCY_CHECK_INTERVAL_S, 30)
+
+    def test_stalled_event_transport_allows_refresh_recovery_and_shutdown(self):
+        failed_request = threading.Event()
+        recovery_request = threading.Event()
+        release_request = threading.Event()
+        stopped = threading.Event()
+        timeouts = []
+
+        def stalled_request(*args, **kwargs):
+            del args
+            timeout = kwargs.get('timeout')
+            timeouts.append(timeout)
+            (failed_request if len(timeouts) == 1 else recovery_request).set()
+            # Model a server that accepts a request but never responds. The real
+            # Kubernetes client must propagate its read deadline to the transport.
+            release_request.wait(timeout.read_timeout if timeout is not None else None)
+            raise ReadTimeoutError(event_pool, '/synthetic-event', 'stalled response')
+
+        with mock.patch.object(configmap_events.kube_config, 'load_incluster_config'):
+            recorder = configmap_events.ConfigMapEventRecorder('ns', 'synthetic-config')
+        assert recorder._event_api is not None
+        assert recorder._core_v1 is not None
+        event_manager = recorder._event_api.api_client.rest_client.pool_manager
+        event_pool = event_manager.connection_from_url(
+            recorder._event_api.api_client.configuration.host)
+        self.watcher._event_recorder = recorder
+        stopping = None
+
+        def stop():
+            self.watcher.stop()
+            stopped.set()
+
+        try:
+            with mock.patch.object(configmap_loader, '_DEPENDENCY_CHECK_INTERVAL_S', 0.01), \
+                 mock.patch.object(event_manager, 'request', side_effect=stalled_request):
+                self.watcher.start()
+                self.project('invalid', payload={})
+                self.assertTrue(failed_request.wait(3), 'Failure event was never attempted')
+                self.assertEqual(self.credential()['access_key_id'], 'fake-id-A')
+                self.project('B')
+                self.assertTrue(recovery_request.wait(3), 'Stalled event prevented recovery')
+                self.assertEqual(self.credential()['access_key_id'], 'fake-id-B')
+                stopping = threading.Thread(target=stop, daemon=True)
+                stopping.start()
+                self.assertTrue(stopped.wait(3), 'Stalled recovery event prevented shutdown')
+                self.assertFalse(self.watcher.refresh_status.stale)
+                self.assertEqual(len(timeouts), 2)
+                for timeout in timeouts:
+                    assert timeout is not None
+                    self.assertEqual((timeout.connect_timeout, timeout.read_timeout), (1.0, 1.0))
+        finally:
+            release_request.set()
+            if stopping is not None:
+                stopping.join(5)
+            self.watcher.stop()
+            recorder._event_api.api_client.close()
+            recorder._core_v1.api_client.close()
 
     def test_stop_prevents_future_publication(self):
         self.load()

@@ -232,6 +232,11 @@ the next check retries automatically. Already-created task pods and in-flight
 operations retain their captured credentials. Keep old credentials valid until
 those tasks finish and all service replicas have observed the replacement.
 
+Kubernetes event notifications are best effort: their separate client uses one-second
+connection and read timeouts with automatic retries disabled. Notification failures
+do not prevent subsequent credential-refresh attempts. Durable startup reconciliation
+uses its existing client and is not affected by these event-delivery limits.
+
 The ConfigMap remains startup-only. Changing Secret references, storage endpoints,
 regions, addressing options, registry addresses, or authentication mode requires a
 restart. Generic Secret-backed configuration and other secrets (including database,
