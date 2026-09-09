@@ -64,15 +64,22 @@ def validate_workflow_label_key(key: str) -> str:
     elif len(parts) == 2:
         prefix, name = parts
     else:
-        raise ValueError(f'Workflow label key "{key}" is not a valid Kubernetes label key.')
+        raise ValueError(
+            f'Workflow label key "{key}" is invalid. Keys may contain at most '
+            'one "/" separating an optional prefix from the name.')
 
     if prefix is not None:
         if not _DNS_PREFIX_PATTERN.fullmatch(prefix):
             raise ValueError(
-                f'Workflow label key "{key}" has an invalid DNS prefix.')
+                f'Workflow label key "{key}" has an invalid prefix. Prefixes '
+                'must be at most 253 characters and contain dot-separated '
+                'segments of at most 63 lowercase letters, numbers, or hyphens; '
+                'each segment must start and end with a letter or number.')
     if not _LABEL_NAME_PATTERN.fullmatch(name):
         raise ValueError(
-            f'Workflow label key "{key}" has an invalid name segment.')
+            f'Workflow label key "{key}" has an invalid name. Names must be '
+            '1-63 characters, start and end with a letter or number, and contain '
+            'only letters, numbers, hyphens, underscores, or periods.')
     return key
 
 
@@ -82,7 +89,9 @@ def validate_workflow_label_value(value: str) -> str:
         raise ValueError('Workflow label values must be strings.')
     if not _LABEL_NAME_PATTERN.fullmatch(value):
         raise ValueError(
-            f'Workflow label value "{value}" is not a valid non-empty Kubernetes label value.')
+            f'Workflow label value "{value}" is invalid. Values must be 1-63 '
+            'characters, start and end with a letter or number, and contain only '
+            'letters, numbers, hyphens, underscores, or periods.')
     return value
 
 
@@ -130,9 +139,9 @@ def validate_prefixed_workflow_label_keys(
             validate_workflow_label_key(prefixed_key)
         except ValueError as error:
             raise ValueError(
-                f'Label key "{key}" with the configured pod label prefix '
-                f'"{pod_label_prefix}" forms an invalid Kubernetes label key '
-                f'"{prefixed_key}": {error}') from error
+                f'Workflow label key "{key}" is incompatible with the configured '
+                f'label prefix "{pod_label_prefix}", which produces the invalid '
+                f'key "{prefixed_key}": {error}') from error
 
 
 def parse_workflow_label_assignment(assignment: str) -> tuple[str, str]:

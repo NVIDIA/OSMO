@@ -335,6 +335,105 @@ class TestWorkflowLabelOutput(unittest.TestCase):
         self.assertIn('Labels', table.draw())
 
 
+class TestWorkflowSubmissionErrors(unittest.TestCase):
+    """Workflow submission wrappers preserve server error metadata."""
+
+    def test_resubmit_by_id_preserves_credential_error_status(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.side_effect = osmo_errors.OSMOCredentialError(
+            'Credential is invalid.',
+            workflow_id='failed-workflow',
+            status_code=401,
+        )
+        args = argparse.Namespace(
+            pool='pool-1',
+            priority=None,
+            workflow_file='source-workflow',
+            set=[],
+            set_string=[],
+            labels=[],
+            dry=False,
+            format_type='text',
+            rsync=None,
+        )
+
+        with mock.patch.object(
+                workflow, '_load_wf_file', side_effect=FileNotFoundError), \
+             mock.patch.object(workflow, 'is_workflow_id', return_value=True), \
+             self.assertRaises(osmo_errors.OSMOSubmissionError) as raised:
+            workflow._submit_workflow(service_client, args)
+
+        self.assertEqual(raised.exception.status_code, 401)
+        self.assertEqual(raised.exception.workflow_id, 'failed-workflow')
+        self.assertEqual(
+            raised.exception.message,
+            'Workflow failed-workflow submit failed:\nCredential is invalid.',
+        )
+
+    def test_fresh_submit_preserves_submission_error_status(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.side_effect = osmo_errors.OSMOSubmissionError(
+            'Workflow label value is invalid.',
+            workflow_id='failed-workflow',
+            status_code=400,
+        )
+        template_data = workflow.TemplateData(
+            file=PLAIN_WORKFLOW_SPEC,
+            set_variables=[],
+            set_string_variables=[],
+            is_templated=False,
+        )
+        args = argparse.Namespace(
+            pool='pool-1',
+            dry=False,
+            set_env=None,
+            rsync=None,
+            format_type='text',
+            priority=None,
+        )
+
+        with mock.patch.object(workflow, 'load_local_files'), \
+             self.assertRaises(osmo_errors.OSMOSubmissionError) as raised:
+            workflow.submit_workflow_helper(
+                service_client,
+                args,
+                template_data,
+                'workflow.yaml',
+                {},
+            )
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(raised.exception.workflow_id, 'failed-workflow')
+        self.assertEqual(
+            raised.exception.message,
+            'Workflow failed-workflow submit failed:\n'
+            'Workflow label value is invalid.',
+        )
+
+    def test_restart_preserves_submission_error_status(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.side_effect = osmo_errors.OSMOSubmissionError(
+            'Resource limit exceeded.',
+            workflow_id='restarted-workflow',
+            status_code=409,
+        )
+        args = argparse.Namespace(
+            workflow_id='source-workflow',
+            pool='pool-1',
+            format_type='text',
+        )
+
+        with self.assertRaises(osmo_errors.OSMOSubmissionError) as raised:
+            workflow._restart_workflow(service_client, args)
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(raised.exception.workflow_id, 'restarted-workflow')
+        self.assertEqual(
+            raised.exception.message,
+            'Workflow restarted-workflow submit failed:\nResource limit exceeded.',
+        )
+
+
 class WorkflowTemplateDetectionTest(unittest.TestCase):
     """Test CLI workflow template detection."""
 

@@ -297,12 +297,12 @@ class WorkflowLabels(_LabelsScenario):
             lambda: self._submit(
                 self._workflow_name("badkey"), labels=["bad/key/nested=value"],
                 validation_only=True),
-            fragment="is not a valid Kubernetes label key")
+            fragment='may contain at most one "/"')
         self._expect_rejected(
             lambda: self._submit(
                 self._workflow_name("emptyval"), labels=["team="],
                 validation_only=True),
-            fragment="is not a valid non-empty Kubernetes label value")
+            fragment="Values must be 1-63 characters")
 
     # ── List filters: real rows, no scheduling needed; cancelled in tearDown ──
 
