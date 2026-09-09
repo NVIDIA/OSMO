@@ -1,7 +1,7 @@
 # OSMO Workflow Runtime Commands
 
 Use this reference for live workflow operations: cancel, exec, port-forward,
-rsync, and tags. For submit/list/query/log syntax, read `workflow-commands.md`.
+and rsync. For submit/list/query/log syntax, read `workflow-commands.md`.
 
 ## Safety
 
@@ -66,12 +66,8 @@ osmo workflow rsync stop [workflow_id] [--task <task>]
 If task is omitted, upload/download target the lead task of the first group.
 `/osmo/run/workspace` is always available as a remote path.
 
-## Tags
+## Workflow classification
 
-```bash
-osmo workflow tag
-osmo workflow tag --workflow <workflow_id> ... --add <tag> ...
-osmo workflow tag --workflow <workflow_id> ... --remove <tag> ...
-```
-
-Use tags only when the user explicitly asks to list or update workflow tags.
+For classification requests, use the label guidance in `workflow-commands.md`.
+The workflow tag CLI was removed in 6.4. Labels are set at submission and cannot
+be changed on existing runs.
