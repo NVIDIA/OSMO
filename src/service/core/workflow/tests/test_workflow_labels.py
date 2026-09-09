@@ -68,6 +68,30 @@ def _rendered_spec(labels: dict[str, str]) -> workflow.WorkflowSpec:
     return cast(workflow.WorkflowSpec, types.SimpleNamespace(labels=labels))
 
 
+class TestConfigMapPoolMaintenance(unittest.TestCase):
+
+    def test_non_admin_is_rejected_from_configmap_maintenance_pool(self):
+        submit_info = _submit_info([])
+        rendered_spec = cast(workflow.WorkflowSpec, mock.Mock())
+        rendered_spec.labels = {}
+        pool = types.SimpleNamespace(
+            enable_maintenance=True,
+            status=None,
+        )
+
+        with mock.patch.object(
+                connectors.Pool, 'fetch_from_configmap', return_value=pool):
+            with self.assertRaises(osmo_errors.OSMOUsageError) as raised:
+                submit_info.validate_workflow_spec(
+                    rendered_spec,
+                    group_and_task_uuids={},
+                    roles=[],
+                    original_templated_spec=None,
+                )
+
+        self.assertIn('undergoing maintenance', raised.exception.message)
+
+
 class TestWorkflowLabelOverrides(unittest.TestCase):
     """Covers CLI/YAML/canonical label merging in construct_workflow_dict."""
 
@@ -84,7 +108,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')):
             result = submit_info.construct_workflow_dict(
                 template_spec,
@@ -109,7 +133,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')):
             result = submit_info.construct_workflow_dict(
                 template_spec,
@@ -134,7 +158,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')):
             result = submit_info.construct_workflow_dict(
                 template_spec, canonical_labels={})
@@ -151,7 +175,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')), \
              mock.patch.object(
                  objects.WorkflowSubmitInfo,
@@ -176,7 +200,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')), \
              mock.patch.object(
                  objects.WorkflowSubmitInfo,
@@ -199,7 +223,7 @@ workflow:
 '''
 
         with mock.patch.object(
-                connectors.Pool, 'fetch_from_db',
+                connectors.Pool, 'fetch_from_configmap',
                 return_value=types.SimpleNamespace(backend='backend-1')), \
              mock.patch.object(
                  objects.WorkflowSubmitInfo,

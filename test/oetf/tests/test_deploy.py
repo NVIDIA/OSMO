@@ -194,6 +194,7 @@ class TestKindAdapter(unittest.TestCase):
             return _FakeCompleted(returncode=code, stdout=stdout)
 
         adapter = KindAdapter(
+            image_location="localhost:5001/osmo" if build_local else "",
             image_tag="ci-123",
             subprocess_runner=fake_run,
             url_opener=_always_ok_opener,
@@ -438,6 +439,17 @@ class TestKindAdapter(unittest.TestCase):
         )
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
         cmds = [tuple(c) for c in calls]
+        dependency_build = next(
+            index for index, command in enumerate(cmds)
+            if command[:3] == ("helm", "dependency", "build"))
+        rustfs_repo = next(
+            index for index, command in enumerate(cmds)
+            if command[:4] == ("helm", "repo", "add", "rustfs"))
+        osmo_install = next(
+            index for index, command in enumerate(cmds)
+            if command[:4] == ("helm", "upgrade", "--install", "osmo"))
+        self.assertLess(rustfs_repo, dependency_build)
+        self.assertLess(dependency_build, osmo_install)
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
             cmds,
@@ -448,30 +460,19 @@ class TestKindAdapter(unittest.TestCase):
              "-n", "osmo", "--timeout=10m"),
             cmds,
         )
-        osmo_helm_args = next(cmd for cmd in cmds if "/tmp/local-quick-start" in cmd)
+        osmo_helm_args = cmds[osmo_install]
         self.assertIn(
-            "service.services.masterEncryptionKey.managementMode=osmo",
+            "imageTag=ci-123",
             osmo_helm_args,
         )
         self.assertIn(
-            "service.services.masterEncryptionKey.bootstrap.enabled=true",
+            "services.agent.resources.requests.memory=1Gi",
             osmo_helm_args,
-        )
-        self.assertIn(
-            "service.services.mcp.imagePullPolicy=IfNotPresent",
-            osmo_helm_args,
-            f"expected MCP pull policy override, got: {osmo_helm_args}",
-        )
-        # Build-local helm overrides include UI's pull policy (UI now built locally).
-        self.assertIn(
-            "service.services.ui.imagePullPolicy=IfNotPresent",
-            osmo_helm_args,
-            f"expected web-ui pull policy override, got: {osmo_helm_args}",
         )
         self.assertNotIn(
-            "service.services.ui.replicas=0",
+            "global.osmoImageTag=ci-123",
             osmo_helm_args,
-            "build-local should NO LONGER scale UI to 0; we build it locally now",
+            "source-build KIND must use unified-chart image values",
         )
 
     def test_first_deploy_with_build_local_does_not_rollout_restart(self):

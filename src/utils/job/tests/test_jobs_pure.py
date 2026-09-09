@@ -714,7 +714,7 @@ class CheckRunTimeoutTest(unittest.TestCase):
         cfg.default_exec_timeout = '15m'
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = cfg
-        with mock.patch.object(connectors.Pool, 'fetch_from_db',
+        with mock.patch.object(connectors.Pool, 'fetch_from_configmap',
                                return_value=pool):
             result = check._resolve_exec_timeout(ctx, wf)
         self.assertEqual(result, datetime.timedelta(minutes=5))
@@ -731,7 +731,7 @@ class CheckRunTimeoutTest(unittest.TestCase):
         cfg.default_exec_timeout = '15m'
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = cfg
-        with mock.patch.object(connectors.Pool, 'fetch_from_db',
+        with mock.patch.object(connectors.Pool, 'fetch_from_configmap',
                                return_value=pool):
             result = check._resolve_exec_timeout(ctx, wf)
         self.assertEqual(result, datetime.timedelta(minutes=15))
@@ -877,7 +877,7 @@ class CheckQueueTimeoutTest(unittest.TestCase):
         cfg.default_queue_timeout = '15m'
         ctx = mock.Mock()
         ctx.postgres.get_workflow_configs.return_value = cfg
-        with mock.patch.object(connectors.Pool, 'fetch_from_db',
+        with mock.patch.object(connectors.Pool, 'fetch_from_configmap',
                                return_value=pool):
             result = check._resolve_queue_timeout(ctx, wf)
         self.assertEqual(result, datetime.timedelta(minutes=5))
@@ -1602,7 +1602,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
                               return_value=workflow_obj),
             mock.patch.object(connectors.RedisConnector, 'get_instance',
                               return_value=mock.Mock()),
-            mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info),
+            mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info),
             mock.patch.object(connectors, 'BackendConfigCache', return_value=cache),
         ]
 
@@ -1683,7 +1683,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db',
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap',
                                return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache'), \
              mock.patch.object(task.Task, 'fetch_from_db', return_value=current_task):
@@ -1712,7 +1712,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info), \
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache') as mock_cache_cls, \
              mock.patch.object(jobs.UpdateGroup, 'schedule_cleanup_job'), \
              mock.patch.object(jobs.CheckQueueTimeout, 'send_delayed_job_to_queue') \
@@ -1741,7 +1741,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info), \
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache') as mock_cache_cls, \
              mock.patch.object(jobs.UpdateGroup, 'schedule_cleanup_job'), \
              mock.patch.object(jobs.CheckRunTimeout, 'send_delayed_job_to_queue') \
@@ -1774,7 +1774,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info), \
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache') as mock_cache_cls, \
              mock.patch.object(task.TaskGroup, 'batch_set_groups_to_processing',
                                return_value=['g2']), \
@@ -1805,7 +1805,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info), \
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache') as mock_cache_cls, \
              mock.patch.object(task.Task, 'batch_update_status_to_db'), \
              mock.patch.object(jobs.UpdateGroup, 'schedule_cleanup_job'), \
@@ -1836,7 +1836,7 @@ class UpdateGroupExecuteTest(unittest.TestCase):
              mock.patch.object(wf_module.Workflow, 'fetch_from_db', return_value=wf), \
              mock.patch.object(connectors.RedisConnector, 'get_instance',
                                return_value=mock.Mock()), \
-             mock.patch.object(connectors.Pool, 'fetch_from_db', return_value=pool_info), \
+             mock.patch.object(connectors.Pool, 'fetch_from_configmap', return_value=pool_info), \
              mock.patch.object(connectors, 'BackendConfigCache', return_value=cache), \
              mock.patch.object(jobs.UpdateGroup, 'schedule_cleanup_job'), \
              mock.patch.object(jobs.UpdateGroup, 'send_job_to_queue') as mock_send:

@@ -88,6 +88,41 @@ class TestWorkflowLabelSchema(unittest.TestCase):
         )
         self.assertIn('ON tasks USING btree (end_time)', end_time_index)
 
+    def test_fresh_schema_omits_legacy_service_config_tables(self) -> None:
+        table_commands = [
+            command for command in self.commit_commands
+            if 'CREATE TABLE IF NOT EXISTS' in command
+        ]
+        combined = '\n'.join(table_commands)
+        for table_name in (
+            'configs',
+            'resource_validations',
+            'pod_templates',
+            'group_templates',
+            'pools',
+            'backend_tests',
+        ):
+            self.assertNotIn(
+                f'CREATE TABLE IF NOT EXISTS {table_name} ', combined)
+
+        backend_table = next(
+            command for command in table_commands
+            if 'CREATE TABLE IF NOT EXISTS backends' in command
+        )
+        for runtime_column in (
+            'name TEXT PRIMARY KEY',
+            'k8s_uid TEXT',
+            'last_heartbeat TIMESTAMP',
+            'created_date TIMESTAMP',
+            "version TEXT DEFAULT ''",
+        ):
+            self.assertIn(runtime_column, backend_table)
+        for obsolete_column in (
+            'description', 'k8s_namespace', 'router_address',
+            'scheduler_settings', 'node_conditions',
+        ):
+            self.assertNotIn(obsolete_column, backend_table)
+
 
 if __name__ == '__main__':
     unittest.main()

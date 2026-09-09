@@ -23,8 +23,7 @@ import tempfile
 import unittest
 from typing import Any, Dict
 
-from src.lib.utils import common, osmo_errors, priority as wf_priority
-from src.service.core.config import config_service, objects as config_objects
+from src.lib.utils import common, priority as wf_priority
 from src.service.core.tests import fixture as service_fixture
 from src.utils import connectors
 from src.utils.job import common as task_common, task
@@ -144,7 +143,7 @@ class GroupTemplateRenderTest(unittest.TestCase):
 
 
 class GroupTemplateTest(service_fixture.ServiceTestFixture):
-    """DB-backed tests for group template CRUD, pool assignment, and KB spec generation."""
+    """ConfigMap-backed group template reads, assignment, and KB generation."""
 
     def setUp(self):
         super().setUp()
@@ -178,19 +177,16 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.assertIn('shared-config', body)
 
     def test_put_bulk_group_templates(self):
-        """PUT multiple templates in one request via the bulk endpoint."""
+        """A snapshot can expose multiple templates by name."""
         second_template = {
             'apiVersion': 'v1',
             'kind': 'ConfigMap',
             'metadata': {'name': 'shared-config'},
         }
-        config_service.put_group_templates(
-            request=config_objects.PutGroupTemplatesRequest(configs={
-                'compute-domain': _COMPUTE_DOMAIN_TEMPLATE,
-                'shared-config': second_template,
-            }),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(group_templates={
+            'compute-domain': _COMPUTE_DOMAIN_TEMPLATE,
+            'shared-config': second_template,
+        })
 
         response = self.client.get('/api/configs/group_template')
         self.assertEqual(response.status_code, 200)
@@ -210,20 +206,15 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.assertEqual(response.json()['metadata']['name'], 'compute-domain-updated')
 
     def test_delete_unused_template_succeeds(self):
-        """DELETE a template that is not assigned to any pool removes it from the DB."""
+        """Removing an unused template from the snapshot removes it from reads."""
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
-
-        config_service.delete_group_template(
-            name='compute-domain',
-            request=config_objects.ConfigsRequest(),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(group_templates={})
 
         response = self.client.get('/api/configs/group_template/compute-domain')
         self.assertEqual(response.status_code, 400)
 
     def test_delete_template_in_use_raises_error(self):
-        """DELETE a template referenced by a pool raises OSMOUserError with pool name in message."""
+        """A snapshot cannot remove a template still referenced by a pool."""
         self.create_test_backend(self.database)
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_pool(
@@ -232,42 +223,34 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             common_group_templates=['compute-domain'],
         )
 
-        with self.assertRaises(osmo_errors.OSMOUserError) as context:
-            config_service.delete_group_template(
-                name='compute-domain',
-                request=config_objects.ConfigsRequest(),
-                username='test@nvidia.com',
-            )
+        with self.assertRaises(ValueError) as context:
+            self.update_configmap_sections(group_templates={})
         self.assertIn('nvlink-pool', str(context.exception))
 
     def test_template_missing_api_version_raises_error(self):
-        """A template without apiVersion raises OSMOUserError on insert."""
+        """A template without apiVersion is rejected by snapshot validation."""
         invalid = {'kind': 'ComputeDomain', 'metadata': {'name': 'cd-1'}}
-        with self.assertRaises(osmo_errors.OSMOUserError):
-            connectors.GroupTemplate(group_template=invalid).insert_into_db(
-                self.database, 'invalid-template')
+        with self.assertRaises(ValueError):
+            self.create_test_group_template('invalid-template', invalid)
 
     def test_template_missing_kind_raises_error(self):
         """A template without kind raises OSMOUserError on insert."""
         invalid = {'apiVersion': 'v1', 'metadata': {'name': 'cd-1'}}
-        with self.assertRaises(osmo_errors.OSMOUserError):
-            connectors.GroupTemplate(group_template=invalid).insert_into_db(
-                self.database, 'invalid-template')
+        with self.assertRaises(ValueError):
+            self.create_test_group_template('invalid-template', invalid)
 
     def test_template_missing_metadata_name_raises_error(self):
         """A template without metadata.name raises OSMOUserError on insert."""
         invalid = {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {}}
-        with self.assertRaises(osmo_errors.OSMOUserError):
-            connectors.GroupTemplate(group_template=invalid).insert_into_db(
-                self.database, 'invalid-template')
+        with self.assertRaises(ValueError):
+            self.create_test_group_template('invalid-template', invalid)
 
     def test_template_with_namespace_raises_error(self):
         """A template with metadata.namespace raises OSMOUserError on insert."""
         invalid = copy.deepcopy(_COMPUTE_DOMAIN_TEMPLATE)
         invalid['metadata']['namespace'] = 'user-namespace'
-        with self.assertRaises(osmo_errors.OSMOUserError) as context:
-            connectors.GroupTemplate(group_template=invalid).insert_into_db(
-                self.database, 'namespaced-template')
+        with self.assertRaises(ValueError) as context:
+            self.create_test_group_template('namespaced-template', invalid)
         self.assertIn('namespace', str(context.exception).lower())
 
     # --- Pool group template assignment tests ---
@@ -282,7 +265,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             common_group_templates=['compute-domain'],
         )
 
-        pool = connectors.Pool.fetch_from_db(self.database, 'nvlink-pool')
+        pool = connectors.Pool.fetch_from_configmap('nvlink-pool')
         self.assertEqual(len(pool.parsed_group_templates), 1)
         self.assertEqual(
             pool.parsed_group_templates[0]['metadata']['name'],
@@ -305,7 +288,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             common_group_templates=['compute-domain', 'shared-config'],
         )
 
-        pool = connectors.Pool.fetch_from_db(self.database, 'nvlink-pool')
+        pool = connectors.Pool.fetch_from_configmap('nvlink-pool')
         self.assertEqual(len(pool.parsed_group_templates), 2)
         kinds = {t['kind'] for t in pool.parsed_group_templates}
         self.assertIn('ComputeDomain', kinds)
@@ -334,7 +317,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             common_group_templates=['base-cd', 'patch-cd'],
         )
 
-        pool = connectors.Pool.fetch_from_db(self.database, 'nvlink-pool')
+        pool = connectors.Pool.fetch_from_configmap('nvlink-pool')
         self.assertEqual(len(pool.parsed_group_templates), 1)
         merged = pool.parsed_group_templates[0]
         self.assertEqual(merged['spec']['channel']['mode'], 'single')
@@ -354,7 +337,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         updated['spec']['channel']['resourceClaimTemplate']['name'] = 'updated-name'
         self.create_test_group_template('compute-domain', updated)
 
-        pool = connectors.Pool.fetch_from_db(self.database, 'nvlink-pool')
+        pool = connectors.Pool.fetch_from_configmap('nvlink-pool')
         self.assertEqual(
             pool.parsed_group_templates[0]['spec']['channel']['resourceClaimTemplate']['name'],
             'updated-name',
@@ -365,13 +348,13 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.create_test_backend(self.database)
         self.create_test_pool(pool_name='plain-pool', backend='test_backend')
 
-        pool = connectors.Pool.fetch_from_db(self.database, 'plain-pool')
+        pool = connectors.Pool.fetch_from_configmap('plain-pool')
         self.assertEqual(pool.parsed_group_templates, [])
 
     def test_pool_nonexistent_group_template_raises_error(self):
         """Assigning a non-existent group template name to a pool raises an error."""
         self.create_test_backend(self.database)
-        with self.assertRaises(osmo_errors.OSMOUsageError):
+        with self.assertRaises(ValueError):
             self.create_test_pool(
                 pool_name='bad-pool',
                 backend='test_backend',
@@ -384,19 +367,16 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         """Set up backend, workflow config, group template, pool, and task group."""
         self.create_test_backend(self.database)
 
-        config_service.put_workflow_configs(
-            request=config_objects.PutWorkflowRequest(configs=connectors.WorkflowConfig(
-                workflow_data={
-                    'credential': {
-                        'endpoint': 's3://bucket.io/AUTH_test/workflows',
-                        'access_key_id': 'test',
-                        'access_key': 'test_key',
-                        'region': 'us-east-1',
-                    },
-                },
-            )),
-            username='test@nvidia.com',
-        )
+        workflow_config = connectors.WorkflowConfig(workflow_data={
+            'credential': {
+                'endpoint': 's3://bucket.io/AUTH_test/workflows',
+                'access_key_id': 'test',
+                'access_key': 'test_key',
+                'region': 'us-east-1',
+            },
+        })
+        self.update_configmap_sections(
+            workflow=workflow_config.model_dump(exclude_unset=True))
 
         tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(tmpdir.cleanup)

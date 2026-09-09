@@ -24,6 +24,7 @@ from unittest import mock
 from src.lib.utils import common, priority
 from src.service.core.workflow import helpers, objects
 from src.tests.common import fixtures
+from src.utils import configmap_state
 from src.utils.connectors import postgres
 from src.utils.job import workflow
 
@@ -71,6 +72,8 @@ class WorkflowLabelFiltersFixture(
 
     def setUp(self):
         super().setUp()
+        configmap_state.set_parsed_configs({'workflow': {}})
+        configmap_state.set_configmap_mode(True)
         postgres.upsert_user(self.database, 'alice')
 
     def insert_workflow(self, name: str, labels: dict[str, str]) -> str:

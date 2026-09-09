@@ -32,6 +32,13 @@ class UserFiltersDatabaseTest(fixture.ServiceTestFixture):
 
     def setUp(self):
         super().setUp()
+        self.install_configmap_snapshot(
+            backends={'backend': {
+                'k8s_namespace': 'test-namespace',
+                'node_conditions': {'prefix': 'test.osmo.nvidia.com/'},
+            }},
+            pools={'pool': {'backend': 'backend', 'platforms': {}}},
+        )
         self.database = connectors.PostgresConnector.get_instance()
         for user_name in CURRENT_USERS:
             connectors.upsert_user(self.database, user_name)

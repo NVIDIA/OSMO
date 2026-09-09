@@ -137,6 +137,15 @@ def get_change_description(
     return '\n'.join(description).strip()
 
 
+GITOPS_REVISION_MESSAGE = (
+    'Configuration revisions are managed through GitOps in 6.4.')
+
+
+def _reject_config_revision_operation(service_client, args):
+    del service_client, args
+    raise osmo_errors.OSMOUserError(GITOPS_REVISION_MESSAGE)
+
+
 def _run_history_command(service_client: client.ServiceClient, args: argparse.Namespace):
     """
     List config history entries
@@ -144,6 +153,8 @@ def _run_history_command(service_client: client.ServiceClient, args: argparse.Na
         service_client: The service client instance
         args: Parsed command line arguments
     """
+    _reject_config_revision_operation(service_client, args)
+
     # Cannot specify --created-before or --created-after with --at-timestamp
     if args.created_before and args.at_timestamp:
         raise osmo_errors.OSMOUserError(
@@ -224,6 +235,7 @@ def _run_rollback_command(service_client: client.ServiceClient, args: argparse.N
         service_client: The service client instance
         args: Parsed command line arguments
     """
+    _reject_config_revision_operation(service_client, args)
     revision = config_history.OperableConfigHistoryRevision(args.revision)
     payload = {
         'revision': revision.revision,
@@ -250,43 +262,8 @@ def _run_rollback_command(service_client: client.ServiceClient, args: argparse.N
 
 
 def _run_list_command(service_client: client.ServiceClient, args: argparse.Namespace):
-    """
-    List current configs for each config type
-    Args:
-        service_client: The service client instance
-        args: Parsed command line arguments
-    """
-    # Build query parameters
-    params: Dict[str, Any] = {
-        'config_types': config_history.OPERABLE_CONFIG_TYPES,
-        'omit_data': True,
-        'at_timestamp': common.current_time()
-    }
-
-    result = service_client.request(client.RequestMethod.GET, 'api/configs/history', params=params)
-
-    if args.format_type == 'json':
-        print(json.dumps(result, indent=2))
-    else:
-        # Create table for current configs
-        table = common.osmo_table(header=[
-            'Config Type', 'Revision', 'Username', 'Created At'
-        ], fit_width=args.fit_width)
-
-        sorted_configs = sorted(result['configs'], key=lambda x: x['config_type'])
-
-        for config in sorted_configs:
-            # Format created_at timestamp
-            created_at = common.convert_utc_datetime_to_user_zone(config['created_at'])
-
-            table.add_row([
-                config['config_type'],
-                str(config['revision']),
-                config['username'],
-                created_at
-            ])
-
-        print(table.draw())
+    """Reject the retired database-backed current-revision listing."""
+    _reject_config_revision_operation(service_client, args)
 
 
 def _fetch_data_from_config(config_info: Any) -> Any:
@@ -348,6 +325,7 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
     """
     # Parse the config identifier
     if ':' in args.config:
+        _reject_config_revision_operation(service_client, args)
         # Format is <CONFIG_TYPE>:<revision>
         if args.verbose:
             raise osmo_errors.OSMOUserError(
@@ -559,6 +537,7 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
     """
     # Check if config_type contains a revision number (format: CONFIG_TYPE:revision)
     if ':' in args.config:
+        _reject_config_revision_operation(service_client, args)
         revision = config_history.OperableConfigHistoryRevision(args.config)
 
         try:
@@ -701,6 +680,8 @@ def _run_tag_command(service_client: client.ServiceClient, args: argparse.Namesp
         service_client: The service client instance
         args: Parsed command line arguments
     """
+    _reject_config_revision_operation(service_client, args)
+
     # Parse the config identifier
     if ':' in args.config:
         # Format is <CONFIG_TYPE>:<revision>
@@ -758,6 +739,8 @@ def _run_diff_command(service_client: client.ServiceClient, args: argparse.Names
     Raises:
         OSMOUserError: If the config type is invalid or revisions don't exist
     """
+    _reject_config_revision_operation(service_client, args)
+
     def get_current_revision(config_type: config_history.ConfigHistoryType) -> str:
         """Get the current revision number for a config type.
 
@@ -855,8 +838,8 @@ def setup_parser(parser: argparse._SubParsersAction):
     # Handle 'list' command
     list_parser = config_subparsers.add_parser(
         'list',
-        help='List current configuration revisions for each config type',
-        description='List current configuration revisions for each config type',
+        help='Retired in 6.4: configuration revisions are managed through GitOps',
+        description='Retired in 6.4: configuration revisions are managed through GitOps',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples
@@ -884,8 +867,8 @@ List configurations in JSON format::
     # Handle 'show' command
     show_parser = config_subparsers.add_parser(
         'show',
-        help='Show a configuration or previous revision of a configuration',
-        description='Show a configuration or previous revision of a configuration',
+        help='Show the current GitOps-managed configuration',
+        description='Show the current GitOps-managed configuration',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f'''
 Available config types (CONFIG_TYPE): {CONFIG_TYPES_STRING}
@@ -901,10 +884,6 @@ Show the ``default_cpu`` resource validation rule::
 
     osmo config show RESOURCE_VALIDATION default_cpu
 
-Show the ``user_workflow_limits`` workflow configuration in a previous revision::
-
-    osmo config show WORKFLOW:3 user_workflow_limits
-
 Show a pool configuration with parsed pod templates, group templates, and resource validations::
 
     osmo config show POOL --verbose
@@ -915,7 +894,7 @@ Show a pool configuration with parsed pod templates, group templates, and resour
     show_parser.add_argument(
         'config',
         metavar='config_type',
-        help='Config to show in format <CONFIG_TYPE>[:<revision>]',
+        help='Current config to show in format <CONFIG_TYPE>; revisions are retired in 6.4',
     )
     show_parser.add_argument(
         'names',
@@ -989,8 +968,8 @@ Update with description and tags::
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
     delete_parser = config_subparsers.add_parser(
         'delete',
-        help='Delete a named configuration or a specific config revision',
-        description='Delete a named configuration or a specific config revision',
+        help='Delete a named configuration (revision deletion is retired in 6.4)',
+        description='Delete a named configuration (revision deletion is retired in 6.4)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
@@ -1004,10 +983,6 @@ Delete a named pool configuration::
 
     osmo config delete POOL my-pool
 
-Delete a specific revision::
-
-    osmo config delete SERVICE:123
-
 Delete with description and tags::
 
     osmo config delete BACKEND my-backend --description "Removing unused backend" --tags cleanup deprecated
@@ -1016,8 +991,7 @@ Delete with description and tags::
     delete_parser.add_argument(
         'config',
         metavar='config_type',
-        help='Type of config to delete (CONFIG_TYPE) or CONFIG_TYPE:revision_number to delete a '
-             'specific revision',
+        help='Type of config to delete (CONFIG_TYPE); revision deletion is retired in 6.4',
     )
     delete_parser.add_argument(
         'name',
@@ -1039,8 +1013,8 @@ Delete with description and tags::
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
     history_parser = config_subparsers.add_parser(
         'history',
-        help='List history of configuration changes',
-        description='List history of configuration changes',
+        help='Retired in 6.4: configuration revisions are managed through GitOps',
+        description='Retired in 6.4: configuration revisions are managed through GitOps',
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config history [-h] [config_type] [--offset OFFSET] [--count COUNT] '
               '[--order {asc,desc}] [--name NAME] [--revision REVISION] [--tags TAGS [TAGS ...]] '
@@ -1140,8 +1114,8 @@ View history for a specific time range::
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
     rollback_parser = config_subparsers.add_parser(
         'rollback',
-        help='Roll back a configuration to a previous revision',
-        description='Roll back a configuration to a previous revision\n\n'
+        help='Retired in 6.4: roll back configuration through GitOps',
+        description='Retired in 6.4: roll back configuration through GitOps\n\n'
                     'When rolling back a configuration, the revision number is incremented by 1 '
                     'and a new revision is created. The new revision will have the same data as '
                     'the desired rollback revision.',
@@ -1234,10 +1208,12 @@ Creating a new backend role::
     # NOTE: Custom usage message! If you change arguments, you need to update usage.
     tag_parser = config_subparsers.add_parser(
         'tag',
-        help='Update tags for a config revision',
-        description='Update tags for a config revision. Tags can be used for organizing configs by '
-                    'category and filtering output of ``osmo config history``. Tags do not '
-                    'affect the configuration itself.',
+        help='Retired in 6.4: revision tags are no longer managed by OSMO',
+        description=(
+            'Retired in 6.4: revision tags are no longer managed by OSMO. '
+            'Tags were used for organizing configs by category and filtering '
+            'output of ``osmo config history``. Tags do not affect the '
+            'configuration itself.'),
         formatter_class=argparse.RawTextHelpFormatter,
         usage='osmo config tag [-h] config_type [--set SET [SET ...]] '
               '[--delete DELETE [DELETE ...]]',
@@ -1284,8 +1260,8 @@ Update tags for current revision::
     # Add diff command
     diff_parser = config_subparsers.add_parser(
         'diff',
-        help='Show the difference between two config revisions',
-        description='Show the difference between two config revisions\n\n'
+        help='Retired in 6.4: compare configuration changes through GitOps',
+        description='Retired in 6.4: compare configuration changes through GitOps\n\n'
                     f'Available config types (config_type): {CONFIG_TYPES_STRING}',
         formatter_class=RstStrippingHelpFormatter,
         epilog='''

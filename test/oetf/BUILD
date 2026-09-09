@@ -68,6 +68,7 @@ osmo_py_library(
     data = [
         "data/kind-osmo-cluster-config.yaml",
         "@osmo_workspace//deployments/charts:backend-operator",
+        "@osmo_workspace//deployments/charts:osmo",
         "@osmo_workspace//deployments/charts:service",
     ],
     deps = [

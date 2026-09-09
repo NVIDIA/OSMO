@@ -144,6 +144,27 @@ class TestGetPoolQuotas(unittest.TestCase):
         self.assertEqual(kwargs['pool_configs'], {})
         self.assertEqual(kwargs['all_pools'], False)
 
+    def test_get_pool_quotas_all_pools_does_not_pass_empty_filter(self):
+        pool_configs_container = mock.Mock(pools={})
+        resources_response = objects.ResourcesResponse(resources=[])
+        with mock.patch.object(
+                workflow_service.connectors.PostgresConnector,
+                'get_instance', return_value=mock.Mock()), \
+             mock.patch.object(
+                workflow_service.connectors, 'fetch_minimal_pool_config',
+                return_value=pool_configs_container), \
+             mock.patch.object(
+                workflow_service.helpers, 'get_tasks', return_value=[]), \
+             mock.patch.object(
+                workflow_service.objects, 'get_resources',
+                return_value=resources_response) as get_resources, \
+             mock.patch.object(
+                workflow_service, 'calculate_pool_quotas',
+                return_value=mock.sentinel.response):
+            workflow_service.get_pool_quotas(all_pools=True)
+
+        get_resources.assert_called_once_with(pools=None, platforms=None)
+
 
 class TestSubmitWorkflow(unittest.TestCase):
     """Covers submit_workflow branches (lines 355-450)."""
@@ -1051,37 +1072,72 @@ class TestGetResources(unittest.TestCase):
     def test_get_resources_concise_returns_pool_resources(self):
         with mock.patch.object(workflow_service.helpers,
                                'get_pool_resources',
-                               return_value=mock.sentinel.pool_res) as pr:
+                               return_value=mock.sentinel.pool_res) as pr, \
+             mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['p1']):
             result = workflow_service.get_resources(
-                pools=['p1'], platforms=['plat'], concise=True)
+                pools=['p1'], platforms=['plat'], concise=True,
+                allowed_pools_header='p1')
 
         self.assertIs(result, mock.sentinel.pool_res)
         pr.assert_called_once_with(pools=['p1'], platforms=['plat'])
 
     def test_get_resources_non_concise_uses_objects_get_resources(self):
         with mock.patch.object(workflow_service.objects, 'get_resources',
-                               return_value=mock.sentinel.full) as gr:
+                               return_value=mock.sentinel.full) as gr, \
+             mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['p1']):
             result = workflow_service.get_resources(
-                pools=['p1'], platforms=['plat'], concise=False)
+                pools=['p1'], platforms=['plat'], concise=False,
+                allowed_pools_header='p1')
 
         self.assertIs(result, mock.sentinel.full)
         gr.assert_called_once_with(pools=['p1'], platforms=['plat'])
 
-    def test_get_resources_all_pools_calls_get_all_pool_names(self):
+    def test_get_resources_all_pools_stays_within_allowed_pools(self):
         with mock.patch.object(workflow_service.connectors.Pool,
-                               'get_all_pool_names',
-                               return_value=['p1', 'p2']), \
+                               'get_all_configured_pool_names',
+                               return_value=['p1', 'p2', 'p3']), \
              mock.patch.object(workflow_service.objects, 'get_resources',
                                return_value=mock.sentinel.full) as gr:
-            workflow_service.get_resources(all_pools=True)
+            workflow_service.get_resources(
+                all_pools=True, allowed_pools_header='p1,p3,db-only')
 
-        # pools arg came from get_all_pool_names
         _, kwargs = gr.call_args
-        self.assertEqual(kwargs['pools'], ['p1', 'p2'])
+        self.assertEqual(kwargs['pools'], ['p1', 'p3'])
+
+    def test_get_resources_empty_allowed_pools_returns_empty(self):
+        with mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['p1']), \
+             mock.patch.object(workflow_service.objects,
+                               'get_resources') as get_resources:
+            result = workflow_service.get_resources(
+                pools=None, allowed_pools_header='', concise=False)
+
+        self.assertEqual(result, objects.ResourcesResponse(resources=[]))
+        get_resources.assert_not_called()
+
+    def test_get_resources_rejects_explicit_unauthorized_pool(self):
+        with mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['allowed', 'denied']), \
+             mock.patch.object(workflow_service.helpers,
+                               'get_pool_resources') as get_pool_resources:
+            result = workflow_service.get_resources(
+                pools=['denied'], allowed_pools_header='allowed', concise=True)
+
+        self.assertEqual(result, objects.PoolResourcesResponse(pools=[]))
+        get_pool_resources.assert_not_called()
 
     def test_get_resources_platforms_only_used_when_pools_set(self):
         with mock.patch.object(workflow_service.objects, 'get_resources',
-                               return_value=mock.sentinel.full) as gr:
+                               return_value=mock.sentinel.full) as gr, \
+             mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['allowed-1', 'allowed-2']):
             workflow_service.get_resources(
                 pools=None, platforms=['plat'],
                 allowed_pools_header='allowed-1,allowed-2')
@@ -1099,18 +1155,28 @@ class TestGetOneResource(unittest.TestCase):
         result_container = SimpleNamespace(resources=[mock.Mock()])
 
         with mock.patch.object(workflow_service.objects, 'get_resources',
-                               return_value=result_container):
-            result = workflow_service.get_one_resource('node-1')
+                               return_value=result_container) as get_resources, \
+             mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['p1', 'p2']):
+            result = workflow_service.get_one_resource(
+                'node-1', allowed_pools_header='p1,db-only')
 
         self.assertIs(result, result_container)
+        get_resources.assert_called_once_with(
+            pools=['p1'], resource_name='node-1')
 
     def test_get_one_resource_missing_raises_not_found(self):
         result_container = SimpleNamespace(resources=[])
 
         with mock.patch.object(workflow_service.objects, 'get_resources',
-                               return_value=result_container):
+                               return_value=result_container), \
+             mock.patch.object(workflow_service.connectors.Pool,
+                               'get_all_configured_pool_names',
+                               return_value=['p1']):
             with self.assertRaises(osmo_errors.OSMONotFoundError) as ctx:
-                workflow_service.get_one_resource('node-1')
+                workflow_service.get_one_resource(
+                    'node-1', allowed_pools_header='')
 
         self.assertIn('Resource node-1 does not exist', ctx.exception.message)
 

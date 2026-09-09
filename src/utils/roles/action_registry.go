@@ -20,6 +20,7 @@ package roles
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -719,12 +720,28 @@ func extractWorkflowPoolResource(
 	}
 
 	// Look up pool from workflow_id
-	poolName, err := GetPoolForWorkflow(ctx, pgClient, workflowID)
+	poolName, err := getPoolForWorkflow(ctx, pgClient, workflowID)
 	if err != nil || poolName == "" {
 		return string(ResourceTypePool) + "/*"
 	}
 
 	return string(ResourceTypePool) + "/" + poolName
+}
+
+// getPoolForWorkflow reads runtime workflow placement. This is not
+// configuration authority: pool definitions themselves come only from the
+// mounted ConfigMap.
+func getPoolForWorkflow(
+	ctx context.Context, client *postgres.PostgresClient, workflowID string,
+) (string, error) {
+	var pool string
+	err := client.Pool().QueryRow(
+		ctx, `SELECT pool FROM workflows WHERE workflow_id = $1`, workflowID,
+	).Scan(&pool)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pool for workflow %s: %w", workflowID, err)
+	}
+	return pool, nil
 }
 
 // extractScopedResourceID extracts the resource ID from path parts and formats as "{scope}/{id}"
@@ -1255,15 +1272,15 @@ func matchResource(pattern, resource string) bool {
 		return strings.HasPrefix(resource, prefix)
 	}
 
-	// Resource itself is a wildcard pattern (e.g., "pool/*" resource matches "pool/*" pattern)
+	// An unresolved resource wildcard may be matched only by the same wildcard
+	// policy. A concrete policy must never authorize an unknown resource.
 	if strings.HasSuffix(resource, "/*") {
 		resourcePrefix := strings.TrimSuffix(resource, "/*")
 		if strings.HasSuffix(pattern, "/*") {
 			patternPrefix := strings.TrimSuffix(pattern, "/*")
 			return resourcePrefix == patternPrefix
 		}
-		// pattern "pool/prod" should match resource "pool/*"
-		return strings.HasPrefix(pattern, resourcePrefix+"/")
+		return false
 	}
 
 	return false

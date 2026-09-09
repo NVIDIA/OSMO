@@ -54,7 +54,10 @@ oetf_smoke_test(
     data = ["//deployments/charts:service"],
     extra_deps = [requirement("pyyaml")],
     size = "large",
-    tags = ["database", "kind"],
+    # This exercises the legacy standalone service chart's values shape.
+    # The source-build KIND environment now deploys the unified chart; keep
+    # this target available for explicit legacy-chart qualification only.
+    tags = ["database", "legacy-service-chart"],
     timeout = "long",
 )
 

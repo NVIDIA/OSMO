@@ -8,7 +8,8 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# KIND deploy adapter using the ``osmo/quick-start`` umbrella chart.
+# KIND deploy adapter. Source builds use the repository's unified ``osmo``
+# chart; published-image checks retain the released ``osmo/quick-start`` path.
 #
 # The adapter follows the public ``deploy_local.html`` guide: create a KIND
 # cluster (with port 80 → 30080 mapping for ingress), then install the
@@ -81,6 +82,15 @@ METRICS_SERVER_REPO_URL = "https://kubernetes-sigs.github.io/metrics-server/"
 METRICS_SERVER_CHART = "metrics-server/metrics-server"
 METRICS_SERVER_NAMESPACE = "kube-system"
 
+CNPG_REPO_NAME = "cnpg"
+CNPG_REPO_URL = "https://cloudnative-pg.github.io/charts"
+CNPG_CHART = "cnpg/cloudnative-pg"
+CNPG_VERSION = "0.29.0"
+CNPG_NAMESPACE = "cnpg-system"
+
+RUSTFS_REPO_NAME = "rustfs"
+RUSTFS_REPO_URL = "https://charts.rustfs.com"
+
 # When ``--build-local`` is set, every osmo container's image points at the
 # pseudo-registry ``osmo.local/<svc>:latest-<arch>`` — the chart default
 # ``imagePullPolicy: Always`` would force kubelet to round-trip to that
@@ -152,6 +162,14 @@ def _local_service_chart_path() -> str:
     return os.path.normpath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
         "deployments", "charts", "service",
+    ))
+
+
+def _local_osmo_chart_path() -> str:
+    """Resolve the unified OSMO chart bundled in this adapter's runfiles."""
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+        "deployments", "charts", "osmo",
     ))
 
 
@@ -309,13 +327,11 @@ def _remove_superseded_quick_start_dependencies(chart_directory: str) -> None:
 
 @dataclasses.dataclass
 class KindAdapter:
-    """Deploy OSMO on a local KIND cluster via the ``osmo/quick-start`` chart.
+    """Deploy OSMO on a local KIND cluster.
 
     Attributes:
-        image_location: Override for ``global.osmoImageLocation`` (default:
-            chart default, currently ``nvcr.io/nvidia/osmo``).
-        image_tag: Override for ``global.osmoImageTag`` (default: chart
-            default, currently ``6.2``).
+        image_location: Image registry/repository override.
+        image_tag: Image tag override.
         chart_version: Pin a specific ``osmo/quick-start`` chart version
             (default: latest available in the repo).
         kind_config_path: Path to the KIND cluster config file. Defaults to
@@ -415,12 +431,15 @@ class KindAdapter:
         """
         cluster_existed = self._create_cluster_if_missing(cluster_name)
         self._install_kai_scheduler()
+        if self.build_local:
+            self._install_cnpg_operator()
         if self.install_metrics_server:
             self._install_metrics_server()
         self._apply_nvidia_runtimeclass_stub()
         if self.pre_install_hook is not None:
             self.pre_install_hook(cluster_name)
-        self._helm_repo_add()
+        if not self.build_local:
+            self._helm_repo_add()
         self._helm_install()
         return cluster_existed
 
@@ -445,7 +464,10 @@ class KindAdapter:
             return  # No existing release; helm install will create it fresh.
         existing_location = existing.get("osmoImageLocation", "")
         existing_tag = existing.get("osmoImageTag", "")
-        existing_is_build_local = existing_location == "osmo.local"
+        existing_is_build_local = existing_location in {
+            local_images.image_location(),
+            local_images.registry_image_location(),
+        }
         if existing_is_build_local and not self.build_local:
             raise RuntimeError(
                 "ERROR: existing osmo release was deployed with --build-local "
@@ -491,7 +513,19 @@ class KindAdapter:
         )
         if values is None:
             return None
-        return values.get("global") or {}
+        global_values = values.get("global") or {}
+        if global_values:
+            return global_values
+        image_registry = values.get("imageRegistry", "")
+        image_repository = values.get("imageRepository", "")
+        image_location = "/".join(
+            part.strip("/") for part in (image_registry, image_repository)
+            if part
+        )
+        return {
+            "osmoImageLocation": image_location,
+            "osmoImageTag": values.get("imageTag", ""),
+        }
 
     def _rollout_restart_osmo(self) -> None:
         """Re-deploy: make running osmo pods pick up freshly kind-loaded images.
@@ -778,6 +812,26 @@ class KindAdapter:
             "Installing metrics-server",
         )
 
+    def _install_cnpg_operator(self) -> None:
+        """Install the operator required by the unified chart's PostgreSQL."""
+        if self._helm_release_installed("cnpg", CNPG_NAMESPACE):
+            logger.info("▶ CloudNativePG operator already installed — skipping")
+            return
+        self._ensure_helm_repo(CNPG_REPO_NAME, CNPG_REPO_URL)
+        self._run(
+            ["helm", "repo", "update", CNPG_REPO_NAME],
+            "Updating CloudNativePG Helm repo",
+        )
+        self._run(
+            [
+                "helm", "upgrade", "--install", "cnpg", CNPG_CHART,
+                "--version", CNPG_VERSION,
+                "--namespace", CNPG_NAMESPACE,
+                "--create-namespace", "--wait", "--timeout", "10m",
+            ],
+            "Installing CloudNativePG operator",
+        )
+
     def _helm_install(self) -> None:
         # Note: intentionally not passing ``--wait``. The chart's HPAs target
         # CPU/memory utilization but the referenced Deployments don't all set
@@ -785,18 +839,22 @@ class KindAdapter:
         # forever, and ``helm --wait`` blocks indefinitely even with
         # metrics-server installed. We use ``kubectl wait`` on the actual
         # Deployments (more meaningful anyway).
+        if self.build_local:
+            chart_ref = _local_osmo_chart_path()
+            if not os.path.isfile(os.path.join(chart_ref, "Chart.yaml")):
+                raise RuntimeError(
+                    f"Local unified OSMO chart is unavailable at {chart_ref}"
+                )
+            self._helm_install_chart(chart_ref, unified=True)
+            return
         with self._quick_start_chart_ref() as chart_ref:
-            self._helm_install_chart(chart_ref)
+            self._helm_install_chart(chart_ref, unified=False)
 
     def _retain_quick_start_chart(self, chart_ref: str) -> str:
-        """Keep the exact installed umbrella chart available to live tests.
+        """Keep the exact installed chart available to live tests.
 
-        Local KIND installs substitute PR-local dependencies into a temporary
-        copy of the published quick-start chart. MEK phase tests must upgrade
-        that same umbrella release; using the standalone service subchart
-        changes the values shape and would also make Helm prune the umbrella's
-        other resources. Retain a second copy until the deploy/test session
-        ends and pass its path to Bazel through a dedicated environment value.
+        Retain a copy until the deploy/test session ends and pass its path to
+        Bazel through a dedicated environment value.
         """
         self._cleanup_retained_quick_start_chart()
         retained_directory = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
@@ -818,37 +876,54 @@ class KindAdapter:
         retained_directory.cleanup()
         self._retained_quick_start_directory = None
 
-    def _helm_install_chart(self, chart_ref: str) -> None:
-        """Install one resolved quick-start chart reference."""
-        if self.build_local and chart_ref != OSMO_CHART_REF:
+    def _helm_install_chart(self, chart_ref: str, *, unified: bool) -> None:
+        """Install one resolved OSMO chart reference."""
+        if unified:
             chart_ref = self._retain_quick_start_chart(chart_ref)
+            self._ensure_helm_repo(RUSTFS_REPO_NAME, RUSTFS_REPO_URL)
+            self._run(
+                ["helm", "dependency", "build", chart_ref],
+                "Building unified OSMO chart dependencies",
+            )
         args = [
             "helm", "upgrade", "--install", "osmo", chart_ref,
             "--namespace", OSMO_NAMESPACE, "--create-namespace",
             # First-run image pulls on CPU hosts can easily exceed 15 min;
             # subsequent runs re-use the docker image cache and are much faster.
             "--timeout", "25m",
-            # The public deploy_local.html CPU config has no ``node_group=ingress``
-            # worker — the ingress NodePort is mapped on the port-80 ``service``
-            # node. Current chart (1.2.1) pins ingress-nginx to
-            # ``node_group=ingress`` by default, so we retarget it to the
-            # correct node.
-            "--set", "ingress-nginx.controller.nodeSelector.node_group=service",
-            # Bump osmo-agent memory: chart default is 500Mi, but post-Python-3.14
-            # the agent OOMKills under workflow scheduling load (kubelet exit 137,
-            # workflows stick in PENDING/PROCESSING because the agent isn't reachable
-            # to bridge to the compute backend). Upstream chart fix is pending; this
-            # is the minimum override that keeps KIND deploys stable.
-            "--set", "service.services.agent.resources.requests.memory=1Gi",
-            "--set", "service.services.agent.resources.limits.memory=1Gi",
         ]
-        if self.chart_version and chart_ref == OSMO_CHART_REF:
+        if not unified:
+            args += [
+                "--set", "ingress-nginx.controller.nodeSelector.node_group=service",
+                "--set", "service.services.agent.resources.requests.memory=1Gi",
+                "--set", "service.services.agent.resources.limits.memory=1Gi",
+            ]
+        else:
+            args += [
+                "--set", "services.agent.resources.requests.memory=1Gi",
+                "--set", "services.agent.resources.limits.memory=1Gi",
+            ]
+        if self.chart_version and not unified:
             args += ["--version", self.chart_version]
         if self.image_location:
-            args += ["--set", f"global.osmoImageLocation={self.image_location}"]
+            if unified:
+                if "/" not in self.image_location:
+                    raise RuntimeError(
+                        "Unified-chart local builds require "
+                        "--use-local-registry so imageRepository can be "
+                        "mapped without changing image names."
+                    )
+                image_registry, image_repository = self.image_location.rsplit("/", 1)
+                args += [
+                    "--set", f"imageRegistry={image_registry}",
+                    "--set", f"imageRepository={image_repository}",
+                ]
+            else:
+                args += ["--set", f"global.osmoImageLocation={self.image_location}"]
         if self.image_tag:
-            args += ["--set", f"global.osmoImageTag={self.image_tag}"]
-        if self.build_local:
+            image_tag_key = "imageTag" if unified else "global.osmoImageTag"
+            args += ["--set", f"{image_tag_key}={self.image_tag}"]
+        if self.build_local and not unified:
             args += _build_local_helm_args()
             args += [
                 "--set",
@@ -858,7 +933,8 @@ class KindAdapter:
             ]
         for extra in self.extra_helm_sets:
             args += ["--set", extra]
-        self._run(args, "Installing osmo/quick-start (without --wait)")
+        chart_name = "unified osmo" if unified else "osmo/quick-start"
+        self._run(args, f"Installing {chart_name} (without --wait)")
         # Wait for all Deployments to reach Available=True. This is the
         # meaningful readiness signal for the cluster being usable.
         self._run(

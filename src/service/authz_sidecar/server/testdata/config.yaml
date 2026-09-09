@@ -1,0 +1,32 @@
+roles:
+  scoped-reader:
+    description: Reader limited to team-a
+    policies:
+    - effect: Allow
+      actions: [workflow:Read]
+      resources: [pool/team-a]
+    external_roles: [team-a-group]
+    sync_mode: import
+  force-reader:
+    description: Force-synchronized reader limited to team-a
+    policies:
+    - effect: Allow
+      actions: [workflow:Read]
+      resources: [pool/team-a]
+    external_roles: [force-team-a-group]
+    sync_mode: force
+  ignored-reader:
+    description: Manual-only reader limited to team-a
+    policies:
+    - effect: Allow
+      actions: [workflow:Read]
+      resources: [pool/team-a]
+    external_roles: [ignored-team-a-group]
+    sync_mode: ignore
+  osmo-default:
+    description: Default role without workflow access
+    policies: []
+    external_roles: []
+pools:
+  team-a: {}
+  team-b: {}

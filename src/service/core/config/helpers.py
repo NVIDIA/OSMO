@@ -18,38 +18,15 @@ SPDX-License-Identifier: Apache-2.0
 
 from collections import abc
 from datetime import datetime
-import json
 import logging
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List
 
-import pydantic
-import yaml
-
-from src.lib.utils import common, osmo_errors
+from src.lib.utils import osmo_errors
 from src.service.core.config import configmap_guard
 from src.utils.job import backend_jobs, kb_objects, workflow
 from src.service.core.config import objects as configs_objects
 from src.service.core.workflow import objects
 from src.utils import connectors
-
-
-def _reject_service_auth_write(
-    postgres: connectors.PostgresConnector,
-    config_type: connectors.ConfigType,
-    *,
-    explicit_fields: set[str] | None = None,
-    patch: Dict[str, Any] | None = None,
-) -> None:
-    """Reject service-auth mutations through the dynamic configuration API."""
-    if (config_type != connectors.ConfigType.SERVICE
-            or not postgres.service_auth_is_external):
-        return
-    if ('service_auth' in (explicit_fields or set())
-            or (patch is not None and 'service_auth' in patch)):
-        raise osmo_errors.OSMOUserError(
-            'service_auth is managed through its Kubernetes Secret, not the '
-            'service configuration API.',
-            status_code=409)
 
 
 def update_backend_queues(current_backend: connectors.Backend,
@@ -63,8 +40,8 @@ def update_backend_queues(current_backend: connectors.Backend,
         prev_backend: The previous configuration of the backend to delete objects for
     """
     # Lookup all pools for the backend
-    postgres = connectors.PostgresConnector.get_instance()
-    pool_rows = connectors.Pool.fetch_rows_from_db(postgres, backend=current_backend.name)
+    pool_rows = connectors.Pool.fetch_rows_from_configmap(
+        backend=current_backend.name)
     pools = [connectors.Pool(**row) for row in pool_rows]
 
     return update_backend_queues_from_configmap(
@@ -145,41 +122,8 @@ def put_configs(
     Returns:
         Dict containing the updated configuration
     """
+    del request, config_type, should_serialize
     configmap_guard.reject_if_configmap_mode(username)
-
-    postgres = connectors.PostgresConnector.get_instance()
-    _reject_service_auth_write(
-        postgres, config_type, explicit_fields=request.configs.model_fields_set)
-    if should_serialize:
-        updated_configs = request.configs.serialize(postgres)
-    else:
-        updated_configs = request.configs.plaintext_dict(by_alias=True, exclude_unset=True)
-        # Convert dict and list values to JSON strings
-        for key, value in updated_configs.items():
-            if isinstance(value, (dict, list)):
-                updated_configs[key] = json.dumps(value)
-    if (config_type == connectors.ConfigType.SERVICE
-            and postgres.service_auth_is_external):
-        updated_configs.pop('service_auth', None)
-
-    for key, value in updated_configs.items():
-        postgres.set_config(key, value, config_type)
-    configs_dict = postgres.get_configs(config_type).plaintext_dict(
-        exclude_unset=True, by_alias=True
-    )
-    postgres.create_config_history_entry(
-        config_type=config_type,
-        name='',
-        username=username,
-        data=configs_dict,
-        description=request.description
-        or f'Set complete {config_type.value.lower()} configuration',
-        tags=request.tags,
-    )
-    if (config_type == connectors.ConfigType.SERVICE
-            and postgres.service_auth_is_external):
-        configs_dict.pop('service_auth', None)
-    return configs_dict
 
 
 def patch_configs(
@@ -203,219 +147,8 @@ def patch_configs(
     Raises:
         OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
     """
+    del request, config_type, name
     configmap_guard.reject_if_configmap_mode(username)
-
-    postgres = connectors.PostgresConnector.get_instance()
-    _reject_service_auth_write(postgres, config_type, patch=request.configs_dict)
-    current_configs_dict = postgres.get_configs(config_type).plaintext_dict(
-        by_alias=True, exclude_unset=True)
-
-    updated_configs = common.strategic_merge_patch(
-        current_configs_dict, request.configs_dict
-    )
-    updated_configs_fields = {}
-
-    for key, value in updated_configs.items():
-        if value != current_configs_dict.get(key):
-            updated_configs_fields[key] = value
-
-    try:
-        config_class: Type[connectors.DynamicConfig]
-        if config_type == connectors.ConfigType.SERVICE:
-            config_class = connectors.ServiceConfig
-        elif config_type == connectors.ConfigType.WORKFLOW:
-            config_class = connectors.WorkflowConfig
-        else:
-            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
-
-        configs = config_class(**updated_configs_fields)
-
-        updated_configs = configs.serialize(postgres)
-        for key, value in updated_configs.items():
-            postgres.set_config(key, value, config_type)
-    except pydantic.ValidationError as err:
-        raise osmo_errors.OSMOUsageError(f'{err}')
-
-    postgres.create_config_history_entry(
-        config_type=config_type,
-        name=name,
-        username=username,
-        data=postgres.get_configs(config_type).plaintext_dict(
-            by_alias=True, exclude_unset=True
-        ),
-        description=request.description
-        or f'Patched {config_type.value.lower()} configuration',
-        tags=request.tags,
-    )
-
-    new_configs_dict = postgres.get_configs(config_type).model_dump(
-        by_alias=True, exclude_unset=True)
-    return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
-
-
-def backend_action_request_helper(payload: Dict[str, Any], name: str):
-
-    """ Helper function that implements support for exec and portforward. """
-    redis_client = connectors.RedisConnector.get_instance().client
-
-    action_attributes: Dict[str, Any] = {**payload}
-    # Store action_attributes directly in the queue
-    redis_queue_name = connectors.backend_action_queue_name(name)
-    # logging.info('Send action attributes %s to queue %s', action_attributes, redis_queue_name)
-    redis_client.lpush(redis_queue_name, json.dumps(action_attributes))
-
-def _update_backend_helper(
-    postgres: connectors.PostgresConnector,
-    backend: configs_objects.BackendConfigWithName
-):
-    """
-    Updates the given backend in the database.
-    """
-    configs = backend.plaintext_dict(by_alias=True, exclude_unset=True)
-
-    values: List[str] = []
-    params: List[Any] = []
-    send_update = False
-
-    for key, value in configs.items():
-        if value is not None:
-            values.append(f'{key} = %s')
-            params.append(value)
-        if key == 'node_conditions' and value:
-            send_update = True
-        if key == 'tests' and value:
-            # Check for duplicates in the original list
-            if len(value) != len(set(value)):
-                raise osmo_errors.OSMOUserError('Backend tests list contains duplicates')
-            # Verify tests exist in backend_tests table
-            for test in value:
-                try:
-                    connectors.BackendTests.fetch_from_db(postgres, test)
-                except osmo_errors.OSMOUserError as e:
-                    raise osmo_errors.OSMOUserError(
-                        f'Backend test with name {test} not found') from e
-    params.append(configs['name'])
-
-    update_cmd = (
-        f'UPDATE backends SET {', '.join(values)} WHERE name = %s RETURNING name;'
-    )
-    result = postgres.execute_fetch_command(update_cmd, tuple(params))
-    if not result:
-        raise osmo_errors.OSMOBackendError(f"Backend '{configs['name']}' not found")
-
-    # Check if the backend node_conditions has changed
-    if send_update:
-        backend_action_request_helper(
-            payload=yaml.safe_load(configs['node_conditions']),
-            name=configs['name'],
-        )
-
-def create_backend_config_history_entry(
-    postgres: connectors.PostgresConnector,
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Create a history entry for a backend config.
-    """
-    backends = connectors.Backend.list_from_db(postgres)
-
-    backends_list = [
-        backend.model_dump(by_alias=True, exclude_unset=True)
-        for backend in backends
-    ]
-
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.BACKEND,
-        name=name,
-        username=username,
-        data=backends_list,
-        description=description or f'Set backend \'{name}\' configuration',
-        tags=tags,
-    )
-
-def update_backend(
-    name: str,
-    request: configs_objects.PostBackendRequest,
-    username: str,
-):
-    """
-    Updates the backend configuration in the database.
-    Updates the CronJobs for the backend tests.
-    Updates sync queues for the backend
-
-
-    Args:
-        name: The name of the backend to update.
-        request: The request object containing the backend configuration.
-        username: The username of the user updating the backend.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    try:
-        old_backend = connectors.Backend.fetch_from_db(postgres, name)
-    except pydantic.ValidationError as e:
-        logging.warning('Failed to get previous backend %s: %s', name, e)
-        old_backend = None
-    _update_backend_helper(postgres, configs_objects.BackendConfigWithName(
-        **request.configs.model_dump(), name=name))
-
-    create_backend_config_history_entry(
-        postgres, name, username, request.description or f"Updated backend \'{name}\'", request.tags
-    )
-
-    new_backend = connectors.Backend.fetch_from_db(postgres, name)
-
-    if new_backend is None:
-        raise osmo_errors.OSMOBackendError(f"Backend '{name}' not found after update")
-
-    # Update backend queues
-    update_backend_queues(new_backend, old_backend)
-
-    # Update backend test CronJobs if tests configuration changed
-    old_tests = old_backend.tests if old_backend else None
-    new_tests = new_backend.tests
-    if old_tests != new_tests:
-        logging.info('Backend tests changed for %s: %s -> %s', name, old_tests, new_tests)
-        update_backend_tests_cronjobs(name, new_tests or [], new_backend.node_conditions.prefix)
-
-
-def update_backends(
-    request: configs_objects.UpdateBackends,
-    username: str,
-):
-    """
-    Update multiple backend configurations in the database.
-
-    Args:
-        request: The request object containing backend configurations and metadata.
-        username: The username of the user updating the backends.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    previous_backends = {
-        backend.name: backend
-        for backend in connectors.Backend.list_from_db(postgres)
-    }
-
-    for backend in request.backends:
-        _update_backend_helper(postgres, backend)
-
-    create_backend_config_history_entry(
-        postgres,
-        '',
-        username,
-        request.description or 'Updated all backend configurations',
-        request.tags,
-    )
-
-    backends = connectors.Backend.list_from_db(postgres)
-    for new_backend in backends:
-        prev_backend = previous_backends.get(new_backend.name, None)
-        update_backend_queues(new_backend, prev_backend)
-        update_backend_tests_cronjobs(new_backend.name, new_backend.tests or [],
-                                      new_backend.node_conditions.prefix)
 
 
 def update_backend_last_heartbeat(name: str, last_heartbeat: datetime):
@@ -425,167 +158,6 @@ def update_backend_last_heartbeat(name: str, last_heartbeat: datetime):
     postgres = connectors.PostgresConnector.get_instance()
     postgres.execute_commit_command(
         'UPDATE backends SET last_heartbeat = %s WHERE name = %s', (last_heartbeat, name))
-
-
-def delete_backend(
-    name: str, request: configs_objects.DeleteBackendRequest, username: str
-):
-    """
-    Delete the backend configuration from the database.
-
-    Args:
-        request: The request object containing the backend name.
-        username: The username of the user deleting the backend.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    delete_cmd = '''
-        DELETE from backends where name = %s
-    '''
-    postgres.execute_commit_command(delete_cmd, (name,))
-    delete_resource_cmd = 'DELETE FROM resources WHERE backend = %s'
-    postgres.execute_commit_command(delete_resource_cmd, (name,))
-
-    backends = [
-        backend.model_dump(by_alias=True, exclude_unset=True)
-        for backend in connectors.Backend.list_from_db(postgres)
-    ]
-
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.BACKEND,
-        name=name,
-        username=username,
-        data=backends,
-        description=request.description or f'Deleted backend \'{name}\'',
-        tags=request.tags,
-    )
-
-
-def create_pool_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a pool config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    pools = connectors.fetch_editable_pool_config(postgres).model_dump(
-        by_alias=True, exclude_unset=True
-    )
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.POOL,
-        name=name,
-        username=username,
-        data=pools,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_pod_template_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a pod template config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    pod_templates = connectors.PodTemplate.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.POD_TEMPLATE,
-        name=name,
-        username=username,
-        data=pod_templates,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_group_template_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a group template config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    group_templates = connectors.GroupTemplate.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.GROUP_TEMPLATE,
-        name=name,
-        username=username,
-        data=group_templates,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_resource_validation_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a resource validation config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    resource_validations = connectors.ResourceValidation.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.RESOURCE_VALIDATION,
-        name=name,
-        username=username,
-        data=resource_validations,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_backend_test_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a test config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    tests = connectors.BackendTests.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.BACKEND_TEST,
-        name=name,
-        username=username,
-        data=tests,
-        description=description,
-        tags=tags,
-    )
-
-
-def create_role_config_history_entry(
-    name: str,
-    username: str,
-    description: str,
-    tags: List[str] | None,
-):
-    """
-    Add a history entry for a role config.
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-    roles = connectors.Role.list_from_db(postgres)
-    postgres.create_config_history_entry(
-        config_type=connectors.ConfigHistoryType.ROLE,
-        name=name,
-        username=username,
-        data=roles,
-        description=description,
-        tags=tags,
-    )
 
 
 def tolerations_satisfy_taints(tolerations: List[connectors.Toleration], taints: List[dict]):
@@ -699,8 +271,7 @@ def update_backend_node_pool_platform(pool: str, platform: str | None = None):
     """
     Update the pool and platform matching for all nodes in the pool's backend.
     """
-    postgres = connectors.PostgresConnector.get_instance()
-    pool_info = connectors.Pool.fetch_from_db(postgres, pool)
+    pool_info = connectors.Pool.fetch_from_configmap(pool)
     # Update all the pool and platforms per node in the backend
     resources = objects.get_resources(backends=[pool_info.backend], verbose=True).resources
     pool_config = connectors.VerbosePoolConfig(pools={pool: pool_info})

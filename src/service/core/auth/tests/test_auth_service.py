@@ -19,14 +19,12 @@ SPDX-License-Identifier: Apache-2.0
 # pylint: disable=protected-access
 
 import threading
-import time
 from typing import Any, Dict, List, Optional
-from unittest import mock
 
-from src.lib.utils import osmo_errors
-from src.service.core.auth import auth_service, objects
+from src.service.core.auth import objects
+from src.service.core.config import configmap_loader
 from src.service.core.tests import fixture
-from src.utils import configmap_state, connectors
+from src.utils import connectors
 from src.tests.common import runner
 
 
@@ -38,8 +36,20 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
 
     def setUp(self):
         super().setUp()
-        configmap_state.set_configmap_mode(False)
-        configmap_state.set_parsed_configs(None)
+        self.update_configmap_sections(
+            roles={
+                role_name: {
+                    'description': description,
+                    'policies': [],
+                }
+                for role_name, description in (
+                    ('osmo-user', 'Default user role'),
+                    ('osmo-admin', 'Admin role'),
+                    ('osmo-ml-team', 'ML team role'),
+                    ('osmo-dev-team', 'Dev team role'),
+                )
+            },
+        )
         # Set default auth header to TEST_USER
         self.client.headers['x-osmo-user'] = self.TEST_USER
         # Clean up test users from previous tests to ensure isolation
@@ -49,11 +59,6 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self._create_test_role('osmo-admin', 'Admin role')
         self._create_test_role('osmo-ml-team', 'ML team role')
         self._create_test_role('osmo-dev-team', 'Dev team role')
-
-    def tearDown(self):
-        configmap_state.set_configmap_mode(False)
-        configmap_state.set_parsed_configs(None)
-        super().tearDown()
 
     def _cleanup_test_users(self):
         """Clean up test users to ensure test isolation."""
@@ -202,15 +207,14 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         postgres = connectors.PostgresConnector.get_instance()
         postgres.execute_commit_command(
             'DELETE FROM roles WHERE name = %s;', ('configmap-only-role',))
-        configmap_state.set_parsed_configs({
-            'roles': {
+        self.update_configmap_sections(
+            roles={
                 'configmap-only-role': {
                     'description': 'ConfigMap-only role',
                     'policies': [],
                 },
             },
-        })
-        configmap_state.set_configmap_mode(True)
+        )
 
         self._create_user(
             'configmap-role-user@example.com', roles=['configmap-only-role'])
@@ -557,100 +561,27 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('osmo-user', token_roles)
         self.assertIn('osmo-ml-team', token_roles)
 
-    def test_delete_role_removes_assignments_and_access_token_grants(self):
-        self._create_user(self.TEST_USER, roles=['osmo-admin'])
-        self._create_access_token('deleted-role-token')
+    def test_configmap_role_removal_cleans_assignments_and_token_grants(self):
+        self._create_user(self.TEST_USER, roles=['osmo-user', 'osmo-admin'])
+        self._create_access_token('configmap-role-removal')
         postgres = connectors.PostgresConnector.get_instance()
 
-        connectors.Role.delete_from_db(postgres, 'osmo-admin')
+        configmap_loader._reconcile_user_role_assignments({
+            'roles': {
+                'osmo-user': {
+                    'description': 'Remaining role',
+                    'policies': [],
+                },
+            },
+        }, postgres)
 
-        self.assertNotIn(
-            'osmo-admin',
-            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
-        self.assertNotIn(
-            'osmo-admin',
-            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
-
-        self._create_test_role('osmo-admin', 'Recreated admin role')
-
-        self.assertNotIn(
-            'osmo-admin',
-            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']])
-        self.assertNotIn(
-            'osmo-admin',
-            self._get_access_token_roles(self.TEST_USER, 'deleted-role-token'))
-
-    def test_role_deletion_waits_for_assignment_before_cleanup(self):
-        user_id = 'race@example.com'
-        self._create_user(user_id)
-        postgres = connectors.PostgresConnector.get_instance()
-        deletion_outcome: List[Any] = []
-
-        def delete_role():
-            try:
-                connectors.Role.delete_from_db(postgres, 'osmo-admin')
-            except Exception as error:  # pylint: disable=broad-except
-                deletion_outcome.append(error)
-
-        with postgres._get_connection() as connection:
-            cursor = connection.cursor()
-            cursor.execute(
-                'SELECT name FROM roles WHERE name = %s FOR KEY SHARE;', ('osmo-admin',))
-            deletion_thread = threading.Thread(target=delete_role)
-            deletion_thread.start()
-            time.sleep(0.2)
-            self.assertTrue(deletion_thread.is_alive())
-
-            cursor.execute('''
-                INSERT INTO user_roles (user_id, role_name, assigned_by)
-                VALUES (%s, %s, %s);
-            ''', (user_id, 'osmo-admin', 'test'))
-            connection.commit()
-
-        deletion_thread.join(timeout=5)
-        self.assertFalse(deletion_thread.is_alive())
-        self.assertEqual(deletion_outcome, [])
-        rows = postgres.execute_fetch_command(
-            'SELECT 1 FROM user_roles WHERE role_name = %s;', ('osmo-admin',), True)
-        self.assertEqual(rows, [])
-
-    def test_assignment_waits_for_role_deletion(self):
-        user_id = 'race@example.com'
-        self._create_user(user_id)
-        postgres = connectors.PostgresConnector.get_instance()
-        assignment_outcome: List[Any] = []
-        delete_commands = postgres.execute_commit_commands
-
-        def delete_with_pause(commands):
-            commands.insert(1, ('SELECT pg_sleep(0.5);', ()))
-            return delete_commands(commands)
-
-        def assign_role():
-            try:
-                assignment_outcome.append(auth_service.assign_role_to_user(
-                    user_id, objects.AssignRoleRequest(role_name='osmo-admin'), 'test'))
-            except Exception as error:  # pylint: disable=broad-except
-                assignment_outcome.append(error)
-
-        with mock.patch.object(
-                postgres, 'execute_commit_commands', side_effect=delete_with_pause):
-            deletion_thread = threading.Thread(
-                target=connectors.Role.delete_from_db,
-                args=(postgres, 'osmo-admin'))
-            deletion_thread.start()
-            time.sleep(0.2)
-            assignment_thread = threading.Thread(target=assign_role)
-            assignment_thread.start()
-            deletion_thread.join(timeout=5)
-            assignment_thread.join(timeout=5)
-
-        self.assertFalse(deletion_thread.is_alive())
-        self.assertFalse(assignment_thread.is_alive())
-        self.assertEqual(len(assignment_outcome), 1)
-        self.assertIsInstance(assignment_outcome[0], osmo_errors.OSMOUserError)
-        rows = postgres.execute_fetch_command(
-            'SELECT 1 FROM user_roles WHERE role_name = %s;', ('osmo-admin',), True)
-        self.assertEqual(rows, [])
+        self.assertEqual(
+            [role['role_name'] for role in self._get_user(self.TEST_USER)['roles']],
+            ['osmo-user'])
+        self.assertEqual(
+            self._get_access_token_roles(
+                self.TEST_USER, 'configmap-role-removal'),
+            ['osmo-user'])
 
     def test_remove_role_cascades_to_multiple_access_tokens(self):
         """Test that removing a role cascades to all of user's access tokens."""
@@ -725,6 +656,27 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         self.assertIn('bulk3@example.com', result['already_assigned'])
         self.assertIn('nonexistent@example.com', result['failed'])
 
+    def test_bulk_assign_promotes_idp_assignment(self):
+        self._create_user('bulk-idp@example.com')
+        postgres = connectors.PostgresConnector.get_instance()
+        original = postgres.execute_fetch_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, 'idp-sync') RETURNING id;
+        ''', ('bulk-idp@example.com', 'osmo-dev-team'), True)[0]['id']
+
+        response = self.client.post(
+            '/api/auth/roles/osmo-dev-team/users',
+            json={'user_ids': ['bulk-idp@example.com']})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['assigned'], ['bulk-idp@example.com'])
+        promoted = postgres.execute_fetch_command('''
+            SELECT id, assigned_by FROM user_roles
+            WHERE user_id = %s AND role_name = %s;
+        ''', ('bulk-idp@example.com', 'osmo-dev-team'), True)[0]
+        self.assertEqual(promoted['id'], original)
+        self.assertEqual(promoted['assigned_by'], self.TEST_USER)
+
     # =========================================================================
     # Access Token Tests
     # =========================================================================
@@ -739,6 +691,183 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         # Verify access token has all user roles
         token_roles = self._get_access_token_roles(self.TEST_USER, 'inherit-all-token')
         self.assertEqual(sorted(token_roles), ['osmo-admin', 'osmo-ml-team', 'osmo-user'])
+
+    def test_access_token_uses_only_configmap_eligible_assignments(self):
+        """IDP assignments honor ConfigMap modes; DB-only roles stay inert."""
+        self.update_configmap_sections(roles={
+            'osmo-user': {
+                'description': 'Imported role', 'policies': [],
+                'sync_mode': 'import',
+            },
+            'osmo-admin': {
+                'description': 'Forced role', 'policies': [],
+                'sync_mode': 'force',
+            },
+            'osmo-ml-team': {
+                'description': 'Manual role', 'policies': [],
+                'sync_mode': 'ignore',
+            },
+        })
+        self._create_user(self.TEST_USER)
+        postgres = connectors.PostgresConnector.get_instance()
+        for role_name in ('osmo-user', 'osmo-admin', 'osmo-ml-team', 'db-only'):
+            postgres.execute_commit_command('''
+                INSERT INTO user_roles (user_id, role_name, assigned_by)
+                VALUES (%s, %s, 'idp-sync');
+            ''', (self.TEST_USER, role_name))
+
+        self._create_access_token('eligible-roles')
+
+        self.assertEqual(
+            self._get_access_token_roles(self.TEST_USER, 'eligible-roles'),
+            ['osmo-admin', 'osmo-user'])
+        self.assertEqual(
+            objects.AccessToken.get_roles_for_token(
+                postgres, self.TEST_USER, 'eligible-roles'),
+            ['osmo-admin', 'osmo-user'])
+
+    def test_explicit_pat_roles_reject_mixed_ineligible_set_atomically(self):
+        """One ineligible requested role prevents the entire PAT insert."""
+        self.update_configmap_sections(roles={
+            'osmo-user': {
+                'description': 'Imported role', 'policies': [],
+                'sync_mode': 'import',
+            },
+            'osmo-ml-team': {
+                'description': 'Manual-only role', 'policies': [],
+                'sync_mode': 'ignore',
+            },
+        })
+        self._create_user(self.TEST_USER)
+        postgres = connectors.PostgresConnector.get_instance()
+        for role_name in ('osmo-user', 'osmo-ml-team'):
+            postgres.execute_commit_command('''
+                INSERT INTO user_roles (user_id, role_name, assigned_by)
+                VALUES (%s, %s, 'idp-sync');
+            ''', (self.TEST_USER, role_name))
+
+        response = self.client.post(
+            '/api/auth/access_token/mixed-ineligible',
+            params={
+                'expires_at': '2027-01-01',
+                'roles': ['osmo-user', 'osmo-ml-team'],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        token_count = postgres.execute_fetch_command('''
+            SELECT COUNT(*) AS count FROM access_token
+            WHERE user_name = %s AND token_name = %s;
+        ''', (self.TEST_USER, 'mixed-ineligible'), True)[0]['count']
+        self.assertEqual(token_count, 0)
+
+    def test_pat_creation_serializes_with_manual_assignment_promotion(self):
+        """PAT creation observes a concurrent manual promotion atomically."""
+        self.update_configmap_sections(roles={
+            'osmo-user': {
+                'description': 'Manual-only role', 'policies': [],
+                'sync_mode': 'ignore',
+            },
+        })
+        self._create_user(self.TEST_USER)
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, 'osmo-user', 'idp-sync');
+        ''', (self.TEST_USER,))
+
+        started = threading.Event()
+        completed = threading.Event()
+        errors: List[BaseException] = []
+
+        def create_pat():
+            started.set()
+            try:
+                objects.AccessToken.insert_into_db(
+                    postgres,
+                    self.TEST_USER,
+                    'concurrent-promotion',
+                    'secret-token',
+                    '2027-01-01',
+                    'test',
+                    ['osmo-user'],
+                    self.TEST_USER,
+                )
+            except BaseException as error:  # pylint: disable=broad-exception-caught
+                errors.append(error)
+            finally:
+                completed.set()
+
+        with postgres._get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                'SELECT pg_advisory_xact_lock(hashtextextended(%s, 0));',
+                (self.TEST_USER,))
+            cursor.execute('''
+                UPDATE user_roles SET assigned_by = %s
+                WHERE user_id = %s AND role_name = 'osmo-user';
+            ''', (self.TEST_USER, self.TEST_USER))
+
+            worker = threading.Thread(target=create_pat)
+            worker.start()
+            self.assertTrue(started.wait(timeout=1))
+            self.assertFalse(completed.wait(timeout=0.2))
+            connection.commit()
+
+        worker.join(timeout=5)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            self._get_access_token_roles(
+                self.TEST_USER, 'concurrent-promotion'),
+            ['osmo-user'])
+
+    def test_manual_assignment_promotes_idp_row_without_changing_uuid(self):
+        """A manual grant survives force sync and preserves PAT references."""
+        self._create_user('promote@example.com')
+        postgres = connectors.PostgresConnector.get_instance()
+        original = postgres.execute_fetch_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, 'idp-sync')
+            RETURNING id;
+        ''', ('promote@example.com', 'osmo-user'), True)[0]['id']
+
+        result = self._assign_role('promote@example.com', 'osmo-user')
+        promoted = postgres.execute_fetch_command('''
+            SELECT id, assigned_by FROM user_roles
+            WHERE user_id = %s AND role_name = %s;
+        ''', ('promote@example.com', 'osmo-user'), True)[0]
+
+        self.assertEqual(promoted['id'], original)
+        self.assertEqual(promoted['assigned_by'], self.TEST_USER)
+        self.assertEqual(result['assigned_by'], self.TEST_USER)
+
+    def test_existing_pat_uses_current_configmap_sync_mode(self):
+        """Changing an IDP role to ignore makes its existing PAT grant inert."""
+        self._create_user(self.TEST_USER)
+        postgres = connectors.PostgresConnector.get_instance()
+        postgres.execute_commit_command('''
+            INSERT INTO user_roles (user_id, role_name, assigned_by)
+            VALUES (%s, %s, 'idp-sync');
+        ''', (self.TEST_USER, 'osmo-user'))
+        self._create_access_token('mode-change')
+
+        self.update_configmap_sections(roles={
+            'osmo-user': {
+                'description': 'Now manually managed',
+                'policies': [],
+                'sync_mode': 'ignore',
+            },
+        })
+
+        self.assertEqual(
+            objects.AccessToken.get_roles_for_token(
+                postgres, self.TEST_USER, 'mode-change'), [])
+        response = self.client.get('/api/auth/access_token')
+        self.assertEqual(response.status_code, 200)
+        token = next(item for item in response.json()
+                     if item['token_name'] == 'mode-change')
+        self.assertEqual(token['roles'], [])
 
     def test_create_access_token_with_subset_of_roles(self):
         """Test creating an access token with a specific subset of user's roles."""

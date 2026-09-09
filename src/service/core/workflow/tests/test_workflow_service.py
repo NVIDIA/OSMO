@@ -19,18 +19,22 @@ Functional tests for APIs defined in workflow_service.py
 """
 
 import concurrent.futures
+import copy
 import logging
+import os
+import tempfile
 import threading
-from typing import IO
+from typing import Any, IO
+from unittest import mock
 
 from fastapi import testclient
 
 from src.service.agent import helpers as agent_service_helpers
 from src.service.core import service
-from src.service.core.workflow import objects
+from src.service.core.workflow import helpers, objects
 from src.tests.common import fixtures, runner
 from src.tests.common.registry import registry
-from src.utils import connectors
+from src.utils import configmap_state, connectors
 from src.utils.connectors import postgres
 from src.utils.job import workflow
 from src.utils import backend_messages
@@ -54,13 +58,28 @@ class WorkflowServiceTestCase(
     TEST_IMAGE_NAME = 'test_image'
 
     client: testclient.TestClient
+    config_file: IO[str]
     service_auth_file: IO[str]
+    reconciliation_state_directory: tempfile.TemporaryDirectory[str]
+    reconciliation_state_environment: Any
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.service_auth_file = fixtures.create_service_auth_file()
         cls.addClassCleanup(cls.service_auth_file.close)
+        cls.config_file = fixtures.create_configmap_file()
+        cls.addClassCleanup(cls.config_file.close)
+        cls.reconciliation_state_directory = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+        )
+        cls.addClassCleanup(cls.reconciliation_state_directory.cleanup)
+        cls.reconciliation_state_environment = mock.patch.dict(
+            os.environ,
+            {'OSMO_RECONCILIATION_STATE_FILE': os.path.join(
+                cls.reconciliation_state_directory.name, 'checkpoint.json')},
+        )
+        cls.reconciliation_state_environment.start()
+        cls.addClassCleanup(cls.reconciliation_state_environment.stop)
 
         # Setup the service application and correponding TestClient
         service.configure_app(
@@ -79,6 +98,7 @@ class WorkflowServiceTestCase(
                 redis_db_number=cls.redis_params.db_number,
                 redis_tls_enable=False,
                 method='dev',
+                config_file=cls.config_file.name,
                 service_auth_file=cls.service_auth_file.name,
             ),
         )
@@ -89,6 +109,12 @@ class WorkflowServiceTestCase(
 
     def create_backend(self, backend_name: str):
         postgres_connector = postgres.PostgresConnector.get_instance()
+        snapshot = copy.deepcopy(configmap_state.require_snapshot())
+        snapshot['backends'][backend_name] = {
+            'k8s_namespace': 'test_k8s_namespace',
+            'node_conditions': {'prefix': 'test_prefix/'},
+        }
+        configmap_state.set_parsed_configs(snapshot)
         message = backend_messages.InitBody(
             k8s_uid='test_k8s_uid',
             k8s_namespace='test_k8s_namespace',
@@ -107,22 +133,15 @@ class WorkflowServiceTestCase(
         backend_name: str,
         platform_name: str,
     ):
-        resp = self.client.put(
-            '/api/configs/pool',
-            json={
-                'description': 'Creating test_pool',
-                'configs': {
-                    pool_name: connectors.Pool(
-                        name=pool_name,
-                        backend=backend_name,
-                        platforms={
-                            platform_name: connectors.Platform(),
-                        },
-                    ).model_dump(),
-                },
+        snapshot = copy.deepcopy(configmap_state.require_snapshot())
+        snapshot['pools'][pool_name] = connectors.Pool(
+            name=pool_name,
+            backend=backend_name,
+            platforms={
+                platform_name: connectors.Platform(),
             },
-        )
-        self.assertEqual(resp.status_code, 200, f'Failed to create pool: {resp.json()}')
+        ).model_dump()
+        configmap_state.set_parsed_configs(snapshot)
 
     def create_workflow_template(self, platform_name: str) -> workflow.TemplateSpec:
         # SSL Proxy is used to access the registry from the workflow service
@@ -159,6 +178,31 @@ class WorkflowServiceTestCase(
     - task: task1
 ''',
         )
+
+    def test_pool_resources_preserve_configmap_maintenance_booleans(self):
+        backend_name = 'maintenance-backend'
+        self.create_backend(backend_name)
+        snapshot = copy.deepcopy(configmap_state.require_snapshot())
+        snapshot['pools'].update({
+            'maintenance-pool': {
+                'backend': backend_name,
+                'enable_maintenance': True,
+                'platforms': {'gpu': {}},
+            },
+            'online-pool': {
+                'backend': backend_name,
+                'enable_maintenance': False,
+                'platforms': {'gpu': {}},
+            },
+        })
+        configmap_state.set_parsed_configs(snapshot)
+
+        response = helpers.get_pool_resources()
+
+        statuses = {pool.pool: pool.status for pool in response.pools}
+        self.assertEqual(
+            statuses['maintenance-pool'], connectors.PoolStatus.MAINTENANCE)
+        self.assertEqual(statuses['online-pool'], connectors.PoolStatus.ONLINE)
 
     def is_workflow_job_in_queue(self, job_key: str) -> bool:
         """

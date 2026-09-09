@@ -19,7 +19,6 @@ embeddedDependencies:
     enabled: false
 
 configuration:
-  enabled: true
   workflow:
     # Omit an optional workflow label policy in this minimal external profile.
     labels_config: null

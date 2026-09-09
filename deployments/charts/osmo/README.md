@@ -864,6 +864,12 @@ for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window that prevents the old configuration API from changing `service_auth`.
+For Argo CD, disable automated sync and self-heal on the Application and wait
+until no sync, rollback, or refresh operation is in flight. Keep reconciliation
+suspended through both cutover phases below. A manual scale-down is not stable
+while self-heal is active, and Argo pruning occurs after PreSync hooks, so this
+is a hard prerequisite rather than an optional maintenance step.
+
 Delete its HPA, scale the old API deployment to zero, and verify that no old API
 pod remains before starting the upgrade. Replace the example release and
 namespace if needed.
@@ -901,9 +907,13 @@ kubectl annotate secret osmo-service-auth \
   "osmo.nvidia.com/service-auth-db-migration-placeholder=${OSMO_RELEASE_NAME}"
 ```
 
-Upgrade with `secrets.serviceAuth.existingSecret.name=osmo-service-auth` and
-`secrets.serviceAuth.migration.enabled=true`. A Helm pre-upgrade or Argo CD
-PreSync Job reads and
+The candidate 6.4 configuration must be deployed in two separate chart syncs.
+For the first sync, use the complete candidate values and immutable image
+digests with `services.api.enabled=false`,
+`secrets.serviceAuth.existingSecret.name=osmo-service-auth`, and
+`secrets.serviceAuth.migration.enabled=true`. Keeping the API disabled is the
+enforced submission boundary while the ConfigMap and every other consumer are
+replaced. A Helm pre-upgrade or Argo CD PreSync Job reads and
 decrypts the legacy DB identity, validates every public/private keypair, and
 writes canonical plaintext JSON into the authorized placeholder. It then reads
 the DB identity again and aborts if the stable authority changed during the
@@ -916,13 +926,40 @@ DB-backed releases. It remains disabled by default and should stay in the chart
 until direct upgrades from those releases are no longer supported; it does not
 create a persistent runtime component.
 
-The 6.4 workloads start only after the hook succeeds and read the copied
-identity exclusively from the mounted Secret, so existing tokens remain valid.
-Wait for the Secret-backed API deployment to become ready and confirm that Helm
-has recreated its HPA when autoscaling is enabled. After the successful upgrade,
-disable `migration.enabled`. Retain the legacy DB row and its MEK through the
-rollback window so an older binary can still use the same identity; 6.4 runtime
-services ignore that row.
+After the first sync succeeds, wait for every enabled non-API ConfigMap consumer
+(worker, logger, agent, and gateway-authz) to finish rolling out. Confirm the API
+Deployment and HPA are absent and the API selector still returns no pods. Do not
+continue if any consumer is unavailable.
+
+```bash
+OSMO_CONFIG_CONSUMER_SELECTOR="app.kubernetes.io/instance=${OSMO_RELEASE_NAME},app.kubernetes.io/component in (worker,logger,agent,gateway-authz)"
+for deployment in $(kubectl --namespace "${OSMO_NAMESPACE}" get deployment \
+  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --output=name); do
+  kubectl --namespace "${OSMO_NAMESPACE}" rollout status \
+    "${deployment}" --timeout=10m || exit 1
+done
+for resource in deployment horizontalpodautoscaler pod; do
+  if kubectl --namespace "${OSMO_NAMESPACE}" get "${resource}" \
+    --selector "${OSMO_API_SELECTOR}" --output=name | grep -q .; then
+    echo "API ${resource} still exists; do not enable submissions" >&2
+    exit 1
+  fi
+done
+```
+
+Run a second chart sync with the exact same candidate ConfigMap and image
+digests, `services.api.enabled=true`, and
+`secrets.serviceAuth.migration.enabled=false`. The Secret-backed API can start
+only in this second phase, after all other consumers have validated the same
+snapshot. Wait for it to become ready and confirm that Helm has recreated its
+HPA when autoscaling is enabled. Argo CD users must commit and health-gate these
+as two distinct revisions; auto-promotion between phases is unsafe.
+After the second revision is Healthy and the live smoke test passes, restore
+the installation's normal automated sync policy. If reconciliation cannot be
+suspended or an in-flight operation cannot be drained, the cutover is blocked.
+
+Retain the legacy DB row and its MEK through the rollback window so an older
+binary can still use the same identity; 6.4 runtime services ignore that row.
 
 ```bash
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
@@ -952,8 +989,8 @@ exposing key material to Helm.
 
 For a disposable install backed by a new database, enable `bootstrap`. Helm
 renders no MEK Secret data. A namespace-scoped create-only lifecycle Job waits
-for PostgreSQL, proves that the database has no users, UEKs, or dynamic
-configuration, verifies that every chart consumer is blocked before its writer
+for PostgreSQL, proves that the database has no users or UEKs, verifies that
+every chart consumer is blocked before its writer
 container starts, and atomically creates the full Secret. Key material never
 enters Helm output or release state. A retry accepts only the exact Secret owned
 by this installation and authenticates the retained database before succeeding;
@@ -980,8 +1017,8 @@ creates a new immutable retry Job without deriving public names from credential
 bytes.
 
 Every consumer loads its keyring once at process startup. Before becoming
-ready, it performs a bounded authenticated inventory of every UEK wrapper and
-registered direct-MEK configuration value. It then logs one machine-readable
+ready, it performs a bounded authenticated inventory of every UEK wrapper. It
+then logs one machine-readable
 `OSMO_MEK_DESCRIPTOR` containing only the current key ID, loaded key IDs,
 generation, and non-secret bundle digest. There are no MEK database tables,
 triggers, polling loops, or hot reloads.
@@ -997,8 +1034,8 @@ the whole rotation and keep every previous key in the Secret:
    descriptor, then selects the new key. Clear the phase, change
    `rolloutRevision` again, and sync to perform the second rollout.
 3. Set `rotation.phase=rewrap`. The Job verifies the ACTIVATE cohort, then
-   compare-and-swap rewraps all UEKs and registered direct-MEK configuration
-   from the beginning and runs two authenticated inventories. Clear the phase
+   compare-and-swap rewraps all UEKs from the beginning and runs two
+   authenticated inventories. Clear the phase
    after success.
 
 For example, the same values changes work with Helm upgrades or separate Argo

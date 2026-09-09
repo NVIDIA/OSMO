@@ -550,6 +550,15 @@ test_control_umbrella() {
     fi
     require_contains "$TEST_DIRECTORY/missing-split-backend-name.out" \
         "compute.backendName is required for compute-only installations"
+    if helm_template_with_backend removed-configuration-toggle-compute \
+            "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
+            --set configuration.enabled=true \
+            >"$TEST_DIRECTORY/removed-configuration-toggle-compute.out" 2>&1; then
+        fail "expected compute-only releases to reject configuration.enabled"
+    fi
+    require_contains "$TEST_DIRECTORY/removed-configuration-toggle-compute.out" \
+        "configuration.enabled has been removed"
 
     helm_template converged-default-backend "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -562,6 +571,8 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/converged-default-backend-listener.yaml"
     require_contains "$TEST_DIRECTORY/converged-default-backend-listener.yaml" \
         '- "default"'
+    require_contains "$TEST_DIRECTORY/converged-default-backend-listener.yaml" \
+        '- "osmo.nvidia.com/"'
 
     helm_template_with_backend split-compute "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -1529,6 +1540,9 @@ test_control_umbrella() {
             "topologyKey: example.com/zone"
     done
     require_contains "$TEST_DIRECTORY/conventions-api.yaml" API_CONVENTION
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/conventions-api.yaml" "maxSurge: 1"
     require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
         COMPUTE_CONVENTION
     require_contains "$TEST_DIRECTORY/conventions-listener.yaml" \
@@ -2138,6 +2152,7 @@ test_control_umbrella() {
         --set databaseMigration.enabled=true \
         --set databaseMigration.targetSchema=public_v6_4_0 \
         --set-string 'databaseMigration.pod.nodeSelector.kubernetes\.io/arch=amd64' \
+        --set services.api.enabled=false \
         --set gateway.authz.enabled=true \
         --set secrets.serviceAuth.migration.enabled=true \
         >"$TEST_DIRECTORY/database-migration.yaml"
@@ -2190,9 +2205,9 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         "kubernetes.io/arch: amd64"
     require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
-        "name: OSMO_SCHEMA_VERSION" 7
+        "name: OSMO_SCHEMA_VERSION" 6
     require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
-        'value: "public_v6_4_0"' 7
+        'value: "public_v6_4_0"' 6
     require_contains "$TEST_DIRECTORY/database-migration.yaml" \
         'argocd.argoproj.io/sync-wave: "-20"'
     require_contains "$TEST_DIRECTORY/database-migration.yaml" \
@@ -2853,9 +2868,23 @@ EOF
     helm_template service-auth-migration "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.enabled=false \
+        --set gateway.authz.enabled=true \
         --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
         --set secrets.serviceAuth.migration.enabled=true \
         >"$TEST_DIRECTORY/service-auth-migration.yaml"
+    require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
+        "service-auth-migration-osmo-api"
+    require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        HorizontalPodAutoscaler "service-auth-migration-osmo-api"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
+        "service-auth-migration-osmo-worker"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
+        "service-auth-migration-osmo-logger"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
+        "service-auth-migration-osmo-agent"
+    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
+        "service-auth-migration-osmo-gateway-authz"
     require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" ServiceAccount \
         "service-auth-migration-osmo-service-auth-db-migration"
     require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
@@ -2890,6 +2919,17 @@ EOF
         "expirationSeconds: 600"
     require_no_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Secret \
         "osmo-service-auth"
+
+    if helm_template service-auth-migration-with-api "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set secrets.serviceAuth.existingSecret.name=osmo-service-auth \
+            --set secrets.serviceAuth.migration.enabled=true \
+            >"$TEST_DIRECTORY/service-auth-migration-with-api.out" 2>&1; then
+        fail "expected service-auth migration with the API enabled to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/service-auth-migration-with-api.out" \
+        "services.api.enabled must be false during service-auth migration"
 
     if helm_template missing-service-auth-secret "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -3427,6 +3467,8 @@ EOF
         >"$TEST_DIRECTORY/osmo-api-role-binding.yaml"
     require_contains "$TEST_DIRECTORY/osmo-api-role.yaml" \
         "app.kubernetes.io/component: api"
+    require_contains "$TEST_DIRECTORY/osmo-api-role.yaml" \
+        'verbs: ["get", "patch"]'
     require_contains "$TEST_DIRECTORY/osmo-api-role-binding.yaml" \
         "app.kubernetes.io/component: api"
 
@@ -4056,7 +4098,7 @@ EOF
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
             -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
             "${embedded_object_storage_settings[@]}" \
-            "${rustfs_topology_settings[@]}" \
+            ${rustfs_topology_settings[@]+"${rustfs_topology_settings[@]}"} \
             --set-string "rustfs.$rustfs_name_override=$rustfs_name_boundary_value" \
             >"$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-boundary.yaml"
         require_resource \
@@ -4071,7 +4113,7 @@ EOF
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
             -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
             "${embedded_object_storage_settings[@]}" \
-            "${rustfs_topology_settings[@]}" \
+            ${rustfs_topology_settings[@]+"${rustfs_topology_settings[@]}"} \
             --set-string "rustfs.$rustfs_name_override=$rustfs_name_overflow_value" \
             >"$TEST_DIRECTORY/$rustfs_topology-$rustfs_name_override-overflow.out" 2>&1; then
             fail "expected overlong $rustfs_topology rustfs.$rustfs_name_override to fail"
@@ -4526,7 +4568,7 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-embedded-postgresql.yaml" "secret:"
 
     local embedded_deployment
-    for embedded_deployment in agent api delayed-job-monitor gateway-authz logger router worker; do
+    for embedded_deployment in agent api delayed-job-monitor logger router worker; do
         resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Deployment \
             "embedded-osmo-$embedded_deployment" \
             >"$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml"
@@ -4549,8 +4591,15 @@ EOF
         require_contains "$TEST_DIRECTORY/osmo-embedded-$embedded_deployment.yaml" \
             "/etc/osmo/ca/postgresql/ca.crt"
     done
+    resource_document "$TEST_DIRECTORY/osmo-embedded.yaml" Deployment \
+        "embedded-osmo-gateway-authz" \
+        >"$TEST_DIRECTORY/osmo-embedded-gateway-authz.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-gateway-authz.yaml" \
+        "--roles-file=/etc/osmo/configs/config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-embedded-gateway-authz.yaml" \
         "--postgres-ssl-mode=verify-full"
+    require_contains "$TEST_DIRECTORY/osmo-embedded-gateway-authz.yaml" \
+        "name: OSMO_POSTGRES_PASSWORD"
 
     helm_template embedded-profile "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -4805,6 +4854,127 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-review-oauth2-proxy.yaml" \
         "mountPath: /etc/oauth2-proxy/cookie-secret"
 
+    helm_template configuration-secret-ref "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.secretRefs[0].secretName=osmo-alerts \
+        >"$TEST_DIRECTORY/osmo-configuration-secret-ref.yaml"
+    local configuration_consumer
+    for configuration_consumer in api worker logger agent; do
+        resource_document \
+            "$TEST_DIRECTORY/osmo-configuration-secret-ref.yaml" Deployment \
+            "configuration-secret-ref-osmo-$configuration_consumer" \
+            >"$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            "mountPath: /etc/osmo/secrets/osmo-alerts"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            'secretName: "osmo-alerts"'
+        require_occurrences \
+            "$TEST_DIRECTORY/osmo-$configuration_consumer-config-secret.yaml" \
+            "name: config-secret-0" 2
+    done
+
+    if helm_template duplicate-configuration-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.secretRefs[0].secretName=osmo-alerts \
+        --set-string configuration.secretRefs[1].secretName=osmo-alerts \
+        >"$TEST_DIRECTORY/duplicate-configuration-secret.out" 2>&1; then
+        fail "expected duplicate configuration Secrets to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/duplicate-configuration-secret.out" \
+        'configuration.secretRefs contains duplicate Secret "osmo-alerts"'
+
+    local overlong_secret_label
+    overlong_secret_label="$(printf 'a%.0s' {1..64})"
+    if helm_template invalid-configuration-secret-label "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.secretRefs[0].secretName="${overlong_secret_label}.valid" \
+        >"$TEST_DIRECTORY/invalid-configuration-secret-label.out" 2>&1; then
+        fail "expected an overlong Secret DNS label to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-configuration-secret-label.out" \
+        'contains a DNS label longer than 63 characters'
+
+    helm_template repeated-object-storage-secret "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string \
+        configuration.secretRefs[0].secretName=external-object-storage-secret \
+        --set-string \
+        configuration.workflow.workflow_alerts.secretName=external-object-storage-secret \
+        --set-string \
+        configuration.workflow.workflow_alerts.secretKey=alerts.yaml \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret.yaml"
+    resource_document \
+        "$TEST_DIRECTORY/repeated-object-storage-secret.yaml" ConfigMap \
+        repeated-object-storage-secret-osmo-api-config \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret-config.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-config.yaml" \
+        "secretKey: alerts.yaml"
+    resource_document \
+        "$TEST_DIRECTORY/repeated-object-storage-secret.yaml" Deployment \
+        repeated-object-storage-secret-osmo-api \
+        >"$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        "name: object-storage-credentials"
+    require_not_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        "name: config-secret-0"
+    require_not_contains \
+        "$TEST_DIRECTORY/repeated-object-storage-secret-api.yaml" \
+        'path: "object-storage.yaml"'
+
+    helm_template complete-snapshot "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
+        >"$TEST_DIRECTORY/complete-snapshot.yaml"
+
+    helm_template unified-export "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/unified-export-values.yaml" \
+        >"$TEST_DIRECTORY/unified-export.yaml"
+
+    resource_document "$TEST_DIRECTORY/complete-snapshot.yaml" ConfigMap \
+        complete-snapshot-osmo-api-config \
+        >"$TEST_DIRECTORY/complete-snapshot-config.yaml"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "secretName: independent-data-storage"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "secretName: independent-log-storage"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "secretName: independent-app-storage"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "endpoint: swift://independent/workflows"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "endpoint: swift://independent/logs"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "endpoint: swift://independent/apps"
+    require_not_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "default_ctrl"
+    require_not_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "default_cpu"
+    require_not_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "osmo-admin"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "snapshot-role"
+    resource_document "$TEST_DIRECTORY/complete-snapshot.yaml" Deployment \
+        complete-snapshot-osmo-api \
+        >"$TEST_DIRECTORY/complete-snapshot-api.yaml"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-data-storage"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-log-storage"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-api.yaml" \
+        "mountPath: /etc/osmo/secrets/independent-app-storage"
+
     helm_template quoted-secret-scalars "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -4836,17 +5006,132 @@ EOF
         'value: "false"'
     require_contains "$TEST_DIRECTORY/osmo-review-ratelimit.yaml" \
         'image: "docker.io/envoyproxy/ratelimit:875d418c"'
-    helm_template authz-database "$charts_copy/osmo" \
+    helm_template authz-configmap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.authz.enabled=true \
+        >"$TEST_DIRECTORY/osmo-authz-configmap.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-authz-configmap.yaml" Deployment \
+        authz-configmap-osmo-gateway-authz \
+        >"$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "--roles-file=/etc/osmo/configs/config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "--postgres-host=external-postgres"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "name: OSMO_POSTGRES_PASSWORD"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/osmo-authz-configmap-deployment.yaml" \
+        "maxSurge: 1"
+    if helm_template empty-roles "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/empty-roles-values.yaml" \
+        >"$TEST_DIRECTORY/empty-roles.out" 2>&1; then
+        fail "expected an empty ConfigMap role snapshot to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/empty-roles.out" \
+        "configuration roles must be a non-empty map"
+    helm_template role-sync-mode "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.sync_mode=force \
+        >"$TEST_DIRECTORY/role-sync-mode.out" 2>&1
+    if helm_template invalid-role-sync-mode "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.sync_mode=invalid \
+        >"$TEST_DIRECTORY/invalid-role-sync-mode.out" 2>&1; then
+        fail "expected invalid role sync_mode to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-role-sync-mode.out" \
+        "sync_mode must be import, force, or ignore"
+    if helm_template misspelled-role-sync-mode "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.sync_mdoe=force \
+        >"$TEST_DIRECTORY/misspelled-role-sync-mode.out" 2>&1; then
+        fail "expected an unknown role field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/misspelled-role-sync-mode.out" \
+        'has unknown field "sync_mdoe"'
+    if helm_template misspelled-role-effect "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.policies[0].effects=Deny \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0]=workflow:Read \
+        >"$TEST_DIRECTORY/misspelled-role-effect.out" 2>&1; then
+        fail "expected an unknown role policy field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/misspelled-role-effect.out" \
+        'has unknown policy field "effects"'
+    if helm_template unsafe-semantic-action "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0].action=workflow:Read \
+        --set-string configuration.roles.osmo-default.policies[0].actions[0].resources[0]=pool/team-a \
+        >"$TEST_DIRECTORY/unsafe-semantic-action.out" 2>&1; then
+        fail "expected an unknown semantic action field to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/unsafe-semantic-action.out" \
+        'semantic action has unknown field "resources"'
+    local legacy_action_path
+    for legacy_action_path in '/api/workflow/*' '!/api/workflow/*' '/api/workflow/123'; do
+        if helm_template legacy-role-action "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string 'configuration.roles.osmo-default.policies[0].actions[0]=*:*' \
+            --set-string 'configuration.roles.osmo-default.policies[0].resources[0]=*' \
+            --set-string 'configuration.roles.osmo-default.policies[1].effect=Deny' \
+            --set-string "configuration.roles.osmo-default.policies[1].actions[0].path=$legacy_action_path" \
+            --set-string 'configuration.roles.osmo-default.policies[1].actions[0].method=GET' \
+            >"$TEST_DIRECTORY/legacy-role-action.out" 2>&1; then
+            fail "expected legacy role actions to fail before deployment"
+        fi
+        require_contains "$TEST_DIRECTORY/legacy-role-action.out" \
+            'configuration role "osmo-default" policy 1 action 0: legacy path-based actions are not supported'
+    done
+    helm_template semantic-action-object "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string 'configuration.roles.osmo-default.policies[0].actions[0].action=workflow:Read' \
+        >"$TEST_DIRECTORY/semantic-action-object.yaml"
+    helm_template authz-configmap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set gateway.authz.enabled=true \
+        --set-string configuration.roles.osmo-default.description=changed \
+        >"$TEST_DIRECTORY/osmo-authz-role-change.yaml"
+    # Keep the release name fixed so only the role edit can change the checksum.
+    local config_consumer
+    for config_consumer in api gateway-authz worker; do
+        resource_document "$TEST_DIRECTORY/osmo-authz-configmap.yaml" Deployment \
+            "authz-configmap-osmo-$config_consumer" \
+            >"$TEST_DIRECTORY/config-consumer-base.yaml"
+        resource_document "$TEST_DIRECTORY/osmo-authz-role-change.yaml" Deployment \
+            "authz-configmap-osmo-$config_consumer" \
+            >"$TEST_DIRECTORY/config-consumer-changed.yaml"
+        base_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
+            "$TEST_DIRECTORY/config-consumer-base.yaml")
+        changed_config_checksum=$(awk '/osmo.nvidia.com\/config-checksum:/ { print $2 }' \
+            "$TEST_DIRECTORY/config-consumer-changed.yaml")
+        if [[ -z "$base_config_checksum" || -z "$changed_config_checksum" || \
+              "$base_config_checksum" == "$changed_config_checksum" ]]; then
+            fail "expected a ConfigMap role change to update the $config_consumer pod checksum"
+        fi
+    done
+    if helm_template removed-configuration-toggle "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set configuration.enabled=false \
-        --set gateway.authz.enabled=true \
-        >"$TEST_DIRECTORY/osmo-authz-database.yaml"
-    resource_document "$TEST_DIRECTORY/osmo-authz-database.yaml" Deployment \
-        authz-database-osmo-gateway-authz \
-        >"$TEST_DIRECTORY/osmo-authz-database-deployment.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-authz-database-deployment.yaml" \
-        "--postgres-ssl-mode=disable"
+        >"$TEST_DIRECTORY/osmo-removed-configuration-toggle.out" 2>&1; then
+        fail "expected the removed configuration.enabled value to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/osmo-removed-configuration-toggle.out" \
+        "configuration.enabled has been removed"
     resource_document "$TEST_DIRECTORY/osmo-review.yaml" Ingress \
         review-release-osmo-gateway \
         >"$TEST_DIRECTORY/osmo-review-ingress.yaml"
@@ -4862,7 +5147,6 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-review-values.yaml" \
         --set externalDependencies.valkey.tls.enabled=true \
-        --set configuration.enabled=false \
         >"$TEST_DIRECTORY/osmo-system-ca.yaml"
     resource_document "$TEST_DIRECTORY/osmo-system-ca.yaml" Deployment \
         osmo-system-ca-api >"$TEST_DIRECTORY/osmo-api-system-ca.yaml"
@@ -4899,7 +5183,6 @@ EOF
         --set externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
         --set externalDependencies.valkey.tls.enabled=true \
         --set externalDependencies.valkey.tls.caExistingSecret=valkey-ca \
-        --set configuration.enabled=false \
         --set gateway.authz.enabled=true \
         >"$TEST_DIRECTORY/osmo-tls.yaml"
     require_contains "$TEST_DIRECTORY/osmo-tls.yaml" "secretName: postgresql-ca"
@@ -4919,8 +5202,7 @@ EOF
         osmo-tls-gateway-authz >"$TEST_DIRECTORY/osmo-authz-tls.yaml"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "secretName: postgresql-ca"
     require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "/etc/osmo/ca/postgresql"
-    require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" \
-        "--postgres-ssl-mode=verify-full"
+    require_contains "$TEST_DIRECTORY/osmo-authz-tls.yaml" "--postgres-ssl-mode=verify-full"
     resource_document "$TEST_DIRECTORY/osmo-tls.yaml" Deployment \
         osmo-tls-gateway-oauth2-proxy \
         >"$TEST_DIRECTORY/osmo-oauth2-proxy-tls.yaml"
@@ -5101,7 +5383,11 @@ EOF
         workload-policy-osmo-api \
         >"$TEST_DIRECTORY/osmo-workload-policy-api.yaml"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
-        "type: Recreate"
+        "type: RollingUpdate"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "maxUnavailable: 0"
+    require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
+        "maxSurge: 2"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \
         "terminationGracePeriodSeconds: 75"
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-api.yaml" \

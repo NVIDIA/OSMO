@@ -703,7 +703,7 @@ func newFileBackedTestServer(t *testing.T, configPath string) *AuthzServer {
 	if err := store.Load(); err != nil {
 		t.Fatalf("failed to load file store: %v", err)
 	}
-	return NewFileBackedAuthzServer(store, logger)
+	return NewFileBackedAuthzServer(store, nil, logger)
 }
 
 func makeFileBackedCheckRequest(user, path, method, roleNames string) *envoy_service_auth_v3.CheckRequest {
@@ -725,6 +725,10 @@ func makeFileBackedCheckRequest(user, path, method, roleNames string) *envoy_ser
 			},
 		},
 	}
+}
+
+func setRequestHeader(req *envoy_service_auth_v3.CheckRequest, name, value string) {
+	req.GetAttributes().GetRequest().GetHttp().Headers[name] = value
 }
 
 const testConfigYAML = `
@@ -767,7 +771,8 @@ func TestFileBackedCheck_AdminAccess(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)
 
-	req := makeFileBackedCheckRequest("admin@test.com", "/api/workflow/123", "GET", "admin-group")
+	req := makeFileBackedCheckRequest("admin@test.com", "/api/workflow/123", "GET", "osmo-admin")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -782,7 +787,8 @@ func TestFileBackedCheck_UserAccess(t *testing.T) {
 	server := newFileBackedTestServer(t, path)
 
 	// /api/profile/settings GET → profile:Read which osmo-user has
-	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "user-group")
+	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "osmo-user")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -797,7 +803,8 @@ func TestFileBackedCheck_UserDenied(t *testing.T) {
 	server := newFileBackedTestServer(t, path)
 
 	// User group doesn't have config:Write
-	req := makeFileBackedCheckRequest("user@test.com", "/api/configs/service", "PATCH", "user-group")
+	req := makeFileBackedCheckRequest("user@test.com", "/api/configs/service", "PATCH", "osmo-user")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -807,18 +814,18 @@ func TestFileBackedCheck_UserDenied(t *testing.T) {
 	}
 }
 
-func TestFileBackedCheck_ExternalRoleResolution(t *testing.T) {
+func TestFileBackedCheck_HumanRoleSyncFailsClosedWithoutPostgres(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)
 
-	// Send external IDP role "admin-group" — should resolve to osmo-admin
+	// A human IDP claim must never authorize without persisted assignment sync.
 	req := makeFileBackedCheckRequest("boss@test.com", "/api/configs/pool", "DELETE", "admin-group")
 	resp, err := server.Check(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.GetDeniedResponse() != nil {
-		t.Errorf("admin-group should resolve to osmo-admin with *:* access")
+	if resp.GetDeniedResponse() == nil {
+		t.Fatal("human IDP role authorized without PostgreSQL synchronization")
 	}
 }
 
@@ -838,13 +845,48 @@ func TestFileBackedCheck_UnknownRole(t *testing.T) {
 	}
 }
 
-func TestFileBackedMigrateRoles_Skipped(t *testing.T) {
+func TestFileBackedCheck_HumanCannotBypassExternalRoleMapping(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)
 
-	err := server.MigrateRoles(context.Background())
+	// osmo-admin is an internal role name, not a configured external claim.
+	req := makeFileBackedCheckRequest("attacker@test.com", "/api/configs/pool", "DELETE", "osmo-admin")
+	resp, err := server.Check(context.Background(), req)
 	if err != nil {
-		t.Errorf("MigrateRoles should be no-op for file-backed server, got: %v", err)
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() == nil {
+		t.Fatal("human identity-provider claim bypassed external_roles mapping")
+	}
+}
+
+func TestFileBackedCheck_AccessTokenUsesAssignedInternalRoles(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "osmo-user")
+	setRequestHeader(req, "x-osmo-token-name", "test-token")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() != nil {
+		t.Fatal("access token's assigned internal role was not honored")
+	}
+}
+
+func TestFileBackedCheck_WorkflowUsesAssignedInternalRoles(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "osmo-user")
+	setRequestHeader(req, "x-osmo-workflow-id", "workflow-123")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() != nil {
+		t.Fatal("workflow's assigned internal role was not honored")
 	}
 }
 

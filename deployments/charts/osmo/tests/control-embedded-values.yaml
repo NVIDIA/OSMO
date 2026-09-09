@@ -70,9 +70,6 @@ secrets:
     bootstrap:
       enabled: false
 
-configuration:
-  enabled: false
-
 gateway:
   envoy:
     defaultIdentity:

@@ -123,7 +123,7 @@ export interface Backend {
   tests: string[];
   scheduler_settings: BackendSchedulerSettings;
   node_conditions: BackendNodeConditions;
-  last_heartbeat: string;
+  last_heartbeat: string | null;
   created_date: string;
   router_address: string;
   online: boolean;
@@ -1407,9 +1407,10 @@ export interface RolePolicy {
 /**
  * Sync mode for role assignments.
  *
- * - FORCE: Always apply this role to all users (e.g., for system roles)
- * - IMPORT: Role is imported from IDP claims or user_roles table (default)
- * - IGNORE: Ignore this role in IDP sync (role is managed manually)
+ * - FORCE: Add from matching IDP claims and remove the IDP-derived
+ *   assignment on the next human request without a matching claim.
+ * - IMPORT: Add from matching IDP claims and retain the assignment (default).
+ * - IGNORE: Never synchronize this role from IDP claims; manage it manually.
  */
 export type SyncMode = (typeof SyncMode)[keyof typeof SyncMode];
 
@@ -1420,10 +1421,7 @@ export const SyncMode = {
 } as const;
 
 /**
- * Single Role Entry.
- *
- * Note: Authorization checking is now handled by the authz_sidecar (Go service).
- * This Python class is only used for role CRUD operations.
+ * ConfigMap-owned role definition used by read and validation APIs.
  */
 export interface RoleInput {
   name: string;
@@ -1601,10 +1599,7 @@ export interface ResourcesResponse {
 }
 
 /**
- * Single Role Entry.
- *
- * Note: Authorization checking is now handled by the authz_sidecar (Go service).
- * This Python class is only used for role CRUD operations.
+ * ConfigMap-owned role definition used by read and validation APIs.
  */
 export interface RoleOutput {
   name: string;
@@ -4046,7 +4041,7 @@ export const getPutRolesApiConfigsRolePutUrl = () => {
 };
 
 /**
- * Put Roles
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Put Roles
  */
 export const putRolesApiConfigsRolePut = async (
@@ -4136,7 +4131,7 @@ export const getPutRoleApiConfigsRoleNamePutUrl = (name: string) => {
 };
 
 /**
- * Patch Role configurations
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Put Role
  */
 export const putRoleApiConfigsRoleNamePut = async (
@@ -4183,7 +4178,7 @@ export const getDeleteRoleApiConfigsRoleNameDeleteUrl = (name: string) => {
 };
 
 /**
- * Delete Role
+ * Reject role writes because role definitions are ConfigMap-owned.
  * @summary Delete Role
  */
 export const deleteRoleApiConfigsRoleNameDelete = async (
@@ -4523,7 +4518,7 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
 };
 
 /**
- * List history of all configs
+ * Reject the retired database-backed configuration history API.
  * @summary Get Configs History
  */
 export const getConfigsHistoryApiConfigsHistoryGet = async (
@@ -4569,7 +4564,7 @@ export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
 };
 
 /**
- * Roll back a config to a particular revision.
+ * Reject the retired database-backed configuration rollback API.
  * @summary Rollback Config
  */
 export const rollbackConfigApiConfigsHistoryRollbackPost = async (
@@ -4620,15 +4615,7 @@ export const getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRe
 };
 
 /**
- * Delete a specific config history revision. This performs a soft delete of the revision.
- *
- * Args:
- *     config_type: Type of config to delete
- *     revision: Revision number to delete (must be greater than 0)
- *     username: Username of the person performing the delete
- *
- * Raises:
- *     OSMOUserError: If the revision doesn't exist or is the current revision
+ * Reject the retired database-backed history deletion API.
  * @summary Delete Config History Revision
  */
 export const deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete = async (
@@ -4687,16 +4674,7 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
 };
 
 /**
- * Update tags for a specific config history revision.
- *
- * Args:
- *     config_type: Type of config to update
- *     revision: Revision number to update (must be greater than 0)
- *     request: Request containing tags to add and delete
- *     username: Username of the person performing the update
- *
- * Raises:
- *     OSMOUserError: If the revision doesn't exist or is invalid
+ * Reject the retired database-backed history tagging API.
  * @summary Update Config History Tags
  */
 export const updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPost = async (
@@ -4763,18 +4741,7 @@ export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiCon
 };
 
 /**
- * Returns two config revisions, similar to
- * GET /api/configs/history/{config_type}/revision/{revision}, but with obfuscated secret strings
- * that say if a secret string is changed. Intended for use with the `diff` command.
- *
- * Args:
- *     request: Request containing config type and revisions to compare
- *
- * Returns:
- *     ConfigDiffResponse containing the two revisions
- *
- * Raises:
- *     OSMOUserError: If either revision doesn't exist or is invalid
+ * Reject the retired database-backed configuration diff API.
  * @summary Get Config Diff
  */
 export const getConfigDiffApiConfigsDiffGet = async (
@@ -8421,7 +8388,7 @@ export const getListBackendsApiConfigsBackendGetResponseMock = (
       ]),
       prefix: faker.string.alpha({ length: { min: 10, max: 20 } }),
     },
-    last_heartbeat: faker.date.past().toISOString().slice(0, 19) + "Z",
+    last_heartbeat: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + "Z", null]),
     created_date: faker.date.past().toISOString().slice(0, 19) + "Z",
     router_address: faker.string.alpha({ length: { min: 10, max: 20 } }),
     online: faker.datatype.boolean(),
@@ -8459,7 +8426,7 @@ export const getGetBackendApiConfigsBackendNameGetResponseMock = (
     ]),
     prefix: faker.string.alpha({ length: { min: 10, max: 20 } }),
   },
-  last_heartbeat: faker.date.past().toISOString().slice(0, 19) + "Z",
+  last_heartbeat: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + "Z", null]),
   created_date: faker.date.past().toISOString().slice(0, 19) + "Z",
   router_address: faker.string.alpha({ length: { min: 10, max: 20 } }),
   online: faker.datatype.boolean(),

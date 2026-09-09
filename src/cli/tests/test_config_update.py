@@ -17,8 +17,12 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import unittest
+from unittest import mock
+import argparse
 
+from src.cli import config
 from src.cli.config import deep_diff
+from src.lib.utils import osmo_errors
 
 
 class TestConfigUpdate(unittest.TestCase):
@@ -40,6 +44,41 @@ class TestConfigUpdate(unittest.TestCase):
         result = deep_diff(current, updated)
         expected = {"b": 3}
         self.assertEqual(result, expected)
+
+    def test_default_history_list_is_retired(self):
+        service_client = mock.Mock()
+
+        with self.assertRaisesRegex(
+                osmo_errors.OSMOUserError, 'managed through GitOps'):
+            config._run_list_command(
+                service_client,
+                argparse.Namespace(format_type='json', fit_width=False),
+            )
+
+        service_client.request.assert_not_called()
+
+    def test_revision_commands_are_retired_without_api_calls(self):
+        service_client = mock.Mock()
+        for command in (
+                config._run_history_command,
+                config._run_rollback_command,
+                config._run_tag_command,
+                config._run_diff_command):
+            with self.subTest(command=command.__name__), self.assertRaisesRegex(
+                    osmo_errors.OSMOUserError, 'managed through GitOps'):
+                command(service_client, argparse.Namespace())
+
+        for command, args in (
+                (config._run_show_command, argparse.Namespace(
+                    config='SERVICE:1', verbose=False, names=[])),
+                (config._run_delete_command, argparse.Namespace(
+                    config='SERVICE:1')),
+        ):
+            with self.subTest(command=command.__name__), self.assertRaisesRegex(
+                    osmo_errors.OSMOUserError, 'managed through GitOps'):
+                command(service_client, args)
+
+        service_client.request.assert_not_called()
 
     def test_deep_diff_nested_dict_change(self):
         """Test deep_diff with nested dictionary changes."""

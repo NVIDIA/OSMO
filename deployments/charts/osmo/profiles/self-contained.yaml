@@ -230,7 +230,6 @@ gateway:
       port: 8000
 
 configuration:
-  enabled: true
   pools:
     default:
       common_pod_template:

@@ -21,7 +21,7 @@ from typing import Any, List
 
 from src.lib.utils import common, priority as wf_priority, version
 from src.service.agent import helpers as agent_helpers
-from src.service.core.config import config_service, helpers, objects as config_objects
+from src.service.core.config import objects as config_objects
 from src.service.core.tests import fixture as service_fixture
 from src.service.core.workflow import objects as workflow_objects
 from src.utils import backend_messages, connectors
@@ -39,6 +39,30 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_get_default_pool(self):
         database = connectors.postgres.PostgresConnector.get_instance()
+        self.install_configmap_snapshot(
+            backends={
+                'default': {
+                    'k8s_namespace': 'default',
+                    'node_conditions': {
+                        'prefix': 'default.osmo.nvidia.com/',
+                    },
+                },
+            },
+            pod_templates=config_objects.DEFAULT_POD_TEMPLATES,
+            resource_validations=config_objects.DEFAULT_RESOURCE_CHECKS,
+            pools={
+                'default': {
+                    'backend': 'default',
+                    'default_platform': 'default',
+                    'common_pod_template': list(
+                        config_objects.DEFAULT_POD_TEMPLATES),
+                    'common_resource_validations': list(
+                        config_objects.DEFAULT_RESOURCE_CHECKS),
+                    'common_default_variables': config_objects.DEFAULT_VARIABLES,
+                    'platforms': {'default': {}},
+                },
+            },
+        )
         response = self.client.get('/api/configs/pool?verbose=true')
 
         pools = response.json()['pools']
@@ -63,15 +87,15 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Patch the pool with new backend name
         self.create_test_backend(database, backend_name='my_backend')
-        config_service.patch_pool(
-            name='default',
-            request=config_objects.PatchPoolRequest(
-                configs_dict={
-                    'backend': 'my_backend',
-                },
-            ),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_entry('pools', 'default', {
+            'backend': 'my_backend',
+            'default_platform': 'default',
+            'common_pod_template': list(config_objects.DEFAULT_POD_TEMPLATES),
+            'common_resource_validations': list(
+                config_objects.DEFAULT_RESOURCE_CHECKS),
+            'common_default_variables': config_objects.DEFAULT_VARIABLES,
+            'platforms': {'default': {}},
+        })
         response = self.client.get('/api/configs/pool?verbose=true')
         pools = response.json()['pools']
         self.assertEqual('my_backend', pools['default']['backend'])
@@ -86,15 +110,9 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         # Arrange
         test_version = version.VERSION.model_copy()
         test_version.revision = str(int(test_version.revision) + 1)
-        helpers.patch_configs(
-            config_objects.PatchConfigRequest(
-                configs_dict=connectors.postgres.ServiceConfig(
-                    cli_config=connectors.postgres.CliConfig(latest_version=str(test_version)),
-                ).model_dump(exclude_unset=True),
-            ),
-            config_type=connectors.ConfigType.SERVICE,
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(service={
+            'cli_config': {'latest_version': str(test_version)},
+        })
 
         # Act
         response = self.client.get('/client/version')
@@ -200,14 +218,9 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             'test_tag_1',
             'test_tag_2',
         ]
-        helpers.patch_configs(
-            config_objects.PatchConfigRequest(
-                configs_dict=connectors.postgres.WorkflowConfig(
-                    workflow_info=connectors.postgres.WorkflowInfo(tags=tags)).model_dump(),
-            ),
-            config_type=connectors.ConfigType.WORKFLOW,
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(workflow={
+            'workflow_info': {'tags': tags},
+        })
 
         # Act
         response = self.client.get('/api/tag')
@@ -248,8 +261,6 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 'cpu': '1',
             },
         }
-        agent_helpers.update_resource(
-            database, 'test_backend', backend_messages.ResourceBody(**resource_spec))
         pod_template = {
             'spec': {
                 'nodeSelector': {
@@ -257,11 +268,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 }
             }
         }
-        config_service.put_pod_template(
-            name='test_pod_template',
-            request=config_objects.PutPodTemplateRequest(configs=pod_template),
-            username='test@nvidia.com',
-        )
+        self.create_test_pod_template('test_pod_template', pod_template)
 
         another_pod_template = {
             'spec': {
@@ -270,11 +277,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 },
             },
         }
-        config_service.put_pod_template(
-            name='another_pod_template',
-            request=config_objects.PutPodTemplateRequest(configs=another_pod_template),
-            username='test@nvidia.com',
-        )
+        self.create_test_pod_template('another_pod_template', another_pod_template)
 
         # Use the helper function to create the pool
         self.create_test_pool(
@@ -282,25 +285,29 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             backend='test_backend',
             common_pod_template=['test_pod_template']
         )
+        agent_helpers.update_resource(
+            database, 'test_backend', backend_messages.ResourceBody(**resource_spec))
 
         resource = workflow_objects.get_resources().resources[0]
         self.assertTrue('test_pool/test_platform' in resource.exposed_fields['pool/platform'])
 
         # Update to use another pod template, and update the node selectors
-        config_service.patch_pool(
-            name='test_pool',
-            request=config_objects.PatchPoolRequest(
-                configs_dict={
-                    'common_pod_template': ['another_pod_template'],
-                },
-            ),
-            username='test@nvidia.com',
+        self.create_test_pool(
+            pool_name='test_pool',
+            backend='test_backend',
+            common_pod_template=['another_pod_template'],
         )
+        # ConfigMap snapshots are immutable for a service process. A restarted
+        # service loads the new snapshot before the backend reports its nodes;
+        # emulate that report here so derived resource-platform rows are
+        # rebuilt from the new authoritative configuration.
+        agent_helpers.update_resource(
+            database, 'test_backend', backend_messages.ResourceBody(**resource_spec))
         updated_resource = workflow_objects.get_resources().resources[0]
         # The pool/platform should be empty because the node now matches to no pool/platform
         self.assertEqual(updated_resource.exposed_fields['pool/platform'], [])
 
-    def test_patch_pool_config(self):
+    def test_pool_config_reads_updated_snapshot(self):
         '''
         Simple test for patching the pool config.
         '''
@@ -318,15 +325,11 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         self.assertTrue('test_platform' in pool['platforms'])
         self.assertEqual(pool['backend'], 'test_backend')
 
-        config_service.patch_pool(
-            name='test_pool',
-            request=config_objects.PatchPoolRequest(
-                configs_dict={
-                    'enable_maintenance': True,
-                    'description': 'updated_description',
-                },
-            ),
-            username='test@nvidia.com',
+        self.create_test_pool(
+            pool_name='test_pool',
+            backend='test_backend',
+            enable_maintenance=True,
+            description='updated_description',
         )
         patched_pool = self.client.get('/api/configs/pool/test_pool').json()
         # Check updated fields
@@ -361,12 +364,8 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 },
             },
         })
-        config_service.put_workflow_configs(
-            request=config_objects.PutWorkflowRequest(
-                configs=workflow_configs,
-            ),
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(
+            workflow=workflow_configs.model_dump(exclude_unset=True))
 
         # Setup pod template with tokens
         pod_template = {
@@ -413,11 +412,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                 ]
             }
         }
-        config_service.put_pod_template(
-            name='test_pod_template',
-            request=config_objects.PutPodTemplateRequest(configs=pod_template),
-            username='test@nvidia.com',
-        )
+        self.create_test_pod_template('test_pod_template', pod_template)
 
         # Use the helper function to create the pool
         self.create_test_pool(
@@ -470,18 +465,12 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
     def patch_cli_config(self,
                          latest_version: str | None = None,
                          min_supported_version: str | None = None):
-        helpers.patch_configs(
-            config_objects.PatchConfigRequest(
-                configs_dict=connectors.postgres.ServiceConfig(
-                    cli_config=connectors.postgres.CliConfig(
-                        latest_version=latest_version,
-                        min_supported_version=min_supported_version,
-                    ),
-                ).model_dump(exclude_unset=True),
-            ),
-            config_type=connectors.ConfigType.SERVICE,
-            username='test@nvidia.com',
-        )
+        self.update_configmap_sections(service={
+            'cli_config': {
+                'latest_version': latest_version,
+                'min_supported_version': min_supported_version,
+            },
+        })
 
 
 if __name__ == '__main__':

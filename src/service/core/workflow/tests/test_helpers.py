@@ -1139,54 +1139,99 @@ class TestGetTasks(unittest.TestCase):
 class TestGetPoolResources(unittest.TestCase):
     """Covers get_pool_resources (lines 240-310)."""
 
+    @contextlib.contextmanager
+    def _patch_pool_context(self, database, configured_pools=None):
+        if configured_pools is None:
+            configured_pools = {}
+            for row in database.execute_fetch_command.return_value:
+                pool = configured_pools.setdefault(row['name'], {
+                    'backend': row['backend'],
+                    'enable_maintenance': row['enable_maintenance'],
+                    'platforms': {},
+                })
+                pool['platforms'][row['platform']] = {}
+        with _patch_context(database), mock.patch.object(
+            helpers.configmap_state,
+            'require_snapshot',
+            return_value={'pools': configured_pools},
+        ):
+            yield
+
     def test_get_pool_resources_empty_returns_empty_response(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        with _patch_context(database):
+        with self._patch_pool_context(database):
             result = helpers.get_pool_resources()
 
         self.assertEqual(result.pools, [])
-        cmd, params = database.execute_fetch_command.call_args[0]
-        # No pool filter: WHERE clause is absent.
-        self.assertNotIn('pools.name IN', cmd)
-        self.assertEqual(params, ())
+        database.execute_fetch_command.assert_not_called()
+
+    def test_get_pool_resources_explicit_empty_filter_returns_empty(self):
+        database = mock.Mock()
+        configured_pools = {
+            'pool-a': {'backend': 'k8s-a', 'platforms': {'gpu': {}}},
+        }
+
+        with self._patch_pool_context(database, configured_pools):
+            result = helpers.get_pool_resources(pools=[])
+
+        self.assertEqual(result.pools, [])
+        database.execute_fetch_command.assert_not_called()
 
     def test_get_pool_resources_with_pools_filters_pool_names(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        with _patch_context(database):
+        configured_pools = {
+            'pool-a': {'backend': 'k8s-a', 'platforms': {'gpu': {}}},
+            'pool-b': {'backend': 'k8s-b', 'platforms': {'gpu': {}}},
+        }
+        with self._patch_pool_context(database, configured_pools):
             helpers.get_pool_resources(pools=['pool-a'])
 
         cmd, params = database.execute_fetch_command.call_args[0]
-        self.assertIn('pools.name IN %s', cmd)
-        self.assertIn(('pool-a',), params)
+        self.assertNotIn('FROM pools', cmd)
+        self.assertIn('FROM configured_pools', cmd)
+        self.assertIn('%s::boolean', cmd)
+        self.assertIn('pool-a', params)
+        self.assertNotIn('pool-b', params)
 
     def test_get_pool_resources_with_pools_and_platforms_filters_both(self):
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        with _patch_context(database):
+        configured_pools = {
+            'pool-a': {
+                'backend': 'k8s-a',
+                'platforms': {'gpu-a100': {}, 'gpu-h100': {}},
+            },
+        }
+        with self._patch_pool_context(database, configured_pools):
             helpers.get_pool_resources(pools=['pool-a'], platforms=['gpu-a100'])
 
-        cmd, params = database.execute_fetch_command.call_args[0]
-        self.assertIn('pools.name IN %s', cmd)
-        self.assertIn('keys IN %s', cmd)
-        self.assertIn(('pool-a',), params)
-        self.assertIn(('gpu-a100',), params)
+        _, params = database.execute_fetch_command.call_args[0]
+        self.assertIn('pool-a', params)
+        self.assertIn('gpu-a100', params)
+        self.assertNotIn('gpu-h100', params)
 
     def test_get_pool_resources_with_platforms_only_ignores_platforms(self):
         # Platforms is only applied when pools is truthy (per implementation).
         database = mock.Mock()
         database.execute_fetch_command.return_value = []
 
-        with _patch_context(database):
+        configured_pools = {
+            'pool-a': {
+                'backend': 'k8s-a',
+                'platforms': {'gpu-a100': {}, 'gpu-h100': {}},
+            },
+        }
+        with self._patch_pool_context(database, configured_pools):
             helpers.get_pool_resources(platforms=['gpu-a100'])
 
-        cmd, params = database.execute_fetch_command.call_args[0]
-        self.assertNotIn('keys IN', cmd)
-        self.assertEqual(params, ())
+        _, params = database.execute_fetch_command.call_args[0]
+        self.assertIn('gpu-a100', params)
+        self.assertIn('gpu-h100', params)
 
     def test_get_pool_resources_maintenance_status(self):
         database = mock.Mock()
@@ -1200,7 +1245,7 @@ class TestGetPoolResources(unittest.TestCase):
             'allocatable_fields': [],
         }]
 
-        with _patch_context(database):
+        with self._patch_pool_context(database):
             response = helpers.get_pool_resources()
 
         self.assertEqual(len(response.pools), 1)
@@ -1226,7 +1271,7 @@ class TestGetPoolResources(unittest.TestCase):
             'allocatable_fields': [],
         }]
 
-        with _patch_context(database):
+        with self._patch_pool_context(database):
             response = helpers.get_pool_resources()
 
         self.assertEqual(response.pools[0].status, connectors.PoolStatus.OFFLINE)
@@ -1245,7 +1290,7 @@ class TestGetPoolResources(unittest.TestCase):
             'allocatable_fields': [],
         }]
 
-        with _patch_context(database):
+        with self._patch_pool_context(database):
             response = helpers.get_pool_resources()
 
         self.assertEqual(response.pools[0].status, connectors.PoolStatus.ONLINE)
@@ -1268,7 +1313,7 @@ class TestGetPoolResources(unittest.TestCase):
 
         # convert_allocatable is a classmethod on BackendResource; the loop
         # feeds its return value into convert_allocatable_request_fields.
-        with _patch_context(database), \
+        with self._patch_pool_context(database), \
              mock.patch.object(
                  helpers.connectors.BackendResource, 'convert_allocatable',
                  side_effect=lambda x: dict(x)), \
@@ -1296,7 +1341,7 @@ class TestGetPoolResources(unittest.TestCase):
             'allocatable_fields': [None, None],
         }]
 
-        with _patch_context(database):
+        with self._patch_pool_context(database):
             response = helpers.get_pool_resources()
 
         entry = response.pools[0]

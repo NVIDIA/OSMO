@@ -42,7 +42,7 @@ from src.service.core.auth import (
 )
 from src.service.core.config import (
     config_service, configmap_loader,
-    helpers as config_helpers, objects as config_objects,
+    helpers as config_helpers,
 )
 from src.service.core.profile import profile_service
 from src.service.core.workflow import (
@@ -257,120 +257,6 @@ async def top_level_exception_handler(request: fastapi.Request, error: Exception
     )
 
 
-def create_default_pool(postgres: connectors.PostgresConnector):
-    # Populate with default pod templates if no pod templates exist
-    pod_templates = postgres.execute_fetch_command(
-        'SELECT COUNT(*) as count from pod_templates', (), return_raw=True)
-    if pod_templates[0]['count'] == 0:
-        config_service.put_pod_templates(
-            request=config_objects.PutPodTemplatesRequest(
-                configs=config_objects.DEFAULT_POD_TEMPLATES,
-            ),
-            username='',
-        )
-
-    # Populate with default resource validation rules if no resource validation rules exist
-    resource_validations = postgres.execute_fetch_command(
-        'SELECT COUNT(*) as count from resource_validations', (), return_raw=True)
-    if resource_validations[0]['count'] == 0:
-        config_service.put_resource_validations(
-            request=config_objects.PutResourceValidationsRequest(
-                configs_dict=config_objects.DEFAULT_RESOURCE_CHECKS
-            ),
-            username='',
-        )
-
-    pools = postgres.execute_fetch_command(
-        'SELECT COUNT(*) as count from pools', (), return_raw=True)
-    if pools[0]['count'] == 0:
-        default_pool = connectors.Pool(
-            name='default',
-            description='Default pool',
-            # We expect admins to connect this default pool to a backend
-            backend='default',
-            platforms={'default': connectors.Platform()},
-            default_platform='default',
-            common_pod_template=list(config_objects.DEFAULT_POD_TEMPLATES.keys()),
-            common_resource_validations=list(config_objects.DEFAULT_RESOURCE_CHECKS.keys()),
-            common_default_variables=config_objects.DEFAULT_VARIABLES
-        )
-        config_service.put_pools(
-            request=config_objects.PutPoolsRequest(
-                configs={'default': default_pool},
-            ),
-            username='System',
-        )
-
-
-def set_default_backend_images(postgres: connectors.PostgresConnector):
-    curr_workflow_configs = postgres.get_workflow_configs()
-
-    # If backend_images are already set, do not override them
-    if curr_workflow_configs.backend_images.init and \
-            curr_workflow_configs.backend_images.client:
-        return
-
-    if postgres.config.osmo_image_location and \
-            postgres.config.osmo_image_tag:
-        # Override default backend_images with deployment values
-        backend_images = connectors.OsmoImageConfig(
-            init=f'{postgres.config.osmo_image_location}/'
-            f'init-container:{postgres.config.osmo_image_tag}',
-            client=f'{postgres.config.osmo_image_location}/'
-            f'client:{postgres.config.osmo_image_tag}',
-        )
-        config_service.patch_workflow_configs(
-            request=config_objects.PatchConfigRequest(
-                configs_dict={
-                    'backend_images': backend_images.model_dump()
-                }
-            ),
-            username='System',
-        )
-
-        logging.info(
-            'Using deployment values for backend_images: %s:%s',
-            postgres.config.osmo_image_location,
-            postgres.config.osmo_image_tag)
-
-
-def set_default_service_url(postgres: connectors.PostgresConnector):
-    curr_service_configs = postgres.get_service_configs()
-
-    # If service_base_url is already set, do not override it
-    if curr_service_configs.service_base_url:
-        return
-
-    if postgres.config.service_hostname:
-        config_service.patch_service_configs(
-            request=config_objects.PatchConfigRequest(
-                configs_dict={
-                    'service_base_url': f'https://{postgres.config.service_hostname}'
-                }
-            ),
-            username='System',
-        )
-
-        logging.info(
-            'Using deployment hostname for service_base_url: %s',
-            postgres.config.service_hostname)
-
-
-def set_client_install_url(postgres: connectors.PostgresConnector,
-                           config: objects.WorkflowServiceConfig):
-    curr_service_configs = postgres.get_service_configs()
-    if curr_service_configs.cli_config.client_install_url != config.client_install_url:
-        updated_cli_config = curr_service_configs.cli_config.model_dump()
-        updated_cli_config['client_install_url'] = config.client_install_url
-        config_service.patch_service_configs(
-            request=config_objects.PatchConfigRequest(
-                configs_dict={'cli_config': updated_cli_config}
-            ),
-            username='System',
-        )
-        logging.info('Updated client_install_url to: %s', config.client_install_url)
-
-
 def setup_default_admin(postgres: connectors.PostgresConnector,
                         config: objects.WorkflowServiceConfig):
     """
@@ -399,8 +285,12 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
 
     # Assign the osmo-admin role if not already assigned
     now = common.current_time()
-    postgres.assign_user_role(
+    assignment = postgres.assign_user_role(
         admin_username, 'osmo-admin', 'System', now)
+    if not assignment:
+        raise osmo_errors.OSMOUserError(
+            'Default admin requires the osmo-admin role in the mounted '
+            'ConfigMap configuration.')
 
     # Check if token already exists and compare hashed values
     check_token_cmd = '''
@@ -462,33 +352,17 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         logout_endpoint=config.logout_endpoint,
     )
     if not config.config_file:
-        service_configs = postgres.get_service_configs()
-        if (not postgres.service_auth_is_external
-                and login_info != service_configs.service_auth.login_info):
-            config_helpers.patch_configs(
-                request=config_objects.PatchConfigRequest(
-                    configs_dict={
-                        'service_auth': {'login_info': login_info.model_dump()},
-                    },
-                    description='Updated service auth',
-                ),
-                config_type=connectors.ConfigType.SERVICE,
-                username='',
-            )
-        create_default_pool(postgres)
-        set_default_backend_images(postgres)
-        set_client_install_url(postgres, config)
-        set_default_service_url(postgres)
-
+        raise RuntimeError(
+            'OSMO_CONFIG_FILE is required; PostgreSQL-managed service '
+            'configuration is not supported in 6.4.')
     postgres.set_runtime_service_auth_login_info(login_info)
 
-    setup_default_admin(postgres, config)
-
-    # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
         config.config_file, postgres, is_api_service=True,
         backend_queue_updater=config_helpers.update_backend_queues_from_configmap,
         backend_test_updater=config_helpers.update_backend_tests_cronjobs_from_configmap)
+
+    setup_default_admin(postgres, config)
 
     if config.method != 'dev':
         FastAPIInstrumentor().instrument_app(
@@ -527,9 +401,6 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
             allow_methods=['*'],
             allow_headers=['*']
         )
-
-        config_service.create_clean_config_api(target_app)
-
 
 def main():
     config = objects.WorkflowServiceConfig.load()

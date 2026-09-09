@@ -26,28 +26,32 @@ import (
 	"go.corp.nvidia.com/osmo/utils/postgres"
 )
 
+type SyncMode string
+
 const (
-	SyncModeIgnore = "ignore"
-	SyncModeImport = "import"
-	SyncModeForce  = "force"
+	SyncModeIgnore SyncMode = "ignore"
+	SyncModeImport SyncMode = "import"
+	SyncModeForce  SyncMode = "force"
 
 	idpSyncAssigner = "idp-sync"
 )
 
-// SyncUserRoles synchronises the user_roles table for a given user based on
-// the external IDP roles carried in the request, and returns the complete set
-// of OSMO role names the user holds after the sync.
-//
-// The entire read-compute-write cycle runs as a single SQL statement so
-// concurrent requests for the same user cannot observe an intermediate state.
-//
-// Sync modes (per role):
-//   - ignore: skip entirely
-//   - import: add the role if the user's external roles map to it, never remove
-//   - force:  add if mapped, remove if the user has it but it is no longer mapped
+// RoleSyncPlan is derived exclusively from ConfigMap role definitions.
+type RoleSyncPlan struct {
+	MatchedRoles     []string
+	ForceRoles       []string
+	DefinedRoles     []string
+	IDPEligibleRoles []string
+}
+
+// SyncUserRoles synchronizes IDP-derived assignment state and returns the
+// user's currently eligible roles. Import assignments are sticky, force
+// assignments are removed on the next human request without a matching claim,
+// ignore roles are never synchronized, and manual assignments always survive.
 func SyncUserRoles(
 	ctx context.Context,
 	client *postgres.PostgresClient,
+	store *FileRoleStore,
 	userName string,
 	externalRoles []string,
 	logger *slog.Logger,
@@ -55,152 +59,81 @@ func SyncUserRoles(
 	if userName == "" {
 		return nil, nil
 	}
+	plan := store.BuildSyncPlan(externalRoles)
+	if client == nil {
+		return nil, fmt.Errorf("PostgreSQL client is required for human role synchronization")
+	}
 
-	if err := upsertUser(ctx, client, userName); err != nil {
+	tx, err := client.Pool().Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin role sync: %w", err)
+	}
+	defer tx.Rollback(ctx) // no-op after Commit
+
+	// Serialize IDP sync with manual assignment and PAT creation for this user.
+	if _, err = tx.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, userName); err != nil {
+		return nil, fmt.Errorf("lock user role state: %w", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO users (id, created_at, created_by)
+		VALUES ($1, NOW(), $1)
+		ON CONFLICT (id) DO NOTHING`, userName); err != nil {
 		return nil, fmt.Errorf("upsert user: %w", err)
 	}
 
-	if len(externalRoles) == 0 {
-		externalRoles = []string{}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+		SELECT $1, role_name, $3, NOW()
+		FROM unnest($2::text[]) AS role_name
+		ON CONFLICT (user_id, role_name) DO NOTHING`,
+		userName, plan.MatchedRoles, idpSyncAssigner); err != nil {
+		return nil, fmt.Errorf("add IDP role assignments: %w", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM user_roles
+		WHERE user_id = $1
+		  AND assigned_by = $4
+		  AND role_name = ANY($2::text[])
+		  AND NOT (role_name = ANY($3::text[]))`,
+		userName, plan.ForceRoles, plan.MatchedRoles, idpSyncAssigner); err != nil {
+		return nil, fmt.Errorf("remove stale force role assignments: %w", err)
 	}
 
-	result, err := syncAndReturnRoles(ctx, client, userName, externalRoles)
-	if err != nil {
-		return nil, fmt.Errorf("sync user roles: %w", err)
-	}
-
-	if len(result.Added) > 0 || len(result.Removed) > 0 {
-		logger.Info("synced user roles",
-			slog.String("user", userName),
-			slog.Any("added", result.Added),
-			slog.Any("removed", result.Removed),
-		)
-	}
-
-	return result.RoleNames, nil
-}
-
-func upsertUser(ctx context.Context, client *postgres.PostgresClient, userName string) error {
-	query := `INSERT INTO users (id, created_at, created_by)
-	          VALUES ($1, NOW(), $1)
-	          ON CONFLICT (id) DO NOTHING`
-	_, err := client.Pool().Exec(ctx, query, userName)
-	return err
-}
-
-type syncResult struct {
-	RoleNames []string
-	Added     []string
-	Removed   []string
-}
-
-// syncAndReturnRoles performs the full sync as a single atomic SQL statement:
-//  1. Reads role definitions, external mappings, and the user's current
-//     role assignments in one snapshot.
-//  2. Computes which roles to add (import/force) and remove (force).
-//  3. Applies the inserts and deletes.
-//  4. Returns which roles were added, removed, and the final set.
-//
-// The locked CTE takes a KEY SHARE lock on roles eligible for insertion, so a
-// concurrent role deletion either removes the assignment or prevents its insert.
-func syncAndReturnRoles(
-	ctx context.Context,
-	client *postgres.PostgresClient,
-	userName string,
-	externalRoles []string,
-) (*syncResult, error) {
-	// Each row comes back as (role_name, change_type) where change_type is
-	// 'added', 'removed', or 'existing'.
-	query := `
-		WITH locked AS (
-			SELECT r.name
-			FROM roles r
-			WHERE r.sync_mode != $3
-			  AND EXISTS (
-				  SELECT 1 FROM role_external_mappings rem
-				  WHERE rem.role_name = r.name AND rem.external_role = ANY($2)
-			  )
-			FOR KEY SHARE
-		),
-		sync_info AS (
-			SELECT
-				r.name,
-				r.sync_mode,
-				EXISTS (
-					SELECT 1 FROM role_external_mappings rem
-					WHERE rem.role_name = r.name AND rem.external_role = ANY($2)
-				) AS in_header
-			FROM roles r
-			WHERE r.sync_mode != $3
-		),
-		current_roles AS (
-			SELECT role_name
-			FROM user_roles
-			WHERE user_id = $1
-			  AND role_name IN (SELECT name FROM sync_info)
-		),
-		to_add AS (
-			SELECT si.name
-			FROM sync_info si
-			WHERE si.in_header
-			  AND si.sync_mode IN ('import', 'force')
-			  AND si.name NOT IN (SELECT role_name FROM current_roles)
-			  AND si.name IN (SELECT name FROM locked)
-		),
-		to_remove AS (
-			SELECT si.name
-			FROM sync_info si
-			WHERE NOT si.in_header
-			  AND si.sync_mode = 'force'
-			  AND si.name IN (SELECT role_name FROM current_roles)
-		),
-		inserted AS (
-			INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-			SELECT $1, name, $4, NOW()
-			FROM to_add
-			ON CONFLICT (user_id, role_name) DO NOTHING
-			RETURNING role_name
-		),
-		deleted AS (
-			DELETE FROM user_roles
-			WHERE user_id = $1
-			  AND role_name IN (SELECT name FROM to_remove)
-			RETURNING role_name
-		)
-		SELECT role_name, 'added' AS change_type FROM inserted
-		UNION ALL
-		SELECT role_name, 'removed' AS change_type FROM deleted
-		UNION ALL
-		SELECT role_name, 'existing' AS change_type
+	rows, err := tx.Query(ctx, `
+		SELECT role_name, assigned_by,
+		       role_name = ANY($2::text[]) AS defined,
+		       role_name = ANY($3::text[]) AS idp_eligible
 		FROM user_roles
 		WHERE user_id = $1
-		  AND role_name NOT IN (SELECT role_name FROM inserted)
-		  AND role_name NOT IN (SELECT role_name FROM deleted)`
-
-	rows, err := client.Pool().Query(
-		ctx, query, userName, externalRoles, SyncModeIgnore, idpSyncAssigner)
+		ORDER BY role_name`,
+		userName, plan.DefinedRoles, plan.IDPEligibleRoles)
 	if err != nil {
-		return nil, fmt.Errorf("exec sync query: %w", err)
+		return nil, fmt.Errorf("synchronize user roles: %w", err)
 	}
-	res := &syncResult{}
+
+	var roleNames []string
 	for rows.Next() {
-		var name, changeType string
-		if err := rows.Scan(&name, &changeType); err != nil {
-			return nil, fmt.Errorf("scan sync result: %w", err)
+		var roleName, assignedBy string
+		var defined, idpEligible bool
+		if err := rows.Scan(&roleName, &assignedBy, &defined, &idpEligible); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan synchronized role: %w", err)
 		}
-		switch changeType {
-		case "added":
-			res.Added = append(res.Added, name)
-			res.RoleNames = append(res.RoleNames, name)
-		case "removed":
-			res.Removed = append(res.Removed, name)
-		case "existing":
-			res.RoleNames = append(res.RoleNames, name)
+		if defined && (assignedBy != idpSyncAssigner || idpEligible) {
+			roleNames = append(roleNames, roleName)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		rows.Close()
+		return nil, fmt.Errorf("read synchronized roles: %w", err)
 	}
 	rows.Close()
-	return res, nil
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit role sync: %w", err)
+	}
+
+	logger.Debug("synchronized user roles from ConfigMap definitions",
+		slog.String("user", userName), slog.Any("roles", roleNames))
+	return roleNames, nil
 }

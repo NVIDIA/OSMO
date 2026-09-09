@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+configuration:
+  secretRefs:
+  - secretName: independent-data-storage
+  - secretName: independent-log-storage
+  - secretName: independent-app-storage
+  snapshot:
+    service: {}
+    workflow:
+      workflow_data:
+        credential:
+          secretName: independent-data-storage
+          secretKey: cred.yaml
+          endpoint: swift://independent/workflows
+      workflow_log:
+        credential:
+          secretName: independent-log-storage
+          secretKey: cred.yaml
+          endpoint: swift://independent/logs
+      workflow_app:
+        credential:
+          secretName: independent-app-storage
+          secretKey: cred.yaml
+          endpoint: swift://independent/apps
+    backends: {}
+    pools: {}
+    podTemplates: {}
+    resourceValidations: {}
+    groupTemplates: {}
+    backendTests: {}
+    roles:
+      snapshot-role:
+        description: Snapshot-only role
+        policies: []
+        external_roles: []

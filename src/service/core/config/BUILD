@@ -31,7 +31,6 @@ osmo_py_library(
         requirement("kubernetes"),
         requirement("pydantic"),
         requirement("pyyaml"),
-        requirement("watchdog"),
         "//src/lib/utils:common",
         "//src/utils:auth",
         "//src/utils:configmap_state",

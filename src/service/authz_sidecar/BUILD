@@ -179,4 +179,3 @@ go_test(
     tags = ["service", "manual", "benchmark"],
     local = True,
 )
-

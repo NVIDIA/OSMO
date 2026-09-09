@@ -23,7 +23,23 @@ from typing import List, Optional
 import pydantic
 
 from src.lib.utils import common, osmo_errors
-from src.utils import auth, connectors
+from src.utils import auth, configmap_state, connectors
+
+
+IDP_SYNC_ASSIGNER = 'idp-sync'
+
+
+def current_role_eligibility() -> tuple[List[str], List[str]]:
+    """Return ConfigMap-defined roles and modes eligible for IDP assignments."""
+    roles = configmap_state.require_snapshot().get('roles', {})
+    defined = sorted(
+        name for name, definition in roles.items()
+        if isinstance(definition, dict))
+    idp_eligible = sorted(
+        name for name, definition in roles.items()
+        if isinstance(definition, dict)
+        and definition.get('sync_mode', 'import') in ('import', 'force'))
+    return defined, idp_eligible
 
 
 class AccessToken(pydantic.BaseModel):
@@ -48,6 +64,7 @@ class AccessToken(pydantic.BaseModel):
     def list_with_roles_from_db(cls, database: connectors.PostgresConnector,
                                 user_name: str) -> List['AccessTokenWithRoles']:
         """Fetches access tokens with their roles for a user."""
+        defined_roles, idp_eligible_roles = current_role_eligibility()
         fetch_cmd = '''
             SELECT
                 at.user_name,
@@ -62,11 +79,16 @@ class AccessToken(pydantic.BaseModel):
             FROM access_token at
             LEFT JOIN access_token_roles pr ON at.user_name = pr.user_name AND at.token_name = pr.token_name
             LEFT JOIN user_roles ur ON pr.user_role_id = ur.id
+                AND ur.role_name = ANY(%s::text[])
+                AND (ur.assigned_by <> %s OR ur.role_name = ANY(%s::text[]))
             WHERE at.user_name = %s
             GROUP BY at.user_name, at.token_name, at.expires_at, at.description
             ORDER BY at.token_name;
         '''
-        spec_rows = database.execute_fetch_command(fetch_cmd, (user_name,), True)
+        spec_rows = database.execute_fetch_command(
+            fetch_cmd,
+            (defined_roles, IDP_SYNC_ASSIGNER, idp_eligible_roles, user_name),
+            True)
         return [AccessTokenWithRoles(**spec_row) for spec_row in spec_rows]
 
     @classmethod
@@ -125,6 +147,8 @@ class AccessToken(pydantic.BaseModel):
             raise osmo_errors.OSMOUserError(
                 'At least one role must be specified for the access token.')
 
+        roles = sorted(set(roles))
+        defined_roles, idp_eligible_roles = current_role_eligibility()
         now = datetime.datetime.now(datetime.timezone.utc)
         hashed_token = auth.hash_access_token(access_token)
 
@@ -141,6 +165,8 @@ class AccessToken(pydantic.BaseModel):
                 SELECT ur.id as user_role_id, ur.role_name
                 FROM user_roles ur
                 WHERE ur.user_id = %s AND ur.role_name = ANY(%s::text[])
+                  AND ur.role_name = ANY(%s::text[])
+                  AND (ur.assigned_by <> %s OR ur.role_name = ANY(%s::text[]))
             ),
             role_check AS (
                 SELECT COUNT(*) = %s AS all_roles_found FROM matching_user_roles
@@ -164,13 +190,15 @@ class AccessToken(pydantic.BaseModel):
                 (SELECT COUNT(*) FROM token_insert) as token_created;
         '''
         args = (
-            user_name, roles, len(roles),
+            user_name, roles, defined_roles,
+            IDP_SYNC_ASSIGNER, idp_eligible_roles, len(roles),
             user_name, token_name, hashed_token, expires_at, description,
             assigned_by, now
         )
 
         try:
-            result = database.execute_fetch_command(insert_cmd, args, True)
+            result = database.execute_user_locked_fetch_command(
+                user_name, insert_cmd, args)
             if result:
                 all_roles_found = result[0].get('all_roles_found', False)
                 token_created = result[0].get('token_created', 0)
@@ -205,14 +233,20 @@ class AccessToken(pydantic.BaseModel):
         """
         Get the roles assigned to a access_token by joining access_token_roles with user_roles.
         """
+        defined_roles, idp_eligible_roles = current_role_eligibility()
         fetch_cmd = '''
             SELECT ur.role_name
             FROM access_token_roles pr
             JOIN user_roles ur ON pr.user_role_id = ur.id
             WHERE pr.user_name = %s AND pr.token_name = %s
+              AND ur.role_name = ANY(%s::text[])
+              AND (ur.assigned_by <> %s OR ur.role_name = ANY(%s::text[]))
             ORDER BY ur.role_name;
         '''
-        rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+        rows = database.execute_fetch_command(
+            fetch_cmd,
+            (user_name, token_name, defined_roles, IDP_SYNC_ASSIGNER,
+             idp_eligible_roles), True)
         return [row['role_name'] for row in rows]
 
 

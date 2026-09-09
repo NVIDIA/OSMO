@@ -359,21 +359,17 @@ data:
 {{- end -}}
 
 {{- define "osmo.configuration.args" -}}
-{{- if .Values.configuration.enabled }}
 - --config_file
 - /etc/osmo/configs/config.yaml
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.configuration.extraEnv" -}}
-{{- if .Values.configuration.enabled }}
 - name: POD_NAMESPACE
   valueFrom:
     fieldRef:
       fieldPath: metadata.namespace
 - name: OSMO_CONFIGMAP_NAME
   value: {{ include "osmo.api.fullname" . }}-config
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.objectStorage.credentialSecretRef" -}}
@@ -393,6 +389,7 @@ data:
 {{/* Collect the Kubernetes Secrets referenced by the rendered configuration. */}}
 {{- define "osmo.configuration.secretReferences" -}}
 {{- $secretReferences := dict -}}
+{{- if eq .Values.configuration.snapshot nil -}}
 {{- $commonSecretName := include "osmo.objectStorage.secretName" . -}}
 {{- if $commonSecretName -}}
 {{- $keys := dict .Values.secrets.objectStorage.keys.credentials true -}}
@@ -417,7 +414,12 @@ data:
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- $workflow := .Values.configuration.workflow | default dict -}}
+{{- end -}}
+{{- $runtimeConfiguration := .Values.configuration -}}
+{{- if ne .Values.configuration.snapshot nil -}}
+{{- $runtimeConfiguration = .Values.configuration.snapshot -}}
+{{- end -}}
+{{- $workflow := $runtimeConfiguration.workflow | default dict -}}
 {{- if kindIs "map" $workflow -}}
 {{- $backendImages := get $workflow "backend_images" | default dict -}}
 {{- if kindIs "map" $backendImages -}}
@@ -440,11 +442,21 @@ data:
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- range $index, $secretRef := .Values.configuration.secretRefs -}}
+{{- $secretName := $secretRef.secretName -}}
+{{- if $secretName -}}
+{{- $secretReference := get $secretReferences $secretName | default (dict
+      "allKeys" true
+      "keys" (dict)
+      "volumeName" (printf "config-secret-%d" $index)) -}}
+{{- $_ := set $secretReference "allKeys" true -}}
+{{- $_ := set $secretReferences $secretName $secretReference -}}
+{{- end -}}
+{{- end -}}
 {{- toYaml $secretReferences -}}
 {{- end -}}
 
 {{- define "osmo.configuration.volumeMounts" -}}
-{{- if .Values.configuration.enabled }}
 - name: configs
   mountPath: /etc/osmo/configs
   readOnly: true
@@ -454,11 +466,9 @@ data:
   mountPath: /etc/osmo/secrets/{{ $secretName }}
   readOnly: true
 {{- end }}
-{{- end }}
 {{- end -}}
 
 {{- define "osmo.configuration.volumes" -}}
-{{- if .Values.configuration.enabled }}
 - name: configs
   configMap:
     name: {{ include "osmo.api.fullname" . }}-config
@@ -472,7 +482,6 @@ data:
 {{- range $key, $_ := $secretReference.keys }}
     - key: {{ $key | quote }}
       path: {{ $key | quote }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

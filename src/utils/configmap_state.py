@@ -50,3 +50,11 @@ def get_snapshot() -> Dict[str, Any] | None:
     for all config lookups to get a consistent snapshot.
     """
     return _parsed_configs
+
+
+def require_snapshot() -> Dict[str, Any]:
+    """Return the installed ConfigMap snapshot or fail closed."""
+    if _parsed_configs is None:
+        raise RuntimeError(
+            'The required ConfigMap configuration snapshot is not installed.')
+    return _parsed_configs

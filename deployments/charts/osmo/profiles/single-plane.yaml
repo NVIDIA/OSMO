@@ -250,7 +250,6 @@ monitoring:
       enabled: false
 
 configuration:
-  enabled: true
   podTemplates:
     # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
     # and injects the NVIDIA RuntimeClass. The default CPU platform omits the

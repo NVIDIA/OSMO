@@ -22,7 +22,7 @@ from unittest import mock
 
 from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.tests.common import fixtures
-from src.utils import connectors
+from src.utils import configmap_state, connectors
 from src.utils.connectors import postgres
 from src.utils.job import jobs, task, workflow
 from src.tests.common import runner
@@ -1022,6 +1022,11 @@ class CheckQueueTimeoutDbTest(TaskDbFixture):
 
 class WorkflowLabelsDbTest(TaskDbFixture):
     """Workflow labels persist through the workflows.labels JSONB column."""
+
+    def setUp(self):
+        super().setUp()
+        configmap_state.set_parsed_configs({'workflow': {}})
+        configmap_state.set_configmap_mode(True)
 
     def _insert_labeled_workflow(self, name: str, labels: dict[str, str]) -> str:
         workflow_obj = workflow.Workflow(

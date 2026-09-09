@@ -16,10 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import typing
+
 from src.lib.utils import osmo_errors
 from src.utils import configmap_state
-
-CONFIGMAP_SYNC_USERNAME = 'configmap-sync'
 
 # Delegate state to configmap_state (dependency-free module importable
 # by both the service layer and the utils/connectors layer).
@@ -29,18 +29,10 @@ set_parsed_configs = configmap_state.set_parsed_configs
 get_snapshot = configmap_state.get_snapshot
 
 
-def reject_if_configmap_mode(username: str) -> None:
-    """Raise 409 if ConfigMap mode is active and caller is not
-    configmap-sync.
-
-    Single enforcement point for all config write protection.
-    In ConfigMap mode, ALL config writes are blocked — configs are
-    managed via GitOps/kubectl only.
-    """
-    if username == CONFIGMAP_SYNC_USERNAME:
-        return
-    if configmap_state.is_configmap_mode():
-        raise osmo_errors.OSMOUserError(
-            'Configs are managed by ConfigMap and cannot be modified '
-            'via CLI/API. Update the Helm values and redeploy instead.',
-            status_code=409)
+def reject_if_configmap_mode(username: str) -> typing.NoReturn:
+    """Reject every configuration mutation in ConfigMap-only 6.4."""
+    del username
+    raise osmo_errors.OSMOUserError(
+        'Configs are managed by ConfigMap and cannot be modified '
+        'via CLI/API. Update the Helm values and redeploy instead.',
+        status_code=409)

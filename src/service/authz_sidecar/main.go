@@ -40,9 +40,8 @@ import (
 )
 
 const (
-	defaultGRPCPort       = 50052
-	maxGRPCMsgSize        = 4 * 1024 * 1024 // 4MB
-	filePollInterval      = 30 * time.Second
+	defaultGRPCPort = 50052
+	maxGRPCMsgSize  = 4 * 1024 * 1024 // 4MB
 )
 
 var (
@@ -50,14 +49,8 @@ var (
 	enableReflection = flag.Bool("enable-reflection", false,
 		"Enable gRPC reflection (for local testing only)")
 	rolesFile = flag.String("roles-file", "",
-		"Path to ConfigMap-mounted YAML file for roles. "+
-			"When set, reads roles from file instead of PostgreSQL (ConfigMap mode).")
-
-	// PostgreSQL flags - registered via postgres package
+		"Path to the required ConfigMap-mounted YAML file containing roles and pools.")
 	postgresFlagPtrs = postgres.RegisterPostgresFlags()
-
-	// Cache flags - registered via roles package
-	cacheFlagPtrs = roles.RegisterCacheFlags()
 
 	// Logging flags - registered via logging package
 	loggingFlagPtrs = logging.RegisterFlags()
@@ -69,23 +62,11 @@ func main() {
 	loggingConfig := loggingFlagPtrs.ToConfig()
 	logger := logging.InitLogger("authz-sidecar", loggingConfig)
 
-	var authzServer *server.AuthzServer
-
-	if *rolesFile != "" {
-		// ConfigMap mode: read roles from file, no DB needed
-		authzServer = initFileBackedServer(*rolesFile, logger)
-	} else {
-		// DB mode: read roles from PostgreSQL (uses caches)
-		cacheConfig := cacheFlagPtrs.ToCacheConfig()
-		authzServer = initDBBackedServer(cacheConfig, logger)
-	}
-
-	// Migrate roles (no-op in file-backed mode)
-	ctx := context.Background()
-	if err := authzServer.MigrateRoles(ctx); err != nil {
-		logger.Error("failed to migrate roles", slog.String("error", err.Error()))
+	if *rolesFile == "" {
+		logger.Error("--roles-file is required")
 		os.Exit(1)
 	}
+	authzServer := initFileBackedServer(*rolesFile, logger)
 
 	logger.Info("authz server initialized")
 
@@ -126,28 +107,18 @@ func initFileBackedServer(
 			slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	fileStore.Start(filePollInterval)
-	logger.Info("authz sidecar running in ConfigMap mode",
-		slog.String("roles_file", filePath))
-	return server.NewFileBackedAuthzServer(fileStore, logger)
-}
-
-func initDBBackedServer(
-	cacheConfig roles.CacheConfig,
-	logger *slog.Logger,
-) *server.AuthzServer {
 	postgresConfig := postgresFlagPtrs.ToPostgresConfig()
-	pgClient, err := postgresConfig.CreateClient(logger)
+	pgClient, err := postgres.NewPostgresClient(
+		context.Background(), postgresConfig, logger)
 	if err != nil {
-		logger.Error("failed to create postgres client",
+		logger.Error("failed to create postgres runtime-state client",
 			slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
-	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
-	logger.Info("authz sidecar running in DB mode",
+	logger.Info("authz sidecar using immutable ConfigMap authority",
+		slog.String("roles_file", filePath),
 		slog.String("postgres_host", postgresConfig.Host))
-	return server.NewAuthzServer(pgClient, roleCache, poolNameCache, logger)
+	return server.NewFileBackedAuthzServer(fileStore, pgClient, logger)
 }
 
 func createGRPCServer() *grpc.Server {

@@ -18,7 +18,6 @@
 # Grants the osmo API the minimum RBAC needed to emit K8s Events
 # on the osmo-api-config ConfigMap. Operators see these in the ArgoCD UI,
 # `kubectl describe configmap`, and `kubectl get events`.
-{{- if .Values.configuration.enabled }}
 {{- $apiName := include "osmo.api.fullname" . }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -35,14 +34,13 @@ rules:
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["create", "get", "patch"]
-# Read the osmo-api-config ConfigMap to fetch its UID. `kubectl describe
-# configmap` filters associated events by involvedObject.uid, so without
-# this the events wouldn't appear in that view (though they'd still be
-# visible in `kubectl get events --field-selector` and the ArgoCD UI).
+# Read the osmo-api-config ConfigMap to fetch its UID and patch its non-secret
+# backend reconciliation checkpoint. The checkpoint is required to clean up
+# removed backends and superseded scheduler resource kinds after a pod restart.
 - apiGroups: [""]
   resources: ["configmaps"]
   resourceNames: ["{{ $apiName }}-config"]
-  verbs: ["get"]
+  verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -61,5 +59,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "osmo.component.serviceAccountName" (dict "component" .Values.services.api "root" . "suffix" "api") }}
-{{- end }}
 {{- end }}

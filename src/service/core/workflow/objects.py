@@ -947,7 +947,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         # Render the workflow spec
 
         # Verify pool
-        pool_info = connectors.Pool.fetch_from_db(self.context.database, self.pool)
+        pool_info = connectors.Pool.fetch_from_configmap(self.pool)
         self.backend = pool_info.backend
 
         try:
@@ -1127,9 +1127,9 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
             # Validate tasks
             rendered_spec.validate_name_and_inputs()
 
-            # Check if pool is online
-            pool_info = connectors.Pool.fetch_from_db(self.context.database, self.pool)
-            if pool_info.status == connectors.PoolStatus.MAINTENANCE:
+            # Maintenance mode is ConfigMap-owned; do not depend on DB runtime status.
+            pool_info = connectors.Pool.fetch_from_configmap(self.pool)
+            if pool_info.enable_maintenance:
                 if 'osmo-admin' not in roles:
                     upload_workflow_spec = False
                     raise osmo_errors.OSMOUsageError(

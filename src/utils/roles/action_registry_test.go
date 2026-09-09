@@ -1058,6 +1058,18 @@ func TestMatchResourceTrailingWildcard(t *testing.T) {
 			want:     false,
 		},
 		{
+			name:     "specific pool cannot match unresolved pool wildcard",
+			pattern:  "pool/team-a",
+			resource: "pool/*",
+			want:     false,
+		},
+		{
+			name:     "pool wildcard can match unresolved pool wildcard",
+			pattern:  "pool/*",
+			resource: "pool/*",
+			want:     true,
+		},
+		{
 			name:     "empty resource always matches",
 			pattern:  "pool/team-a*",
 			resource: "",

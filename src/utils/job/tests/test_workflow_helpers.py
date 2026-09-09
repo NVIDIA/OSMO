@@ -384,7 +384,7 @@ class WorkflowSpecLabelsTest(unittest.TestCase):
 
         with mock.patch.object(
                 workflow.connectors.PostgresConnector, 'get_instance', return_value=mock.Mock()), \
-             mock.patch.object(workflow.connectors.Pool, 'fetch_from_db', return_value=pool):
+             mock.patch.object(workflow.connectors.Pool, 'fetch_from_configmap', return_value=pool):
             parsed = spec.parse(mock.Mock(), 'backend', 'pool', {})
 
         self.assertEqual(parsed.labels, {'project': 'adlr_audio_music'})
