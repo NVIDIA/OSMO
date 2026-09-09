@@ -25,6 +25,7 @@ CLI Reference
   :maxdepth: 1
 
   cli_app
+  osmo config </deployment_guide/references/config_cli/index>
   cli_credential
   cli_data
   cli_login
