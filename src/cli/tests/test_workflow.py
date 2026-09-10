@@ -710,6 +710,22 @@ class LoadLocalFilesTest(unittest.TestCase):
 
         self.assertEqual(spec['workflow']['tasks'], [{'name': 'standalone'}])
 
+    def test_tasks_without_local_files_are_unchanged(self):
+        file_sections: tuple[Dict[str, Any], ...] = ({}, {'files': []}, {'files': None})
+
+        for file_section in file_sections:
+            with self.subTest(file_section=file_section):
+                task = {'name': 'main', **file_section}
+                spec = {'workflow': {'tasks': [task]}}
+
+                try:
+                    workflow.load_local_files('/workspace/workflow.yaml', spec)
+                except TypeError as error:
+                    self.fail(f'No local files should not raise TypeError: {error}')
+
+                self.assertEqual(
+                    spec['workflow']['tasks'][0], {'name': 'main', **file_section})
+
 
 class SubmitWorkflowTest(unittest.TestCase):
     """Test the 'workflow submit' command handler."""

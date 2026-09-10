@@ -22,6 +22,8 @@ import json
 import unittest
 from unittest import mock
 
+import yaml
+
 from src.cli import app
 from src.lib.utils import client, osmo_errors
 
@@ -745,6 +747,35 @@ class TestSubmitApp(unittest.TestCase):
         first_call = service_client.request.call_args_list[0]
         self.assertEqual(first_call[1]['params']['version'], 5)
         self.assertEqual(first_call[1]['params']['limit'], 1)
+
+    def test_submit_app_with_empty_files_field_reaches_server_validation(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.side_effect = [
+            {'uuid': 'u', 'versions': [{'version': 1}]},
+            '''version: 2
+workflow:
+  name: no-files
+  tasks:
+  - name: main
+    image: ubuntu
+    command: [echo]
+    files:
+''',
+            osmo_errors.OSMOSubmissionError('Input should be a valid list'),
+        ]
+        args = self._make_args()
+
+        with self.assertRaisesRegex(
+                osmo_errors.OSMOSubmissionError, 'Input should be a valid list'):
+            with mock.patch('builtins.print'):
+                app._submit_app(service_client, args)
+
+        self.assertEqual(service_client.request.call_count, 3)
+        submission_request = service_client.request.call_args_list[2]
+        self.assertEqual(submission_request.args[:2], (
+            client.RequestMethod.POST, 'api/pool/pool-1/workflow'))
+        submitted_spec = yaml.safe_load(submission_request.kwargs['payload']['file'])
+        self.assertIsNone(submitted_spec['workflow']['tasks'][0]['files'])
 
 
 if __name__ == '__main__':
