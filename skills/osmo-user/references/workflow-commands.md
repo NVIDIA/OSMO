@@ -72,21 +72,14 @@ osmo workflow list [--count N] [--offset N] [--name <substring>] \
 For recent workflow summaries, prefer `osmo workflow list --format-type json`
 and format the answer using `workflow-status.md`.
 
-`--status` and `--priority` each accept multiple space-separated values.
-Priority choices are `HIGH`, `NORMAL`, and `LOW`. The complete workflow status
-choices are:
+`--status` and `--priority` accept multiple values, e.g.
+`--status RUNNING PENDING --priority HIGH NORMAL`. Workflow statuses:
 
 ```text
 RUNNING, FAILED, COMPLETED, PENDING, WAITING,
 FAILED_EXEC_TIMEOUT, FAILED_SERVER_ERROR, FAILED_QUEUE_TIMEOUT,
 FAILED_SUBMISSION, FAILED_CANCELED, FAILED_BACKEND_ERROR, FAILED_IMAGE_PULL,
 FAILED_EVICTED, FAILED_START_ERROR, FAILED_START_TIMEOUT, FAILED_PREEMPTED
-```
-
-For example, list up to 20 running or pending workflows at high or normal priority:
-
-```bash
-osmo workflow list --status RUNNING PENDING --priority HIGH NORMAL --count 20
 ```
 
 ## Labels

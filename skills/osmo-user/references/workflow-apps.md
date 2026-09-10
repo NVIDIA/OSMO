@@ -69,21 +69,10 @@ osmo app submit <name[:version]> [--pool <pool>] \
 
 Use `--dry-run` to inspect rendered YAML. Use `--set` / `--set-string` for
 parameters from `default-values`; use `--local-path` when local file references
-are relative to a different base directory. It defaults to the current working
-directory and is not a download destination.
+are relative to a different base directory (default: current directory).
 
-Repeat `--label KEY=VALUE` to set multiple labels for the new workflow run.
-These values override labels declared by the app; they do not update the stored
-app template/version or labels on existing runs. See
-[workflow labels](workflow-commands.md#labels) for assignment and list-selector
-syntax and immutable-run guidance.
-
-For example, using an existing local directory containing the referenced files:
-
-```bash
-osmo app submit training:2 --local-path /absolute/path/to/input-files \
-  --label project=simulation --label team=robotics
-```
+Repeat `--label KEY=VALUE` to override app labels for this run only, leaving
+the stored app and existing runs unchanged. See [label syntax](workflow-commands.md#labels).
 
 ## Rename or Delete
 

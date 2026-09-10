@@ -67,19 +67,10 @@ osmo data upload <remote_uri> <local_path> ... [--regex <regex>]
 osmo data check <remote_uri> [--access-type <type>] [--config-file <path>]
 ```
 
-For `data list`, omit both output arguments to use an available pager (`less` or
-`more`), falling back to stdout if neither is installed. Use `--no-pager` to
-print directly to stdout, or give a local output file to save the listing text
-(object keys, one per line). This does not download the objects.
-
-The output path must be a new file, not an existing file or directory, and
-cannot be combined with `--no-pager`. Choose an existing writable parent
-directory; the command does not create parent directories. For example, with
-`listing.txt` not already present in the current directory:
-
-```bash
-osmo data list s3://my-bucket/ ./listing.txt --prefix results/ --recursive
-```
+`data list` lists keys, not object contents. Default output uses a pager
+(stdout if unavailable); `--no-pager` prints directly. File output writes one
+key per line and requires a new path in an existing writable directory.
+File output and `--no-pager` are mutually exclusive.
 
 Ask for explicit confirmation before `osmo data delete <remote_uri>`.
 
@@ -97,27 +88,14 @@ osmo task list [--status <status> ...] [--workflow-id <workflow_id>] \
 Use `task list` for fleet-level inspection when workflow-level query/logs are
 not enough.
 
-- `--started-after` is inclusive; `--started-before` is exclusive. Dates are
-  interpreted at midnight in the user's local timezone and converted to UTC.
-  These filter task start times, not workflow submission times.
-  `--started-after` alone also includes tasks with no start time yet;
-  `--started-before` excludes those tasks.
-- `--priority` accepts multiple space-separated values, such as `HIGH NORMAL`.
-- `--aggregate-by-workflow` (or `-W`) groups resource requests by workflow,
-  not measured resource utilization. Use it without `--summary` when you want
-  workflow grouping; summary output takes precedence when both are supplied.
-- Default task statuses are `PROCESSING`, `SCHEDULING`, `INITIALIZING`, and
-  `RUNNING`. Set `--status` explicitly to inspect completed or failed tasks;
-  task status choices differ from workflow status choices.
-
-For example, inspect requested resources by workflow for completed tasks
-started on September 1 or 2 at high or normal priority:
-
-```bash
-osmo task list --status COMPLETED \
-  --started-after 2026-09-01 --started-before 2026-09-03 \
-  --priority HIGH NORMAL --aggregate-by-workflow --count 20 --format-type json
-```
+- Dates filter task starts: inclusive `--started-after`, exclusive
+  `--started-before`, at local midnight converted to UTC. Unstarted tasks
+  pass the after filter but not the before filter.
+- `--priority` accepts multiple values, e.g. `HIGH NORMAL`.
+- `--aggregate-by-workflow` / `-W` totals requested resources, not utilization.
+  `--summary` takes precedence over workflow grouping.
+- Default statuses: `PROCESSING SCHEDULING INITIALIZING RUNNING`.
+  Specify `--status` for historical tasks; choices differ from workflow statuses.
 
 ## Out of Scope
 
