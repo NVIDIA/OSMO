@@ -418,6 +418,8 @@ def main():
         uvicorn.run(app, host=host, port=port, log_config=None, **config.uvicorn_ssl_kwargs())
     except KeyboardInterrupt:
         sys.exit(0)
+    finally:
+        app.state.config_watcher.stop()
 
 
 if __name__ == '__main__':

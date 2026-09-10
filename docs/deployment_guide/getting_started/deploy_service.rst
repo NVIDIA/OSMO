@@ -215,6 +215,8 @@ Use the two Kubernetes Secrets you created in Step 2 (``osmo-workflow-log-cred``
 
 In Step 4, follow the ``# static credentials`` comments inline in the ``osmo_values.yaml`` sample to flip the sample from workload identity to static credentials.
 
+For ongoing credential rotation, see :ref:`rotating_mounted_credentials`.
+
 
 .. _deploy_service_osmo_values:
 
