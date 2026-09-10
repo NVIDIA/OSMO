@@ -1,0 +1,17 @@
+{
+  "name": "gr00t-app-run-1",
+  "status": "COMPLETED",
+  "pool": "h100-east",
+  "app_name": "training",
+  "app_version": 2,
+  "overview": "https://osmo.example.com/workflows/gr00t-app-run-1",
+  "grafana_url": null,
+  "dashboard_url": null,
+  "outputs": null,
+  "groups": [
+    {
+      "name": "train",
+      "tasks": [{"name": "train", "status": "COMPLETED"}]
+    }
+  ]
+}

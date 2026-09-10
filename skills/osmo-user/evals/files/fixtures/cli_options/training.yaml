@@ -1,0 +1,17 @@
+workflow:
+  name: gr00t-app-run
+  labels:
+    project: baseline
+    team: original
+  tasks:
+  - name: train
+    image: ubuntu:24.04
+    command: ["cat", "/input/training.txt"]
+    files:
+    - localpath: training.txt
+      path: /input/training.txt
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
