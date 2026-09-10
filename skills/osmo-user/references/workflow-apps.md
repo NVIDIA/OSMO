@@ -62,13 +62,28 @@ Prefer explicit `--file` updates for agent-driven changes.
 ```bash
 osmo app submit <name[:version]> [--pool <pool>] \
   [--set key=value ...] [--set-string key=value ...] [--set-env key=value ...] \
-  [--dry-run] [--priority HIGH|NORMAL|LOW] [--local-path <absolute_path>] \
+  [--label KEY=VALUE] [--dry-run] [--priority HIGH|NORMAL|LOW] \
+  [--local-path <absolute_path>] \
   [--rsync local:remote] [--format-type json|text]
 ```
 
 Use `--dry-run` to inspect rendered YAML. Use `--set` / `--set-string` for
 parameters from `default-values`; use `--local-path` when local file references
-are relative to a different base directory.
+are relative to a different base directory. It defaults to the current working
+directory and is not a download destination.
+
+Repeat `--label KEY=VALUE` to set multiple labels for the new workflow run.
+These values override labels declared by the app; they do not update the stored
+app template/version or labels on existing runs. See
+[workflow labels](workflow-commands.md#labels) for assignment and list-selector
+syntax and immutable-run guidance.
+
+For example, using an existing local directory containing the referenced files:
+
+```bash
+osmo app submit training:2 --local-path /absolute/path/to/input-files \
+  --label project=simulation --label team=robotics
+```
 
 ## Rename or Delete
 
