@@ -44,6 +44,8 @@ isolation.
    network, and site remain shared failure domains. Replication does not replace
    tested backups and recovery procedures.
 
+.. _self_contained_prerequisites:
+
 Prerequisites
 =============
 
@@ -148,24 +150,37 @@ created by the OSMO release:
 Create the OAuth Secret
 =======================
 
-Create the release namespace. Prepare files that contain the OIDC client Secret
-and a 32-byte random cookie Secret without trailing newlines, then create the
-OAuth Secret without putting either value in Helm values or shell arguments:
+Create the release namespace. Prepare a file that contains the OIDC client
+Secret, then generate an exact 32-byte cookie Secret and create the OAuth
+Secret. Using files keeps both values out of Helm values and shell arguments.
+``head`` writes the requested number of random bytes without adding a trailing
+newline:
 
 .. code-block:: bash
 
    kubectl create namespace osmo
+   OAUTH_COOKIE_SECRET_FILE="$(mktemp)"
+   head -c 32 /dev/urandom > "${OAUTH_COOKIE_SECRET_FILE}"
    kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
      --from-file=client_secret=/secure/path/oidc-client-secret \
-     --from-file=cookie_secret=/secure/path/oauth-cookie-secret
+     --from-file="cookie_secret=${OAUTH_COOKIE_SECRET_FILE}"
+   rm "${OAUTH_COOKIE_SECRET_FILE}"
 
 Install OSMO
 ============
 
-Helm profiles are values overlays, not a ``profile`` setting. Copy the provided
-self-contained environment example and replace every example identity,
-network, and URL value for the target environment. Keep this environment file
-separate from the production profile so that upgrades can reuse it.
+Helm profiles are values overlays, not a ``profile`` setting. The environment
+overlay below is the file supplied with the chart. Before installing, replace:
+
+* ``externalUrl`` with the public HTTPS URL for OSMO;
+* every example identity-provider URL, host, client ID, audience, and claim;
+* ``clusterCIDRs`` with every IPv4 Pod and Service CIDR used by the cluster; and
+* node-selector keys or values only if you used labels other than those shown
+  in :ref:`the prerequisites <self_contained_prerequisites>`.
+
+Keep the ``cluster: idp`` value unless you also define a different Envoy cluster
+for the identity provider. Keep all environment-specific values separate from
+the production profile so that upgrades can reuse them.
 
 The ``clusterCIDRs`` list must cover every IPv4 Pod and Service CIDR used by the
 cluster. Add entries when the cluster uses more than one CIDR.
@@ -178,11 +193,17 @@ templates. If you add pool-specific Pod templates or replace the default
 templates, retain the compute-node selector so workflows do not run on OSMO
 platform nodes.
 
+Review the complete environment overlay before copying it:
+
+.. literalinclude:: ../../../deployments/charts/osmo/examples/self-contained-environment-values.yaml
+   :language: yaml
+   :start-after: SPDX-License-Identifier: Apache-2.0
+
 .. code-block:: bash
 
    cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
      self-contained-environment-values.yaml
-   # Edit self-contained-environment-values.yaml for the target environment.
+   # Replace the example values described above.
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
@@ -233,6 +254,11 @@ Start with release status, workloads, PVCs, and recent events:
 
 Common causes include:
 
+* During initial startup, the backend worker and listener Pods may briefly enter
+  ``CrashLoopBackOff`` while they wait for the API Pods to become Ready. They
+  should recover automatically after the API is available. If the restarts
+  continue, inspect their logs and confirm that the API Pods and Service are
+  healthy.
 * A ``Pending`` PostgreSQL, Valkey, or RustFS PVC means the default
   ``StorageClass`` is absent, lacks capacity, or cannot bind on an eligible
   node.
@@ -295,8 +321,8 @@ stateful-service credentials while retaining their data. Embedded backup and
 restore are not managed by the OSMO chart. Follow CloudNativePG and storage
 provider procedures, and test full recovery on a separate cluster.
 
-Clean up resources
-==================
+Uninstall OSMO and Clean up Resources
+=====================================
 
 Uninstall the OSMO release when you want to remove its active workloads:
 

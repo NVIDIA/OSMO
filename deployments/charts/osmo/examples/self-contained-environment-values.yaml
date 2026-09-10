@@ -2,18 +2,26 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Non-secret, environment-specific values for the self-contained profile.
+
+# Replace with the public HTTPS URL where users and the OSMO CLI reach OSMO.
 externalUrl: https://osmo.example.com
 
+# Place OSMO services and chart-owned bootstrap Jobs on platform nodes. Keep
+# this label in sync with the labels applied to your Kubernetes nodes.
 podDefaults:
   nodeSelector:
     osmo.nvidia.com/node-pool: control-plane
 
+# The service-auth bootstrap Job has its own scheduling settings and therefore
+# repeats the platform-node selector.
 secrets:
   serviceAuth:
     bootstrap:
       nodeSelector:
         osmo.nvidia.com/node-pool: control-plane
 
+# Place the built-in workflow Pod templates on compute nodes. Apply the same
+# selector to any additional workflow Pod templates you create.
 configuration:
   podTemplates:
     default_ctrl:
@@ -31,18 +39,24 @@ configuration:
 
 compute:
   workflowNetworkPolicy:
+    # Replace with every IPv4 Pod and Service CIDR used by your cluster.
     clusterCIDRs:
     - 10.0.0.0/8
 
 gateway:
   oauth2Proxy:
+    # Replace with the exact issuer in your identity provider's tokens and the
+    # confidential browser client whose Secret is stored in osmo-oauth2-proxy.
     oidcIssuerUrl: https://idp.example.com
     clientId: osmo
   envoy:
     idp:
+      # Replace with the identity-provider DNS host, without a URL scheme.
       host: idp.example.com
     jwt:
       additionalProviders:
+      # Replace issuer, audience, JWKS URL, and user claim to match issued
+      # tokens. Keep cluster set to idp so Envoy uses the host configured above.
       - issuer: https://idp.example.com
         audience: osmo
         jwks_uri: https://idp.example.com/.well-known/jwks.json
@@ -53,6 +67,8 @@ services:
   api:
     auth:
       enabled: true
+      # Replace these endpoints and client IDs with the public device-flow CLI
+      # client and confidential browser client registered with your provider.
       deviceEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/auth/device
       deviceClientId: osmo-cli
       browserEndpoint: https://idp.example.com/realms/osmo/protocol/openid-connect/auth
@@ -63,13 +79,16 @@ services:
 postgresql:
   cluster:
     affinity:
+      # Keep embedded PostgreSQL on platform nodes.
       nodeSelector:
         osmo.nvidia.com/node-pool: control-plane
 
 valkey:
+  # Keep embedded Valkey on platform nodes.
   nodeSelector:
     osmo.nvidia.com/node-pool: control-plane
 
 rustfs:
+  # Keep embedded RustFS on platform nodes.
   nodeSelector:
     osmo.nvidia.com/node-pool: control-plane
