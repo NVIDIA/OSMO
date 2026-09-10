@@ -60,12 +60,17 @@ For capacity answers, use `resource-check-format.md`.
 Use direct data commands for storage URIs such as `s3://...`.
 
 ```bash
-osmo data list <remote_uri> [--prefix <prefix>] [--recursive] [--regex <regex>] \
-  [--no-pager]
+osmo data list <remote_uri> [<local_output_file> | --no-pager] \
+  [--prefix <prefix>] [--recursive] [--regex <regex>]
 osmo data download <remote_uri> <local_path> [--regex <regex>] [--resume]
 osmo data upload <remote_uri> <local_path> ... [--regex <regex>]
 osmo data check <remote_uri> [--access-type <type>] [--config-file <path>]
 ```
+
+`data list` lists keys, not object contents. Default output uses a pager
+(stdout if unavailable); `--no-pager` prints directly. File output writes one
+key per line and requires a new path in an existing writable directory.
+File output and `--no-pager` are mutually exclusive.
 
 Ask for explicit confirmation before `osmo data delete <remote_uri>`.
 
@@ -74,11 +79,23 @@ Ask for explicit confirmation before `osmo data delete <remote_uri>`.
 ```bash
 osmo task list [--status <status> ...] [--workflow-id <workflow_id>] \
   [--user <user> ... | --all-users] [--pool <pool> ... | --node <node> ...] \
-  [--count N] [--offset N] [--order asc|desc] [--verbose | --summary]
+  [--started-after YYYY-MM-DD] [--started-before YYYY-MM-DD] \
+  [--priority HIGH|NORMAL|LOW ...] [--aggregate-by-workflow] \
+  [--count N] [--offset N] [--order asc|desc] [--verbose | --summary] \
+  [--format-type json|text]
 ```
 
 Use `task list` for fleet-level inspection when workflow-level query/logs are
 not enough.
+
+- Dates filter task starts: inclusive `--started-after`, exclusive
+  `--started-before`, at local midnight converted to UTC. Unstarted tasks
+  pass the after filter but not the before filter.
+- `--priority` accepts multiple values, e.g. `HIGH NORMAL`.
+- `--aggregate-by-workflow` / `-W` totals requested resources, not utilization.
+  `--summary` takes precedence over workflow grouping.
+- Default statuses: `PROCESSING SCHEDULING INITIALIZING RUNNING`.
+  Specify `--status` for historical tasks; choices differ from workflow statuses.
 
 ## Out of Scope
 
