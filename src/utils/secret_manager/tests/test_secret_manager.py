@@ -121,7 +121,8 @@ class TestSecretManager(unittest.TestCase):
             path = Path(directory) / "mek.yaml"
             path.write_text(
                 "currentMek: key1\nmeks:\n"
-                f"  key1: {_encoded_octet_jwk('key1', legacy_standard_key)}\n",
+                "  key1: " + _encoded_octet_jwk(
+                    "key1", legacy_standard_key) + "\n",
                 encoding="utf-8",
             )
 
@@ -164,7 +165,8 @@ class TestSecretManager(unittest.TestCase):
                 path = Path(directory) / "mek.yaml"
                 path.write_text(
                     "currentMek: key1\nmeks:\n"
-                    f"  key1: {_encoded_octet_jwk('key1', encoded_key)}\n",
+                    "  key1: " + _encoded_octet_jwk(
+                        "key1", encoded_key) + "\n",
                     encoding="utf-8",
                 )
 
@@ -181,8 +183,9 @@ class TestSecretManager(unittest.TestCase):
             path = Path(directory) / "mek.yaml"
             path.write_text(
                 "currentMek: key1\nmeks:\n"
-                f"  key1: {_encoded_octet_jwk('key1', url_key)}\n"
-                f"  key2: {_encoded_octet_jwk('key2', legacy_standard_key)}\n",
+                "  key1: " + _encoded_octet_jwk("key1", url_key) + "\n"
+                "  key2: " + _encoded_octet_jwk(
+                    "key2", legacy_standard_key) + "\n",
                 encoding="utf-8",
             )
 

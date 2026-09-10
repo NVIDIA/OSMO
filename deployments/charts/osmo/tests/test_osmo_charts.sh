@@ -3208,9 +3208,9 @@ EOF
     require_schema_path \
         "$TEST_DIRECTORY/removed-service-auth-migration-attempt.out" \
         "secrets.serviceAuth.migration"
-    require_contains \
+    require_additional_property_error \
         "$TEST_DIRECTORY/removed-service-auth-migration-attempt.out" \
-        "additional properties 'attempt' not allowed"
+        "attempt"
 
     if helm_template missing-service-auth-secret "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

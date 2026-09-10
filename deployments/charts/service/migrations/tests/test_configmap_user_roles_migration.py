@@ -123,8 +123,8 @@ class ConfigmapUserRolesMigrationTest(
                     )
                     with self.assertRaises(psycopg2.Error) as duplicate_error:
                         cursor.execute(
-                            "INSERT INTO user_roles VALUES "
-                            "('user@example.com', 'admin')")
+                            'INSERT INTO user_roles VALUES (%s, %s)',
+                            ('user@example.com', 'admin'))
                     self.assertEqual(duplicate_error.exception.pgcode, '23505')
 
 
