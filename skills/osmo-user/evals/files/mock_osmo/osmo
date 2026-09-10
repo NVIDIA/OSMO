@@ -8,7 +8,7 @@
 # filename.
 #
 # This works because each eval entry in `evals.json` only references
-# non-overlapping fixture sets in its `files[]` list — the eval
+# fixtures from a single scenario in its `files[]` list — the eval
 # harness copies just those files into the agent's working directory,
 # so only one scenario's fixtures are present at runtime.
 #
@@ -23,17 +23,6 @@ set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES_ROOT="${OSMO_MOCK_FIXTURES:-$SELF_DIR/../fixtures}"
-
-# New option-coverage cases use a small argument-sensitive synthetic backend.
-if [[ -f "$FIXTURES_ROOT/cli_options/state.json" ]]; then
-  case "${1:-} ${2:-}" in
-    "workflow list"|"workflow query"|"workflow logs"|"workflow events"|"workflow spec"|\
-    "workflow submit"|"workflow validate"|"task list"|"app submit"|"app info"|\
-    "app show"|"app spec"|"data "*)
-      exec python3 "$SELF_DIR/cli_options.py" "$@"
-      ;;
-  esac
-fi
 
 # Look up a fixture by filename, scanning every scenario subdirectory
 # under FIXTURES_ROOT. Tries each candidate name in order and uses the
@@ -188,7 +177,7 @@ case "$cmd $sub" in
   "workflow submit")
     case "$3" in
       *oversized.yaml)
-        oversized_marker="${OSMO_MOCK_OVERSIZED_MARKER:-$SELF_DIR/../.osmo_mock_oversized_seen}"
+        oversized_marker="${OSMO_MOCK_OVERSIZED_MARKER:-/tmp/osmo_mock_oversized_seen}"
         if [[ ! -f "$oversized_marker" ]]; then
           touch "$oversized_marker"
           emit_fixture "submit_validation_error.txt"
@@ -199,8 +188,9 @@ case "$cmd $sub" in
     # Mirror real OSMO's per-name suffix counter: each submit of a base
     # workflow name produces `<name>-1`, `<name>-2`, ... so multi-submit
     # evals (e.g. eval-009) see realistic monotonic IDs. State lives in a
-    # file inside this case's staged workspace, isolated even in local mode.
-    counter_file="${OSMO_MOCK_SUBMIT_COUNTER:-$SELF_DIR/../.osmo_mock_submit_counter}"
+    # /tmp counter file that persists across calls within a single eval
+    # container but resets between containers.
+    counter_file="${OSMO_MOCK_SUBMIT_COUNTER:-/tmp/osmo_mock_submit_counter}"
     counter=$(cat "$counter_file" 2>/dev/null || echo 0)
     counter=$((counter + 1))
     echo "$counter" > "$counter_file"

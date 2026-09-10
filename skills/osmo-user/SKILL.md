@@ -1,7 +1,5 @@
 ---
 name: osmo-user
-metadata:
-  author: Vivian Pan <vivianp@nvidia.com>
 description: >
   Drive the OSMO CLI for cloud-robotics compute on behalf of an end user:
   check resources, submit/monitor/debug/explain workflows, fetch logs and
