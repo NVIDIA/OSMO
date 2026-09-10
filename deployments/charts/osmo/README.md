@@ -34,13 +34,14 @@ release. They install:
 
 ### Prerequisites
 
-Use Kubernetes 1.30 or newer and Helm 3.19 or newer with enough capacity for
-the resources described below. Helm 3.19 is required so a failed multi-resource
-bootstrap hook cleans up its earlier RBAC resources. The cluster must have a
-default dynamic StorageClass. Install Helm, `kubectl`, KAI Scheduler, and the
-CloudNativePG operator before OSMO. Select the development cluster context
-once; replace `kind-osmo` if your cluster has a different context. A GPU
-workflow also requires GPU-capable nodes and the NVIDIA GPU Operator.
+Use Kubernetes 1.30 or newer with enough capacity for the resources described
+below. Raw Helm installs and upgrades using generated internal TLS require Helm
+3.19 or newer so a failed multi-resource bootstrap hook cleans up its earlier
+RBAC resources. The cluster must have a default dynamic StorageClass. Install
+Helm, `kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO.
+Select the development cluster context once; replace `kind-osmo` if your
+cluster has a different context. A GPU workflow also requires GPU-capable nodes
+and the NVIDIA GPU Operator.
 
 ```bash
 kubectl config use-context kind-osmo
@@ -562,8 +563,9 @@ process remains. Keep that fence in place while the migration hook runs and
 until the upgraded manifests are applied. If the hook or manifest application
 fails, keep the 6.3 writers stopped; resume only workloads verified to use the
 6.4 image and configuration. This requirement applies equally to raw Helm and
-Argo CD; Argo CD is not required. Complete the
-[6.3-to-6.4 legacy-writer quiescence procedure](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence)
+Argo CD; Argo CD is not required. Complete the 6.3-to-6.4
+[legacy-writer quiescence fence](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence)
+and [backup prerequisite](../../upgrades/6_3_to_6_4_upgrade.md#backup-before-destructive-cleanup)
 before enabling the pgroll hook in the environment values:
 
 ```yaml

@@ -4,9 +4,6 @@
 {{- include "osmo.gateway.tlsNormalize" . }}
 {{- $tls := .Values.gateway.tls }}
 {{- if and .Values.planes.control.enabled $tls.enabled $tls.generated.enabled }}
-{{- if semverCompare "<3.19.0-0" .Capabilities.HelmVersion.Version }}
-{{- fail "gateway.tls.generated.enabled requires Helm 3.19 or newer so failed hook cleanup cannot leave TLS bootstrap RBAC behind" }}
-{{- end }}
 {{- $bootstrapImage := $tls.generated.bootstrap.image | default (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) }}
 {{- $bootstrapName := printf "%s-internal-tls-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- $caSecret := include "osmo.gateway.tlsCaSecretName" . }}

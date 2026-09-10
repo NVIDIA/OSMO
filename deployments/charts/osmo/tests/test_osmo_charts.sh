@@ -162,6 +162,7 @@ resource_names() {
         document_kind == kind && in_metadata && /^  name: / {
             name = $0
             sub(/^  name: /, "", name)
+            gsub(/^"|"$/, "", name)
             print name
             document_kind = ""
             in_metadata = 0
@@ -494,6 +495,13 @@ metadata:
   name: annotated-service
   annotations:
     test.osmo.nvidia.com/required: "true"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "quoted-service-auth-bootstrap-0123456789"
+  annotations:
+    test.osmo.nvidia.com/required: "true"
 EOF
 
     require_resource_metadata_annotation "$fixture" \
@@ -507,6 +515,11 @@ EOF
     if resource_document "$fixture" Secret missing-secret \
         >"$TEST_DIRECTORY/missing-resource.yaml" 2>/dev/null; then
         fail "expected absent resource extraction to fail"
+    fi
+
+    if (require_no_resource_with_hash_suffix \
+            "$fixture" Job service-auth-bootstrap) 2>/dev/null; then
+        fail "expected a quoted hashed resource name to be detected"
     fi
 }
 

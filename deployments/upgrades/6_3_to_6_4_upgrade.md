@@ -55,6 +55,24 @@ fence:
    every workload being started is verified to use the 6.4 image and
    configuration. No 6.3 database writer may resume.
 
+### Backup before destructive cleanup
+
+Migration 009 permanently deletes the retired legacy configuration rows listed
+below. Before enabling `databaseMigration`, create a PostgreSQL backup using the
+database operator or provider's supported mechanism, verify that it completed
+successfully and is restorable, and retain its identifier through the rollback
+window.
+
+Neither `pgroll` rollback nor Helm rollback restores rows deleted by migration
+009. If database restoration is required, stop every 6.3 and 6.4 PostgreSQL
+writer and every reconciler that could restart one, then follow the database
+operator or provider's tested restore procedure. Validate the restored database
+and schema before resuming only the release version compatible with that state.
+A full database restore also rewinds changes made after the backup. If selective
+restoration of the legacy values is required, export them before cleanup and
+deliver a reviewed, tested forward restoration migration; adding a `down` field
+cannot reconstruct values after they have been deleted.
+
 Before enabling `databaseMigration`, configure and validate every applicable
 destination value in the 6.4 values. SQL cannot determine whether an
 environment-specific replacement is correct. Rows marked retired have no 6.4
