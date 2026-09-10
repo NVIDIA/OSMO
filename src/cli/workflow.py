@@ -52,10 +52,14 @@ RESIZE_PREFIX = b'\x00RESIZE:'
 
 
 class WorkflowArgumentParser(argparse.ArgumentParser):
-    """Let unknown option-shaped label assignments reach label validation."""
+    """Bind leading-hyphen label assignments before argparse classifies options."""
+
+    def __init__(self, *args, normalize_labels: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.normalize_labels = normalize_labels
 
     def parse_known_args(self, args: Sequence[str] | None = None, namespace=None):
-        if '--label' not in self._option_string_actions:
+        if not self.normalize_labels:
             return super().parse_known_args(args, namespace)
 
         arguments = list(sys.argv[1:] if args is None else args)
@@ -66,11 +70,7 @@ class WorkflowArgumentParser(argparse.ArgumentParser):
             if arguments[index] == '--label':
                 value = arguments[index + 1]
                 if value.startswith('-') and '=' in value:
-                    option = value.split('=', 1)[0]
-                    # Preserve real options, including abbreviations and attached short options.
-                    if option not in self._option_string_actions and \
-                            not self._get_option_tuples(value):
-                        arguments[index:index + 2] = [f'--label={value}']
+                    arguments[index:index + 2] = [f'--label={value}']
             index += 1
         return super().parse_known_args(arguments, namespace)
 
@@ -111,6 +111,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     # Handle 'submit' command
     submit_parser = subparsers.add_parser('submit',
+                                          normalize_labels=True,
                                           help='Submit a workflow to the workflow service.')
     submit_parser.add_argument('workflow_file',
                                type=str,
@@ -201,6 +202,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     # Handle 'validate' command
     validate_parser = subparsers.add_parser('validate',
+                                            normalize_labels=True,
                                             help='validate a workflow to the workflow server.')
     validate_parser.add_argument('workflow_file',
                                  type=lambda p: os.path.abspath(p),
@@ -304,8 +306,10 @@ def setup_parser(parser: argparse._SubParsersAction):
     query_parser.set_defaults(func=_query_workflow)
 
     # Handle 'list' command
-    list_parser = subparsers.add_parser('list', help='List workflows with different filters. ' + \
-        'Without the --pool flag, workflows from all pools will be listed.')
+    list_parser = subparsers.add_parser(
+        'list', normalize_labels=True,
+        help='List workflows with different filters. '
+             'Without the --pool flag, workflows from all pools will be listed.')
     list_parser.add_argument('--count', '-c',
                              default=20,
                              type=validation.positive_integer,

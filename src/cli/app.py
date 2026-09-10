@@ -154,6 +154,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     submit_parser = subparsers.add_parser(
         'submit',
+        normalize_labels=True,
         help='Submit a workflow app version you created.')
     submit_parser.add_argument('name',
                                help='Name of the app. Specify version to submit '

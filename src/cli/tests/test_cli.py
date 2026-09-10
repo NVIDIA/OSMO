@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 import argparse
 import contextlib
 import io
+import itertools
 import json
 import pathlib
 import tempfile
@@ -44,7 +45,7 @@ class TestInvalidLabelArgument(unittest.TestCase):
             self.assertEqual(method, client.RequestMethod.POST)
             self.assertEqual(endpoint, 'api/pool/pool-1/workflow')
             self.assertIn('name: workflow', payload['file'])
-            self.assertEqual(params['label'], ['-key=val'])
+            self.assertEqual(params['label'], [label])
             try:
                 validation.parse_workflow_label_assignment(params['label'][0])
             except ValueError as error:
@@ -58,14 +59,16 @@ class TestInvalidLabelArgument(unittest.TestCase):
             workflow_file = pathlib.Path(directory) / 'workflow.yaml'
             workflow_file.write_text(
                 'version: 2\nworkflow:\n  name: workflow\n', encoding='utf-8')
-            for module, command, target in (
+            commands = (
                 ('workflow', 'submit', str(workflow_file)),
                 ('workflow', 'validate', str(workflow_file)),
                 ('app', 'submit', 'my-app:3'),
-            ):
+            )
+            labels = ('-key=val', '-project=val', '-label=val', '--pool=foo')
+            for (module, command, target), label in itertools.product(commands, labels):
                 requests = []
                 outputs = []
-                for label_arguments in (['--label', '-key=val'], ['--label=-key=val']):
+                for label_arguments in (['--label', label], [f'--label={label}']):
                     with self.subTest(module=module, command=command,
                                       label_arguments=label_arguments):
                         output = io.StringIO()
@@ -85,7 +88,8 @@ class TestInvalidLabelArgument(unittest.TestCase):
                             cli.main()
 
                         self.assertEqual(raised.exception.code, 1)
-                        self.assertIn('Workflow label key "-key" has an invalid name.',
+                        key = label.split('=', 1)[0]
+                        self.assertIn(f'Workflow label key "{key}" has an invalid name.',
                                       output.getvalue())
                         self.assertIn('Error code: 400', output.getvalue())
                         self.assertNotIn('expected one argument', errors.getvalue())

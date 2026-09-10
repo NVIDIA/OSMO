@@ -172,7 +172,9 @@ class TestSetupParser(unittest.TestCase):
         self.assertEqual(args.labels, ['team=alpha', 'run=42'])
 
     def test_submit_hyphen_labels_match_equals_form(self):
-        for label in ('-key=val', '--key=val', '-bad.example/key=val'):
+        for label in ('-key=val', '--key=val', '-bad.example/key=val', '-project=val',
+                      '-label=val', '--pool=foo', '--local-path=/tmp', '--local=/tmp',
+                      '-p=foo', '-l=/tmp', '-=val'):
             for before_name in (False, True):
                 with self.subTest(label=label, before_name=before_name):
                     labels = ['--label', label, '--label', 'team=alpha']
@@ -187,8 +189,8 @@ class TestSetupParser(unittest.TestCase):
                     self.assertEqual(arguments, original)
 
     def test_submit_missing_labels_do_not_consume_options(self):
-        for trailing in ([], ['--pool=pool-1'], ['-p=pool-1'], ['--local-path=/tmp'],
-                         ['--local=/tmp'], ['-l=/tmp'], ['-l/tmp'], ['--help'], ['-key']):
+        for trailing in ([], ['--pool', 'foo'], ['--local-path', '/tmp'],
+                         ['-l/tmp'], ['--help'], ['-key'], ['--']):
             with self.subTest(trailing=trailing):
                 output = io.StringIO()
                 with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
@@ -196,6 +198,12 @@ class TestSetupParser(unittest.TestCase):
                         'app', 'submit', 'my-app', '--label', *trailing])
                 self.assertEqual(raised.exception.code, 2)
                 self.assertIn('argument --label: expected one argument', output.getvalue())
+
+    def test_submit_valid_label_preserves_following_pool_option(self):
+        args = self._build_parser().parse_args([
+            'app', 'submit', 'my-app', '--label', 'team=alpha', '--pool=foo'])
+        self.assertEqual(args.labels, ['team=alpha'])
+        self.assertEqual(args.pool, 'foo')
 
     def test_submit_terminator_stops_label_normalization(self):
         output = io.StringIO()
