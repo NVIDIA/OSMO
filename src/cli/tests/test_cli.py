@@ -28,6 +28,25 @@ from src.lib.rsync import rsync
 from src.lib.utils import osmo_errors
 
 
+class TestInvalidLabelArgument(unittest.TestCase):
+    def test_leading_hyphen_label_fails_before_client_setup(self):
+        output = io.StringIO()
+        with mock.patch.object(cli.sys, 'argv', [
+                'osmo', 'workflow', 'submit', 'workflow.yaml', '--label', '-key=val']), \
+             mock.patch.object(cli, 'configure_logging') as configure_logging, \
+             mock.patch.object(cli.client, 'LoginManager') as login_manager, \
+             mock.patch.object(cli.client, 'ServiceClient') as service_client, \
+             contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+            cli.main()
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn('If your label key starts with "-", it is invalid', output.getvalue())
+        self.assertIn('--label key=val', output.getvalue())
+        configure_logging.assert_not_called()
+        login_manager.assert_not_called()
+        service_client.assert_not_called()
+
+
 class TestSubmissionErrorOutput(unittest.TestCase):
     """The CLI reports HTTP status separately from its process exit code."""
 

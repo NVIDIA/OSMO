@@ -30,7 +30,7 @@ import sys
 import termios
 import time
 import tty
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, NoReturn, Tuple
 
 import pydantic
 import requests  # type: ignore
@@ -49,6 +49,17 @@ from src.lib.utils import (client, common, osmo_errors, paths, port_forward, pri
 
 INTERACTIVE_COMMANDS = ['bash', 'sh', 'zsh', 'fish', 'tcsh', 'csh', 'ksh']
 RESIZE_PREFIX = b'\x00RESIZE:'
+
+
+class WorkflowArgumentParser(argparse.ArgumentParser):
+    """Explain label values that argparse can mistake for command options."""
+
+    def error(self, message: str) -> NoReturn:
+        if message == 'argument --label: expected one argument':
+            message += ('\nIf your label key starts with "-", it is invalid; '
+                        'label keys must start with a letter or number '
+                        '(for example, --label key=val).')
+        super().error(message)
 
 
 class TemplateData(pydantic.BaseModel, extra='forbid'):
@@ -81,7 +92,8 @@ def setup_parser(parser: argparse._SubParsersAction):
         epilog='In 6.4, workflow tags are removed from the CLI. Use submit --label KEY=VALUE '
                'and list --label KEY=SELECTOR or --no-label KEY. '
                'Labels cannot be changed on existing runs.')
-    subparsers = workflow_parser.add_subparsers(dest='command')
+    subparsers = workflow_parser.add_subparsers(
+        dest='command', parser_class=WorkflowArgumentParser)
     subparsers.required = True
 
     # Handle 'submit' command
@@ -156,7 +168,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                default=[],
                                metavar='KEY=VALUE',
                                help='Set a workflow label. Repeat to set multiple labels. '
-                                    'Values override labels declared in the workflow file.')
+                                    'Values override labels declared in the workflow file. '
+                                    'Label keys must start with a letter or number.')
     submit_parser.set_defaults(func=_submit_workflow)
 
     # Handle 'restart' command
@@ -210,7 +223,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  metavar='KEY=VALUE',
                                  help='Set a workflow label for validation. Repeat to set '
                                       'multiple labels. Values override labels declared in '
-                                      'the workflow file.')
+                                      'the workflow file. Label keys must start with a letter '
+                                      'or number.')
     validate_parser.set_defaults(func=_validate_workflow)
 
     # Handle 'logs' command
