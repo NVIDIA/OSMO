@@ -1972,16 +1972,10 @@ test_control_umbrella() {
             'helm.sh/hook-weight: "-30"'
         require_contains \
             "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'argocd.argoproj.io/hook: PreSync'
-        require_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'argocd.argoproj.io/sync-wave: "-30"'
-        require_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
             'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
-        require_contains \
+        require_not_contains \
             "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
+            'argocd.argoproj.io/'
     done
     require_resource "$rendered" Job "$tls_bootstrap_name"
     resource_document "$rendered" Job "$tls_bootstrap_name" \
@@ -2014,10 +2008,8 @@ test_control_umbrella() {
         'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'helm.sh/hook-weight: "-20"'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'argocd.argoproj.io/hook: PreSync'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'argocd.argoproj.io/sync-wave: "-20"'
+    require_not_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'argocd.argoproj.io/'
     require_not_contains "$rendered" 'Force=true'
     require_not_contains "$rendered" 'Replace=true'
     require_contains "$CHARTS_ROOT/osmo/README.md" \
@@ -2320,7 +2312,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         'helm.sh/hook-weight: "-26"'
     require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
-        'argocd.argoproj.io/sync-wave:'
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "run_migrations.sh: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
@@ -2338,7 +2330,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         'helm.sh/hook-weight: "-25"'
     require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
-        'argocd.argoproj.io/sync-wave:'
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         "image: postgres:15-alpine"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
@@ -2361,10 +2353,8 @@ test_control_umbrella() {
         "name: OSMO_SCHEMA_VERSION" 6
     require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
         'value: "public_v6_4_0"' 6
-    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-20"'
-    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-10"'
+    require_not_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/'
 
     helm_template database-migration-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -3179,12 +3169,9 @@ EOF
             require_contains \
                 "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
                 'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
-            require_contains \
+            require_not_contains \
                 "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
-                'argocd.argoproj.io/hook: PreSync'
-            require_contains \
-                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
-                'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
+                'argocd.argoproj.io/'
         done
         require_resource "$migration_file" Job "$service_auth_migration_job_name"
         resource_document "$migration_file" Job "$service_auth_migration_job_name" \
@@ -3195,10 +3182,8 @@ EOF
             'helm.sh/hook-weight: "-10"'
         require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
             'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
-        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
-            'argocd.argoproj.io/hook: PreSync'
-        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
-            'argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed'
+        require_not_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'argocd.argoproj.io/'
         require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
             "serviceAccountName: \"$service_auth_migration_support_name\""
         resource_document "$migration_file" Role \
@@ -3222,10 +3207,8 @@ EOF
         require_not_contains "$migration_file" 'Force=true'
         require_not_contains "$migration_file" 'Replace=true'
     done
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-20"'
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-10"'
+    require_not_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'command: ["service-auth-bootstrap"]'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \

@@ -575,18 +575,17 @@ databaseMigration:
 ```
 
 The chart loads the ordered OSMO 6.4 migration JSON files from `migrations/`
-and runs them before OSMO workloads start. Raw Helm executes the built-in
-`pre-install,pre-upgrade` hooks, while Argo CD recognizes the same resources as
-`PreSync` hooks; use the reconciliation path that manages the release. The
-source database must already have the OSMO 6.3 schema; upgrades from earlier
-releases must first use the applicable legacy service-chart migrations. The
-migration reads the same PostgreSQL Secret key as the services and runs before
-the service-auth database migration. It downloads the pinned pgroll release
-from GitHub at runtime, so the Job requires outbound HTTPS access to GitHub.
-
-Argo CD sync waves are environment-owned. Set
-`databaseMigration.annotations.argocd.argoproj.io/sync-wave` in environment
-values when the migration must be ordered relative to other environment hooks.
+and runs them before OSMO workloads start. Hook ordering and cleanup use Helm
+annotations as the single source of truth. Raw Helm executes them directly;
+Argo CD maps the supported Helm hook annotations and weights to `PreSync` hooks
+and sync waves. Do not mix explicit `argocd.argoproj.io/hook` annotations into
+the same Argo CD Application because Argo CD then ignores Helm hooks. Use the
+reconciliation path that manages the release. The source database must already
+have the OSMO 6.3 schema; upgrades from earlier releases must first use the
+applicable legacy service-chart migrations. The migration reads the same
+PostgreSQL Secret key as the services and runs before the service-auth database
+migration. It downloads the pinned pgroll release from GitHub at runtime, so
+the Job requires outbound HTTPS access to GitHub.
 
 Use `public` to migrate the base schema in place. A versioned target such as
 `public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;

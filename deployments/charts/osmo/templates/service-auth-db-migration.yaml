@@ -6,17 +6,11 @@
 {{- $rbacAnnotations := dict
       "helm.sh/hook" "pre-upgrade"
       "helm.sh/hook-weight" "-20"
-      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed"
-      "argocd.argoproj.io/hook" "PreSync"
-      "argocd.argoproj.io/sync-wave" "-20"
-      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded,HookFailed" -}}
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
 {{- $jobAnnotations := dict
       "helm.sh/hook" "pre-upgrade"
       "helm.sh/hook-weight" "-10"
-      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed"
-      "argocd.argoproj.io/hook" "PreSync"
-      "argocd.argoproj.io/sync-wave" "-10"
-      "argocd.argoproj.io/hook-delete-policy" "BeforeHookCreation,HookSucceeded,HookFailed" -}}
+      "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 apiVersion: v1
