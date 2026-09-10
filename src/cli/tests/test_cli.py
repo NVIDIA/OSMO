@@ -19,32 +19,71 @@ import argparse
 import contextlib
 import io
 import json
+import pathlib
+import tempfile
 import unittest
 from unittest import mock
 
 import src.cli.cli as cli
 from src.cli import main_parser, workflow
 from src.lib.rsync import rsync
-from src.lib.utils import osmo_errors
+from src.lib.utils import client, osmo_errors, validation
 
 
 class TestInvalidLabelArgument(unittest.TestCase):
-    def test_leading_hyphen_label_fails_before_client_setup(self):
-        output = io.StringIO()
-        with mock.patch.object(cli.sys, 'argv', [
-                'osmo', 'workflow', 'submit', 'workflow.yaml', '--label', '-key=val']), \
-             mock.patch.object(cli, 'configure_logging') as configure_logging, \
-             mock.patch.object(cli.client, 'LoginManager') as login_manager, \
-             mock.patch.object(cli.client, 'ServiceClient') as service_client, \
-             contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
-            cli.main()
+    def test_spaced_and_equals_labels_reach_submission_validation(self):
+        def reject_invalid_label(method, endpoint, *, payload, params):
+            self.assertEqual(method, client.RequestMethod.POST)
+            self.assertEqual(endpoint, 'api/pool/pool-1/workflow')
+            self.assertIn('name: workflow', payload['file'])
+            self.assertEqual(params['label'], ['-key=val'])
+            try:
+                validation.parse_workflow_label_assignment(params['label'][0])
+            except ValueError as error:
+                response = mock.Mock(
+                    status_code=400, headers={},
+                    text=json.dumps({'message': str(error), 'error_code': 'USAGE'}))
+                return client.handle_response(response)
+            self.fail('The invalid label must be rejected by the shared validator.')
 
-        self.assertEqual(raised.exception.code, 2)
-        self.assertIn('If your label key starts with "-", it is invalid', output.getvalue())
-        self.assertIn('--label key=val', output.getvalue())
-        configure_logging.assert_not_called()
-        login_manager.assert_not_called()
-        service_client.assert_not_called()
+        with tempfile.TemporaryDirectory() as directory:
+            workflow_file = pathlib.Path(directory) / 'workflow.yaml'
+            workflow_file.write_text(
+                'version: 2\nworkflow:\n  name: workflow\n', encoding='utf-8')
+            requests = []
+            outputs = []
+            for command in ('submit', 'validate'):
+                for label_arguments in (['--label', '-key=val'], ['--label=-key=val']):
+                    with self.subTest(command=command, label_arguments=label_arguments):
+                        output = io.StringIO()
+                        errors = io.StringIO()
+                        service_client = mock.Mock(spec=client.ServiceClient)
+                        service_client.request.side_effect = reject_invalid_label
+                        with mock.patch.object(cli.sys, 'argv', [
+                                'osmo', 'workflow', command, str(workflow_file),
+                                '--pool', 'pool-1', *label_arguments]), \
+                             mock.patch.object(cli, 'configure_logging'), \
+                             mock.patch.object(cli.client, 'LoginManager'), \
+                             mock.patch.object(cli.client, 'ServiceClient',
+                                               return_value=service_client), \
+                             contextlib.redirect_stdout(output), \
+                             contextlib.redirect_stderr(errors), \
+                             self.assertRaises(SystemExit) as raised:
+                            cli.main()
+
+                        self.assertEqual(raised.exception.code, 1)
+                        self.assertIn('Workflow label key "-key" has an invalid name.',
+                                      output.getvalue())
+                        self.assertIn('Error code: 400', output.getvalue())
+                        self.assertNotIn('expected one argument', errors.getvalue())
+                        self.assertNotIn('successful', output.getvalue())
+                        service_client.request.assert_called_once()
+                        requests.append(service_client.request.call_args)
+                        outputs.append(output.getvalue())
+            self.assertEqual(requests[0], requests[1])
+            self.assertEqual(requests[2], requests[3])
+            self.assertEqual(outputs[0], outputs[1])
+            self.assertEqual(outputs[2], outputs[3])
 
 
 class TestSubmissionErrorOutput(unittest.TestCase):

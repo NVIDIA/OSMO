@@ -191,9 +191,10 @@ flags. A command-line value wins over the same key in the workflow YAML.
        --label team=robotics \
        --label experiment=run42
 
-Label keys must start with a letter or number. For example, use
-``--label key=val``, not ``--label -key=val``. A leading hyphen is invalid in a
-label key and can cause the CLI to mistake the label for another command option.
+Label keys must start with a letter or number. Both ``--label -key=val`` and
+``--label=-key=val`` reach label validation and are rejected with an error
+identifying ``-key`` as invalid. Recognized command options after ``--label``
+still indicate a missing label argument.
 
 The same flag works for app submission and resubmission by workflow ID
 (``osmo workflow submit <workflow-id>``). Restart does not accept label

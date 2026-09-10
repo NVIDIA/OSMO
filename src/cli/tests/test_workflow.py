@@ -123,10 +123,30 @@ class TestWorkflowLabelParser(unittest.TestCase):
 
         self.assertEqual(args.labels, ['team=alpha', 'run=42'])
 
-    def test_missing_label_value_explains_invalid_leading_hyphen(self):
+    def test_hyphen_label_assignments_match_equals_form(self):
         for command in ('submit', 'validate', 'list'):
             positional = [] if command == 'list' else ['workflow.yaml']
-            for trailing in (['-key=val'], ['--key=val'], [], ['--pool', 'pool-1']):
+            for label in ('-key=val', '--key=val', '-bad.example/key=val', '-key=a=b'):
+                for before_file in (False, True):
+                    with self.subTest(command=command, label=label, before_file=before_file):
+                        spaced = ['--label', label, '--label', 'team=alpha']
+                        explicit = [f'--label={label}', '--label', 'team=alpha']
+                        arguments = ['workflow', command] + (
+                            spaced + positional if before_file else positional + spaced)
+                        original = list(arguments)
+                        args = self._build_parser().parse_args(arguments)
+                        expected = self._build_parser().parse_args(
+                            ['workflow', command, *positional, *explicit])
+
+                        self.assertEqual(vars(args), vars(expected))
+                        self.assertEqual(args.labels, [label, 'team=alpha'])
+                        self.assertEqual(arguments, original)
+
+    def test_missing_label_and_known_options_remain_parser_errors(self):
+        for command in ('submit', 'validate', 'list'):
+            positional = [] if command == 'list' else ['workflow.yaml']
+            for trailing in ([], ['--pool', 'pool-1'], ['--pool=pool-1'],
+                             ['--po=pool-1'], ['--help'], ['-key'], ['-=val']):
                 with self.subTest(command=command, trailing=trailing):
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output), \
@@ -134,46 +154,58 @@ class TestWorkflowLabelParser(unittest.TestCase):
                         self._build_parser().parse_args([
                             'workflow', command, *positional, '--label', *trailing,
                         ])
+                    self.assertEqual(raised.exception.code, 2)
+                    self.assertNotIn('has an invalid name', output.getvalue())
+                    self.assertNotIn('If your label key', output.getvalue())
+                    if trailing != ['-=val']:
+                        self.assertIn('argument --label: expected one argument',
+                                      output.getvalue())
 
+    def test_label_does_not_consume_short_options(self):
+        for command in ('submit', 'validate'):
+            for option in ('-p=pool-1', '-ppool-1', '-ppool=1', '-prefix/name=val'):
+                with self.subTest(command=command, option=option):
+                    output = io.StringIO()
+                    with contextlib.redirect_stderr(output), \
+                         self.assertRaises(SystemExit) as raised:
+                        self._build_parser().parse_args([
+                            'workflow', command, 'workflow.yaml', '--label', option])
                     self.assertEqual(raised.exception.code, 2)
                     self.assertIn('argument --label: expected one argument', output.getvalue())
-                    self.assertIn('If your label key starts with "-", it is invalid',
-                                  output.getvalue())
-                    self.assertIn('label keys must start with a letter or number',
-                                  output.getvalue())
-                    self.assertIn('--label key=val', output.getvalue())
 
-    def test_equals_label_form_still_defers_validation(self):
-        for command in ('submit', 'validate', 'list'):
-            with self.subTest(command=command):
-                positional = [] if command == 'list' else ['workflow.yaml']
-                args = self._build_parser().parse_args([
-                    'workflow', command, *positional,
-                    '--label=-key=val', '--label', 'team=alpha',
-                ])
-
-                self.assertEqual(args.labels, ['-key=val', 'team=alpha'])
-
-    def test_unrelated_parser_errors_do_not_show_label_hint(self):
+    def test_unrelated_arguments_are_not_normalized(self):
         for arguments in (
-            ['workflow', 'submit', 'workflow.yaml', '--pool'],
-            ['workflow', 'submit', 'workflow.yaml', '--unknown'],
-            ['workflow', 'logs', 'workflow-1', '--task'],
-            ['workflow', 'list', '--no-label'],
+            ['workflow', 'submit', 'workflow.yaml', '--pool', '-key=val'],
+            ['workflow', 'submit', 'workflow.yaml', '--unknown=-key=val'],
+            ['workflow', 'logs', 'workflow-1', '--label', '-key=val'],
+            ['workflow', 'list', '--no-label', '-key=val'],
         ):
             with self.subTest(arguments=arguments):
-                output = io.StringIO()
-                with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+                with contextlib.redirect_stderr(io.StringIO()), \
+                     self.assertRaises(SystemExit) as raised:
                     self._build_parser().parse_args(arguments)
-
                 self.assertEqual(raised.exception.code, 2)
-                self.assertNotIn('If your label key', output.getvalue())
 
     def test_label_after_argument_terminator_is_a_filename(self):
-        args = self._build_parser().parse_args(['workflow', 'submit', '--', '--label'])
+        for filename in ('--label', '--label=-key=val'):
+            with self.subTest(filename=filename):
+                args = self._build_parser().parse_args(['workflow', 'submit', '--', filename])
+                self.assertEqual(args.workflow_file, filename)
+                self.assertEqual(args.labels, [])
 
-        self.assertEqual(args.workflow_file, '--label')
-        self.assertEqual(args.labels, [])
+    def test_argument_terminator_stops_label_normalization(self):
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+            self._build_parser().parse_args(['workflow', 'submit', '--', '--label', '-key=val'])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn('unrecognized arguments: -key=val', output.getvalue())
+
+    def test_list_hyphen_key_reaches_selector_validation(self):
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = self._build_parser().parse_args(['workflow', 'list', '--label', '-key=val'])
+        with self.assertRaisesRegex(osmo_errors.OSMOUserError, 'label key "-key".*invalid name'):
+            args.func(service_client, args)
+        service_client.request.assert_not_called()
 
     def test_label_help_explains_leading_character_rule(self):
         for command in ('submit', 'validate'):

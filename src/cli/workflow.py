@@ -30,7 +30,7 @@ import sys
 import termios
 import time
 import tty
-from typing import Any, Dict, List, NoReturn, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import pydantic
 import requests  # type: ignore
@@ -52,14 +52,27 @@ RESIZE_PREFIX = b'\x00RESIZE:'
 
 
 class WorkflowArgumentParser(argparse.ArgumentParser):
-    """Explain label values that argparse can mistake for command options."""
+    """Let unknown option-shaped label assignments reach label validation."""
 
-    def error(self, message: str) -> NoReturn:
-        if message == 'argument --label: expected one argument':
-            message += ('\nIf your label key starts with "-", it is invalid; '
-                        'label keys must start with a letter or number '
-                        '(for example, --label key=val).')
-        super().error(message)
+    def parse_known_args(self, args: Sequence[str] | None = None, namespace=None):
+        if '--label' not in self._option_string_actions:
+            return super().parse_known_args(args, namespace)
+
+        arguments = list(sys.argv[1:] if args is None else args)
+        index = 0
+        while index < len(arguments) - 1:
+            if arguments[index] == '--':
+                break
+            if arguments[index] == '--label':
+                value = arguments[index + 1]
+                if value.startswith('-') and '=' in value:
+                    option = value.split('=', 1)[0]
+                    # Preserve real options, including abbreviations and attached short options.
+                    if option not in self._option_string_actions and \
+                            not self._get_option_tuples(value):
+                        arguments[index:index + 2] = [f'--label={value}']
+            index += 1
+        return super().parse_known_args(arguments, namespace)
 
 
 class TemplateData(pydantic.BaseModel, extra='forbid'):

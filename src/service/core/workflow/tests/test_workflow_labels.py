@@ -180,13 +180,10 @@ workflow:
              mock.patch.object(
                  objects.WorkflowSubmitInfo,
                  'insert_failed_submission_to_db') as insert_failed:
-            with self.assertRaises(osmo_errors.OSMOUsageError):
-                submit_info.construct_workflow_dict(
-                    template_spec,
-                    label_overrides=['missing-separator'],
-                )
-
-        insert_failed.assert_not_called()
+            for label in ('missing-separator', '-key=val'):
+                with self.subTest(label=label), self.assertRaises(osmo_errors.OSMOUsageError):
+                    submit_info.construct_workflow_dict(template_spec, label_overrides=[label])
+                insert_failed.assert_not_called()
 
     def test_invalid_yaml_label_does_not_create_failed_submission(self):
         submit_info = _submit_info([])
