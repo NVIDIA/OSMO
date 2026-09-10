@@ -278,9 +278,7 @@ Common causes include:
 Durability and availability
 ===========================
 
-Quickstart is designed for a disposable workstation cluster with small
-single-node dependencies and one replica for each OSMO component. The
-self-contained profile instead supplies persistent, replicated dependencies and
+The self-contained profile supplies persistent, replicated dependencies and
 multiple replicas for critical stateless services:
 
 * PostgreSQL runs three instances and requires synchronous acknowledgment from
