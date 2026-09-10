@@ -164,7 +164,7 @@ An OSMO deployment consists of two main components:
   :hidden:
   :caption: Additional Resources
 
-  Quickstart <appendix/deploy_local>
+  Quickstart Deployment <appendix/deploy_local>
   Self-contained Deployment <appendix/deploy_self_contained>
   Single-plane Deployment <appendix/deploy_minimal>
   appendix/workflow_execution

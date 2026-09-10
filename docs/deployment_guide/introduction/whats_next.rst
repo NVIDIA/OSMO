@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -28,12 +28,42 @@ Ready to Begin?
 
 Select the deployment model that fits your needs and environment.
 
+.. list-table:: Deployment profile comparison
+   :header-rows: 1
+   :widths: 18 20 20 10 32
+
+   * - Deployment
+     - Dependencies
+     - Environment
+     - Backends
+     - Recommended for
+   * - Quickstart Deployment
+     - Included (non-production)
+     - Local workstation
+     - 1
+     - Evaluation and development
+   * - Self-contained Deployment
+     - Included
+     - Edge or on-premises
+     - 1
+     - Production when the complete stack must remain local
+   * - Single-plane Deployment
+     - External
+     - Edge, on-premises, or cloud
+     - 1
+     - Production with separately managed dependencies
+   * - Split-plane Deployment
+     - External
+     - Cloud, on-premises, or hybrid
+     - Many
+     - Production across multiple compute clusters
+
 .. only:: html
 
   .. grid:: 1 2 2 2
       :gutter: 3
 
-      .. grid-item-card:: :octicon:`rocket` Quickstart
+      .. grid-item-card:: :octicon:`rocket` Quickstart Deployment
           :link: ../appendix/deploy_local
           :link-type: doc
           :class-card: tool-card

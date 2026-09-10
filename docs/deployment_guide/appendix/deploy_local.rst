@@ -18,9 +18,9 @@
 .. _deploy_local:
 .. _quickstart:
 
-==========
-Quickstart
-==========
+=====================
+Quickstart Deployment
+=====================
 
 Try OSMO on your local workstation — no cloud account, no infrastructure costs, no enterprise approval needed.
 
