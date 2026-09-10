@@ -260,6 +260,8 @@ def main():
             worker.run()
         except KeyboardInterrupt:
             sys.exit(0)
+        finally:
+            _active_config_watcher.stop()
 
 
 if __name__ == '__main__':

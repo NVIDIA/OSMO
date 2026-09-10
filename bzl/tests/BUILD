@@ -127,3 +127,51 @@ py_test(
     args = ["$(rootpath //src/service/router:router_image_x86_64)"],
     data = ["//src/service/router:router_image_x86_64"],
 )
+
+py_test(
+    name = "backend_listener_image_runfiles_test",
+    srcs = ["python_image_runfiles_dedup_test.py"],
+    args = [
+        "$(rootpath //src/operator:backend_listener_image_x86_64)",
+        "src/operator/backend_listener_binary.runfiles",
+        "usr/bin/backend_listener",
+        "src/operator/backend_listener.py",
+    ],
+    data = ["//src/operator:backend_listener_image_x86_64"],
+    main = "python_image_runfiles_dedup_test.py",
+)
+
+py_test(
+    name = "backend_worker_image_runfiles_test",
+    srcs = ["python_image_runfiles_dedup_test.py"],
+    args = [
+        "$(rootpath //src/operator:backend_worker_image_x86_64)",
+        "src/operator/backend_worker_binary.runfiles",
+        "usr/bin/backend_worker",
+        "src/operator/backend_worker.py",
+    ],
+    data = ["//src/operator:backend_worker_image_x86_64"],
+    main = "python_image_runfiles_dedup_test.py",
+)
+
+py_test(
+    name = "backend_test_runner_image_runfiles_test",
+    srcs = ["python_image_runfiles_dedup_test.py"],
+    args = [
+        "$(rootpath //src/operator/backend_test_runner:backend_test_runner_image_x86_64)",
+        "src/operator/backend_test_runner/backend_test_runner_binary.runfiles",
+        "usr/bin/backend_test_runner",
+        "src/operator/backend_test_runner/backend_test_runner.py",
+    ],
+    data = ["//src/operator/backend_test_runner:backend_test_runner_image_x86_64"],
+    main = "python_image_runfiles_dedup_test.py",
+)
+
+test_suite(
+    name = "backend_operator_image_tests",
+    tests = [
+        ":backend_listener_image_runfiles_test",
+        ":backend_test_runner_image_runfiles_test",
+        ":backend_worker_image_runfiles_test",
+    ],
+)

@@ -41,6 +41,14 @@ Select the deployment model that fits your needs and environment.
           Run the complete OSMO control plane, compute plane, and a GPU
           workflow on a local NVIDIA GPU workstation.
 
+      .. grid-item-card:: :octicon:`package` Self-contained Deployment
+          :link: ../appendix/deploy_self_contained
+          :link-type: doc
+          :class-card: tool-card
+
+          Run the control plane, compute plane, and required dependencies in
+          one non-cloud Kubernetes cluster for edge and local environments.
+
       .. grid-item-card:: :octicon:`server` Single-plane Deployment
           :link: ../appendix/deploy_minimal
           :link-type: doc

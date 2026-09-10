@@ -72,6 +72,10 @@ on:
       - 'deployments/scripts/run-deployment-test.sh'
       - 'deployments/scripts/tests/**'
       - 'deployments/terraform/azure/**'
+      - 'bzl/patches/aspect_rules_py_skip_venv_interpreter.patch'
+      - 'bzl/tests/**'
+      - 'src/operator/BUILD'
+      - 'src/operator/backend_test_runner/BUILD'
   schedule:
     # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
     # is UTC, doesn't track DST). Schedule fires only on main, not on
@@ -328,14 +332,14 @@ jobs:
           # BACKEND_IMAGES the chart's backend_images.{init,client} reference
           push_one //src/cli:cli_push_x86_64                                client
           push_one //src/runtime:init_push_x86_64                           init-container
-          # backend-operator chart deploys these two: without them, the
-          # operator install hits ImagePullBackOff and helm `--wait` times
-          # out with `context deadline exceeded`. backend-test-runner is
-          # only spawned at test-run time (not at install) and stays at
-          # nvcr.io defaults unless --backend-test-runner-* overrides flow
-          # in — skip for now to keep the build minimal.
+          # backend-operator chart deploys the listener and worker: without
+          # them, the operator install hits ImagePullBackOff and helm `--wait`
+          # times out with `context deadline exceeded`. The test runner is spawned
+          # later, but it shares the same Python runfiles image construction
+          # and is published from the same corrected source revision.
           push_one //src/operator:backend_listener_push_x86_64              backend-listener
           push_one //src/operator:backend_worker_push_x86_64                backend-worker
+          push_one //src/operator/backend_test_runner:backend_test_runner_push_x86_64  backend-test-runner
 
           # Package the CLI from this checkout for the deploy verification and
           # OETF jobs. The client image above already built the expensive
@@ -366,7 +370,10 @@ jobs:
             echo "- Source SHA: \`${{ github.sha }}\`"
             echo ""
             echo "Packages pushed:"
-            for img in service logger agent authz-sidecar router worker delayed-job-monitor web-ui init-container client backend-listener backend-worker; do
+            for img in \
+                service logger agent authz-sidecar router worker \
+                delayed-job-monitor web-ui init-container client \
+                backend-listener backend-worker backend-test-runner; do
               echo "  - \`${{ steps.tag.outputs.registry }}/$img:${{ steps.tag.outputs.tag }}\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"

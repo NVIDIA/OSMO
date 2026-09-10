@@ -42,6 +42,10 @@ spec:
     spec:
       automountServiceAccountToken: false
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with .Values.podDefaults.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true

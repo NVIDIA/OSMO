@@ -44,6 +44,10 @@ RECONCILIATION_STATE_ANNOTATION = (
 # don't get rejected by the apiserver.
 _MAX_MESSAGE_LENGTH = 1000
 
+# Event delivery runs on the credential polling thread. Bound each connect/read
+# and disable retries on its dedicated client, including Retry-After sleeps.
+_EVENT_REQUEST_TIMEOUT_S = (1.0, 1.0)
+
 
 class EventRecorder(Protocol):
     """Structural interface so tests can substitute a fake recorder."""
@@ -137,8 +141,13 @@ class ConfigMapEventRecorder:
                     'ConfigMapEventRecorder: no kubeconfig available; '
                     'events will not be emitted')
                 self._core_v1 = None
+                self._event_api = None
                 return
         self._core_v1 = client.CoreV1Api()
+        event_configuration = client.Configuration.get_default_copy()
+        event_configuration.retries = 0
+        self._event_api = client.CoreV1Api(
+            api_client=client.ApiClient(configuration=event_configuration))
 
     def emit_reload_failed(self, message: str) -> None:
         self._emit('Warning', REASON_RELOAD_FAILED, message)
@@ -178,7 +187,7 @@ class ConfigMapEventRecorder:
         incremented count and refreshed message/timestamp. This matches
         the kubelet pattern and prevents event spam during crash-loops.
         """
-        if self._core_v1 is None:
+        if self._event_api is None:
             return
 
         if len(message) > _MAX_MESSAGE_LENGTH:
@@ -188,8 +197,8 @@ class ConfigMapEventRecorder:
         event_name = f'{self._configmap_name}.{reason.lower()}'
 
         try:
-            existing = self._core_v1.read_namespaced_event(
-                event_name, self._namespace)
+            existing = self._event_api.read_namespaced_event(
+                event_name, self._namespace, _request_timeout=_EVENT_REQUEST_TIMEOUT_S)
         except ApiException as error:
             if error.status != 404:
                 logging.warning(
@@ -213,11 +222,16 @@ class ConfigMapEventRecorder:
                 count=1,
             )
             try:
-                self._core_v1.create_namespaced_event(self._namespace, event)
+                self._event_api.create_namespaced_event(
+                    self._namespace, event, _request_timeout=_EVENT_REQUEST_TIMEOUT_S)
             except Exception as create_error:  # pylint: disable=broad-exception-caught
                 logging.warning(
                     'Failed to create K8s Event %s: %s',
                     event_name, create_error)
+            return
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            logging.warning('Unable to read Kubernetes event; skipping notification')
             return
 
         # Existing event → patch with incremented count
@@ -227,8 +241,8 @@ class ConfigMapEventRecorder:
             'message': message,
         }
         try:
-            self._core_v1.patch_namespaced_event(
-                event_name, self._namespace, patch)
+            self._event_api.patch_namespaced_event(
+                event_name, self._namespace, patch, _request_timeout=_EVENT_REQUEST_TIMEOUT_S)
         except Exception as patch_error:  # pylint: disable=broad-exception-caught
             logging.warning(
                 'Failed to patch K8s Event %s: %s', event_name, patch_error)
@@ -252,11 +266,11 @@ class ConfigMapEventRecorder:
     def _get_configmap_uid(self) -> str | None:
         if self._configmap_uid is not None:
             return self._configmap_uid
-        if self._core_v1 is None:
+        if self._event_api is None:
             return None
         try:
-            configmap = self._core_v1.read_namespaced_config_map(
-                self._configmap_name, self._namespace)
+            configmap = self._event_api.read_namespaced_config_map(
+                self._configmap_name, self._namespace, _request_timeout=_EVENT_REQUEST_TIMEOUT_S)
             self._configmap_uid = configmap.metadata.uid
             return self._configmap_uid
         except Exception as error:  # pylint: disable=broad-exception-caught
