@@ -63,13 +63,14 @@ Prefer explicit `--file` updates for agent-driven changes.
 osmo app submit <name[:version]> [--pool <pool>] \
   [--set key=value ...] [--set-string key=value ...] [--set-env key=value ...] \
   [--label KEY=VALUE] [--dry-run] [--priority HIGH|NORMAL|LOW] \
-  [--local-path <absolute_path>] \
+  [--local-path <path>] \
   [--rsync local:remote] [--format-type json|text]
 ```
 
 Use `--dry-run` to inspect rendered YAML. Use `--set` / `--set-string` for
 parameters from `default-values`; use `--local-path` when local file references
 are relative to a different base directory (default: current directory).
+Relative paths resolve against the current working directory.
 
 Repeat `--label KEY=VALUE` to override app labels for this run only, leaving
 the stored app and existing runs unchanged. See [label syntax](workflow-commands.md#labels).
