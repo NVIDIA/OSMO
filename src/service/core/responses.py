@@ -32,9 +32,9 @@ class ClosingStreamingResponse(fastapi.responses.StreamingResponse):
     workflow -- is never told the client is gone, and the request runs forever.
 
     This restores the listener unconditionally and closes the body afterwards,
-    so whatever the body holds open is released with the response. Use it for a
-    body that can stay idle; a body that always has a next chunk does not need
-    it, because its next send will fail and end the request anyway.
+    so whatever the body holds open is released with the response. Active log
+    streams need the listener too: some servers silently discard sends after
+    a disconnect, so a successful send does not prove the client is present.
     """
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

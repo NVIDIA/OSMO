@@ -16,7 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import asyncio
+import socket
 import unittest
+from typing import Literal
+
+import uvicorn
 
 from starlette.applications import Starlette
 from starlette.background import BackgroundTask
@@ -132,6 +136,73 @@ class TestClosingStreamingResponse(unittest.IsolatedAsyncioTestCase):
             response(_scope(), _idle_receive, _discard_send), timeout=1)
 
         self.assertEqual(order, ['body closed', 'background'])
+
+    async def test_socket_disconnect_closes_idle_and_active_streams(self):
+        """Exercise real HTTP disconnects, including servers that discard sends."""
+        for protocol in ('h11', 'httptools'):
+            for active in (False, True):
+                with self.subTest(protocol=protocol, active=active):
+                    await self._check_socket_disconnect(protocol, active)
+
+    async def _check_socket_disconnect(
+        self, protocol: Literal['h11', 'httptools'], active: bool,
+    ):
+        closed = asyncio.Event()
+
+        async def body():
+            try:
+                yield 'first line\n'
+                while True:
+                    if active:
+                        await asyncio.sleep(0.01)
+                        yield 'next line\n'
+                    else:
+                        await asyncio.Future()
+            finally:
+                closed.set()
+
+        async def endpoint(request):  # pylint: disable=unused-argument
+            return responses.ClosingStreamingResponse(body())
+
+        async def pass_through(request, call_next):
+            return await call_next(request)
+
+        app = Starlette(routes=[Route('/logs', endpoint)])
+        app.add_middleware(BaseHTTPMiddleware, dispatch=pass_through)
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            server = uvicorn.Server(uvicorn.Config(
+                app, http=protocol, lifespan='off', log_level='critical',
+                timeout_graceful_shutdown=1))
+            serving = asyncio.create_task(server.serve(sockets=[listener]))
+            try:
+                async def wait_started():
+                    while not server.started:
+                        if serving.done():
+                            serving.result()
+                        await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_started(), timeout=5)
+                reader, writer = await asyncio.open_connection(
+                    '127.0.0.1', listener.getsockname()[1])
+                try:
+                    writer.write(b'GET /logs HTTP/1.1\r\nHost: localhost\r\n\r\n')
+                    await writer.drain()
+                    await asyncio.wait_for(reader.readuntil(b'first line\n'), timeout=2)
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+                await asyncio.wait_for(closed.wait(), timeout=2)
+
+                async def wait_requests_finished():
+                    while server.server_state.tasks:
+                        await asyncio.sleep(0.01)
+
+                await asyncio.wait_for(wait_requests_finished(), timeout=2)
+            finally:
+                server.should_exit = True
+                await asyncio.wait_for(serving, timeout=5)
 
     async def test_quiet_body_is_closed_behind_http_middleware(self):
         """The core service wraps requests in BaseHTTPMiddleware; it must not

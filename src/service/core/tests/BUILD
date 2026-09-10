@@ -76,6 +76,7 @@ osmo_py_test(
     deps = [
         "//src/service/core:responses",
         osmo_requirement("starlette"),
+        osmo_requirement("uvicorn"),
     ],
     size = "small",
     visibility = ["//visibility:public"],
