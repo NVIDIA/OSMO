@@ -140,35 +140,9 @@ such as component PodDisruptionBudgets.
 
 ### Review control-plane supporting services
 
-The legacy `service` chart has no Helm chart dependencies. It can, however,
-render optional single-instance PostgreSQL and Redis workloads and a LocalStack
-S3 emulator from its own templates. All three are disabled by default, and
-LocalStack is intended only for development and testing.
-
-First determine how PostgreSQL, Redis, and object storage are currently
-provided. Keep an existing external service external unless changing its
-ownership or implementation is an explicit part of the migration.
-
-The unified chart's embedded CloudNativePG, Valkey, and RustFS deployments are
-not in-place upgrades of the legacy workloads. They use different resources,
-ownership, and storage layouts. If the legacy chart currently owns PostgreSQL
-or Redis, migrate or externalize its data separately before removing the legacy
-release. The converter reports `services.postgres.enabled: true` and
-`services.redis.enabled: true` for manual follow-up and leaves the corresponding
-unified embedded dependency disabled in partial output. LocalStack has no
-lossless embedded-storage mapping.
-
-After planning any required data transition, decide whether the unified release
-will own a new embedded service or connect to an external one. Do not enable an
-embedded service simply because it is the unified chart default.
-
-For an external dependency:
-
-- configure its endpoint under `externalDependencies`;
-- configure TLS and a CA Secret when the endpoint uses a private CA;
-- reference an existing Kubernetes Secret under `secrets`; and
-- verify the configured Secret name and data key exist in the release
-  namespace.
+This guide covers only externally managed PostgreSQL, Redis or Valkey, and
+object storage. Migrating a supporting service managed by the legacy Helm
+release is outside its scope.
 
 The unified chart does not accept inline credentials. Arbitrary credential
 files or file paths from legacy values must be replaced with the typed Secret
@@ -176,7 +150,24 @@ references documented by the chart. An external secret controller may continue
 to own those Secrets; configure the chart to consume them without generating or
 adopting them.
 
-### Review object storage
+#### PostgreSQL
+
+Configure the existing host, port, database, and username under
+`externalDependencies.postgresql`. Reference the existing password Secret
+under `secrets.postgresql`, and verify its configured name and key in the
+release namespace. Preserve the existing TLS mode; when the server certificate
+uses a private CA, configure its Secret under
+`externalDependencies.postgresql.tls`.
+
+#### Redis or Valkey
+
+Configure the existing Redis or Valkey host, port, and database under
+`externalDependencies.valkey`. Reference the existing password Secret under
+`secrets.valkey`, and verify its configured name and key in the release
+namespace. Preserve the existing TLS mode; when the server certificate uses a
+private CA, configure its Secret under `externalDependencies.valkey.tls`.
+
+#### Object storage
 
 Preserve the provider, endpoint, bucket or container, region, and credential
 source for workflow data, logs, and applications. The unified chart supports
