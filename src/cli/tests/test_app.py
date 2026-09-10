@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import contextlib
+import io
 import json
 import unittest
 from unittest import mock
@@ -168,6 +170,68 @@ class TestSetupParser(unittest.TestCase):
         ])
 
         self.assertEqual(args.labels, ['team=alpha', 'run=42'])
+
+    def test_submit_hyphen_labels_match_equals_form(self):
+        for label in ('-key=val', '--key=val', '-bad.example/key=val', '-project=val',
+                      '-label=val', '--pool=foo', '--local-path=/tmp', '--local=/tmp',
+                      '-p=foo', '-l=/tmp', '-=val'):
+            for before_name in (False, True):
+                with self.subTest(label=label, before_name=before_name):
+                    labels = ['--label', label, '--label', 'team=alpha']
+                    arguments = ['app', 'submit'] + (
+                        labels + ['my-app:3'] if before_name else ['my-app:3'] + labels)
+                    original = list(arguments)
+                    args = self._build_parser().parse_args(arguments)
+                    expected = self._build_parser().parse_args([
+                        'app', 'submit', 'my-app:3', f'--label={label}', '--label', 'team=alpha'])
+                    self.assertEqual(vars(args), vars(expected))
+                    self.assertEqual(args.labels, [label, 'team=alpha'])
+                    self.assertEqual(arguments, original)
+
+    def test_submit_missing_labels_do_not_consume_options(self):
+        for trailing in ([], ['--pool', 'foo'], ['--local-path', '/tmp'],
+                         ['-l/tmp'], ['--help'], ['-key'], ['--']):
+            with self.subTest(trailing=trailing):
+                output = io.StringIO()
+                with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+                    self._build_parser().parse_args([
+                        'app', 'submit', 'my-app', '--label', *trailing])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn('argument --label: expected one argument', output.getvalue())
+
+    def test_submit_valid_label_preserves_following_pool_option(self):
+        args = self._build_parser().parse_args([
+            'app', 'submit', 'my-app', '--label', 'team=alpha', '--pool=foo'])
+        self.assertEqual(args.labels, ['team=alpha'])
+        self.assertEqual(args.pool, 'foo')
+
+    def test_submit_terminator_stops_label_normalization(self):
+        output = io.StringIO()
+        with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+            self._build_parser().parse_args(['app', 'submit', '--', '--label', '-key=val'])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn('unrecognized arguments: -key=val', output.getvalue())
+
+    def test_other_app_commands_do_not_accept_label_flag(self):
+        for arguments in (
+            ['create', 'my-app', '-d', 'description'], ['update', 'my-app'],
+            ['info', 'my-app'], ['show', 'my-app'], ['spec', 'my-app'],
+            ['list'], ['delete', 'my-app'], ['rename', 'my-app', 'new-name'],
+        ):
+            with self.subTest(arguments=arguments):
+                output = io.StringIO()
+                with contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as raised:
+                    self._build_parser().parse_args(['app', *arguments, '--label', '-key=val'])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn('unrecognized arguments: --label -key=val', output.getvalue())
+
+    def test_submit_help_explains_label_key_rule(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as raised:
+            self._build_parser().parse_args(['app', 'submit', '--help'])
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn('Label keys must start with a letter or number.',
+                      ' '.join(output.getvalue().split()))
 
 
 class TestCreateApp(unittest.TestCase):

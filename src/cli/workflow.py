@@ -30,7 +30,7 @@ import sys
 import termios
 import time
 import tty
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import pydantic
 import requests  # type: ignore
@@ -49,6 +49,30 @@ from src.lib.utils import (client, common, osmo_errors, paths, port_forward, pri
 
 INTERACTIVE_COMMANDS = ['bash', 'sh', 'zsh', 'fish', 'tcsh', 'csh', 'ksh']
 RESIZE_PREFIX = b'\x00RESIZE:'
+
+
+class WorkflowArgumentParser(argparse.ArgumentParser):
+    """Bind leading-hyphen label assignments before argparse classifies options."""
+
+    def __init__(self, *args, normalize_labels: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.normalize_labels = normalize_labels
+
+    def parse_known_args(self, args: Sequence[str] | None = None, namespace=None):
+        if not self.normalize_labels:
+            return super().parse_known_args(args, namespace)
+
+        arguments = list(sys.argv[1:] if args is None else args)
+        index = 0
+        while index < len(arguments) - 1:
+            if arguments[index] == '--':
+                break
+            if arguments[index] == '--label':
+                value = arguments[index + 1]
+                if value.startswith('-') and '=' in value:
+                    arguments[index:index + 2] = [f'--label={value}']
+            index += 1
+        return super().parse_known_args(arguments, namespace)
 
 
 class TemplateData(pydantic.BaseModel, extra='forbid'):
@@ -81,11 +105,13 @@ def setup_parser(parser: argparse._SubParsersAction):
         epilog='In 6.4, workflow tags are removed from the CLI. Use submit --label KEY=VALUE '
                'and list --label KEY=SELECTOR or --no-label KEY. '
                'Labels cannot be changed on existing runs.')
-    subparsers = workflow_parser.add_subparsers(dest='command')
+    subparsers = workflow_parser.add_subparsers(
+        dest='command', parser_class=WorkflowArgumentParser)
     subparsers.required = True
 
     # Handle 'submit' command
     submit_parser = subparsers.add_parser('submit',
+                                          normalize_labels=True,
                                           help='Submit a workflow to the workflow service.')
     submit_parser.add_argument('workflow_file',
                                type=str,
@@ -156,7 +182,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                default=[],
                                metavar='KEY=VALUE',
                                help='Set a workflow label. Repeat to set multiple labels. '
-                                    'Values override labels declared in the workflow file.')
+                                    'Values override labels declared in the workflow file. '
+                                    'Label keys must start with a letter or number.')
     submit_parser.set_defaults(func=_submit_workflow)
 
     # Handle 'restart' command
@@ -175,6 +202,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     # Handle 'validate' command
     validate_parser = subparsers.add_parser('validate',
+                                            normalize_labels=True,
                                             help='validate a workflow to the workflow server.')
     validate_parser.add_argument('workflow_file',
                                  type=lambda p: os.path.abspath(p),
@@ -210,7 +238,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                  metavar='KEY=VALUE',
                                  help='Set a workflow label for validation. Repeat to set '
                                       'multiple labels. Values override labels declared in '
-                                      'the workflow file.')
+                                      'the workflow file. Label keys must start with a letter '
+                                      'or number.')
     validate_parser.set_defaults(func=_validate_workflow)
 
     # Handle 'logs' command
@@ -277,8 +306,10 @@ def setup_parser(parser: argparse._SubParsersAction):
     query_parser.set_defaults(func=_query_workflow)
 
     # Handle 'list' command
-    list_parser = subparsers.add_parser('list', help='List workflows with different filters. ' + \
-        'Without the --pool flag, workflows from all pools will be listed.')
+    list_parser = subparsers.add_parser(
+        'list', normalize_labels=True,
+        help='List workflows with different filters. '
+             'Without the --pool flag, workflows from all pools will be listed.')
     list_parser.add_argument('--count', '-c',
                              default=20,
                              type=validation.positive_integer,

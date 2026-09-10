@@ -191,7 +191,19 @@ flags. A command-line value wins over the same key in the workflow YAML.
        --label team=robotics \
        --label experiment=run42
 
-The same flag works for app submission and resubmission by workflow ID
+Immediately after ``--label``, a token in ``KEY=VALUE`` form is treated as the
+label assignment even if it starts with a hyphen or resembles a command option.
+Label keys must start with a letter or number, so both ``--label -key=val`` and
+``--label=-key=val`` reach label validation and are rejected with an error
+identifying ``-key`` as invalid.
+
+For example, ``--label --pool=foo`` is rejected as an invalid label key
+``--pool``, while ``--label --pool foo`` reports a missing label argument.
+Use ``--label team=alpha --pool=foo`` to set both a label and a pool.
+The ``--`` argument terminator retains its usual meaning.
+
+The same flag and validation behavior apply to app submission
+(``osmo app submit <app-name>``) and resubmission by workflow ID
 (``osmo workflow submit <workflow-id>``). Restart does not accept label
 overrides because it reuses the stored specification; resubmit the workflow
 when a stored label must change.

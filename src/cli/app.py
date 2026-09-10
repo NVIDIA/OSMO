@@ -37,7 +37,8 @@ def setup_parser(parser: argparse._SubParsersAction):
     app_parser = parser.add_parser('app',
         help='Create and manage workflow apps.',
         description='Apps are reusable workflow files that can be shared with other users.')
-    subparsers = app_parser.add_subparsers(dest='command')
+    subparsers = app_parser.add_subparsers(
+        dest='command', parser_class=workflow.WorkflowArgumentParser)
     subparsers.required = True
 
     create_parser = subparsers.add_parser(
@@ -153,6 +154,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     submit_parser = subparsers.add_parser(
         'submit',
+        normalize_labels=True,
         help='Submit a workflow app version you created.')
     submit_parser.add_argument('name',
                                help='Name of the app. Specify version to submit '
@@ -225,7 +227,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                                default=[],
                                metavar='KEY=VALUE',
                                help='Set a workflow label. Repeat to set multiple labels. '
-                                    'Values override labels declared by the app.')
+                                    'Values override labels declared by the app. '
+                                    'Label keys must start with a letter or number.')
     submit_parser.set_defaults(func=_submit_app)
 
 
