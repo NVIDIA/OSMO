@@ -302,7 +302,12 @@ class SecretManager:
                     raise ValueError("MEK must contain exactly 256 bits")
                 canonical_key = base64.urlsafe_b64encode(key_bytes).decode("ascii").rstrip("=")
                 canonical_standard_key = base64.b64encode(key_bytes).decode("ascii")
-                if encoded_key not in (canonical_key, canonical_standard_key):
+                canonical_unpadded_standard_key = canonical_standard_key.rstrip("=")
+                if encoded_key not in (
+                    canonical_key,
+                    canonical_standard_key,
+                    canonical_unpadded_standard_key,
+                ):
                     raise ValueError("MEK key material is not canonical base64")
                 jwk_config["k"] = canonical_key
                 parsed_meks[mek_id] = jwk.JWK.from_json(

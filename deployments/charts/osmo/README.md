@@ -35,11 +35,13 @@ release. They install:
 ### Prerequisites
 
 Use Kubernetes 1.30 or newer with enough capacity for the resources described
-below. The cluster must have a default dynamic StorageClass. Install Helm,
-`kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO. Select the
-development cluster context once; replace `kind-osmo` if your cluster has a
-different context. A GPU workflow also requires GPU-capable nodes and the
-NVIDIA GPU Operator.
+below. Raw Helm installs and upgrades using generated internal TLS require Helm
+3.19 or newer so a failed multi-resource bootstrap hook cleans up its earlier
+RBAC resources. The cluster must have a default dynamic StorageClass. Install
+Helm, `kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO.
+Select the development cluster context once; replace `kind-osmo` if your
+cluster has a different context. A GPU workflow also requires GPU-capable nodes
+and the NVIDIA GPU Operator.
 
 ```bash
 kubectl config use-context kind-osmo
@@ -506,6 +508,35 @@ secrets:
       key: mek.yaml
 ```
 
+For an external PostgreSQL server that supports encrypted connections but for
+which no CA trust bundle is available, configure `require` without a CA:
+
+```yaml
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      sslMode: require
+      caExistingSecret: ''
+```
+
+`require` encrypts the PostgreSQL transport but does not authenticate the
+server. Prefer `verify-full` whenever server CA trust material is available.
+Pre-provision a Secret containing the trust bundle, then select its key:
+
+```yaml
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      sslMode: verify-full
+      caExistingSecret: osmo-postgresql-ca
+      caKey: ca.crt
+```
+
+Both modes apply consistently to OSMO services and the database and
+service-auth migration Jobs.
+
 Keep `embeddedDependencies.postgresql.enabled: false` as set by the
 split-plane control profile, then
 install the chart by layering the environment values after the profile:
@@ -523,8 +554,19 @@ helm upgrade --install osmo deployments/charts/osmo \
 
 ### Database migrations
 
-For an upgrade backed by an existing external PostgreSQL database, enable the
-pgroll hook in the environment values:
+For an upgrade backed by an existing external PostgreSQL database, first stop
+every legacy OSMO workload or external process that can write PostgreSQL or
+initialize database configuration. Disable or suspend every HPA, GitOps
+self-heal loop, operator, and other reconciler that could restart or scale
+those 6.3 writers, then verify that no legacy writer Pod, Job, or external
+process remains. Keep that fence in place while the migration hook runs and
+until the upgraded manifests are applied. If the hook or manifest application
+fails, keep the 6.3 writers stopped; resume only workloads verified to use the
+6.4 image and configuration. This requirement applies equally to raw Helm and
+Argo CD; Argo CD is not required. Complete the 6.3-to-6.4
+[legacy-writer quiescence fence](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence)
+and [backup prerequisite](../../upgrades/6_3_to_6_4_upgrade.md#backup-before-destructive-cleanup)
+before enabling the pgroll hook in the environment values:
 
 ```yaml
 databaseMigration:
@@ -533,17 +575,17 @@ databaseMigration:
 ```
 
 The chart loads the ordered OSMO 6.4 migration JSON files from `migrations/`
-and runs them in a Helm `pre-install,pre-upgrade` or Argo CD `PreSync` Job
-before OSMO workloads start. The source database must already have the OSMO
-6.3 schema; upgrades from earlier releases must first use the applicable legacy
-service-chart migrations. The migration reads the same PostgreSQL Secret key
-as the services and runs before the service-auth database migration. It
-downloads the pinned pgroll release from GitHub at runtime, so the Job requires
-outbound HTTPS access to GitHub.
-
-Argo CD sync waves are environment-owned. Set
-`databaseMigration.annotations.argocd.argoproj.io/sync-wave` in environment
-values when the migration must be ordered relative to other environment hooks.
+and runs them before OSMO workloads start. Hook ordering and cleanup use Helm
+annotations as the single source of truth. Raw Helm executes them directly;
+Argo CD maps the supported Helm hook annotations and weights to `PreSync` hooks
+and sync waves. Do not mix explicit `argocd.argoproj.io/hook` annotations into
+the same Argo CD Application because Argo CD then ignores Helm hooks. Use the
+reconciliation path that manages the release. The source database must already
+have the OSMO 6.3 schema; upgrades from earlier releases must first use the
+applicable legacy service-chart migrations. The migration reads the same
+PostgreSQL Secret key as the services and runs before the service-auth database
+migration. It downloads the pinned pgroll release from GitHub at runtime, so
+the Job requires outbound HTTPS access to GitHub.
 
 Use `public` to migrate the base schema in place. A versioned target such as
 `public_v6_4_0` also injects `OSMO_SCHEMA_VERSION` into each PostgreSQL consumer;
@@ -863,16 +905,13 @@ disable `bootstrap.enabled` to remove its Job and RBAC. Use the migration below
 for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
-window that prevents the old configuration API from changing `service_auth`.
-For Argo CD, disable automated sync and self-heal on the Application and wait
-until no sync, rollback, or refresh operation is in flight. Keep reconciliation
-suspended through both cutover phases below. A manual scale-down is not stable
-while self-heal is active, and Argo pruning occurs after PreSync hooks, so this
-is a hard prerequisite rather than an optional maintenance step.
-
-Delete its HPA, scale the old API deployment to zero, and verify that no old API
-pod remains before starting the upgrade. Replace the example release and
-namespace if needed.
+window using the full
+[legacy-writer quiescence fence](../../upgrades/6_3_to_6_4_upgrade.md#legacy-writer-quiescence-fence).
+That fence must already prevent every 6.3 database writer and its automation
+from returning. In addition, verify specifically that the old configuration API
+cannot change `service_auth`; scaling only this API is not a substitute for the
+full database-migration fence. Replace the example release and namespace if
+needed.
 
 ```bash
 OSMO_RELEASE_NAME=osmo
@@ -921,10 +960,11 @@ migration. An already populated Secret is preserved only when its complete
 stable identity matches. Temporary hook RBAC grants only `get` and `update` on
 that named Secret and is removed after the hook completes.
 
-This Job is transitional upgrade compatibility for installations coming from
-DB-backed releases. It remains disabled by default and should stay in the chart
-until direct upgrades from those releases are no longer supported; it does not
-create a persistent runtime component.
+This Job is opt-in transitional upgrade compatibility for installations coming
+from DB-backed releases. It remains disabled by default and should stay in the
+chart until direct upgrades from those releases are no longer supported. It
+copies and validates the existing stable identity; it does not create or rotate
+an identity and does not create a persistent runtime component.
 
 After the first sync succeeds, wait for every enabled non-API ConfigMap consumer
 (worker, logger, agent, and gateway-authz) to finish rolling out. Confirm the API
@@ -960,6 +1000,11 @@ suspended or an in-flight operation cannot be drained, the cutover is blocked.
 
 Retain the legacy DB row and its MEK through the rollback window so an older
 binary can still use the same identity; 6.4 runtime services ignore that row.
+
+To retry a failed or interrupted migration, correct the cause and rerun the
+Helm upgrade or start another Argo CD sync. The stable hook name and
+before-creation cleanup policy recreate the Job. Deleting an Argo hook alone
+does not start a new sync because hooks run as part of sync operations.
 
 ```bash
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
@@ -1022,6 +1067,13 @@ then logs one machine-readable
 `OSMO_MEK_DESCRIPTOR` containing only the current key ID, loaded key IDs,
 generation, and non-secret bundle digest. There are no MEK database tables,
 triggers, polling loops, or hot reloads.
+
+The 6.4 runtime does not treat legacy `configs` rows as MEK persistence;
+the ordered database migration handles those compatibility rows before
+rollout. A MEK inventory blocker therefore indicates a UEK-wrapper,
+key-material, or ciphertext failure. Restore the required MEK/key material and
+investigate the named authentication failure; do not automatically generate,
+replace, or rotate the service identity or MEK.
 
 Rotation is an explicit three-phase operation. Use one unique request ID for
 the whole rotation and keep every previous key in the Secret:
@@ -1139,6 +1191,15 @@ blocks; Helm schema errors identify any remaining legacy fields.
 | Development | `gateway.tls.generated.enabled: true` |
 | Production | Set `generated.enabled: false`, `caSecret`, and every `upstreamCerts` Secret |
 
+Generated mode uses an individually rendered Helm
+`pre-install,pre-upgrade`/Argo CD `PreSync` bootstrap Job. The Job creates and
+populates retained CA, trust, and leaf Secrets before the consumer Deployments
+are applied. Certificate data is never rendered into Helm release state, and
+the generated Secrets carry Helm keep and Argo `Prune=false,Delete=false`
+metadata. Raw Helm use requires Helm 3.19 or newer for complete cleanup when a
+later hook fails. Back up these Secrets; uninstalling the release does not make
+the CA safe to replace.
+
 - Rotate leaves by changing `gateway.tls.generated.leafRotationNonce`.
 - For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
   `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
@@ -1147,6 +1208,9 @@ blocks; Helm schema errors identify any remaining legacy fields.
   `gateway.tls.generated.bootstrap.allowInitialGeneration=true` once, verify the
   retained Secrets, then set it back to `false`. Never use this flag to replace
   a missing retained CA; restore the original Secret instead.
+- If the bootstrap hook fails, correct the cause and rerun `helm upgrade` or
+  start another Argo CD sync. Hook cleanup recreates the stable Job name; merely
+  deleting an Argo hook does not start a new sync.
 
 ## Exposure
 

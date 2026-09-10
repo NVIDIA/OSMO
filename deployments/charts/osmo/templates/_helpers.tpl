@@ -717,11 +717,18 @@ osmo.nvidia.com/service-auth-rollout: {{ .Values.secrets.serviceAuth.rolloutNonc
 {{- end -}}
 
 {{- define "osmo.postgresql.sslMode" -}}
-{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled -}}
-verify-full
+{{- if .Values.embeddedDependencies.postgresql.enabled -}}verify-full
+{{- else if .Values.externalDependencies.postgresql.tls.enabled -}}
+{{- .Values.externalDependencies.postgresql.tls.sslMode -}}
 {{- else -}}
 disable
 {{- end -}}
+{{- end -}}
+
+{{- define "osmo.postgresql.customCaEnabled" -}}
+{{- if or .Values.embeddedDependencies.postgresql.enabled (and
+  .Values.externalDependencies.postgresql.tls.enabled
+  (eq .Values.externalDependencies.postgresql.tls.sslMode "verify-full")) -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
 {{- define "osmo.postgresql.caSecretName" -}}
@@ -739,8 +746,7 @@ disable
 
 {{- define "osmo.externalDependencies.connectionCaEnabled" -}}
 {{- if or
-  .Values.embeddedDependencies.postgresql.enabled
-  .Values.externalDependencies.postgresql.tls.enabled
+  (eq (include "osmo.postgresql.customCaEnabled" .) "true")
   (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
 {{- end -}}
 
@@ -753,7 +759,7 @@ osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumeMounts" -}}
-{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+{{- if eq (include "osmo.postgresql.customCaEnabled" .) "true" }}
 - name: postgresql-ca
   mountPath: /etc/osmo/ca/postgresql
   readOnly: true
@@ -766,7 +772,7 @@ osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.
 {{- end -}}
 
 {{- define "osmo.externalDependencies.caVolumes" -}}
-{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
+{{- if eq (include "osmo.postgresql.customCaEnabled" .) "true" }}
 - name: postgresql-ca
   secret:
     secretName: {{ include "osmo.postgresql.caSecretName" . }}
@@ -803,9 +809,9 @@ osmo.nvidia.com/object-storage-secret-rollout: {{ .Values.secrets.objectStorage.
       name: {{ . }}
       key: {{ $.Values.secrets.valkey.keys.password }}
 {{- end }}
-{{- if or .Values.embeddedDependencies.postgresql.enabled .Values.externalDependencies.postgresql.tls.enabled }}
 - name: PGSSLMODE
-  value: verify-full
+  value: {{ include "osmo.postgresql.sslMode" . }}
+{{- if eq (include "osmo.postgresql.customCaEnabled" .) "true" }}
 - name: PGSSLROOTCERT
   value: /etc/osmo/ca/postgresql/ca.crt
 {{- end }}

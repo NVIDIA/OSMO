@@ -1,15 +1,8 @@
 {
   "operations": [
     {
-      "drop_multicolumn_constraint": {
-        "table": "user_roles",
-        "name": "fk_user_roles_role",
-        "up": {
-          "role_name": "role_name"
-        },
-        "down": {
-          "role_name": "role_name"
-        }
+      "sql": {
+        "up": "ALTER TABLE public.user_roles DROP CONSTRAINT IF EXISTS fk_user_roles_role, DROP CONSTRAINT IF EXISTS user_roles_role_name_fkey"
       }
     }
   ]

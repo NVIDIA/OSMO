@@ -35,6 +35,7 @@ class FakeCoreApi:
 
     def __init__(self) -> None:
         self.secrets: dict[str, kubernetes_client.V1Secret] = {}
+        self.fail_next_create: set[str] = set()
         self.fail_next_replace: set[str] = set()
 
     def add_placeholder(
@@ -70,7 +71,47 @@ class FakeCoreApi:
         namespace: str,
     ) -> kubernetes_client.V1Secret:
         del namespace
+        if name not in self.secrets:
+            raise kubernetes_exceptions.ApiException(status=404, reason='Not Found')
         return copy.deepcopy(self.secrets[name])
+
+    def create_namespaced_secret(
+        self,
+        namespace: str,
+        body: kubernetes_client.V1Secret,
+    ) -> kubernetes_client.V1Secret:
+        name = body.metadata.name
+        if name in self.fail_next_create:
+            self.fail_next_create.remove(name)
+            raise kubernetes_exceptions.ApiException(
+                status=503,
+                reason='Unavailable',
+            )
+        if name in self.secrets:
+            raise kubernetes_exceptions.ApiException(status=409, reason='Conflict')
+        created = copy.deepcopy(body)
+        created.metadata.namespace = namespace
+        created.metadata.resource_version = '1'
+        self.secrets[name] = created
+        return copy.deepcopy(created)
+
+    def patch_namespaced_secret(
+        self,
+        name: str,
+        namespace: str,
+        body: dict[str, object],
+    ) -> kubernetes_client.V1Secret:
+        del namespace
+        current = self.secrets[name]
+        annotations = body['metadata']['annotations']  # type: ignore[index]
+        current.metadata.annotations = {
+            **(current.metadata.annotations or {}),
+            **annotations,  # type: ignore[arg-type]
+        }
+        current.metadata.resource_version = str(
+            int(current.metadata.resource_version) + 1
+        )
+        return copy.deepcopy(current)
 
     def replace_namespaced_secret(
         self,
@@ -169,6 +210,97 @@ class InternalTlsBootstrapTest(unittest.TestCase):
             ['osmo-api', 'osmo-api.osmo', 'osmo-api.osmo.svc'],
         )
         self.assertEqual(getattr(self.api.secrets['leaf'], 'type'), 'Opaque')
+        for secret in self.api.secrets.values():
+            self.assertEqual(
+                secret.metadata.annotations,
+                {
+                    'helm.sh/resource-policy': 'keep',
+                    'argocd.argoproj.io/sync-options': (
+                        'Prune=false,Delete=false'
+                    ),
+                },
+            )
+
+    def test_initial_bootstrap_creates_retained_secrets(self) -> None:
+        self.api.secrets.clear()
+
+        self.reconcile()
+
+        self.assertEqual(set(self.api.secrets), {'ca', 'trust', 'leaf'})
+        for secret in self.api.secrets.values():
+            self.assertEqual(
+                secret.metadata.labels,
+                {
+                    'app.kubernetes.io/managed-by': (
+                        'osmo-internal-tls-bootstrap'
+                    ),
+                    'app.kubernetes.io/instance': 'test',
+                },
+            )
+            self.assertEqual(
+                secret.metadata.annotations,
+                {
+                    'helm.sh/resource-policy': 'keep',
+                    'argocd.argoproj.io/sync-options': (
+                        'Prune=false,Delete=false'
+                    ),
+                },
+            )
+
+    def test_missing_upgrade_secret_fails_before_mutating_existing_state(self) -> None:
+        self.reconcile()
+        ca_version = self.api.secrets['ca'].metadata.resource_version
+        trust_version = self.api.secrets['trust'].metadata.resource_version
+        del self.api.secrets['leaf']
+
+        with self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            'Generated TLS Secret leaf is missing; restore the retained Secret',
+        ):
+            self.reconcile(fail_if_missing=True)
+
+        self.assertEqual(
+            self.api.secrets['ca'].metadata.resource_version,
+            ca_version,
+        )
+        self.assertEqual(
+            self.api.secrets['trust'].metadata.resource_version,
+            trust_version,
+        )
+
+    def test_create_failure_reports_sanitized_api_status(self) -> None:
+        self.api.secrets.clear()
+        self.api.fail_next_create.add('ca')
+
+        with self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            r'ca: Kubernetes API 503 Unavailable',
+        ):
+            self.reconcile()
+
+    def test_retry_recovers_empty_secrets_left_by_failed_first_install(self) -> None:
+        self.api.fail_next_replace.add('ca')
+
+        with self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            r'ca: Kubernetes API 503 Unavailable',
+        ):
+            self.reconcile()
+
+        self.reconcile()
+
+        self.assertIn('ca.crt', self.api.secrets['ca'].data)
+        self.assertIn('ca.crt', self.api.secrets['trust'].data)
+        self.assertIn('tls.crt', self.api.secrets['leaf'].data)
+
+    def test_never_regenerates_a_partial_ca_key_pair(self) -> None:
+        self.api.secrets['ca'].data = {'ca.crt': 'cGFydGlhbA=='}
+
+        with self.assertRaisesRegex(
+            internal_tls_bootstrap.BootstrapError,
+            'incomplete; restore it',
+        ):
+            self.reconcile()
 
     def test_ca_rotation_preserves_dual_trust_across_prepare_activate(self) -> None:
         self.reconcile()
@@ -565,6 +697,39 @@ class RolloutVerificationTest(unittest.TestCase):
                 stored_phase='stable',
                 pod_annotations=['ca-2026-09:stable'] * 2,
             )
+
+
+class ExistingConsumerDetectionTest(unittest.TestCase):
+    def test_detects_an_argocd_upgrade_without_helm_release_history(self) -> None:
+        def read_deployment(*, name: str, namespace: str) -> object:
+            self.assertEqual(namespace, 'osmo')
+            if name == 'osmo-api':
+                return object()
+            raise kubernetes_exceptions.ApiException(status=404, reason='Not Found')
+
+        apps_api = SimpleNamespace(read_namespaced_deployment=read_deployment)
+
+        self.assertTrue(
+            internal_tls_bootstrap.has_existing_consumer(
+                apps_api,  # type: ignore[arg-type]
+                namespace='osmo',
+                deployment_names=['osmo-router', 'osmo-api'],
+            )
+        )
+
+    def test_new_install_has_no_existing_consumer(self) -> None:
+        def read_deployment(**_kwargs: str) -> object:
+            raise kubernetes_exceptions.ApiException(status=404, reason='Not Found')
+
+        apps_api = SimpleNamespace(read_namespaced_deployment=read_deployment)
+
+        self.assertFalse(
+            internal_tls_bootstrap.has_existing_consumer(
+                apps_api,  # type: ignore[arg-type]
+                namespace='osmo',
+                deployment_names=['osmo-router', 'osmo-api'],
+            )
+        )
 
 
 if __name__ == '__main__':

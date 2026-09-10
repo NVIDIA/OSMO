@@ -239,9 +239,11 @@ resource_name_with_hash_suffix() {
     local suffix=$3
     local matches
     matches=$(resource_names "$file" "$kind" | \
-        grep -E -- "-${suffix}-[0-9a-f]{10}$" || true)
+        grep -E -- "-${suffix}-[0-9a-f]{10}\"?$" || true)
     [[ $(awk 'NF { count += 1 } END { print count + 0 }' <<<"$matches") -eq 1 ]] || \
         fail "expected exactly one $kind ending in ${suffix}-<hash>"
+    matches=${matches#\"}
+    matches=${matches%\"}
     printf '%s\n' "$matches"
 }
 
@@ -496,6 +498,13 @@ metadata:
   name: annotated-service
   annotations:
     test.osmo.nvidia.com/required: "true"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "quoted-service-auth-bootstrap-0123456789"
+  annotations:
+    test.osmo.nvidia.com/required: "true"
 EOF
 
     require_resource_metadata_annotation "$fixture" \
@@ -509,6 +518,11 @@ EOF
     if resource_document "$fixture" Secret missing-secret \
         >"$TEST_DIRECTORY/missing-resource.yaml" 2>/dev/null; then
         fail "expected absent resource extraction to fail"
+    fi
+
+    if (require_no_resource_with_hash_suffix \
+            "$fixture" Job service-auth-bootstrap) 2>/dev/null; then
+        fail "expected a quoted hashed resource name to be detected"
     fi
 }
 
@@ -1927,6 +1941,8 @@ test_control_umbrella() {
         "osmo/migrations/run_migrations.sh"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/migrations/008_v6_4_0_configmap_user_roles.json"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/migrations/009_v6_4_0_legacy_configs_cleanup.json"
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/migrations/004_v6_2_0_data.json"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
@@ -1941,14 +1957,43 @@ test_control_umbrella() {
     require_no_resource "$rendered" ConfigMap "osmo-pgroll-migrations"
     require_no_resource "$rendered" Job "osmo-pgroll-migration"
 
-    resource_document "$rendered" List osmo-internal-tls-bootstrap \
+    require_no_resource "$rendered" List osmo-internal-tls-bootstrap
+    local tls_bootstrap_name="osmo-internal-tls-bootstrap"
+    local tls_hook_kind
+    for tls_hook_kind in ServiceAccount Role RoleBinding; do
+        require_resource "$rendered" "$tls_hook_kind" "$tls_bootstrap_name"
+        resource_document "$rendered" "$tls_hook_kind" "$tls_bootstrap_name" \
+            >"$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml"
+        require_contains \
+            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
+            'helm.sh/hook: pre-install,pre-upgrade'
+        require_contains \
+            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
+            'helm.sh/hook-weight: "-30"'
+        require_contains \
+            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
+            'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+        require_not_contains \
+            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
+            'argocd.argoproj.io/'
+    done
+    require_resource "$rendered" Job "$tls_bootstrap_name"
+    resource_document "$rendered" Job "$tls_bootstrap_name" \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'command: ["internal-tls-bootstrap"]'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'verbs: ["get", "update"]'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'resourceNames:'
+        'serviceAccountName: osmo-internal-tls-bootstrap'
+    resource_document "$rendered" Role "$tls_bootstrap_name" \
+        >"$TEST_DIRECTORY/osmo-internal-tls-role.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
+        'verbs: ["get", "update", "patch"]'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
+        'verbs: ["create"]'
+    require_occurrences "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
+        '  resources: ["secrets"]' 2
+    require_occurrences "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
+        '  resourceNames:' 2
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'activeDeadlineSeconds: 300'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
@@ -1961,6 +2006,12 @@ test_control_umbrella() {
         'seccompProfile:'
     require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
         'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'helm.sh/hook-weight: "-20"'
+    require_not_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
+        'argocd.argoproj.io/'
+    require_not_contains "$rendered" 'Force=true'
+    require_not_contains "$rendered" 'Replace=true'
     require_contains "$CHARTS_ROOT/osmo/README.md" \
         'one unique rotation ID through `prepare`, `activate`'
     require_contains "$CHARTS_ROOT/osmo/README.md" \
@@ -1976,19 +2027,34 @@ test_control_umbrella() {
         fail 'generated TLS hook does not verify every consumer Deployment'
     fi
     require_not_contains "$rendered" '--ssl_self_signed'
-    local tls_placeholder
-    for tls_placeholder in \
+    local tls_secret
+    for tls_secret in \
         osmo-internal-tls-ca osmo-internal-tls-trust \
         osmo-internal-tls-api osmo-internal-tls-router \
         osmo-internal-tls-agent osmo-internal-tls-logger; do
-        resource_document "$rendered" Secret "$tls_placeholder" \
-            >"$TEST_DIRECTORY/$tls_placeholder.yaml"
-        if grep -Eq '^(data|stringData):' \
-                "$TEST_DIRECTORY/$tls_placeholder.yaml"; then
-            fail "generated TLS placeholder $tls_placeholder owns generated data"
-        fi
-        require_contains "$TEST_DIRECTORY/$tls_placeholder.yaml" \
-            'type: "Opaque"'
+        require_no_resource "$rendered" Secret "$tls_secret"
+        require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
+            "- \"$tls_secret\""
+    done
+    helm_template osmo "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string gateway.tls.generated.leafRotationNonce=leaf-v2 \
+        >"$TEST_DIRECTORY/osmo-tls-leaf-rotation.yaml"
+    local tls_consumer tls_baseline_checksum tls_rotated_checksum
+    for tls_consumer in \
+            osmo-api osmo-router osmo-agent osmo-logger osmo-gateway-envoy; do
+        tls_baseline_checksum=$(resource_document "$rendered" Deployment \
+            "$tls_consumer" | awk \
+            '$1 == "checksum/internal-tls-rotation:" { print $2 }')
+        tls_rotated_checksum=$(resource_document \
+            "$TEST_DIRECTORY/osmo-tls-leaf-rotation.yaml" Deployment \
+            "$tls_consumer" | awk \
+            '$1 == "checksum/internal-tls-rotation:" { print $2 }')
+        [[ -n "$tls_baseline_checksum" && -n "$tls_rotated_checksum" ]] || \
+            fail "TLS consumer $tls_consumer is missing its rollout annotation"
+        [[ "$tls_baseline_checksum" != "$tls_rotated_checksum" ]] || \
+            fail "TLS leaf rotation does not roll $tls_consumer"
     done
     helm_template tlsmcp "$charts_copy/osmo" --is-upgrade \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -2004,17 +2070,45 @@ test_control_umbrella() {
         --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://login.example.com/keys' \
         --set-string 'gateway.envoy.jwt.providers[0].cluster=osmo-api' \
         >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml"
-    resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Secret \
-        tlsmcp-osmo-internal-tls-mcp \
-        >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
-        'helm.sh/hook: pre-install,pre-upgrade'
-    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml" \
-        'type: "Opaque"'
-    if grep -Eq '^(data|stringData):' \
-            "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-placeholder.yaml"; then
-        fail 'offline GitOps TLS placeholder owns generated data'
-    fi
+    require_no_resource "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Secret \
+        tlsmcp-osmo-internal-tls-mcp
+    resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Role \
+        tlsmcp-osmo-internal-tls-bootstrap \
+        >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-role.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-role.yaml" \
+        '- "tlsmcp-osmo-internal-tls-mcp"'
+    resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Job \
+        tlsmcp-osmo-internal-tls-bootstrap \
+        >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-job.yaml"
+    require_not_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-job.yaml" \
+        '--fail-if-missing'
+    require_not_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" 'Force=true'
+    require_not_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" 'Replace=true'
+    helm_template tlsmcp "$charts_copy/osmo" --is-upgrade \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.mcp.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set-string services.mcp.resourceUrl=https://osmo.example.com/mcp \
+        --set-string 'services.mcp.oidcProxy.oidc.configUrl=https://login.example.com/.well-known/openid-configuration' \
+        --set-string 'services.mcp.oidcProxy.oidc.clientId=example-client' \
+        --set-string 'services.mcp.oidcProxy.existingSecret.name=mcp-oidc' \
+        --set-string 'gateway.envoy.jwt.providers[0].issuer=https://login.example.com' \
+        --set-string 'gateway.envoy.jwt.providers[0].audience=https://osmo.example.com/mcp' \
+        --set-string 'gateway.envoy.jwt.providers[0].jwks_uri=https://login.example.com/keys' \
+        --set-string 'gateway.envoy.jwt.providers[0].cluster=osmo-api' \
+        --set-string gateway.tls.generated.leafRotationNonce=leaf-v2 \
+        >"$TEST_DIRECTORY/osmo-tls-mcp-rotation.yaml"
+    tls_baseline_checksum=$(resource_document \
+        "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Deployment tlsmcp-osmo-mcp | \
+        awk '$1 == "checksum/internal-tls-rotation:" { print $2 }')
+    tls_rotated_checksum=$(resource_document \
+        "$TEST_DIRECTORY/osmo-tls-mcp-rotation.yaml" Deployment tlsmcp-osmo-mcp | \
+        awk '$1 == "checksum/internal-tls-rotation:" { print $2 }')
+    [[ -n "$tls_baseline_checksum" && -n "$tls_rotated_checksum" ]] || \
+        fail 'TLS consumer tlsmcp-osmo-mcp is missing its rollout annotation'
+    [[ "$tls_baseline_checksum" != "$tls_rotated_checksum" ]] || \
+        fail 'TLS leaf rotation does not roll tlsmcp-osmo-mcp'
 
     local legacy_reuse_chart="$TEST_DIRECTORY/osmo-legacy-reuse"
     cp -R "$charts_copy/osmo" "$legacy_reuse_chart"
@@ -2029,11 +2123,13 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set gateway.tls.generated.bootstrap.allowInitialGeneration=true \
         >"$TEST_DIRECTORY/osmo-legacy-reuse.yaml"
-    resource_document "$TEST_DIRECTORY/osmo-legacy-reuse.yaml" List \
+    resource_document "$TEST_DIRECTORY/osmo-legacy-reuse.yaml" Job \
         legacy-reuse-osmo-internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-legacy-reuse-bootstrap.yaml"
     require_not_contains "$TEST_DIRECTORY/osmo-legacy-reuse-bootstrap.yaml" \
         '--fail-if-missing'
+    require_contains "$TEST_DIRECTORY/osmo-legacy-reuse-bootstrap.yaml" \
+        '--allow-initial-generation'
     local upstream_identity
     for upstream_identity in \
             osmo-api osmo-router-headless osmo-agent osmo-logger; do
@@ -2058,7 +2154,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-existing-internal-tls.yaml" \
         'secretName: "operator-api-tls"'
     if resource_document "$TEST_DIRECTORY/osmo-existing-internal-tls.yaml" \
-            List existingtls-osmo-internal-tls-bootstrap >/dev/null 2>&1; then
+            Job existingtls-osmo-internal-tls-bootstrap >/dev/null 2>&1; then
         fail 'existing internal TLS mode rendered a Secret mutator'
     fi
 
@@ -2216,7 +2312,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         'helm.sh/hook-weight: "-26"'
     require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
-        'argocd.argoproj.io/sync-wave:'
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "run_migrations.sh: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
@@ -2227,12 +2323,14 @@ test_control_umbrella() {
         "005_v6_4_0_workflow_labels.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "008_v6_4_0_configmap_user_roles.json: |"
+    require_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
+        "009_v6_4_0_legacy_configs_cleanup.json: |"
     require_not_contains "$TEST_DIRECTORY/database-migration-configmap.yaml" \
         "004_v6_2_0_data.json: |"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         'helm.sh/hook-weight: "-25"'
     require_not_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
-        'argocd.argoproj.io/sync-wave:'
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
         "image: postgres:15-alpine"
     require_contains "$TEST_DIRECTORY/database-migration-job.yaml" \
@@ -2255,10 +2353,8 @@ test_control_umbrella() {
         "name: OSMO_SCHEMA_VERSION" 6
     require_occurrences "$TEST_DIRECTORY/database-migration.yaml" \
         'value: "public_v6_4_0"' 6
-    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-20"'
-    require_contains "$TEST_DIRECTORY/database-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-10"'
+    require_not_contains "$TEST_DIRECTORY/database-migration.yaml" \
+        'argocd.argoproj.io/'
 
     helm_template database-migration-tls "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -2278,6 +2374,121 @@ test_control_umbrella() {
         "name: PGSSLROOTCERT"
     require_contains "$TEST_DIRECTORY/database-migration-tls-job.yaml" \
         "secretName: postgresql-ca"
+
+    helm_template pg-require "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set databaseMigration.enabled=true \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        --set gateway.authz.enabled=true \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.sslMode=require \
+        >"$TEST_DIRECTORY/postgresql-require.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "pg-require-osmo-pgroll-migration" \
+        >"$TEST_DIRECTORY/postgresql-require-pgroll.yaml"
+    helm_template pg-require-service-auth "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.enabled=false \
+        --set secrets.serviceAuth.migration.enabled=true \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.sslMode=require \
+        >"$TEST_DIRECTORY/postgresql-require-service-auth-render.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require-service-auth-render.yaml" Job \
+        "pg-require-service-auth-osmo-service-auth-db-migration" \
+        >"$TEST_DIRECTORY/postgresql-require-service-auth.yaml"
+    local postgresql_require_mek_name
+    postgresql_require_mek_name=$(resource_names \
+        "$TEST_DIRECTORY/postgresql-require.yaml" Job | \
+        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_require_mek_name=${postgresql_require_mek_name#\"}
+    postgresql_require_mek_name=${postgresql_require_mek_name%\"}
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "$postgresql_require_mek_name" \
+        >"$TEST_DIRECTORY/postgresql-require-mek.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Deployment \
+        "pg-require-osmo-api" \
+        >"$TEST_DIRECTORY/postgresql-require-api.yaml"
+    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Deployment \
+        "pg-require-osmo-gateway-authz" \
+        >"$TEST_DIRECTORY/postgresql-require-authz.yaml"
+    local postgresql_require_resource
+    for postgresql_require_resource in pgroll service-auth mek api authz; do
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "PGSSLROOTCERT"
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "postgresql-ca"
+        require_not_contains \
+            "$TEST_DIRECTORY/postgresql-require-$postgresql_require_resource.yaml" \
+            "sslrootcert="
+    done
+    require_contains "$TEST_DIRECTORY/postgresql-require-pgroll.yaml" \
+        'value: "require"'
+    require_contains "$TEST_DIRECTORY/postgresql-require-service-auth.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-mek.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-api.yaml" \
+        'value: require'
+    require_contains "$TEST_DIRECTORY/postgresql-require-authz.yaml" \
+        "--postgres-ssl-mode=require"
+
+    helm_template pg-require "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.masterEncryptionKey.managementMode=osmo \
+        --set secrets.masterEncryptionKey.bootstrap.enabled=true \
+        >"$TEST_DIRECTORY/postgresql-disable-mek.yaml"
+    local postgresql_disable_mek_name
+    postgresql_disable_mek_name=$(resource_names \
+        "$TEST_DIRECTORY/postgresql-disable-mek.yaml" Job | \
+        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_disable_mek_name=${postgresql_disable_mek_name#\"}
+    postgresql_disable_mek_name=${postgresql_disable_mek_name%\"}
+    if [[ "$postgresql_require_mek_name" == "$postgresql_disable_mek_name" ]]; then
+        fail "PostgreSQL SSL mode change reused the MEK bootstrap Job name"
+    fi
+
+    if helm_template invalid-postgresql-verify-full-without-ca "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=verify-full \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret= \
+            >"$TEST_DIRECTORY/invalid-postgresql-verify-full-without-ca.out" 2>&1; then
+        fail "expected PostgreSQL verify-full without a CA Secret to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/invalid-postgresql-verify-full-without-ca.out" \
+        "caExistingSecret is required when sslMode=verify-full"
+
+    if helm_template invalid-postgresql-require-with-ca "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=require \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret=configured-ca \
+            >"$TEST_DIRECTORY/invalid-postgresql-require-with-ca.out" 2>&1; then
+        fail "expected PostgreSQL require with a CA Secret to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-postgresql-require-with-ca.out" \
+        "caExistingSecret must be empty when sslMode=require"
+
+    if helm_template invalid-postgresql-ssl-mode "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set-string externalDependencies.postgresql.tls.sslMode=prefer \
+            --set-string externalDependencies.postgresql.tls.caExistingSecret= \
+            >"$TEST_DIRECTORY/invalid-postgresql-ssl-mode.out" 2>&1; then
+        fail "expected an unsupported PostgreSQL SSL mode to fail"
+    fi
+    require_schema_path "$TEST_DIRECTORY/invalid-postgresql-ssl-mode.out" \
+        "externalDependencies.postgresql.tls.sslMode"
 
     if helm_template invalid-compute-database-migration "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -2783,7 +2994,7 @@ EOF
         "osmo-service-auth"
     require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
         "service_auth_database_write_lock"
-    require_not_contains "$TEST_DIRECTORY/service-auth.yaml" \
+    require_no_resource "$TEST_DIRECTORY/service-auth.yaml" Job \
         "service-auth-osmo-service-auth-db-migration"
 
     helm_template service-auth-bootstrap "$charts_copy/osmo" \
@@ -2937,30 +3148,67 @@ EOF
         "service-auth-migration-osmo-agent"
     require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Deployment \
         "service-auth-migration-osmo-gateway-authz"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" ServiceAccount \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" RoleBinding \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    require_resource "$TEST_DIRECTORY/service-auth-migration.yaml" Job \
-        "service-auth-migration-osmo-service-auth-db-migration"
-    resource_document "$TEST_DIRECTORY/service-auth-migration.yaml" Role \
-        "service-auth-migration-osmo-service-auth-db-migration" \
-        >"$TEST_DIRECTORY/service-auth-role.yaml"
-    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
-        'resourceNames: ["osmo-service-auth"]'
-    require_contains "$TEST_DIRECTORY/service-auth-role.yaml" \
-        'verbs: ["get", "update"]'
-    require_not_contains "$TEST_DIRECTORY/service-auth-role.yaml" '"create"'
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'helm.sh/hook: pre-upgrade'
-    require_occurrences "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/hook: PreSync' 4
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-20"'
-    require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'argocd.argoproj.io/sync-wave: "-10"'
+    local service_auth_migration_job_name
+    local service_auth_migration_support_name
+    service_auth_migration_job_name="service-auth-migration-osmo-service-auth-db-migration"
+    service_auth_migration_support_name="$service_auth_migration_job_name"
+    for migration_render in service-auth-migration; do
+        local migration_file="$TEST_DIRECTORY/$migration_render.yaml"
+        for migration_kind in ServiceAccount Role RoleBinding; do
+            require_resource "$migration_file" "$migration_kind" \
+                "$service_auth_migration_support_name"
+            resource_document "$migration_file" "$migration_kind" \
+                "$service_auth_migration_support_name" \
+                >"$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml"
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook: pre-upgrade'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook-weight: "-20"'
+            require_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+            require_not_contains \
+                "$TEST_DIRECTORY/service-auth-$migration_render-$migration_kind.yaml" \
+                'argocd.argoproj.io/'
+        done
+        require_resource "$migration_file" Job "$service_auth_migration_job_name"
+        resource_document "$migration_file" Job "$service_auth_migration_job_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml"
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook: pre-upgrade'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook-weight: "-10"'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
+        require_not_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            'argocd.argoproj.io/'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-Job.yaml" \
+            "serviceAccountName: \"$service_auth_migration_support_name\""
+        resource_document "$migration_file" Role \
+            "$service_auth_migration_support_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-role.yaml"
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            'resourceNames: ["osmo-service-auth"]'
+        require_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            'verbs: ["get", "update"]'
+        require_occurrences \
+            "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            '  verbs:' 1
+        require_not_contains "$TEST_DIRECTORY/service-auth-$migration_render-role.yaml" \
+            '"create"'
+        resource_document "$migration_file" RoleBinding \
+            "$service_auth_migration_support_name" \
+            >"$TEST_DIRECTORY/service-auth-$migration_render-role-binding.yaml"
+        require_occurrences \
+            "$TEST_DIRECTORY/service-auth-$migration_render-role-binding.yaml" \
+            "  name: \"$service_auth_migration_support_name\"" 3
+        require_not_contains "$migration_file" 'Force=true'
+        require_not_contains "$migration_file" 'Replace=true'
+    done
+    require_not_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
+        'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'command: ["service-auth-bootstrap"]'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
@@ -2982,6 +3230,21 @@ EOF
     fi
     require_contains "$TEST_DIRECTORY/service-auth-migration-with-api.out" \
         "services.api.enabled must be false during service-auth migration"
+    if helm_template removed-service-auth-migration-attempt "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set services.api.enabled=false \
+            --set secrets.serviceAuth.migration.enabled=true \
+            --set-string secrets.serviceAuth.migration.attempt=2 \
+            >"$TEST_DIRECTORY/removed-service-auth-migration-attempt.out" 2>&1; then
+        fail "expected the removed service auth migration attempt to fail schema validation"
+    fi
+    require_schema_path \
+        "$TEST_DIRECTORY/removed-service-auth-migration-attempt.out" \
+        "secrets.serviceAuth.migration"
+    require_additional_property_error \
+        "$TEST_DIRECTORY/removed-service-auth-migration-attempt.out" \
+        "attempt"
 
     if helm_template missing-service-auth-secret "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

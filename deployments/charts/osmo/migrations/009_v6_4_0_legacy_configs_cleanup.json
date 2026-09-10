@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "DELETE FROM public.configs WHERE type = 'DATASET' OR (type = 'SERVICE' AND key IN ('service_cluster', 'service_cluster_namespace', 'service_url', 'user_data_path', 'user_dataset_path', 'workflow_backends', 'workflow_start_timeout')) OR (type = 'WORKFLOW' AND key IN ('credential_validation_enabled', 'default_workflow_backend', 'exec_port_config', 'workflow_alert'))"
+      }
+    }
+  ]
+}

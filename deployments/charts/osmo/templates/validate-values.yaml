@@ -549,8 +549,19 @@
 {{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthCookieSecret.generate) (not .Values.secrets.oauthCookieSecret.existingSecret) -}}
 {{- fail "secrets.oauthCookieSecret requires generate=true or existingSecret when the OAuth2 proxy is enabled" -}}
 {{- end -}}
-{{- if and (not .Values.embeddedDependencies.postgresql.enabled) .Values.externalDependencies.postgresql.tls.enabled (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
-{{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when TLS is enabled" -}}
+{{- if and
+  (not .Values.embeddedDependencies.postgresql.enabled)
+  .Values.externalDependencies.postgresql.tls.enabled
+  (eq .Values.externalDependencies.postgresql.tls.sslMode "verify-full")
+  (not .Values.externalDependencies.postgresql.tls.caExistingSecret) -}}
+{{- fail "externalDependencies.postgresql.tls.caExistingSecret is required when sslMode=verify-full" -}}
+{{- end -}}
+{{- if and
+  (not .Values.embeddedDependencies.postgresql.enabled)
+  .Values.externalDependencies.postgresql.tls.enabled
+  (eq .Values.externalDependencies.postgresql.tls.sslMode "require")
+  .Values.externalDependencies.postgresql.tls.caExistingSecret -}}
+{{- fail "externalDependencies.postgresql.tls.caExistingSecret must be empty when sslMode=require" -}}
 {{- end -}}
 
 {{- $configurationSecretNames := dict -}}

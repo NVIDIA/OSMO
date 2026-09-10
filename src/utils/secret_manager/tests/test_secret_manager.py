@@ -26,6 +26,14 @@ def _encoded(key: jwk.JWK) -> str:
     ).decode()
 
 
+def _encoded_octet_jwk(key_id: str, encoded_key: str) -> str:
+    return base64.b64encode(json.dumps({
+        "k": encoded_key,
+        "kid": key_id,
+        "kty": "oct",
+    }, separators=(",", ":")).encode()).decode()
+
+
 def _write(path: Path, current: str, keys: dict[str, jwk.JWK]) -> None:
     path.write_text(
         "currentMek: " + current + "\nmeks:\n" +
@@ -100,6 +108,96 @@ class TestSecretManager(unittest.TestCase):
             self.assertEqual(first.generation, second.generation)
             self.assertNotEqual(
                 first.fingerprint_bundle_digest(), second.fingerprint_bundle_digest())
+
+    def test_parser_accepts_legacy_unpadded_standard_base64(self):
+        material = (
+            b"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
+            b"\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+            b"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
+            b"\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"
+        )
+        legacy_standard_key = base64.b64encode(material).decode().rstrip("=")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mek.yaml"
+            path.write_text(
+                "currentMek: key1\nmeks:\n"
+                "  key1: " + _encoded_octet_jwk(
+                    "key1", legacy_standard_key) + "\n",
+                encoding="utf-8",
+            )
+
+            manager = _manager(path, Store())
+
+        self.assertEqual(
+            manager.meks["key1"].export(as_dict=True)["k"],
+            "4OHi4-Tl5ufo6err7O3u7_Dx8vP09fb3-Pn6-_z9_v8",
+        )
+        self.assertEqual(
+            manager.key_fingerprints()["key1"],
+            "9432c1a7d343fcfacb164bdc44ff71c1281c004886b1c428419088d06cd3561a",
+        )
+
+    def test_parser_rejects_invalid_inner_key_spellings_without_leaking(self):
+        invalid_keys = {
+            "mixed-plus-underscore":
+                "4OHi4+Tl5ufo6err7O3u7_Dx8vP09fb3+Pn6+/z9/v8",
+            "mixed-dash-slash":
+                "4OHi4-Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8",
+            "invalid-character":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v!",
+            "whitespace":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+ /z9/v8",
+            "misplaced-padding":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+=/z9/v8",
+            "excess-padding":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8===",
+            "nonzero-discarded-bits":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v9",
+            "31-byte-standard-unpadded":
+                "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/g",
+            "33-byte-standard-unpadded":
+                "3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/",
+            "padded-base64url":
+                "4OHi4-Tl5ufo6err7O3u7_Dx8vP09fb3-Pn6-_z9_v8=",
+        }
+        for name, encoded_key in invalid_keys.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "mek.yaml"
+                path.write_text(
+                    "currentMek: key1\nmeks:\n"
+                    "  key1: " + _encoded_octet_jwk(
+                        "key1", encoded_key) + "\n",
+                    encoding="utf-8",
+                )
+
+                with self.assertRaises(osmo_errors.OSMOError) as context:
+                    _manager(path, Store())
+
+                self.assertEqual(str(context.exception), "A MEK entry is invalid.")
+                self.assertNotIn(encoded_key, str(context.exception))
+
+    def test_parser_rejects_duplicate_material_across_legacy_spellings(self):
+        url_key = "4OHi4-Tl5ufo6err7O3u7_Dx8vP09fb3-Pn6-_z9_v8"
+        legacy_standard_key = "4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mek.yaml"
+            path.write_text(
+                "currentMek: key1\nmeks:\n"
+                "  key1: " + _encoded_octet_jwk("key1", url_key) + "\n"
+                "  key2: " + _encoded_octet_jwk(
+                    "key2", legacy_standard_key) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(osmo_errors.OSMOError) as context:
+                _manager(path, Store())
+
+        self.assertEqual(
+            str(context.exception),
+            "Each MEK identifier must contain unique key material.",
+        )
+        self.assertNotIn(url_key, str(context.exception))
+        self.assertNotIn(legacy_standard_key, str(context.exception))
 
     def test_parser_rejects_duplicate_material_and_does_not_leak(self):
         sentinel = "MEK-SENTINEL-DO-NOT-LOG"

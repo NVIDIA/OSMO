@@ -60,6 +60,7 @@
       "postgresUsername" (include "osmo.postgresql.username" .)
       "postgresSecretName" (include "osmo.postgresql.secretName" .)
       "postgresPasswordKey" (include "osmo.postgresql.passwordKey" .)
+      "postgresSslMode" (include "osmo.postgresql.sslMode" .)
       "postgresCaName" (include "osmo.postgresql.caSecretName" .)
       "postgresCaKey" (include "osmo.postgresql.caKey" .) -}}
 {{- $bootstrapIdentity := toJson $bootstrapInputs | sha256sum }}
