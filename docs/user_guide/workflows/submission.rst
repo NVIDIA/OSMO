@@ -196,7 +196,8 @@ Label keys must start with a letter or number. Both ``--label -key=val`` and
 identifying ``-key`` as invalid. Recognized command options after ``--label``
 still indicate a missing label argument.
 
-The same flag works for app submission and resubmission by workflow ID
+The same flag and validation behavior apply to app submission
+(``osmo app submit <app-name>``) and resubmission by workflow ID
 (``osmo workflow submit <workflow-id>``). Restart does not accept label
 overrides because it reuses the stored specification; resubmit the workflow
 when a stored label must change.

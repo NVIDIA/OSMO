@@ -32,7 +32,15 @@ from src.lib.utils import client, osmo_errors, validation
 
 class TestInvalidLabelArgument(unittest.TestCase):
     def test_spaced_and_equals_labels_reach_submission_validation(self):
-        def reject_invalid_label(method, endpoint, *, payload, params):
+        def respond(method, endpoint, *, params, payload=None, mode=client.ResponseMode.JSON):
+            if method == client.RequestMethod.GET:
+                if endpoint == 'api/app/user/my-app':
+                    self.assertEqual(params, {'version': 3, 'limit': 1})
+                    return {'uuid': 'app-uuid', 'versions': [{'version': 3}]}
+                self.assertEqual(endpoint, 'api/app/user/my-app/spec')
+                self.assertEqual(params, {'version': 3})
+                self.assertEqual(mode, client.ResponseMode.PLAIN_TEXT)
+                return 'version: 2\nworkflow:\n  name: workflow\n'
             self.assertEqual(method, client.RequestMethod.POST)
             self.assertEqual(endpoint, 'api/pool/pool-1/workflow')
             self.assertIn('name: workflow', payload['file'])
@@ -50,17 +58,22 @@ class TestInvalidLabelArgument(unittest.TestCase):
             workflow_file = pathlib.Path(directory) / 'workflow.yaml'
             workflow_file.write_text(
                 'version: 2\nworkflow:\n  name: workflow\n', encoding='utf-8')
-            requests = []
-            outputs = []
-            for command in ('submit', 'validate'):
+            for module, command, target in (
+                ('workflow', 'submit', str(workflow_file)),
+                ('workflow', 'validate', str(workflow_file)),
+                ('app', 'submit', 'my-app:3'),
+            ):
+                requests = []
+                outputs = []
                 for label_arguments in (['--label', '-key=val'], ['--label=-key=val']):
-                    with self.subTest(command=command, label_arguments=label_arguments):
+                    with self.subTest(module=module, command=command,
+                                      label_arguments=label_arguments):
                         output = io.StringIO()
                         errors = io.StringIO()
                         service_client = mock.Mock(spec=client.ServiceClient)
-                        service_client.request.side_effect = reject_invalid_label
+                        service_client.request.side_effect = respond
                         with mock.patch.object(cli.sys, 'argv', [
-                                'osmo', 'workflow', command, str(workflow_file),
+                                'osmo', module, command, target,
                                 '--pool', 'pool-1', *label_arguments]), \
                              mock.patch.object(cli, 'configure_logging'), \
                              mock.patch.object(cli.client, 'LoginManager'), \
@@ -77,13 +90,17 @@ class TestInvalidLabelArgument(unittest.TestCase):
                         self.assertIn('Error code: 400', output.getvalue())
                         self.assertNotIn('expected one argument', errors.getvalue())
                         self.assertNotIn('successful', output.getvalue())
-                        service_client.request.assert_called_once()
-                        requests.append(service_client.request.call_args)
+                        self.assertEqual(service_client.request.call_count,
+                                         3 if module == 'app' else 1)
+                        if module == 'app':
+                            params = service_client.request.call_args.kwargs['params']
+                            self.assertEqual(params['app_uuid'], 'app-uuid')
+                            self.assertEqual(params['app_version'], 3)
+                        requests.append(service_client.request.call_args_list)
                         outputs.append(output.getvalue())
-            self.assertEqual(requests[0], requests[1])
-            self.assertEqual(requests[2], requests[3])
-            self.assertEqual(outputs[0], outputs[1])
-            self.assertEqual(outputs[2], outputs[3])
+                if len(requests) == 2:
+                    self.assertEqual(requests[0], requests[1])
+                    self.assertEqual(outputs[0], outputs[1])
 
 
 class TestSubmissionErrorOutput(unittest.TestCase):
