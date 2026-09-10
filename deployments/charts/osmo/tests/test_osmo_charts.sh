@@ -2242,11 +2242,9 @@ test_control_umbrella() {
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set databaseMigration.enabled=true \
-        --set secrets.serviceAuth.migration.enabled=true \
         --set secrets.masterEncryptionKey.managementMode=osmo \
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         --set gateway.authz.enabled=true \
-        --set configuration.enabled=false \
         --set externalDependencies.postgresql.tls.enabled=true \
         --set-string externalDependencies.postgresql.tls.sslMode=require \
         >"$TEST_DIRECTORY/postgresql-require.yaml"
@@ -2254,10 +2252,18 @@ test_control_umbrella() {
         "pg-require-osmo-pgroll-migration" \
         >"$TEST_DIRECTORY/postgresql-require-pgroll.yaml"
     local postgresql_require_service_auth_name
+    helm_template pg-require-service-auth "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set services.api.enabled=false \
+        --set secrets.serviceAuth.migration.enabled=true \
+        --set externalDependencies.postgresql.tls.enabled=true \
+        --set-string externalDependencies.postgresql.tls.sslMode=require \
+        >"$TEST_DIRECTORY/postgresql-require-service-auth-render.yaml"
     postgresql_require_service_auth_name=$(resource_name_with_hash_suffix \
-        "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+        "$TEST_DIRECTORY/postgresql-require-service-auth-render.yaml" Job \
         "service-auth-db-migration")
-    resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
+    resource_document "$TEST_DIRECTORY/postgresql-require-service-auth-render.yaml" Job \
         "$postgresql_require_service_auth_name" \
         >"$TEST_DIRECTORY/postgresql-require-service-auth.yaml"
     local postgresql_require_mek_name
