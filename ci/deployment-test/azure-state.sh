@@ -11,7 +11,8 @@ private=$(mktemp -d)
 trap 'rm -rf -- "$private"' EXIT
 printf '%s' "$OSMO_AZURE_TFSTATE_KEY" > "$private/passphrase"
 unset OSMO_AZURE_TFSTATE_KEY
-gpg_args=(--batch --yes --no-options --pinentry-mode loopback --no-symkey-cache
+mkdir -m 700 "$private/gnupg"
+gpg_args=(--homedir "$private/gnupg" --batch --yes --no-options --pinentry-mode loopback --no-symkey-cache
     --passphrase-file "$private/passphrase")
 
 case "${1:-}" in

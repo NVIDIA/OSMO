@@ -7,7 +7,8 @@ helper="$repo/ci/deployment-test/azure-state.sh"
 temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
 export GNUPGHOME="$temporary/gnupg"
-mkdir -m 700 "$GNUPGHOME" "$temporary/work" "$temporary/inputs"
+# Fresh runners have no GPG home. The helper must own its temporary GPG state.
+mkdir -m 700 "$temporary/work" "$temporary/inputs"
 export OSMO_AZURE_TFSTATE_KEY=only-a-test-key-not-a-real-secret
 printf 'database-password-sentinel' > "$temporary/work/terraform.tfstate"
 printf 'provider-lock' > "$temporary/work/.terraform.lock.hcl"
@@ -42,4 +43,5 @@ rm "$temporary/work/terraform.tfstate"
 bash "$helper" save "$temporary/work" "$temporary/inputs" "$temporary/marker.json" "$temporary/empty.gpg"
 bash "$helper" restore "$temporary/empty.gpg" "$temporary/empty"
 [[ ! -e "$temporary/empty/terraform.tfstate" && -f "$temporary/empty/cloud-attempt.json" ]]
+[[ ! -e "$GNUPGHOME" ]]
 echo 'State encryption, integrity, partial-state and allowlist checks passed'
