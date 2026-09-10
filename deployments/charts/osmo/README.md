@@ -34,12 +34,13 @@ release. They install:
 
 ### Prerequisites
 
-Use Kubernetes 1.30 or newer with enough capacity for the resources described
-below. The cluster must have a default dynamic StorageClass. Install Helm,
-`kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO. Select the
-development cluster context once; replace `kind-osmo` if your cluster has a
-different context. A GPU workflow also requires GPU-capable nodes and the
-NVIDIA GPU Operator.
+Use Kubernetes 1.30 or newer and Helm 3.19 or newer with enough capacity for
+the resources described below. Helm 3.19 is required so a failed multi-resource
+bootstrap hook cleans up its earlier RBAC resources. The cluster must have a
+default dynamic StorageClass. Install Helm, `kubectl`, KAI Scheduler, and the
+CloudNativePG operator before OSMO. Select the development cluster context
+once; replace `kind-osmo` if your cluster has a different context. A GPU
+workflow also requires GPU-capable nodes and the NVIDIA GPU Operator.
 
 ```bash
 kubectl config use-context kind-osmo
@@ -999,10 +1000,10 @@ suspended or an in-flight operation cannot be drained, the cutover is blocked.
 Retain the legacy DB row and its MEK through the rollback window so an older
 binary can still use the same identity; 6.4 runtime services ignore that row.
 
-Leave `secrets.serviceAuth.migration.attempt` unchanged after a successful
-migration. Increment it only when retrying a failed or interrupted migration
-hook; the new attempt gives the retry a distinct Job identity while the
-release-scoped support resources remain stable for raw Helm cleanup.
+To retry a failed or interrupted migration, correct the cause and rerun the
+Helm upgrade or start another Argo CD sync. The stable hook name and
+before-creation cleanup policy recreate the Job. Deleting an Argo hook alone
+does not start a new sync because hooks run as part of sync operations.
 
 ```bash
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
@@ -1189,6 +1190,15 @@ blocks; Helm schema errors identify any remaining legacy fields.
 | Development | `gateway.tls.generated.enabled: true` |
 | Production | Set `generated.enabled: false`, `caSecret`, and every `upstreamCerts` Secret |
 
+Generated mode uses an individually rendered Helm
+`pre-install,pre-upgrade`/Argo CD `PreSync` bootstrap Job. The Job creates and
+populates retained CA, trust, and leaf Secrets before the consumer Deployments
+are applied. Certificate data is never rendered into Helm release state, and
+the generated Secrets carry Helm keep and Argo `Prune=false,Delete=false`
+metadata. Raw Helm use requires Helm 3.19 or newer for complete cleanup when a
+later hook fails. Back up these Secrets; uninstalling the release does not make
+the CA safe to replace.
+
 - Rotate leaves by changing `gateway.tls.generated.leafRotationNonce`.
 - For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
   `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
@@ -1197,6 +1207,9 @@ blocks; Helm schema errors identify any remaining legacy fields.
   `gateway.tls.generated.bootstrap.allowInitialGeneration=true` once, verify the
   retained Secrets, then set it back to `false`. Never use this flag to replace
   a missing retained CA; restore the original Secret instead.
+- If the bootstrap hook fails, correct the cause and rerun `helm upgrade` or
+  start another Argo CD sync. Hook cleanup recreates the stable Job name; merely
+  deleting an Argo hook does not start a new sync.
 
 ## Exposure
 

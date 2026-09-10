@@ -2,16 +2,7 @@
 {{- $serviceAuth := .Values.secrets.serviceAuth -}}
 {{- $secretName := required "secrets.serviceAuth.existingSecret.name is required during migration" $serviceAuth.existingSecret.name -}}
 {{- $secretKey := required "secrets.serviceAuth.existingSecret.key is required during migration" $serviceAuth.existingSecret.key -}}
-{{- $identity := dict
-      "releaseName" .Release.Name
-      "releaseNamespace" .Release.Namespace
-      "secretName" $secretName
-      "secretKey" $secretKey
-      "attempt" $serviceAuth.migration.attempt
-      "image" (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) -}}
 {{- $supportName := include "osmo.component.fullname" (dict "root" . "suffix" "service-auth-db-migration") -}}
-{{- $jobBaseName := printf "%s-service-auth-db-migration" (include "osmo.fullname" . | trunc 26 | trimSuffix "-") -}}
-{{- $jobName := printf "%s-%s" $jobBaseName ($identity | toJson | sha256sum | trunc 10) | trunc 63 | trimSuffix "-" -}}
 {{- $rbacAnnotations := dict
       "helm.sh/hook" "pre-upgrade"
       "helm.sh/hook-weight" "-20"
@@ -75,7 +66,7 @@ roleRef:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $jobName | quote }}
+  name: {{ $supportName | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "osmo.component.labels" (dict "root" . "component" "service-auth-db-migration") | nindent 4 }}

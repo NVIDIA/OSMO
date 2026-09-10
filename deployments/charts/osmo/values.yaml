@@ -402,8 +402,6 @@ secrets:
       # access and target-scoped Secret update permission. Disable after
       # migration. Remove only when DB-backed upgrades are no longer supported.
       enabled: false
-      # Increment after a failed GitOps attempt or credential correction.
-      attempt: "1"
       nodeSelector: {}
       tolerations: []
       resources: {}
@@ -1739,10 +1737,15 @@ gateway:
     generated:
       enabled: true
       bootstrap:
+        # A short-lived pre-install/pre-upgrade Job creates retained TLS
+        # Secrets before consumers are applied; certificate data is not stored
+        # in Helm release state. Raw Helm use requires Helm 3.19 or newer so
+        # failed multi-resource hooks clean up their support RBAC.
         # Empty uses the OSMO API service image.
         image: ''
         imagePullPolicy: IfNotPresent
-        # One-time gate for the first upgrade from process-local TLS.
+        # One-time gate for the first upgrade from process-local TLS. Later
+        # upgrades fail closed if any retained generated Secret is missing.
         allowInitialGeneration: false
       leafRotationNonce: ''
       caRotation:

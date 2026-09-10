@@ -35,6 +35,10 @@ from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignor
 _MANAGED_BY = 'osmo-internal-tls-bootstrap'
 _MANAGED_BY_LABEL = 'app.kubernetes.io/managed-by'
 _INSTANCE_LABEL = 'app.kubernetes.io/instance'
+_RETENTION_ANNOTATIONS = {
+    'helm.sh/resource-policy': 'keep',
+    'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
+}
 
 
 class BootstrapError(RuntimeError):
@@ -60,6 +64,26 @@ def _active_pod(pod: kubernetes_client.V1Pod) -> bool:
         (metadata is None or metadata.deletion_timestamp is None)
         and phase not in {'Succeeded', 'Failed'}
     )
+
+
+def has_existing_consumer(
+    apps_api: kubernetes_client.AppsV1Api,
+    *,
+    namespace: str,
+    deployment_names: Iterable[str],
+) -> bool:
+    """Detect an upgrade when an offline renderer has no Helm release state."""
+    for name in set(deployment_names):
+        try:
+            apps_api.read_namespaced_deployment(name=name, namespace=namespace)
+            return True
+        except kubernetes_exceptions.ApiException as error:
+            if error.status == 404:
+                continue
+            raise BootstrapError(
+                'Unable to detect existing internal TLS consumers'
+            ) from error
+    return False
 
 
 def verify_rollout(
@@ -276,6 +300,19 @@ def _read_secret(
         raise BootstrapError(f'Unable to read generated TLS Secret {name}') from error
 
 
+def _read_optional_secret(
+    api: kubernetes_client.CoreV1Api,
+    namespace: str,
+    name: str,
+) -> kubernetes_client.V1Secret | None:
+    try:
+        return api.read_namespaced_secret(name=name, namespace=namespace)
+    except kubernetes_exceptions.ApiException as error:
+        if error.status == 404:
+            return None
+        raise BootstrapError(f'Unable to read generated TLS Secret {name}') from error
+
+
 def _require_owned(
     secret: kubernetes_client.V1Secret,
     release_name: str,
@@ -290,6 +327,99 @@ def _require_owned(
         raise BootstrapError(
             f'Generated TLS Secret {name} is not owned by release {release_name}'
         )
+
+
+def _create_secret(
+    api: kubernetes_client.CoreV1Api,
+    namespace: str,
+    release_name: str,
+    name: str,
+) -> kubernetes_client.V1Secret:
+    secret = kubernetes_client.V1Secret(
+        api_version='v1',
+        kind='Secret',
+        metadata=kubernetes_client.V1ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={
+                _MANAGED_BY_LABEL: _MANAGED_BY,
+                _INSTANCE_LABEL: release_name,
+            },
+            annotations=dict(_RETENTION_ANNOTATIONS),
+        ),
+        type='Opaque',
+    )
+    try:
+        return api.create_namespaced_secret(namespace=namespace, body=secret)
+    except kubernetes_exceptions.ApiException as error:
+        if error.status == 409:
+            existing = _read_secret(api, namespace, name)
+            _require_owned(existing, release_name)
+            return existing
+        status = error.status if error.status is not None else 'unknown'
+        reason = error.reason or 'API error'
+        raise BootstrapError(
+            f'Unable to create generated TLS Secret {name}: '
+            f'Kubernetes API {status} {reason}'
+        ) from error
+
+
+def _protect_secret(
+    api: kubernetes_client.CoreV1Api,
+    namespace: str,
+    secret: kubernetes_client.V1Secret,
+) -> kubernetes_client.V1Secret:
+    metadata = secret.metadata
+    name = metadata.name if metadata else None
+    if not name:
+        raise BootstrapError('Generated TLS Secret is missing metadata.name')
+    annotations = metadata.annotations or {}
+    if all(annotations.get(key) == value for key, value in _RETENTION_ANNOTATIONS.items()):
+        return secret
+    try:
+        return api.patch_namespaced_secret(
+            name=name,
+            namespace=namespace,
+            body={'metadata': {'annotations': _RETENTION_ANNOTATIONS}},
+        )
+    except kubernetes_exceptions.ApiException as error:
+        status = error.status if error.status is not None else 'unknown'
+        reason = error.reason or 'API error'
+        raise BootstrapError(
+            f'Unable to protect generated TLS Secret {name}: '
+            f'Kubernetes API {status} {reason}'
+        ) from error
+
+
+def _prepare_secrets(
+    api: kubernetes_client.CoreV1Api,
+    *,
+    namespace: str,
+    release_name: str,
+    secret_names: Iterable[str],
+    fail_if_missing: bool,
+) -> dict[str, kubernetes_client.V1Secret]:
+    names = list(dict.fromkeys(secret_names))
+    secrets = {
+        name: _read_optional_secret(api, namespace, name)
+        for name in names
+    }
+    for secret in secrets.values():
+        if secret is not None:
+            _require_owned(secret, release_name)
+    missing = [name for name, secret in secrets.items() if secret is None]
+    if missing and fail_if_missing:
+        raise BootstrapError(
+            f'Generated TLS Secret {missing[0]} is missing; '
+            'restore the retained Secret'
+        )
+    for name in missing:
+        secrets[name] = _create_secret(api, namespace, release_name, name)
+    return {
+        name: _protect_secret(api, namespace, secret)
+        for name, secret in secrets.items()
+        if secret is not None
+    }
 
 
 def _replace_secret(
@@ -555,10 +685,24 @@ def reconcile(
         raise BootstrapError(
             'Internal TLS CA rotation requires verified consumer rollout state'
         )
-    ca_secret = _read_secret(api, namespace, ca_secret_name)
-    _require_owned(ca_secret, release_name)
+    secrets = _prepare_secrets(
+        api,
+        namespace=namespace,
+        release_name=release_name,
+        secret_names=[
+            ca_secret_name,
+            trust_secret_name,
+            *(leaf_spec.secret_name for leaf_spec in leaf_specs),
+        ],
+        fail_if_missing=fail_if_missing,
+    )
+    ca_secret = secrets[ca_secret_name]
     current_certificate = _decode_secret_data(ca_secret, 'ca.crt')
     current_private_key = _decode_secret_data(ca_secret, 'ca.key')
+    if bool(current_certificate) != bool(current_private_key):
+        raise BootstrapError(
+            f'Generated TLS CA Secret {ca_secret_name} is incomplete; restore it'
+        )
     if not current_certificate or not current_private_key:
         if fail_if_missing:
             raise BootstrapError(
@@ -623,8 +767,7 @@ def reconcile(
         if pending:
             raise BootstrapError('CA retire requires the prepared CA to be activated first')
         for leaf_spec in leaf_specs:
-            leaf_secret = _read_secret(api, namespace, leaf_spec.secret_name)
-            _require_owned(leaf_secret, release_name)
+            leaf_secret = secrets[leaf_spec.secret_name]
             if not _leaf_matches_contract(
                 _decode_secret_data(leaf_secret, 'tls.crt'),
                 _decode_secret_data(leaf_secret, 'tls.key'),
@@ -654,8 +797,7 @@ def reconcile(
         ca_values['previous-ca.key'] = previous.private_key
     _replace_secret(api, namespace, ca_secret, 'Opaque', ca_values)
 
-    trust_secret = _read_secret(api, namespace, trust_secret_name)
-    _require_owned(trust_secret, release_name)
+    trust_secret = secrets[trust_secret_name]
     trust_bundle = current.certificate
     if pending:
         trust_bundle += pending.certificate
@@ -670,8 +812,7 @@ def reconcile(
     )
 
     for leaf_spec in leaf_specs:
-        leaf_secret = _read_secret(api, namespace, leaf_spec.secret_name)
-        _require_owned(leaf_secret, release_name)
+        leaf_secret = secrets[leaf_spec.secret_name]
         existing_nonce = _decode_secret_data(leaf_secret, 'rotation-nonce')
         certificate = _decode_secret_data(leaf_secret, 'tls.crt')
         private_key = _decode_secret_data(leaf_secret, 'tls.key')
@@ -725,15 +866,25 @@ def main() -> int:
         default='stable',
     )
     parser.add_argument('--fail-if-missing', action='store_true')
+    parser.add_argument('--allow-initial-generation', action='store_true')
     arguments = parser.parse_args()
     try:
         kubernetes_config.load_incluster_config()
         core_api = kubernetes_client.CoreV1Api()
+        apps_api = kubernetes_client.AppsV1Api()
+        fail_if_missing = arguments.fail_if_missing or (
+            not arguments.allow_initial_generation
+            and has_existing_consumer(
+                apps_api,
+                namespace=arguments.namespace,
+                deployment_names=arguments.consumer_deployment,
+            )
+        )
         rollout_verified = False
         if arguments.ca_rotation_phase != 'stable':
             verify_transition_rollout(
                 core_api,
-                kubernetes_client.AppsV1Api(),
+                apps_api,
                 kubernetes_client.AutoscalingV2Api(),
                 namespace=arguments.namespace,
                 release_name=arguments.release_name,
@@ -753,7 +904,7 @@ def main() -> int:
             leaf_rotation_nonce=arguments.leaf_rotation_nonce,
             ca_rotation_id=arguments.ca_rotation_id,
             ca_rotation_phase=arguments.ca_rotation_phase,
-            fail_if_missing=arguments.fail_if_missing,
+            fail_if_missing=fail_if_missing,
             now=datetime.datetime.now(datetime.UTC),
             rollout_verified=rollout_verified,
         )

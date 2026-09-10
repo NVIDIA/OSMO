@@ -122,7 +122,6 @@ secrets:
       enabled: false
     migration:
       enabled: true
-      attempt: "1"
 ```
 
 The hook decrypts and validates the existing database identity and copies that
@@ -132,10 +131,11 @@ to be copied.
 
 After the hook succeeds and the Secret-backed API is ready, set
 `secrets.serviceAuth.migration.enabled: false` and retain the destination
-Secret. Keep `migration.attempt` unchanged after success. Increment it only
-when retrying a failed or interrupted service-auth migration hook, then rerun
-the upgrade. Raw Helm pre-upgrade and Argo CD PreSync execution are both
-supported for this one-time hook.
+Secret. To retry a failed or interrupted migration, correct the cause and rerun
+the Helm upgrade or start another Argo CD sync. The stable hook name and
+before-creation cleanup policy recreate the Job; deleting an Argo hook alone
+does not start a new sync. Raw Helm pre-upgrade and Argo CD PreSync execution
+are both supported for this one-time hook.
 
 ### Verify the workflow-label schema
 
