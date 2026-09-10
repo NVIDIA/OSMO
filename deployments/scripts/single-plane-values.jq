@@ -14,6 +14,7 @@
   imageRegistry: $image_registry,
   imageRepository: $image_repository,
   imageTag: $image_tag,
+  runtimeImage: {tag: $image_tag},
   imagePullSecrets: (if $image_pull_secret == "" then [] else [{name: $image_pull_secret}] end),
   services: {
     api: {

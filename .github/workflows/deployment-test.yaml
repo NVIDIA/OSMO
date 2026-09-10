@@ -1,8 +1,8 @@
 name: Deployment Test (Azure)
 
-# Cloud deployment-test gate. Runs `deployments/scripts/run-deployment-test.sh`
-# end-to-end against an ephemeral cloud cluster (Azure today; other providers
-# follow). Three modes, each cheaper to set up than the next:
+# Test the public single-plane installer against an ephemeral Azure cluster.
+# See ci/deployment-test/README.md for prerequisites, state recovery and rollout.
+# Three modes, each cheaper to set up than the next:
 #
 #   1. `init-only` (~30s, no cloud setup): terraform init + validate + fmt
 #      against the Azure example module. Provider-download + HCL syntax check;
@@ -10,8 +10,8 @@ name: Deployment Test (Azure)
 #   2. `auth-check` (~2 min, requires OIDC + Azure App Reg): runs terraform
 #      plan. First step that actually touches Azure — confirms the federated-
 #      identity → service-principal → RBAC chain.
-#   3. `full-deployment` (~45 min, requires #2 plus POSTGRES_PASSWORD): runs
-#      `deployments/scripts/run-deployment-test.sh --provider azure` end-to-end.
+#   3. `full-deployment`: build HEAD images/CLI, run deploy-osmo-single-plane.sh,
+#      run the existing OETF selection, then destroy even after partial failure.
 #
 # Triggers:
 #   - `workflow_dispatch` — once this file lands on the default branch, the
@@ -66,10 +66,19 @@ on:
       - '.github/workflows/deployment-test.yaml'
       - 'ci/deployment-test/**'
       - 'deployments/BUILD'
+      - 'deployments/charts/osmo/**'
       - 'deployments/charts/service/**'
       - 'deployments/charts/backend-operator/**'
       - 'deployments/scripts/deploy-k8s.sh'
       - 'deployments/scripts/run-deployment-test.sh'
+      - 'deployments/scripts/deploy-osmo-single-plane.sh'
+      - 'deployments/scripts/single-plane-azure.yaml'
+      - 'deployments/scripts/single-plane-values.jq'
+      - 'deployments/scripts/azure/**'
+      - 'deployments/scripts/common.sh'
+      - 'deployments/scripts/install-kai-scheduler.sh'
+      - 'deployments/scripts/verify.sh'
+      - 'deployments/workflows/verify-*.yaml'
       - 'deployments/scripts/tests/**'
       - 'deployments/terraform/azure/**'
       - 'bzl/patches/aspect_rules_py_skip_venv_interpreter.patch'
@@ -97,7 +106,7 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
-# OIDC federation to Azure — no static secrets in this workflow.
+# OIDC federation to Azure; state encryption and registry access use separate secrets.
 # `id-token: write` lets the runner mint a JWT that Azure trusts via the
 # Federated Identity Credential on the App Registration. The federated
 # credential is bound to the `internal-ci` GitHub environment (subject =
@@ -148,41 +157,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: internal-ci
-    env:
+    env: &azure_env
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-    defaults:
-      run:
-        working-directory: deployments/terraform/azure/example
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+      AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
     steps:
       - uses: actions/checkout@v4
-
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8
-
-      - name: terraform init
-        run: terraform init -input=false
-
-      - name: terraform plan (against osmo-deployment-ci-rg, plan-only)
+          terraform_wrapper: false
+      - name: Plan the single-plane profile (no provisioning)
         run: |
-          # postgres_password is a TF input without a default — pass a
-          # placeholder so plan can complete. The value would only matter
-          # at `terraform apply` time (which auth-check never runs).
-          terraform plan \
-            -input=false \
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-            -var "resource_group_name=${RESOURCE_GROUP}" \
-            -var "azure_region=${AZURE_REGION}" \
-            -var "postgres_password=auth-check-placeholder-not-applied" \
-            -no-color
-        env:
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
+          source ci/deployment-test/azure-inputs.sh
+          ci_azure_inputs
+          ci_azure_save_inputs "$RUNNER_TEMP/inputs"
+          terraform -chdir=deployments/terraform/azure/example init -input=false
+          terraform -chdir=deployments/terraform/azure/example plan -input=false -no-color \
+            -var-file="$RUNNER_TEMP/inputs/single-plane.tfvars" \
+            -var-file="$RUNNER_TEMP/inputs/ci.tfvars.json"
 
-  # Lint and render the split charts from this checkout before starting any
+  # Lint and render the unified chart from this checkout before starting any
   # expensive work. This catches script/image/chart contract gaps in about a
   # minute instead of discovering them after Azure is provisioned.
   head-chart-contract:
@@ -214,13 +214,13 @@ jobs:
   # nvcr.io/nvidia/osmo:latest. Without this job the gate is meaningless
   # for service-code PRs (it always tests the published `latest`, never
   # the proposed change). After the HEAD chart preflight, this job runs in
-  # parallel with Azure provisioning; deploy waits for both.
+  # before Azure provisioning; failed builds do not leave resources.
   #
   # Pushes go to `nvcr.io/nvstaging/osmo` — the same team the Jenkins dev
   # pipeline uses (nvcr.io restricts registries to 3 path segments
   # `<org>/<team>/<image>`, so a dedicated `/ci` subpath isn't possible).
   # Keep the cleanup-compatible `pr-` prefix and include the workflow run ID,
-  # so separate invocations cannot overwrite each other. A rerun reuses it.
+  # plus the attempt, so a rerun cannot overwrite images from an earlier attempt.
   build-images:
     needs: head-chart-contract
     if: ${{ needs.head-chart-contract.result == 'success' }}
@@ -232,6 +232,7 @@ jobs:
     outputs:
       image_registry: ${{ steps.tag.outputs.registry }}
       image_tag: ${{ steps.tag.outputs.tag }}
+      cli_artifact: ${{ steps.tag.outputs.cli_artifact }}
     steps:
       # rules_oci + ~10 service images on a stock GHA runner needs ~25 GB
       # of free disk; default ubuntu-latest is ~14 GB free. Same recipe
@@ -276,16 +277,19 @@ jobs:
           username: $oauthtoken
           password: ${{ secrets.NGC_API_KEY }}
 
-      # Tag layout: nvcr.io/nvstaging/osmo/<image>:pr-<pr|main>-<run-id>-amd64
+      # Tag layout: nvcr.io/nvstaging/osmo/<image>:pr-<pr|main>-<run-id>-<attempt>-amd64
       # The `-amd64` suffix is appended by rules_oci's per-arch oci_push;
       # we expose the FULL tag (with suffix) so downstream uses match the
       # actual remote tag.
       - id: tag
         run: |
           SCOPE="${{ github.event.pull_request.number || 'main' }}"
-          TAG_BASE="pr-${SCOPE}-${GITHUB_RUN_ID}"
-          echo "registry=nvcr.io/nvstaging/osmo" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG_BASE}-amd64"           >> "$GITHUB_OUTPUT"
+          TAG_BASE="pr-${SCOPE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "cli_artifact=head-cli-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "registry=nvcr.io/nvstaging/osmo"
+            echo "tag=${TAG_BASE}-amd64"
+          } >> "$GITHUB_OUTPUT"
 
       # Minimal --no-gpu image set: 8 service images + client + init-container.
       # The public repo has no //ci:push_images orchestrator (that's GitLab-CI
@@ -352,13 +356,13 @@ jobs:
       - name: Upload HEAD CLI installer
         uses: actions/upload-artifact@v4
         with:
-          name: head-cli-${{ github.run_id }}
+          name: ${{ steps.tag.outputs.cli_artifact }}
           path: bazel-bin/src/cli/packaging/linux/linux_client_installer_x86_64.sh
           retention-days: 7
           if-no-files-found: error
 
       # nvcr.io requires auth for every pull. The deploy-osmo job below
-      # pre-creates an imagePullSecret in each OSMO namespace using the
+      # passes registry credentials to the single-plane script using the
       # same NGC_API_KEY the push here uses, so AKS can pull.
       - name: Step summary
         run: |
@@ -378,1014 +382,377 @@ jobs:
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── Stage 1: terraform apply ─────────────────────────────────────────────
-  # Provisions AKS + Postgres flex + Managed Redis in `vars.AZURE_REGION`.
-  # Uploads the resulting tfstate + tfvars as artifacts so the `tf-destroy`
-  # job at the end can clean up regardless of what fails in between.
-  # POSTGRES_PASSWORD is generated here and written into the tfvars file
-  # that's uploaded as part of the `tf-state-<run_id>` artifact. The
-  # deploy/oetf jobs download that artifact and grep the password out —
-  # cross-job job-outputs don't work for masked values (GitHub filters
-  # them out, so the receiving job sees an empty string).
-  tf-apply:
-    needs: head-chart-contract
-    if: ${{ needs.head-chart-contract.result == 'success' }}
-    runs-on: ubuntu-latest
-    # ~15 min clean apply + one retry (a failed attempt can poll 20+ min
-    # before Azure errors) + pre-apply cleanup of a dirty RG.
-    timeout-minutes: 75
-    environment: internal-ci
-    env:
-      ARM_USE_OIDC: true
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-
-      - name: install kubectl
-        run: |
-          set -euo pipefail
-          KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /tmp/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
-          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
-
-      - name: environment snapshot
-        run: |
-          echo "::group::az identity"; az account show -o table || true; echo "::endgroup::"
-          echo "::group::tool versions"; terraform version; az version 2>&1 | head -5; echo "::endgroup::"
-          echo "::group::target RG"; az group show --name "$AZURE_RESOURCE_GROUP" -o table || \
-            echo "(RG not found)"; echo "::endgroup::"
-          echo "::group::env (non-secret)"
-          echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
-          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP"
-          echo "AZURE_REGION=$AZURE_REGION"
-          echo "AZURE_CLUSTER_NAME=$AZURE_CLUSTER_NAME"
-          echo "::endgroup::"
-
-      - name: generate per-run postgres password
-        id: gen_pg
-        run: |
-          PG_PASS="$(openssl rand -base64 32 | tr -d '/=+' | head -c 32)Aa1!"
-          echo "::add-mask::$PG_PASS"
-          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
-
-      # Single source of truth for the TF inputs the apply + destroy steps
-      # use. Stored in $RUNNER_TEMP (per-job; this job uploads as artifact
-      # for the destroy job to download). Non-default values:
-      #   - aks_private_cluster_enabled=false  GHA runners are public-net.
-      #   - node_instance_type=Standard_D8s_v3 D4s_v3 left K8_CPU=0 after
-      #                                        Azure daemons + OSMO sidecars.
-      #   - node_group_min_size=3              headroom for scenario tests.
-      #   - redis_high_availability_enabled=false
-      #                                        ephemeral stack; see variables.tf.
-      #   - redis_sku_name=MemoryOptimized_M10
-      #     redis_location=westus3             westus2 stopped allocating
-      #                                        Managed Redis (2026-07); the
-      #                                        apply step retries with
-      #                                        X3/eastus2.
-      - name: build TF var file
-        env:
-          PG_PASS: ${{ steps.gen_pg.outputs.value }}
-        run: |
-          cat > "$RUNNER_TEMP/azure.tfvars" <<TFVARS
-          subscription_id              = "$AZURE_SUBSCRIPTION_ID"
-          resource_group_name          = "$AZURE_RESOURCE_GROUP"
-          azure_region                 = "$AZURE_REGION"
-          cluster_name                 = "$AZURE_CLUSTER_NAME"
-          postgres_password            = "$PG_PASS"
-          aks_private_cluster_enabled  = false
-          node_instance_type           = "Standard_D8s_v3"
-          node_group_min_size          = 3
-          redis_high_availability_enabled = false
-          redis_sku_name               = "MemoryOptimized_M10"
-          redis_location               = "westus3"
-          TFVARS
-          grep -v postgres_password "$RUNNER_TEMP/azure.tfvars"
-
-      # Sanity check: the RG named by vars.AZURE_RESOURCE_GROUP must
-      # already exist and live in vars.AZURE_REGION. The OIDC SP is
-      # RG-scoped (Contributor on the named RG only, not subscription-
-      # level), so workflow-side `az group create` doesn't work; moving
-      # to a different region is a manual op.
-      - name: TEMP — verify resource group is in $AZURE_REGION
-        run: |
-          set -euo pipefail
-          existing=$(az group show --name "$AZURE_RESOURCE_GROUP" --query location -o tsv 2>/dev/null || true)
-          if [ -z "$existing" ]; then
-            echo "::error::resource group '$AZURE_RESOURCE_GROUP' not found (or SP lacks read access)."
-            exit 1
-          elif [ "$existing" != "$AZURE_REGION" ]; then
-            echo "::error::RG '$AZURE_RESOURCE_GROUP' lives in '$existing' but workflow expects '$AZURE_REGION'."
-            exit 1
-          fi
-          echo "::notice::RG $AZURE_RESOURCE_GROUP confirmed in $AZURE_REGION"
-
-      # If a prior run was killed mid-destroy, resources may exist in the
-      # RG without matching TF state — `terraform apply` would then fail
-      # with "Resource already exists, import into state". Wipe leftovers.
-      - name: TEMP — pre-apply cleanup (delete leftover resources in RG)
-        run: |
-          set -euo pipefail
-          echo "▶ $(date -u +%H:%M:%S) checking for leftover resources in $AZURE_RESOURCE_GROUP"
-          IDS=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
-          if [ -z "$IDS" ]; then
-            echo "::notice::resource group is clean — nothing to delete"
-            exit 0
-          fi
-          echo "::warning::found $(echo "$IDS" | wc -l) leftover resource(s) from a prior partial run"
-          echo "$IDS"
-
-          fire_deletes() {
-            local ids="$1" budget="$2"
-            while IFS= read -r id; do
-              [ -z "$id" ] && continue
-              az resource delete --ids "$id" --no-wait 2>&1 | head -"$budget" &
-            done <<< "$ids"
-            wait
-          }
-
-          echo "▶ $(date -u +%H:%M:%S) firing async deletes (--no-wait)"
-          fire_deletes "$IDS" 2
-
-          echo "▶ $(date -u +%H:%M:%S) polling until RG is empty (max 30 min)"
-          deadline=$(( $(date +%s) + 1800 ))
-          last_refire=$(date +%s)
-          while [ "$(date +%s)" -lt "$deadline" ]; do
-            ids_now=$(az resource list --resource-group "$AZURE_RESOURCE_GROUP" --query '[].id' -o tsv || true)
-            count=$(echo -n "$ids_now" | grep -c . || true)
-            echo "  $(date -u +%H:%M:%S) remaining: $count"
-            [ "$count" = "0" ] && break
-
-            now=$(date +%s)
-            if [ $(( now - last_refire )) -ge 300 ]; then
-              echo "  $(date -u +%H:%M:%S) ↻ re-firing deletes on $count remaining resource(s)"
-              fire_deletes "$ids_now" 1
-              last_refire=$now
-            fi
-            sleep 30
-          done
-
-          if [ "$count" != "0" ]; then
-            echo "::error::cleanup timed out — $count resource(s) still present"
-            az resource list --resource-group "$AZURE_RESOURCE_GROUP" -o table
-            exit 1
-          fi
-          echo "::notice::cleanup complete"
-
-      - name: TEMP — terraform apply (provision AKS + Postgres + Redis)
-        working-directory: deployments/terraform/azure/example
-        run: |
-          set -euo pipefail
-          echo "::notice::terraform apply starting — expected ~10–15 min (AKS dominates)"
-          echo "::group::terraform init"
-          terraform init -input=false -no-color
-          echo "::endgroup::"
-          # Retry once to absorb one-off ARM 5xx blips. The second apply is
-          # incremental against persisted state; persistent errors (quota,
-          # capacity) still fail the job.
-          echo "::group::terraform apply"
-          apply_failed=""
-          terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars" || apply_failed=1
-          echo "::endgroup::"
-          if [ -n "$apply_failed" ]; then
-            echo "::warning::terraform apply attempt 1 failed — retrying once"
-            if ! terraform state list 2>/dev/null | grep -qx 'azurerm_managed_redis.main'; then
-              # A failed Managed Redis create leaves the cluster in Azure but
-              # NOT in TF state (the provider only records finished creates),
-              # so the retry would fail with "already exists — needs import".
-              # Delete the orphan, waiting for the name to be released since
-              # the retry reuses it, then retry in another region+SKU — the
-              # likely cause is regional Redis Enterprise capacity.
-              for id in $(az resource list --resource-group "$AZURE_RESOURCE_GROUP" \
-                            --resource-type Microsoft.Cache/redisEnterprise --query '[].id' -o tsv || true); do
-                echo "::warning::deleting orphaned Managed Redis left by the failed create: ${id##*/}"
-                az resource delete --ids "$id" || true
-              done
-              # Rewrite the tfvars rather than passing -var, so the artifact
-              # tf-destroy and deploy-osmo replay still describes the stack
-              # that was actually built.
-              sed -i -e 's|^redis_sku_name .*|redis_sku_name               = "ComputeOptimized_X3"|' \
-                     -e 's|^redis_location .*|redis_location               = "eastus2"|' \
-                     "$RUNNER_TEMP/azure.tfvars"
-              echo "::warning::Redis did not create — retrying with fallback combo X3/eastus2"
-            fi
-            echo "::group::terraform apply (retry)"
-            terraform apply -input=false -auto-approve -no-color -var-file="$RUNNER_TEMP/azure.tfvars"
-            echo "::endgroup::"
-          fi
-          echo "::group::resources provisioned (terraform state list)"
-          terraform state list || true
-          echo "::endgroup::"
-          {
-            echo "### TEMP terraform apply ✅"
-            echo ""
-            echo "- AKS: \`${AZURE_CLUSTER_NAME}\` in \`${AZURE_RESOURCE_GROUP}\` (${AZURE_REGION})"
-            echo "- Postgres flex: \`${AZURE_CLUSTER_NAME}-postgres\`"
-            echo "- Redis: \`${AZURE_CLUSTER_NAME}-redis\`"
-            echo "- finished at: $(date -u +%H:%M:%SZ)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Own always() step — stashing inside the apply step would be skipped
-      # when it fails or the job times out mid-apply. The STASH_RAN marker
-      # makes the artifact exist even with no state file, so tf-destroy can
-      # download unconditionally and treat a download failure as transient.
-      - name: stash tfstate + tfvars for upload
-        if: always()
-        run: |
-          tf_dir=deployments/terraform/azure/example
-          mkdir -p tf-state
-          cp "$tf_dir/terraform.tfstate" tf-state/ 2>/dev/null || true
-          cp "$tf_dir/.terraform.lock.hcl" tf-state/ 2>/dev/null || true
-          cp "$RUNNER_TEMP/azure.tfvars" tf-state/ 2>/dev/null || true
-          touch tf-state/STASH_RAN
-          ls -la tf-state/
-
-      # Upload terraform state (and the tfvars file) so the tf-destroy job
-      # can download and replay the same plan. `if: always()` so a partial
-      # apply still uploads whatever state exists.
-      - name: upload terraform state + tfvars (for tf-destroy)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tf-state-${{ github.run_id }}
-          path: tf-state/
-          retention-days: 7
-          if-no-files-found: warn
-          # upload-artifact@v4 excludes dotfiles by default — that'd drop
-          # `.terraform.lock.hcl`, which deploy-osmo + tf-destroy need to
-          # `terraform init` against the same provider versions tf-apply
-          # used.
-          include-hidden-files: true
-
-  # ── Stage 2: deploy OSMO chart + verify-hello ────────────────────────────
-  # Refreshes kubectl creds against the freshly-applied AKS, pre-creates an
-  # nvcr.io pull secret, then invokes the wrapper with SKIP_OETF=1 so only
-  # bootstrap + deploy stages run.
+  # One provisioning owner: the public installer. Setup <=20m, pre-clean
+  # <=30m, installer <=105m, finalization <=20m, with 5m job-level headroom.
   deploy-osmo:
-    needs: [head-chart-contract, build-images, tf-apply]
-    if: >-
-      ${{ !cancelled()
-          && needs.build-images.result == 'success'
-          && needs.tf-apply.result == 'success' }}
+    needs: [head-chart-contract, build-images]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 180
     environment: internal-ci
-    env:
-      ARM_USE_OIDC: true
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
-      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
-      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
-      OSMO_CHART_VERSION: ${{ needs.head-chart-contract.outputs.chart_version }}
-      NGC_SECRET_NAME: nvcr-pull
-    permissions:
-      id-token: write
-      contents: read
+    env: *azure_env
+    outputs:
+      producer_attempt: ${{ steps.identity.outputs.attempt }}
+      state_artifact: ${{ steps.identity.outputs.state_artifact }}
+      marker_artifact: ${{ steps.identity.outputs.marker_artifact }}
+      cloud_gate: ${{ steps.marker_upload.outcome }}
     steps:
+      - name: Record producer identity
+        id: identity
+        timeout-minutes: 1
+        run: |
+          {
+            echo "attempt=$GITHUB_RUN_ATTEMPT"
+            echo "state_artifact=tf-state-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "marker_artifact=cloud-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
-
-      - name: azure login (OIDC)
+        timeout-minutes: 2
+      - uses: hashicorp/setup-terraform@v3
+        timeout-minutes: 2
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - name: Azure login (OIDC)
         uses: azure/login@v2
+        timeout-minutes: 2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      # deploy-osmo-minimal.sh (called by the wrapper's stage_deploy) does
-      # an unconditional `command -v terraform` preflight check, even
-      # though --skip-terraform tells it not to actually run terraform.
-      # Install it to satisfy that check.
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-
-      - name: install kubectl + helm
+      - &install_tools
+        name: Install kubectl and Helm
+        timeout-minutes: 2
         run: |
           set -euo pipefail
           KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /tmp/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl -fsSLo "$RUNNER_TEMP/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
-          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
-
-          HELM_VERSION=v3.16.2
-          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
-          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
-          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
-          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
-
-      - name: Download HEAD CLI installer
+            | awk -v file="$RUNNER_TEMP/kubectl" '{ print $1 "  " file }' | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/kubectl" /usr/local/bin/kubectl
+          curl -fsSLo "$RUNNER_TEMP/helm.tgz" https://get.helm.sh/helm-v3.16.2-linux-amd64.tar.gz
+          echo "9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb  $RUNNER_TEMP/helm.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/helm.tgz" -C "$RUNNER_TEMP" linux-amd64/helm
+          sudo install -m 0755 "$RUNNER_TEMP/linux-amd64/helm" /usr/local/bin/helm
+      - name: Download HEAD CLI
         uses: actions/download-artifact@v4
+        timeout-minutes: 2
         with:
-          name: head-cli-${{ github.run_id }}
-          path: head-cli/
-
-      - name: Install HEAD osmo CLI
+          name: ${{ needs.build-images.outputs.cli_artifact }}
+          path: ${{ runner.temp }}/head-cli
+      - &install_cli
+        name: Install HEAD CLI
+        timeout-minutes: 2
         run: |
-          set -euo pipefail
-          installer=$(find head-cli -type f -name 'linux_client_installer_x86_64.sh' -print -quit)
-          if [[ -z "$installer" ]]; then
-            echo "::error::HEAD CLI installer artifact is missing"
-            exit 1
-          fi
-          bash "$installer"
+          bash "$RUNNER_TEMP/head-cli/linux_client_installer_x86_64.sh"
           osmo version
-
-      # GitHub Actions filters secret/masked values out of cross-job
-      # outputs, so we can't propagate POSTGRES_PASSWORD via
-      # `needs.tf-apply.outputs.*` — the receiving job sees an empty
-      # string. Workaround: download the tfvars file from the tf-state
-      # artifact tf-apply uploaded and grep the password out.
-      - name: download tf-state artifact (for POSTGRES_PASSWORD)
-        uses: actions/download-artifact@v4
+      - name: Validate inputs and encryption before cloud mutations
+        id: preflight
+        timeout-minutes: 3
+        env:
+          OSMO_AZURE_TFSTATE_KEY: ${{ secrets.OSMO_AZURE_TFSTATE_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${NGC_API_KEY:?Registry credentials are required}"
+          source ci/deployment-test/azure-inputs.sh
+          ci_azure_inputs
+          ci_azure_check_group
+          bash ci/deployment-test/azure-state.sh check
+          ci_azure_save_inputs "$RUNNER_TEMP/inputs"
+          ci_azure_write_marker "$RUNNER_TEMP/cloud-attempt.json"
+          mkdir -p "$RUN_DIR" "$RUNNER_TEMP/terraform-work"
+          jq -n --arg password "$NGC_API_KEY" \
+            '{auths:{"nvcr.io":{auth:(("$oauthtoken:" + $password) | @base64)}}}' \
+            > "$RUNNER_TEMP/docker-config.json"
+      # A durable marker is a prerequisite for either pre-clean or apply.
+      - name: Record permission to begin cloud work
+        id: marker_upload
+        uses: actions/upload-artifact@v4
+        timeout-minutes: 2
         with:
-          name: tf-state-${{ github.run_id }}
-          path: tf-state-download/
-
-      - name: extract POSTGRES_PASSWORD from tfvars
-        id: pg
-        run: |
-          set -euo pipefail
-          PG_PASS=$(grep '^postgres_password' tf-state-download/azure.tfvars | sed 's/^[^"]*"\(.*\)".*/\1/')
-          if [ -z "$PG_PASS" ]; then
-            echo "::error::POSTGRES_PASSWORD not found in tf-state-download/azure.tfvars"
-            exit 1
-          fi
-          echo "::add-mask::$PG_PASS"
-          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
-
-      # deploy-osmo-minimal.sh shells out to `terraform output` to read
-      # connection strings (postgres FQDN, redis endpoint, etc.) for the
-      # chart's helm values, even with --skip-terraform. Without these
-      # three things the call fails with "Module not installed":
-      #   1. terraform.tfstate present in the working dir (state)
-      #   2. .terraform.lock.hcl present (pinned provider versions)
-      #   3. `terraform init` to download providers + modules locally
-      - name: stage tfstate + terraform init
-        working-directory: deployments/terraform/azure/example
-        run: |
-          set -euo pipefail
-          echo "::group::tf-state-download contents"
-          ls -la "$GITHUB_WORKSPACE/tf-state-download/"
-          echo "::endgroup::"
-          for f in terraform.tfstate .terraform.lock.hcl; do
-            if [ ! -f "$GITHUB_WORKSPACE/tf-state-download/$f" ]; then
-              echo "::error::$f missing from tf-state artifact — tf-apply upload step lost it"
-              exit 1
-            fi
-            cp "$GITHUB_WORKSPACE/tf-state-download/$f" .
-          done
-          terraform init -input=false -no-color
-
-      # Wire kubectl to the freshly-applied AKS, then pre-create an
-      # nvcr.io docker-registry secret in every OSMO namespace. The
-      # chart's deploy script (deploy-k8s.sh) skips its own
-      # kubectl-create-secret path when the named secret already exists,
-      # so pre-creating avoids passing --ngc-api-key on the wrapper's
-      # arg surface.
-      - name: wire kubectl + pre-create nvcr.io pull secret
+          name: ${{ steps.identity.outputs.marker_artifact }}
+          path: ${{ runner.temp }}/cloud-attempt.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Clean leftovers in the dedicated resource group
+        timeout-minutes: 30
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          PRODUCER_ATTEMPT: ${{ steps.identity.outputs.attempt }}
+          AZURE_SWEEP_SECONDS: 1740
+        run: bash ci/deployment-test/azure-cleanup.sh sweep "$RUNNER_TEMP/cloud-attempt.json"
+      - name: Provision and verify single-plane OSMO
+        id: deploy
+        timeout-minutes: 105
+        env:
+          OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
+          OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
         run: |
           set -euo pipefail
-          echo "▶ az aks get-credentials"
-          az aks get-credentials \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_CLUSTER_NAME" \
-            --overwrite-existing --admin
-          kubectl cluster-info | head -3
-
-          echo "▶ ensuring OSMO namespaces exist"
-          for ns in osmo-minimal osmo-operator osmo-workflows; do
-            kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
-          done
-
-          # Chart-generated workflow task pods set `runtimeClassName: nvidia`.
-          # On CPU-only deploys (--no-gpu), without this stub k8s rejects them.
-          echo "▶ applying nvidia RuntimeClass stub (CPU-mode shim)"
-          printf '%s\n' \
-            'apiVersion: node.k8s.io/v1' \
-            'kind: RuntimeClass' \
-            'metadata:' \
-            '  name: nvidia' \
-            'handler: runc' \
-            | kubectl apply -f -
-
-          echo "▶ creating nvcr.io pull secret '$NGC_SECRET_NAME' in each namespace"
-          # NGC convention: username is the literal string `$oauthtoken`
-          # (single-quoted here so bash doesn't try to expand it).
-          for ns in osmo-minimal osmo-operator osmo-workflows; do
-            kubectl create secret docker-registry "$NGC_SECRET_NAME" \
-              --docker-server=nvcr.io \
-              --docker-username='$oauthtoken' \
-              --docker-password="$NGC_API_KEY" \
-              --namespace "$ns" \
-              --dry-run=client -o yaml \
-              | kubectl apply -f -
-          done
-
-      # Package the split charts from this checkout into a temporary Helm repo.
-      # deploy-k8s.sh keeps using its normal repository interface, while every
-      # OSMO artifact under test comes from this source SHA.
-      - name: deploy OSMO with HEAD charts (chart install + verify-hello)
-        id: deploy_osmo
+          source ci/deployment-test/azure-inputs.sh
+          ci_azure_inputs
+          export OSMO_TERRAFORM_WORK_DIR="$RUNNER_TEMP/terraform-work"
+          export OSMO_IMAGE_PULL_SECRET=nvcr-pull
+          export OSMO_IMAGE_PULL_CONFIG="$RUNNER_TEMP/docker-config.json"
+          bash deployments/scripts/deploy-osmo-single-plane.sh 2>&1 | tee "$RUN_DIR/deploy.log"
+      - name: Encrypt state, including partial apply
+        id: state
+        if: ${{ always() && steps.marker_upload.outcome == 'success' }}
+        timeout-minutes: 3
         env:
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ steps.pg.outputs.value }}
-          # The wrapper injects this into backend_images.credential so dynamic
-          # workflow pods can pull the HEAD init-container/client images.
-          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-          OSMO_HELM_REPO_NAME: osmo-head
-          OSMO_HELM_REPO_URL: http://127.0.0.1:8879
-          SKIP_OETF: "1"
-          SKIP_TEARDOWN: "1"
+          OSMO_AZURE_TFSTATE_KEY: ${{ secrets.OSMO_AZURE_TFSTATE_KEY }}
         run: |
-          set -euo pipefail
-
-          chart_repo_dir="$RUNNER_TEMP/osmo-head-helm-repo"
-          mkdir -p "$chart_repo_dir"
-
-          service_version="$(helm show chart deployments/charts/service \
-            | awk '$1 == "version:" { print $2; exit }')"
-          operator_version="$(helm show chart deployments/charts/backend-operator \
-            | awk '$1 == "version:" { print $2; exit }')"
-          if [[ -z "$service_version" || -z "$operator_version" \
-                || "$service_version" != "$operator_version" ]]; then
-            echo "::error::HEAD service ($service_version) and backend-operator ($operator_version) chart versions must match"
-            exit 1
-          fi
-          if [[ "$service_version" != "$OSMO_CHART_VERSION" ]]; then
-            echo "::error::HEAD chart changed between contract and deploy: contract=$OSMO_CHART_VERSION deploy=$service_version"
-            exit 1
-          fi
-
-          helm package deployments/charts/service --destination "$chart_repo_dir"
-          helm package deployments/charts/backend-operator --destination "$chart_repo_dir"
-          helm repo index "$chart_repo_dir"
-
-          python3 -m http.server 8879 \
-            --bind 127.0.0.1 \
-            --directory "$chart_repo_dir" \
-            >"$RUNNER_TEMP/osmo-head-helm-repo.log" 2>&1 &
-          chart_repo_pid=$!
-          trap 'kill "$chart_repo_pid" 2>/dev/null || true' EXIT
-
-          chart_repo_ready=""
-          for _ in {1..10}; do
-            if curl -fsS "$OSMO_HELM_REPO_URL/index.yaml" >/dev/null 2>&1; then
-              chart_repo_ready=1
-              break
-            fi
-            sleep 1
-          done
-          if [[ -z "$chart_repo_ready" ]]; then
-            cat "$RUNNER_TEMP/osmo-head-helm-repo.log"
-            echo "::error::HEAD chart repository did not become ready"
-            exit 1
-          fi
-
-          # Pre-add without credentials. deploy-k8s.sh detects the matching URL
-          # and preserves this exact local repository.
-          helm repo add "$OSMO_HELM_REPO_NAME" "$OSMO_HELM_REPO_URL"
-          helm show chart "$OSMO_HELM_REPO_NAME/service" \
-            --version "$OSMO_CHART_VERSION" >/dev/null
-          helm show chart "$OSMO_HELM_REPO_NAME/backend-operator" \
-            --version "$OSMO_CHART_VERSION" >/dev/null
-
-          echo "::notice::deploy stage starting with HEAD charts $OSMO_CHART_VERSION — expected ~5–15 min"
-          mkdir -p "$RUN_DIR"
-          bash deployments/scripts/run-deployment-test.sh --provider azure
-          echo "▶ $(date -u +%H:%M:%S) deploy stage done"
-
-      - name: deploy result summary
-        if: always() && steps.deploy_osmo.conclusion != 'skipped'
+          bash ci/deployment-test/azure-state.sh save "$RUNNER_TEMP/terraform-work" \
+            "$RUNNER_TEMP/inputs" "$RUNNER_TEMP/cloud-attempt.json" "$RUNNER_TEMP/terraform-state.gpg"
+      - name: Upload encrypted state
+        if: ${{ always() && steps.state.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        timeout-minutes: 3
+        with:
+          name: ${{ steps.identity.outputs.state_artifact }}
+          path: ${{ runner.temp }}/terraform-state.gpg
+          retention-days: 7
+          if-no-files-found: error
+      - name: Deployment diagnostics
+        if: ${{ always() && steps.marker_upload.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          PRODUCER_ATTEMPT: ${{ steps.identity.outputs.attempt }}
+        run: bash ci/deployment-test/azure-cleanup.sh diagnostics "$RUNNER_TEMP/cloud-attempt.json"
+      - name: Deployment summary
+        if: always()
+        timeout-minutes: 1
+        env:
+          DEPLOY_RESULT: ${{ steps.deploy.outcome }}
+          CLOUD_GATE: ${{ steps.marker_upload.outcome }}
+          IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
+          CHART_VERSION: ${{ needs.head-chart-contract.outputs.chart_version }}
         run: |
-          set +e
-          service_chart="$(helm list -n osmo-minimal --output json 2>/dev/null \
-                          | python3 -c 'import json,sys; rs=json.load(sys.stdin); print(rs[0].get("chart","-") if rs else "-")' 2>/dev/null || echo "-")"
-          operator_chart="$(helm list -n osmo-operator --output json 2>/dev/null \
-                           | python3 -c 'import json,sys; rs=json.load(sys.stdin); print(rs[0].get("chart","-") if rs else "-")' 2>/dev/null || echo "-")"
-          chart_version="HEAD ${OSMO_CHART_VERSION:-?} (installed: $service_chart, $operator_chart) from ${{ github.sha }}"
-          pod_summary="$(kubectl get pods --all-namespaces --no-headers 2>/dev/null \
-                         | awk '$1 == "osmo-minimal" || $1 == "osmo-operator" {print $4}' \
-                         | sort | uniq -c | awk '{printf "%s×%s ", $1, $2}' || echo "-")"
-          icon='✅'; verify_text='passed'
-          if [ "${{ steps.deploy_osmo.outcome }}" != "success" ]; then icon='❌'; verify_text='failed (see step logs)'; fi
           {
-            echo "### Deploy stage ${icon}"
-            echo ""
-            echo "- chart:        \`${chart_version}\`"
-            echo "- image:        \`${OSMO_IMAGE_REGISTRY:-?}/*:${OSMO_IMAGE_TAG:-?}\`"
-            echo "- pods:         ${pod_summary:-?}"
-            echo "- verify-hello: ${verify_text}"
-            if [ -f "$RUN_DIR/deployment-test-result.json" ]; then
-              echo ""
-              echo "<details><summary>wrapper result JSON</summary>"
-              echo ""
-              echo '```json'
-              cat "$RUN_DIR/deployment-test-result.json"
-              echo '```'
-              echo "</details>"
-            fi
+            echo '### Single-plane deployment'
+            echo "- Cloud gate: $CLOUD_GATE; installer/verification: $DEPLOY_RESULT"
+            echo "- Source: $GITHUB_SHA; image tag: $IMAGE_TAG; unified chart: $CHART_VERSION"
+            echo '- Namespace/release: osmo'
+            echo '- Installer log: deploy.log; cleanup runs separately even after failure.'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: upload deploy logs
+      - name: Upload deployment diagnostics
         if: always()
         uses: actions/upload-artifact@v4
+        timeout-minutes: 3
         with:
-          name: deploy-osmo-${{ github.run_id }}
-          path: runs/deployment-test-azure/**
+          name: deploy-osmo-${{ github.run_id }}-${{ github.run_attempt }}
+          path: runs/deployment-test-azure/
           retention-days: 14
           if-no-files-found: warn
 
-  # ── Stage 3: OETF smoke tests ────────────────────────────────────────────
-  # Refreshes kubectl creds against the AKS cluster the deploy job left
-  # running, then invokes the wrapper with SKIP_DEPLOY=1 so only bootstrap
-  # + oetf-smoke stages run. The wrapper sets up its own kubectl
-  # port-forward to osmo-gateway and runs `bazel run //test/oetf:run`.
   oetf:
-    needs: [build-images, tf-apply, deploy-osmo]
-    if: ${{ needs.deploy-osmo.result == 'success' }}
+    needs: [build-images, deploy-osmo]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: internal-ci
-    env:
-      ARM_USE_OIDC: true
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
-      OSMO_IMAGE_REGISTRY: ${{ needs.build-images.outputs.image_registry }}
-      OSMO_IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
-      # OETF lives at <repo>/test/oetf in the public repo; the wrapper's
-      # REPO_ROOT computation assumes external/ submodule wrapping and
-      # overshoots on a standalone checkout, so override explicitly.
-      OETF_REPO_ROOT: ${{ github.workspace }}
-      # OETF tag set. Only remaining hole vs the broad `kind` tag is
-      # router-connectivity (Azure CoreDNS, not OETF). task-runtime-environment
-      # was unblocked by #1128.
-      # 8 tests: smoke api + smoke ws + 2 positive scenarios + 4 negative.
-      OETF_TAGS: api,websocket,logger,task-env,negative
-    permissions:
-      id-token: write
-      contents: read
+    env: *azure_env
     steps:
       - uses: actions/checkout@v4
-
-      - name: azure login (OIDC)
-        uses: azure/login@v2
+        timeout-minutes: 1
+      - uses: azure/login@v2
+        timeout-minutes: 1
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      # deploy-osmo-minimal.sh has an unconditional `command -v terraform`
-      # preflight check that the wrapper's stage_oetf path also trips
-      # (via stage_bootstrap → reachability check that exits if any
-      # required tool is missing). Install it.
-      - uses: hashicorp/setup-terraform@v3
+      - *install_tools
+      - uses: actions/download-artifact@v4
+        timeout-minutes: 1
         with:
-          terraform_version: 1.9.8
-
-      - name: install kubectl
-        run: |
-          set -euo pipefail
-          KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /tmp/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
-          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
-
-      # bazel is needed for `bazel run //test/oetf:run` inside the wrapper's
-      # oetf-smoke stage. disk-cache key shared with the build-images job so
-      # OETF target builds can hit the cache.
+          name: ${{ needs.build-images.outputs.cli_artifact }}
+          path: ${{ runner.temp }}/head-cli
+      - *install_cli
       - name: Setup Bazel
+        timeout-minutes: 2
         uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
-          disk-cache: ${{ github.workflow }}-images
+          disk-cache: ${{ github.workflow }}-oetf
           repository-cache: true
-          external-cache: |
-            manifest:
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
-
-      - name: refresh kubectl creds for AKS
+      - name: Existing OETF selection against single-plane
+        id: suite
+        timeout-minutes: 30
+        run: bash ci/deployment-test/run-single-plane-oetf.sh
+      - name: OETF summary
+        timeout-minutes: 1
+        if: always()
         env:
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
+          OETF_RESULT: ${{ steps.suite.outcome }}
         run: |
-          set -euo pipefail
-          az aks get-credentials \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_CLUSTER_NAME" \
-            --overwrite-existing --admin
-          kubectl cluster-info | head -3
-          kubectl get pods -n osmo-minimal -o wide | head -20
-
-      # See deploy-osmo for why we re-derive POSTGRES_PASSWORD from the
-      # tf-state artifact instead of consuming a job output.
-      - name: download tf-state artifact (for POSTGRES_PASSWORD)
-        uses: actions/download-artifact@v4
-        with:
-          name: tf-state-${{ github.run_id }}
-          path: tf-state-download/
-
-      - name: extract POSTGRES_PASSWORD from tfvars
-        id: pg
-        run: |
-          set -euo pipefail
-          PG_PASS=$(grep '^postgres_password' tf-state-download/azure.tfvars | sed 's/^[^"]*"\(.*\)".*/\1/')
-          if [ -z "$PG_PASS" ]; then
-            echo "::error::POSTGRES_PASSWORD not found in tf-state-download/azure.tfvars"
-            exit 1
-          fi
-          echo "::add-mask::$PG_PASS"
-          echo "value=$PG_PASS" >> "$GITHUB_OUTPUT"
-
-      # Use the same HEAD CLI artifact that deploy verification used. This avoids
-      # silently testing HEAD services/charts with the latest GA client.
-      - name: Download HEAD CLI installer
-        uses: actions/download-artifact@v4
-        with:
-          name: head-cli-${{ github.run_id }}
-          path: head-cli/
-
-      - name: Install HEAD osmo CLI
-        run: |
-          set -euo pipefail
-          installer=$(find head-cli -type f -name 'linux_client_installer_x86_64.sh' -print -quit)
-          if [[ -z "$installer" ]]; then
-            echo "::error::HEAD CLI installer artifact is missing"
-            exit 1
-          fi
-          bash "$installer"
-          osmo version
-
-      - name: run OETF smoke tests
-        id: run_oetf
-        env:
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZURE_REGION: ${{ vars.AZURE_REGION || 'eastus2' }}
-          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-          POSTGRES_PASSWORD: ${{ steps.pg.outputs.value }}
-          SKIP_DEPLOY: "1"
-          SKIP_TEARDOWN: "1"
-        run: |
-          set -o pipefail
-          echo "::notice::OETF stage starting — bazel run //test/oetf:run with tags=$OETF_TAGS"
-          mkdir -p "$RUN_DIR"
-          bash deployments/scripts/run-deployment-test.sh --provider azure
-          echo "▶ $(date -u +%H:%M:%S) OETF stage done"
-
-      - name: OETF result summary
-        if: always() && steps.run_oetf.conclusion != 'skipped'
-        env:
-          RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
-        run: |
-          set +e
-          oetf_json="$RUN_DIR/oetf-result.json"
-          if [ ! -f "$oetf_json" ]; then
-            { echo "### OETF stage ⚠️"; echo ""; echo "_no result JSON found at \`$oetf_json\` — wrapper likely died before OETF ran_"; } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json, os, pathlib
-          data = json.loads(pathlib.Path(os.environ["RUN_DIR"], "oetf-result.json").read_text())
-          total = data.get("total", 0)
-          passed = data.get("passed", 0)
-          failed = data.get("failed", 0)
-          errored = data.get("errored", 0)
-          skipped = data.get("skipped", 0)
-          status_icon = "✅" if (failed == 0 and errored == 0) else "❌"
-          row_icon = {"pass": "✅", "fail": "❌", "error": "⚠️", "skip": "⏭️"}
-          print(f"### OETF stage {status_icon}")
-          print()
-          print(f"- tags:    `{data.get('tags','-')}`")
-          print(f"- url:     `{data.get('url','-')}`")
-          print(f"- totals:  ✅ {passed} passed · ❌ {failed} failed · ⚠️ {errored} errored · ⏭️ {skipped} skipped (of {total})")
-          print()
-          print("| | Target | Time | Message |")
-          print("|---|---|---:|---|")
-          for r in data.get("results", []):
-              msg = (r.get("message") or "").strip().replace("\n", " ")
-              if len(msg) > 200:
-                  msg = msg[:200] + "…"
-              msg = msg.replace("|", "\\|")
-              print(f"| {row_icon.get(r.get('status'),'?')} | `{r.get('target','?')}` | {r.get('time',0):.1f}s | {msg} |")
-          PY
-
-      - name: upload OETF logs
+          {
+            echo '### OETF'
+            echo "- Result: $OETF_RESULT"
+            echo '- Tags: api,websocket,logger,task-env,negative; exclusions: auth,mcp'
+            if [[ -s "$RUN_DIR/oetf-result.json" ]]; then
+              jq -r '"- Total: \(.total); passed: \(.passed); failed: \(.failed); errors: \(.errored); skipped: \(.skipped)",
+                (.results[] | "- \(.target): \(.name) — \(.status)")' "$RUN_DIR/oetf-result.json"
+            else
+              echo '- No results produced; inspect the OETF step and logs.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload OETF results
+        timeout-minutes: 3
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: oetf-${{ github.run_id }}
-          path: runs/deployment-test-azure/**
+          name: oetf-${{ github.run_id }}-${{ github.run_attempt }}
+          # Raw .oetf-bep.json contains token-valued Bazel arguments. Never upload it.
+          path: |
+            runs/deployment-test-azure/oetf-result.json
+            runs/deployment-test-azure/oetf.log
+            runs/deployment-test-azure/oetf-port-forward.log
           retention-days: 14
           if-no-files-found: warn
 
-  # ── Stage 4: terraform destroy + cluster diagnostics ─────────────────────
-  # Successful applies wait for the test stages. Failed applies use the same
-  # anchored teardown steps in the early job below without waiting for builds.
+  # Setup/restore <=10m, diagnostics <=3m, destroy <=22m, sweep <=10m,
+  # summary/upload <=5m. A failure in restore/destroy cannot skip the sweep.
   tf-destroy:
-    needs: [build-images, tf-apply, deploy-osmo, oetf]
-    if: ${{ always() && needs.tf-apply.result == 'success' }}
+    needs: [deploy-osmo, oetf]
+    if: ${{ always() && needs.deploy-osmo.result != 'skipped' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     environment: internal-ci
-    env: &azure_destroy_env
-      ARM_USE_OIDC: true
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME || 'osmo-deployment-test' }}
-      RUN_DIR: ${{ github.workspace }}/runs/deployment-test-azure
-    permissions:
-      id-token: write
-      contents: read
-    steps: &azure_destroy_steps
+    env: *azure_env
+    steps:
       - uses: actions/checkout@v4
-
-      - name: azure login (OIDC)
+        timeout-minutes: 1
+      - name: Classify cloud attempt
+        id: attempt
+        timeout-minutes: 1
+        env:
+          CLOUD_GATE: ${{ needs.deploy-osmo.outputs.cloud_gate }}
+        run: |
+          case "$CLOUD_GATE" in
+            success) echo 'started=true' >> "$GITHUB_OUTPUT" ;;
+            skipped|failure)
+              echo 'started=false' >> "$GITHUB_OUTPUT"
+              echo 'Cloud gate never passed; no Azure mutation is needed.' >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo '::error::Cloud attempt unknown after interruption; recover the producer marker before cleanup.'; exit 1 ;;
+          esac
+      - name: Download producer marker
+        id: marker_download
+        if: steps.attempt.outputs.started == 'true'
+        uses: actions/download-artifact@v4
+        timeout-minutes: 1
+        with:
+          name: ${{ needs.deploy-osmo.outputs.marker_artifact }}
+          path: ${{ runner.temp }}/marker
+      - name: Validate producer and deletion scope
+        id: scope
+        if: steps.attempt.outputs.started == 'true'
+        timeout-minutes: 1
+        env:
+          PRODUCER_ATTEMPT: ${{ needs.deploy-osmo.outputs.producer_attempt }}
+        run: |
+          source ci/deployment-test/azure-inputs.sh
+          ci_azure_inputs
+          ci_azure_check_marker "$RUNNER_TEMP/marker/cloud-attempt.json"
+      - name: Azure login for cleanup
+        id: azure
+        if: steps.scope.outcome == 'success'
         uses: azure/login@v2
+        timeout-minutes: 1
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
       - uses: hashicorp/setup-terraform@v3
+        if: steps.scope.outcome == 'success'
+        timeout-minutes: 1
         with:
           terraform_version: 1.9.8
-
-      - name: install kubectl + helm
-        run: |
-          set -euo pipefail
-          KUBECTL_VERSION=v1.31.0
-          curl -fsSLo /tmp/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" \
-            | awk '{print $1"  /tmp/kubectl"}' | sha256sum -c -
-          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
-
-          HELM_VERSION=v3.16.2
-          HELM_SHA256=9318379b847e333460d33d291d4c088156299a26cd93d570a7f5d0c36e50b5bb
-          curl -fsSLo /tmp/helm.tgz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  /tmp/helm.tgz" | sha256sum -c -
-          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
-          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
-
-      # The STASH_RAN marker guarantees this artifact exists, so a download
-      # failure here is transient and should fail teardown loudly.
-      - name: download tf-state artifact
+          terraform_wrapper: false
+      - name: Download encrypted producer state
+        id: state_download
+        if: ${{ always() && steps.azure.outcome == 'success' }}
+        continue-on-error: true
         uses: actions/download-artifact@v4
+        timeout-minutes: 1
         with:
-          name: tf-state-${{ github.run_id }}
-          path: tf-state-download/
-
-      - name: stage tfstate + tfvars for destroy
+          name: ${{ needs.deploy-osmo.outputs.state_artifact }}
+          path: ${{ runner.temp }}/encrypted-state
+      - name: Restore state
+        id: restore
+        if: ${{ always() && steps.state_download.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          OSMO_AZURE_TFSTATE_KEY: ${{ secrets.OSMO_AZURE_TFSTATE_KEY }}
         run: |
-          set -euo pipefail
-          cp tf-state-download/terraform.tfstate     deployments/terraform/azure/example/ 2>/dev/null || true
-          cp tf-state-download/.terraform.lock.hcl   deployments/terraform/azure/example/ 2>/dev/null || true
-          cp tf-state-download/azure.tfvars          "$RUNNER_TEMP/azure.tfvars" 2>/dev/null || true
-          ls -la deployments/terraform/azure/example/terraform.tfstate "$RUNNER_TEMP/azure.tfvars" || true
-
-      # Capture a snapshot of cluster + OSMO state BEFORE terraform destroys
-      # everything. Self-contained: re-mints kubectl context up front in
-      # case anything along the way mangled the kubeconfig.
-      - name: dump cluster + OSMO diagnostics (always)
+          bash ci/deployment-test/azure-state.sh restore \
+            "$RUNNER_TEMP/encrypted-state/terraform-state.gpg" "$RUNNER_TEMP/restored-state"
+      - name: Install diagnostic tools
+        if: ${{ always() && steps.azure.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/kubectl" https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl
+          curl -fsSL https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl.sha256 \
+            | awk -v file="$RUNNER_TEMP/kubectl" '{print $1 "  " file}' | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/kubectl" /usr/local/bin/kubectl
+          # Hosted runners provide Helm; its absence only limits diagnostics.
+      - name: Capture cluster diagnostics after OETF
+        if: ${{ always() && steps.azure.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          PRODUCER_ATTEMPT: ${{ needs.deploy-osmo.outputs.producer_attempt }}
+        run: bash ci/deployment-test/azure-cleanup.sh diagnostics "$RUNNER_TEMP/marker/cloud-attempt.json"
+      - name: Destroy using the single-plane state and inputs
+        id: destroy
+        if: ${{ always() && steps.restore.outcome == 'success' && steps.azure.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 22
+        env:
+          PRODUCER_ATTEMPT: ${{ needs.deploy-osmo.outputs.producer_attempt }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUN_DIR"
+          bash ci/deployment-test/azure-cleanup.sh destroy "$RUNNER_TEMP/marker/cloud-attempt.json" \
+            "$RUNNER_TEMP/restored-state" 2>&1 | tee "$RUN_DIR/terraform-destroy.log"
+      - name: Sweep partial resources and verify empty inventory
+        id: sweep
+        if: ${{ always() && steps.azure.outcome == 'success' && steps.scope.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          PRODUCER_ATTEMPT: ${{ needs.deploy-osmo.outputs.producer_attempt }}
+        run: bash ci/deployment-test/azure-cleanup.sh sweep "$RUNNER_TEMP/marker/cloud-attempt.json"
+      - name: Report cleanup result
         if: always()
-        timeout-minutes: 5
+        timeout-minutes: 1
+        env:
+          STARTED: ${{ steps.attempt.outputs.started }}
+          RESTORE_RESULT: ${{ steps.restore.outcome }}
+          DESTROY_RESULT: ${{ steps.destroy.outcome }}
+          SWEEP_RESULT: ${{ steps.sweep.outcome }}
         run: |
-          set +e
-          DIAG="$RUN_DIR/diagnostics"
-          mkdir -p "$DIAG"
-
-          echo "▶ refreshing kubectl context"
-          az aks get-credentials \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_CLUSTER_NAME" \
-            --overwrite-existing --admin > "$DIAG/az_creds.log" 2>&1 || true
-          kubectl cluster-info > "$DIAG/cluster-info.txt" 2>&1 || \
-            { echo "::warning::kubectl can't reach the cluster — skipping in-cluster diagnostics"; exit 0; }
-
-          echo "::group::pods (all namespaces)"
-          kubectl get pods -A -o wide | tee "$DIAG/pods.txt"
-          echo "::endgroup::"
-
-          echo "::group::events (last 200, sorted by lastTimestamp)"
-          kubectl get events -A --sort-by='.lastTimestamp' 2>/dev/null | tail -200 | tee "$DIAG/events.txt"
-          echo "::endgroup::"
-
-          echo "::group::non-Running pods + describe"
-          kubectl get pods -A --field-selector=status.phase!=Running -o wide | tee "$DIAG/non-running.txt"
-          kubectl get pods -A --field-selector=status.phase!=Running \
-            -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
-            | while read -r ns pod; do
-                [[ -z "$ns" || -z "$pod" ]] && continue
-                kubectl describe pod "$pod" -n "$ns" > "$DIAG/describe-${ns}-${pod}.txt" 2>&1
-                kubectl logs "$pod" -n "$ns" --all-containers --tail=200 --prefix \
-                  > "$DIAG/logs-${ns}-${pod}.log" 2>&1
-              done
-          echo "::endgroup::"
-
-          echo "::group::image refs on running pods"
-          kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{","}{end}{"\n"}{end}' \
-            | sort | tee "$DIAG/image-refs.txt"
-          echo "::endgroup::"
-
-          echo "::group::OSMO pod logs (tail 500)"
-          for ns in osmo-minimal osmo-operator osmo-workflows; do
-            kubectl get pods -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null \
-              | while read -r pod; do
-                  [[ -z "$pod" ]] && continue
-                  kubectl logs "$pod" -n "$ns" --tail=500 --all-containers --prefix --timestamps \
-                    > "$DIAG/podlog-${ns}-${pod}.log" 2>&1
-                done
-          done
-          echo "::endgroup::"
-
-          echo "::group::helm releases + values"
-          helm list -A -o yaml > "$DIAG/helm-releases.yaml" 2>&1
-          while IFS='|' read -r r ns; do
-            [[ -z "$r" ]] && continue
-            helm status "$r" -n "$ns"     > "$DIAG/helm-status-${r}.txt"   2>&1
-            helm get values "$r" -n "$ns" > "$DIAG/helm-values-${r}.yaml" 2>&1
-          done < <(helm list -A -o json 2>/dev/null | jq -r '.[] | "\(.name)|\(.namespace)"')
-          echo "::endgroup::"
-
           {
-            echo "### Cluster diagnostic snapshot"
-            echo ""
-            echo "Captured under \`$DIAG\` (uploaded as part of the \`tf-destroy-${GITHUB_RUN_ID}\` artifact)."
-            echo ""
-            echo "#### Pods not Running"
-            if [ -s "$DIAG/non-running.txt" ] && [ "$(wc -l < "$DIAG/non-running.txt")" -gt 1 ]; then
-              echo '```'
-              head -20 "$DIAG/non-running.txt"
-              echo '```'
-            else
-              echo "_(all pods Running)_"
-            fi
-            echo ""
-            echo "#### Image refs (first 30)"
-            echo '```'
-            head -30 "$DIAG/image-refs.txt"
-            echo '```'
-            echo ""
-            echo "#### Last 30 cluster events"
-            echo '```'
-            tail -30 "$DIAG/events.txt"
-            echo '```'
+            echo '### Azure cleanup'
+            echo "- Cloud attempt: ${STARTED:-unknown}"
+            echo "- Restore: $RESTORE_RESULT; destroy: $DESTROY_RESULT; inventory/sweep: $SWEEP_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
-
-          # Never fail — diagnostics are best-effort, must not block teardown.
-          exit 0
-
-      - name: TEMP — terraform destroy
-        if: always()
-        working-directory: deployments/terraform/azure/example
-        run: |
-          set -euo pipefail
-          echo "::notice::terraform destroy starting — expected ~10–15 min"
-
-          echo "::group::terraform init (refresh provider)"
-          terraform init -input=false -no-color
-          echo "::endgroup::"
-
-          echo "::group::terraform destroy (streaming)"
-          destroy_failed=""
-          if ! terraform destroy -input=false -auto-approve -no-color \
-              -var-file="$RUNNER_TEMP/azure.tfvars"; then
-            destroy_failed=1
-            echo "::warning::terraform destroy failed — orphan resources in $AZURE_RESOURCE_GROUP may remain"
-          fi
-          echo "::endgroup::"
-
-          # Azure control-plane list results can lag behind a successful delete.
-          # Poll before declaring a leak, and retain the exact residual inventory
-          # so a genuine cleanup failure is actionable.
-          DIAG="$RUN_DIR/diagnostics"
-          mkdir -p "$DIAG"
-          REMAINING="?"
-          for attempt in {1..20}; do
-            if az resource list --resource-group "$AZURE_RESOURCE_GROUP" --output json > "$DIAG/remaining-resources.json"; then
-              REMAINING=$(jq 'length' "$DIAG/remaining-resources.json")
-            else
-              REMAINING="?"
-              echo "::warning::Could not query remaining Azure resources (attempt $attempt/20)"
-            fi
-
-            echo "  $REMAINING resource(s) still in $AZURE_RESOURCE_GROUP"
-            if [[ "$REMAINING" == "0" ]]; then
-              break
-            fi
-
-            jq -r '.[] | "  - \(.type) | \(.name) | \(.id)"' "$DIAG/remaining-resources.json" 2>/dev/null || true
-            if (( attempt < 20 )); then
-              echo "::notice::Waiting 15s for Azure deletion visibility (attempt $attempt/20)"
-              sleep 15
-            fi
-          done
-
-          icon='✅'
-          if [[ -n "$destroy_failed" || "$REMAINING" != "0" ]]; then
-            icon='❌'
-          fi
-          {
-            echo "### Destroy stage ${icon}"
-            echo ""
-            echo "- resources remaining in \`${AZURE_RESOURCE_GROUP}\`: ${REMAINING}"
-            echo "- finished at: $(date -u +%H:%M:%SZ)"
-            if [ "$REMAINING" != "0" ]; then
-              echo ""
-              echo "See the remaining-resources.json destroy diagnostic for details."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ -n "$destroy_failed" || "$REMAINING" != "0" ]]; then
-            echo "::error::Azure teardown was incomplete"
-            exit 1
-          fi
-
-      - name: upload destroy logs + diagnostics
+          [[ "$STARTED" == false ]] && exit 0
+          [[ "$STARTED" == true && "$RESTORE_RESULT" == success && "$DESTROY_RESULT" == success && "$SWEEP_RESULT" == success ]]
+      - name: Upload cleanup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
+        timeout-minutes: 3
         with:
-          name: tf-destroy-${{ github.run_id }}
-          path: runs/deployment-test-azure/**
+          name: tf-destroy-${{ github.run_id }}-${{ github.run_attempt }}
+          path: runs/deployment-test-azure/
           retention-days: 14
           if-no-files-found: warn
-  # A failed apply can leave billable partial resources. Start the identical
-  # teardown immediately after its always-upload step, without waiting for build.
-  tf-destroy-apply-failure:
-    needs: [tf-apply]
-    if: >-
-      ${{ always()
-          && needs.tf-apply.result != 'success'
-          && needs.tf-apply.result != 'skipped' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: internal-ci
-    env: *azure_destroy_env
-    permissions:
-      id-token: write
-      contents: read
-    steps: *azure_destroy_steps
-
-
-  # ── Slack failure-notification (schedule-only) ───────────────────────────
-  #
-  # Channel comes from `vars.CI_SLACK_CHANNEL` (fallback `osmo-slack-test`)
-  # and the auth comes from `OSMO_SLACK_BOT_TOKEN` — same `chat.postMessage`
-  # plumbing testbot.yaml + update-distroless-images.yaml use.
-  #
-  # ─────────────────────────────────────────────────────────────────────────
 
   notify-slack-on-azure-deployment-test-failure:
-    needs: [head-chart-contract, build-images, tf-apply, deploy-osmo, oetf, tf-destroy, tf-destroy-apply-failure]
+    needs: [head-chart-contract, build-images, deploy-osmo, oetf, tf-destroy]
     # always() so this evaluates even when an upstream `needs:` failed.
     # Fires only on scheduled-run failures — PR-label and workflow_dispatch
     # runs surface their own status interactively.
@@ -1394,13 +761,14 @@ jobs:
           && github.event_name == 'schedule'
           && (needs.head-chart-contract.result == 'failure'
               || needs.build-images.result == 'failure'
-              || needs.tf-apply.result == 'failure'
               || needs.deploy-osmo.result == 'failure'
               || needs.oetf.result == 'failure'
-              || needs.tf-destroy.result == 'failure'
-              || needs.tf-destroy-apply-failure.result == 'failure') }}
+              || needs.tf-destroy.result == 'failure') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       # Best-effort decoration (author/subject/links) — must never block
       # the notification; the post step has fallbacks for every output.
@@ -1438,7 +806,6 @@ jobs:
           # commits — a single "current SHA" link is misleading.
           # Fall back to a plain "recent commits on main" view when this
           # is the first scheduled run (no prior green to compare against).
-          wf_name='Deployment Test'
           wf_runs=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
                           -H 'Accept: application/vnd.github+json' \
                           "https://api.github.com/repos/${REPO}/actions/workflows/deployment-test.yaml/runs?event=schedule&status=success&per_page=2")
@@ -1465,8 +832,7 @@ jobs:
           # working URL shape is:
           #   https://github.com/<owner>/<repo>/actions/runs/<run_id>/artifacts/<artifact_id>
           # which renders the artifact's download flow directly. We pick
-          # the first non-expired artifact (full-deployment uploads a
-          # single one named `deployment-test-run-<run_id>`); fall back
+          # a non-expired diagnostic artifact (exclude encrypted state/markers); fall back
           # to the run page when none is found (e.g. job aborted before
           # the always() upload step ran).
           artifacts_resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
@@ -1474,8 +840,8 @@ jobs:
                                  "https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/artifacts?per_page=10")
           # `.artifacts // []` — an API error response has no .artifacts, and
           # iterating null aborts jq (and the step) with exit 5.
-          artifact_id=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].id // empty' <<<"$artifacts_resp")
-          artifact_name=$(jq -r '[(.artifacts // [])[] | select(.expired==false)] | .[0].name // empty' <<<"$artifacts_resp")
+          artifact_id=$(jq -r '[(.artifacts // [])[] | select(.expired==false and (.name | startswith("tf-destroy-") or startswith("deploy-osmo-") or startswith("oetf-")))] | .[0].id // empty' <<<"$artifacts_resp")
+          artifact_name=$(jq -r '[(.artifacts // [])[] | select(.expired==false and (.name | startswith("tf-destroy-") or startswith("deploy-osmo-") or startswith("oetf-")))] | .[0].name // empty' <<<"$artifacts_resp")
           if [[ -n "$artifact_id" ]]; then
             artifact_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}/artifacts/${artifact_id}"
             artifact_label="Download ${artifact_name}"
@@ -1508,10 +874,9 @@ jobs:
           SLACK_CHANNEL: ${{ vars.CI_SLACK_CHANNEL || 'osmo-slack-test' }}
           CHART_RESULT: ${{ needs.head-chart-contract.result }}
           BI_RESULT: ${{ needs.build-images.result }}
-          APPLY_RESULT: ${{ needs.tf-apply.result }}
           DEPLOY_RESULT: ${{ needs.deploy-osmo.result }}
           OETF_RESULT: ${{ needs.oetf.result }}
-          DESTROY_RESULT: ${{ needs.tf-destroy.result != 'skipped' && needs.tf-destroy.result || needs.tf-destroy-apply-failure.result }}
+          DESTROY_RESULT: ${{ needs.tf-destroy.result }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -1562,7 +927,6 @@ jobs:
             --arg subject       "$SUBJECT" \
             --arg chart         "$CHART_RESULT" \
             --arg bi            "$BI_RESULT" \
-            --arg apply         "$APPLY_RESULT" \
             --arg deploy        "$DEPLOY_RESULT" \
             --arg oetf          "$OETF_RESULT" \
             --arg destroy       "$DESTROY_RESULT" \
@@ -1585,7 +949,6 @@ jobs:
                   fields: [
                     { type: "mrkdwn", text: "*head-chart-contract*\n`\($chart)`" },
                     { type: "mrkdwn", text: "*build-images*\n`\($bi)`" },
-                    { type: "mrkdwn", text: "*tf-apply*\n`\($apply)`" },
                     { type: "mrkdwn", text: "*deploy-osmo*\n`\($deploy)`" },
                     { type: "mrkdwn", text: "*oetf*\n`\($oetf)`" },
                     { type: "mrkdwn", text: "*tf-destroy*\n`\($destroy)`" },
@@ -1618,7 +981,7 @@ jobs:
                 { type: "context",
                   elements: [
                     { type: "mrkdwn",
-                      text: ":bulb: First-look investigation: open *Download artifacts* → unzip → check `deployment-test-result.json` (which wrapper stage failed) and `diagnostics/` (cluster state at teardown)." }
+                      text: ":bulb: First-look investigation: open *Download artifacts* → unzip → check the deploy-osmo, oetf and tf-destroy job summaries and their diagnostic artifacts." }
                   ] }
               ]
             }')

@@ -184,6 +184,9 @@ jq --null-input \
     --from-file "$DYNAMIC_VALUES_FILTER" >"$DYNAMIC_VALUES"
 
 # Install OSMO.
+# Register URL-based dependencies on fresh Helm installations as well.
+helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
+helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$CHART"
 helm upgrade --install osmo "$CHART" \
     --namespace osmo \
