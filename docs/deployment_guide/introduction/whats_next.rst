@@ -28,36 +28,6 @@ Ready to Begin?
 
 Select the deployment model that fits your needs and environment.
 
-.. list-table:: Deployment profile comparison
-   :header-rows: 1
-   :widths: 18 20 20 10 32
-
-   * - Deployment
-     - Dependencies
-     - Environment
-     - Backends
-     - Recommended for
-   * - Quickstart Deployment
-     - Included (non-production)
-     - Local workstation
-     - 1
-     - Evaluation and development
-   * - Self-contained Deployment
-     - Included
-     - Edge or on-premises
-     - 1
-     - Production when the complete stack must remain local
-   * - Single-plane Deployment
-     - External
-     - Edge, on-premises, or cloud
-     - 1
-     - Production with separately managed dependencies
-   * - Split-plane Deployment
-     - External
-     - Cloud, on-premises, or hybrid
-     - Many
-     - Production across multiple compute clusters
-
 .. only:: html
 
   .. grid:: 1 2 2 2
@@ -94,3 +64,39 @@ Select the deployment model that fits your needs and environment.
 
           Prepare infrastructure for control and compute planes deployed on
           separate clusters.
+
+Deployment Profile Comparison
+=============================
+
+Use the following table to compare dependencies, target environments, and
+backend scale.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 20 20 10 32
+
+   * - Deployment
+     - Dependencies
+     - Environment
+     - Backends
+     - Recommended for
+   * - Quickstart Deployment
+     - Included (non-production)
+     - Local workstation
+     - 1
+     - Evaluation and development
+   * - Self-contained Deployment
+     - Included
+     - Edge or on-premises
+     - 1
+     - Production when the complete stack must remain local
+   * - Single-plane Deployment
+     - External
+     - Edge, on-premises, or cloud
+     - 1
+     - Production with separately managed dependencies
+   * - Split-plane Deployment
+     - External
+     - Cloud, on-premises, or hybrid
+     - Many
+     - Production across multiple compute clusters
