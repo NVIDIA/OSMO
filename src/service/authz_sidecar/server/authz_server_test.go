@@ -732,9 +732,6 @@ func setRequestHeader(req *envoy_service_auth_v3.CheckRequest, name, value strin
 }
 
 const testConfigYAML = `
-user_roles:
-  CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs:
-  - osmo-admin
 roles:
   osmo-admin:
     description: "Admin"
@@ -769,84 +766,6 @@ pools:
   gpu-large:
     backend: gpu-cluster
 `
-
-func TestFileBackedCheck_ExactUserBindingGrantsAdmin(t *testing.T) {
-	path := writeTestConfigFile(t, testConfigYAML)
-	server := newFileBackedTestServer(t, path)
-
-	req := makeFileBackedCheckRequest(
-		"CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs",
-		"/api/configs/pool", "DELETE", "")
-	resp, err := server.Check(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.GetDeniedResponse() != nil {
-		t.Errorf("exact embedded Dex subject should receive osmo-admin")
-	}
-}
-
-func TestFileBackedCheck_ExactUserBindingIsNotAnExternalRole(t *testing.T) {
-	path := writeTestConfigFile(t, `
-user_roles:
-  exact-subject: [viewer]
-roles:
-  admin:
-    policies:
-    - effect: Allow
-      actions: ["*:*"]
-      resources: ["*"]
-    external_roles: [viewer]
-  viewer:
-    policies: []
-    external_roles: []
-  osmo-default:
-    policies: []
-    external_roles: []
-`)
-	server := newFileBackedTestServer(t, path)
-
-	req := makeFileBackedCheckRequest(
-		"exact-subject", "/api/configs/pool", "DELETE", "")
-	resp, err := server.Check(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.GetDeniedResponse() == nil {
-		t.Error("exact role viewer must not transitively resolve external mapping to admin")
-	}
-}
-
-func TestFileBackedCheck_UserBindingDoesNotElevateAccessToken(t *testing.T) {
-	path := writeTestConfigFile(t, testConfigYAML)
-	server := newFileBackedTestServer(t, path)
-
-	req := makeFileBackedCheckRequest(
-		"CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs",
-		"/api/configs/pool", "DELETE", "")
-	req.Attributes.Request.Http.Headers["x-osmo-token-name"] = "same-name-token"
-	resp, err := server.Check(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.GetDeniedResponse() == nil {
-		t.Errorf("access token must not inherit an interactive user binding")
-	}
-}
-
-func TestFileRoleStoreRejectsBindingToUnknownRole(t *testing.T) {
-	path := writeTestConfigFile(t, `
-user_roles:
-  subject: [missing-role]
-roles:
-  osmo-default:
-    policies: []
-`)
-	store := roles.NewFileRoleStore(path, slog.Default())
-	if err := store.Load(); err == nil {
-		t.Fatal("expected binding to unknown role to fail")
-	}
-}
 
 func TestFileBackedCheck_AdminAccess(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)

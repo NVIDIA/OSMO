@@ -29,7 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// FileRoleStore loads roles, exact user bindings, external role mappings, and pool names from
+// FileRoleStore loads roles, external role mappings, and pool names from
 // a ConfigMap-mounted YAML file. It replaces the PostgreSQL-backed role
 // storage for the authz_sidecar in ConfigMap mode.
 //
@@ -95,7 +95,6 @@ func NewFileRoleStore(filePath string, logger *slog.Logger) *FileRoleStore {
 		filePath:        filePath,
 		logger:          logger,
 		roles:           make(map[string]*Role),
-		userRoleMap:     make(map[string][]string),
 		externalRoleMap: make(map[string][]string),
 		syncModes:       make(map[string]SyncMode),
 	}
@@ -118,7 +117,6 @@ func (s *FileRoleStore) Load() error {
 	}
 
 	roles := make(map[string]*Role, len(config.Roles))
-	userRoleMap := make(map[string][]string, len(config.UserRoles))
 	externalMap := make(map[string][]string)
 	syncModes := make(map[string]SyncMode, len(config.Roles))
 
@@ -162,22 +160,6 @@ func (s *FileRoleStore) Load() error {
 		return fmt.Errorf("pools section is required")
 	}
 
-	for user, roleNames := range config.UserRoles {
-		if user == "" {
-			return fmt.Errorf("user_roles contains an empty user")
-		}
-		seen := make(map[string]bool, len(roleNames))
-		for _, roleName := range roleNames {
-			if _, ok := roles[roleName]; !ok {
-				return fmt.Errorf("user_roles user %q references unknown role %q", user, roleName)
-			}
-			if !seen[roleName] {
-				seen[roleName] = true
-				userRoleMap[user] = append(userRoleMap[user], roleName)
-			}
-		}
-	}
-
 	// Extract pool names
 	poolNames := make([]string, 0, len(config.Pools))
 	for name := range config.Pools {
@@ -189,14 +171,12 @@ func (s *FileRoleStore) Load() error {
 	sort.Strings(poolNames)
 
 	s.roles = roles
-	s.userRoleMap = userRoleMap
 	s.externalRoleMap = externalMap
 	s.syncModes = syncModes
 	s.poolNames = poolNames
 
 	s.logger.Info("roles loaded from file",
 		slog.Int("role_count", len(roles)),
-		slog.Int("user_bindings", len(userRoleMap)),
 		slog.Int("external_mappings", len(externalMap)),
 		slog.Int("pool_count", len(poolNames)),
 		slog.String("file", s.filePath))

@@ -749,6 +749,7 @@ data:
                     {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
                     - {{ $mcpResourceUrl }}
                     {{- end }}
+                    {{- end }}
                     forward: true
                     payload_in_metadata: verified_jwt_{{$i}}
                     from_headers:

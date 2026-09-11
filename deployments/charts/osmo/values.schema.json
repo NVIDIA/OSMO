@@ -129,12 +129,118 @@
       }
     }
   },
-  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "authentication", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "enum": ["embeddedDex", "externalOidc"] },
+        "embeddedDex": { "$ref": "#/definitions/embeddedDexAuthentication" },
+        "externalOidc": { "$ref": "#/definitions/externalOidcAuthentication" }
+      },
+      "required": ["provider", "embeddedDex", "externalOidc"]
+    },
+    "embeddedDexAuthentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "email": { "type": "string", "minLength": 1 },
+            "username": { "type": "string", "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$" },
+            "passwordGeneration": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["email", "username", "passwordGeneration"]
+        },
+        "browserClientId": { "type": "string", "minLength": 1 },
+        "cliClientId": { "type": "string", "minLength": 1 },
+        "jwksCacheDurationSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "browserClientSecretGeneration": { "type": "integer", "minimum": 1 },
+        "cookieSecretGeneration": { "type": "integer", "minimum": 1 },
+        "expiry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deviceRequests": { "type": "string", "minLength": 1 },
+            "signingKeys": { "type": "string", "minLength": 1 },
+            "idTokens": { "type": "string", "minLength": 1 },
+            "refreshTokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "reuseInterval": { "type": "string", "minLength": 1 },
+                "validIfNotUsedFor": { "type": "string", "minLength": 1 },
+                "absoluteLifetime": { "type": "string", "minLength": 1 }
+              },
+              "required": ["reuseInterval", "validIfNotUsedFor", "absoluteLifetime"]
+            }
+          },
+          "required": ["deviceRequests", "signingKeys", "idTokens", "refreshTokens"]
+        },
+        "adminSecretName": { "type": "string", "minLength": 1 },
+        "oauthSecretName": { "type": "string", "minLength": 1 },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowInitialGeneration": { "type": "boolean" },
+            "image": { "type": "string" },
+            "imagePullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+            "resources": { "type": "object" }
+          },
+          "required": ["allowInitialGeneration", "image", "imagePullPolicy", "activeDeadlineSeconds", "resources"]
+        }
+      },
+      "required": ["admin", "browserClientId", "cliClientId", "jwksCacheDurationSeconds", "browserClientSecretGeneration", "cookieSecretGeneration", "expiry", "adminSecretName", "oauthSecretName", "bootstrap"]
+    },
+    "externalSecretKeyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "anyOf": [
+            { "maxLength": 0 },
+            {
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+            }
+          ]
+        },
+        "key": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[-._a-zA-Z0-9]+$" },
+        "rolloutNonce": { "type": "string" }
+      },
+      "required": ["existingSecret", "key", "rolloutNonce"]
+    },
+    "externalOidcAuthentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer": { "type": "string" },
+        "browserClientId": { "type": "string" },
+        "cliClientId": { "type": "string" },
+        "authorizationEndpoint": { "type": "string" },
+        "tokenEndpoint": { "type": "string" },
+        "deviceEndpoint": { "type": "string" },
+        "jwksUri": { "type": "string" },
+        "jwksHost": { "type": "string" },
+        "userClaim": { "type": "string", "minLength": 1 },
+        "rolesClaim": { "type": "string", "minLength": 1 },
+        "scopes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        "logoutEndpoint": { "type": "string" },
+        "browserClientSecret": { "$ref": "#/definitions/externalSecretKeyReference" },
+        "cookieSecret": { "$ref": "#/definitions/externalSecretKeyReference" }
+      },
+      "required": ["issuer", "browserClientId", "cliClientId", "authorizationEndpoint", "tokenEndpoint", "deviceEndpoint", "jwksUri", "jwksHost", "userClaim", "rolesClaim", "scopes", "logoutEndpoint", "browserClientSecret", "cookieSecret"]
     },
     "databaseMigration": {
       "type": "object",
@@ -1264,6 +1370,7 @@
                 "name": { "type": "string" },
                 "mountPath": { "type": "string" },
                 "clientSecretKey": { "type": "string" },
+                "rolloutNonce": { "type": "string" },
                 "redisPasswordKey": { "type": "string" }
               }
             }

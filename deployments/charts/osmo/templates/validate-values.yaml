@@ -64,6 +64,138 @@
 {{- fail "databaseMigration.enabled requires planes.control.enabled=true" -}}
 {{- end -}}
 {{- if .Values.planes.control.enabled -}}
+{{- if not (regexMatch "^https?://[^/?#]+/?$" .Values.externalUrl) -}}
+{{- fail "externalUrl is required for the control plane and must be an externally reachable HTTP or HTTPS origin without a path" -}}
+{{- end -}}
+{{- if hasKey .Values.services.api "auth" -}}
+{{- fail "services.api.auth is no longer supported; configure authentication.provider" -}}
+{{- end -}}
+{{- if not (dig "enabled" false (.Values.gateway.envoy | default dict)) -}}
+{{- fail "gateway.envoy.enabled cannot be false for control-plane installations" -}}
+{{- end -}}
+{{- if not (dig "enabled" false (.Values.gateway.oauth2Proxy | default dict)) -}}
+{{- fail "gateway.oauth2Proxy.enabled cannot be false for control-plane installations" -}}
+{{- end -}}
+{{- if not (dig "enabled" false (.Values.gateway.authz | default dict)) -}}
+{{- fail "gateway.authz.enabled cannot be false for control-plane installations" -}}
+{{- end -}}
+{{- if or (hasKey .Values.gateway.envoy "defaultIdentity") (hasKey .Values.gateway.envoy.jwt "allowMissing") -}}
+{{- fail "gateway.envoy.defaultIdentity and gateway.envoy.jwt.allowMissing are no longer supported because authentication is mandatory" -}}
+{{- end -}}
+{{- $expectedSkipAuthPaths := list "/api/version" "/api/auth/login" "/api/auth/keys" "/api/auth/refresh_token" "/api/auth/jwt/refresh_token" "/api/auth/jwt/access_token" "/api/router/version" "/client/version" -}}
+{{- if or
+      (not (deepEqual .Values.gateway.envoy.skipAuthPaths $expectedSkipAuthPaths))
+      .Values.gateway.envoy.extraSkipAuthPaths
+      (ne .Values.gateway.envoy.jwt.userHeader "x-osmo-user") -}}
+{{- fail "gateway authentication bypass paths are chart-managed" -}}
+{{- end -}}
+{{- if not (has .Values.authentication.provider (list "embeddedDex" "externalOidc")) -}}
+{{- fail "authentication.provider must be embeddedDex or externalOidc" -}}
+{{- end -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- $embeddedAuth := .Values.authentication.embeddedDex -}}
+{{- if not .Values.embeddedDependencies.dex.enabled -}}
+{{- fail "embeddedDependencies.dex.enabled must be true when authentication.provider=embeddedDex" -}}
+{{- end -}}
+{{- if or (lt (int $embeddedAuth.admin.passwordGeneration) 1) (lt (int $embeddedAuth.browserClientSecretGeneration) 1) (lt (int $embeddedAuth.cookieSecretGeneration) 1) -}}
+{{- fail "embedded Dex credential generations must be positive integers" -}}
+{{- end -}}
+{{- range $value := list $embeddedAuth.admin.email $embeddedAuth.admin.username $embeddedAuth.browserClientId $embeddedAuth.cliClientId $embeddedAuth.adminSecretName $embeddedAuth.oauthSecretName -}}
+{{- if not $value -}}{{- fail "embedded Dex administrator, client, and Secret values must be non-empty" -}}{{- end -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$" $embeddedAuth.admin.username) -}}
+{{- fail "authentication.embeddedDex.admin.username must be a valid OSMO username containing letters, digits, underscores, periods, @, or hyphens, and must begin and end with a letter or digit" -}}
+{{- end -}}
+{{- range $secretName := list $embeddedAuth.adminSecretName $embeddedAuth.oauthSecretName -}}
+{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
+{{- fail "embedded Dex Secret names must be valid DNS-1123 subdomain names" -}}
+{{- end -}}
+{{- end -}}
+{{- if or (ne $embeddedAuth.adminSecretName "osmo-embedded-dex-admin") (ne $embeddedAuth.oauthSecretName "osmo-embedded-dex-oauth") -}}
+{{- fail "embedded Dex Secret names are chart-managed and cannot be changed" -}}
+{{- end -}}
+{{- if eq $embeddedAuth.browserClientId $embeddedAuth.cliClientId -}}
+{{- fail "embedded Dex browserClientId and cliClientId must be different" -}}
+{{- end -}}
+{{- if or (ne .Values.dex.fullnameOverride "osmo-dex") .Values.dex.configSecret.create (ne .Values.dex.configSecret.name "osmo-dex-config") .Values.dex.serviceAccount.create (ne .Values.dex.serviceAccount.name "osmo-dex") .Values.dex.rbac.create .Values.dex.rbac.createClusterScoped -}}
+{{- fail "embedded Dex dependency names, configSecret, ServiceAccount, and RBAC settings are chart-managed" -}}
+{{- end -}}
+{{- $expectedDexImage := dict "repository" "ghcr.io/dexidp/dex" "tag" "v2.44.0" "digest" "sha256:5d0656fce7d453c0e3b2706abf40c0d0ce5b371fb0b73b3cf714d05f35fa5f86" "pullPolicy" "IfNotPresent" -}}
+{{- $expectedDexPodSecurityContext := dict "runAsNonRoot" true "runAsUser" 1001 "runAsGroup" 1001 "seccompProfile" (dict "type" "RuntimeDefault") -}}
+{{- $expectedDexSecurityContext := dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) "readOnlyRootFilesystem" true "runAsNonRoot" true "runAsUser" 1001 -}}
+{{- $expectedDexVolumes := list (dict "name" "tmp" "emptyDir" dict) -}}
+{{- $expectedDexVolumeMounts := list (dict "name" "tmp" "mountPath" "/tmp") -}}
+{{- if or
+      (ne (int .Values.dex.replicaCount) 1)
+      (ne (toJson .Values.dex.image) (toJson $expectedDexImage))
+      .Values.dex.namespaceOverride
+      .Values.dex.nameOverride
+      .Values.dex.https.enabled
+      .Values.dex.grpc.enabled
+      .Values.dex.config
+      (ne (toJson .Values.dex.volumes) (toJson $expectedDexVolumes))
+      (ne (toJson .Values.dex.volumeMounts) (toJson $expectedDexVolumeMounts))
+      .Values.dex.envFrom
+      .Values.dex.env
+      .Values.dex.commonLabels
+      .Values.dex.deploymentAnnotations
+      .Values.dex.deploymentLabels
+      .Values.dex.podAnnotations
+      .Values.dex.podLabels
+      .Values.dex.hostAliases
+      (ne (toJson .Values.dex.podSecurityContext) (toJson $expectedDexPodSecurityContext))
+      (ne (toJson .Values.dex.securityContext) (toJson $expectedDexSecurityContext))
+      (ne .Values.dex.service.type "ClusterIP")
+      (ne (int .Values.dex.service.ports.http.port) 5556)
+      .Values.dex.service.ports.http.nodePort
+      .Values.dex.ingress.enabled
+      .Values.dex.httpRoute.enabled
+      .Values.dex.serviceMonitor.enabled
+      .Values.dex.autoscaling.enabled
+      .Values.dex.networkPolicy.enabled
+      .Values.dex.networkPolicy.egressRules -}}
+{{- fail "embedded Dex security-sensitive dependency values are chart-managed" -}}
+{{- end -}}
+{{- $expectedDexEnvVars := list
+      (dict "name" "OSMO_DEX_ADMIN_PASSWORD_HASH" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-admin" "key" "password-hash")))
+      (dict "name" "OSMO_DEX_BROWSER_CLIENT_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-oauth" "key" "browser-client-secret"))) -}}
+{{- if not (deepEqual .Values.dex.envVars $expectedDexEnvVars) -}}
+{{- fail "embedded Dex environment Secret references are chart-managed" -}}
+{{- end -}}
+{{- else -}}
+{{- $externalAuth := .Values.authentication.externalOidc -}}
+{{- if .Values.embeddedDependencies.dex.enabled -}}
+{{- fail "embeddedDependencies.dex.enabled must be false when authentication.provider=externalOidc" -}}
+{{- end -}}
+{{- range $value := list $externalAuth.issuer $externalAuth.browserClientId $externalAuth.cliClientId $externalAuth.authorizationEndpoint $externalAuth.tokenEndpoint $externalAuth.deviceEndpoint $externalAuth.jwksUri $externalAuth.jwksHost $externalAuth.userClaim $externalAuth.rolesClaim $externalAuth.browserClientSecret.existingSecret $externalAuth.browserClientSecret.key $externalAuth.cookieSecret.existingSecret $externalAuth.cookieSecret.key -}}
+{{- if not $value -}}{{- fail "externalOidc endpoints, clients, claims, hosts, and Secret references must be complete" -}}{{- end -}}
+{{- end -}}
+{{- range $secretName := list $externalAuth.browserClientSecret.existingSecret $externalAuth.cookieSecret.existingSecret -}}
+{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
+{{- fail "externalOidc existing Secret names must be valid DNS-1123 subdomain names" -}}
+{{- end -}}
+{{- end -}}
+{{- range $secretKey := list $externalAuth.browserClientSecret.key $externalAuth.cookieSecret.key -}}
+{{- if or (gt (len $secretKey) 253) (not (regexMatch "^[-._a-zA-Z0-9]+$" $secretKey)) -}}
+{{- fail "externalOidc Secret keys must contain only letters, numbers, '-', '_', or '.'" -}}
+{{- end -}}
+{{- end -}}
+{{- range $endpoint := list $externalAuth.issuer $externalAuth.authorizationEndpoint $externalAuth.tokenEndpoint $externalAuth.deviceEndpoint $externalAuth.jwksUri -}}
+{{- if not (regexMatch "^https?://[^/?#]+(?:/[^?#]*)?$" $endpoint) -}}{{- fail "externalOidc endpoints must be HTTP or HTTPS URLs" -}}{{- end -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $externalAuth.jwksHost) -}}
+{{- fail "externalOidc.jwksHost must be a DNS hostname" -}}
+{{- end -}}
+{{- $jwksPattern := printf "^https?://%s(?::[0-9]{1,5})?(?:/[^?#]*)?$" (regexQuoteMeta $externalAuth.jwksHost) -}}
+{{- if not (regexMatch $jwksPattern $externalAuth.jwksUri) -}}
+{{- fail "externalOidc.jwksHost must match the jwksUri DNS host" -}}
+{{- end -}}
+{{- $jwksAuthority := regexFind "^https?://[^/?#]+" $externalAuth.jwksUri -}}
+{{- $jwksPortText := regexFind ":[0-9]+$" $jwksAuthority | trimPrefix ":" -}}
+{{- if and $jwksPortText (or (lt (int $jwksPortText) 1) (gt (int $jwksPortText) 65535)) -}}
+{{- fail "externalOidc.jwksUri port must be between 1 and 65535" -}}
+{{- end -}}
+{{- end -}}
 {{- $runtimeConfiguration := .Values.configuration -}}
 {{- if ne .Values.configuration.snapshot nil -}}
 {{- $runtimeConfiguration = .Values.configuration.snapshot -}}
@@ -378,9 +510,6 @@
 {{- else if .Values.secrets.valkey.generate -}}
 {{- fail "secrets.valkey.generate is supported only when embedded Valkey is enabled" -}}
 {{- end -}}
-{{- if not .Values.externalUrl -}}
-{{- fail "externalUrl is required for the control plane" -}}
-{{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.gateway.envoy.enabled) -}}
 {{- fail "ingress.enabled=true requires gateway.envoy.enabled=true" -}}
 {{- end -}}
@@ -543,12 +672,6 @@
 {{- end -}}
 {{- if not .Values.secrets.masterEncryptionKey.existingSecret.key -}}
 {{- fail "secrets.masterEncryptionKey.existingSecret.key is required for the control plane" -}}
-{{- end -}}
-{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthClientSecret.existingSecret) -}}
-{{- fail "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled" -}}
-{{- end -}}
-{{- if and .Values.gateway.oauth2Proxy.enabled (not .Values.secrets.oauthCookieSecret.generate) (not .Values.secrets.oauthCookieSecret.existingSecret) -}}
-{{- fail "secrets.oauthCookieSecret requires generate=true or existingSecret when the OAuth2 proxy is enabled" -}}
 {{- end -}}
 {{- if and
   (not .Values.embeddedDependencies.postgresql.enabled)

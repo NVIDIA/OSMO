@@ -760,6 +760,7 @@ services:
         name: ''
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
+        rolloutNonce: ''
         # Optional compatibility mode for a combined OIDC and Redis Secret.
         # Empty mounts secrets.valkey.keys.password from the effective Valkey
         # Secret at /etc/osmo/mcp-valkey instead.
@@ -1602,7 +1603,7 @@ gateway:
   # External-authorization service backed by OSMO role policies. This
   # component cannot be disabled for control-plane installations.
   authz:
-    enabled: false
+    enabled: true
     # Keep authorization available while replacements load their role snapshot.
     # Role changes reach every replica only after the rolling update completes.
     deploymentStrategy:

@@ -11,8 +11,6 @@ fullnameOverride: ''
 externalUrl: ''
 
 embeddedDependencies:
-  dex:
-    enabled: true
   postgresql:
     enabled: false
   valkey:

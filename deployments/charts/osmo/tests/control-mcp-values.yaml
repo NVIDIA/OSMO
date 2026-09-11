@@ -15,3 +15,13 @@ services:
 gateway:
   authz:
     enabled: true
+  envoy:
+    idp:
+      host: issuer.example.com
+    jwt:
+      providers:
+      - issuer: https://issuer.example.com
+        audience: osmo-mcp
+        jwks_uri: https://issuer.example.com/.well-known/jwks.json
+        cluster: idp
+        user_claim: preferred_username

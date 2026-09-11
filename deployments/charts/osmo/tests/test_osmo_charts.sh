@@ -24,7 +24,8 @@ for required_command in awk base64 cmp grep helm sed tar; do
 done
 
 helm_template() {
-    helm template "$@" --kube-version 1.28.0
+    helm template -f "$CHARTS_ROOT/osmo/tests/default-external-url-values.yaml" \
+        "$@" --kube-version 1.28.0
 }
 
 helm_template_with_backend() {
