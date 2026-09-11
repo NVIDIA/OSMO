@@ -18,6 +18,12 @@ embeddedDependencies:
   objectStorage:
     enabled: false
 
+authentication:
+  bootstrap:
+    identities:
+      backend-operator-default:
+        enabled: false
+
 configuration:
   workflow:
     # Omit an optional workflow label policy in this minimal external profile.
@@ -223,9 +229,6 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: osmo-object-storage
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

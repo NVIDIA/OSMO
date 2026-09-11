@@ -1,18 +1,34 @@
-{{- if and .Values.planes.control.enabled (eq .Values.authentication.provider "embeddedDex") }}
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-{{- $auth := .Values.authentication.embeddedDex }}
-{{- $name := printf "%s-embedded-dex-bootstrap" (include "osmo.fullname" .) | trunc 58 | trimSuffix "-" }}
-{{- $image := $auth.bootstrap.image | default (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) }}
-{{- $resourceHooks := dict "helm.sh/hook" "pre-install,pre-upgrade,post-install,post-upgrade" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" }}
-{{- $configRolloutIdentity := include "osmo.embeddedDex.config" . | sha256sum }}
+{{- if .Values.planes.control.enabled }}
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $embeddedDex := eq .Values.authentication.provider "embeddedDex" -}}
+{{- $passwords := list -}}
+{{- $managedTokens := list -}}
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
+{{- if $identity.enabled -}}
+{{- if and $embeddedDex (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) -}}
+{{- $passwords = append $passwords (dict "identityID" $identityID "secretName" (include "osmo.bootstrap.dexPasswordSecretName" $identityID) "hashEnvironment" (include "osmo.bootstrap.dexHashEnvironmentName" $identityID)) -}}
+{{- end -}}
+{{- range $tokenName, $token := $identity.tokens -}}
+{{- if hasKey $token "managedSecret" -}}
+{{- $managedTokens = append $managedTokens (dict "identityID" $identityID "tokenName" $tokenName "secretName" $token.managedSecret.name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if or $embeddedDex $managedTokens -}}
+{{- $bootstrap := .Values.authentication.bootstrap -}}
+{{- $name := printf "%s-identity-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- $resourceHooks := dict "helm.sh/hook" "pre-install,pre-upgrade,post-install,post-upgrade" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
+{{- $oauthSecretName := "osmo-embedded-dex-oauth" -}}
+{{- $hashSecretName := "osmo-embedded-dex-password-hashes" -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "embedded-dex-bootstrap") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "identity-bootstrap") | nindent 4 }}
   annotations:
     {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $resourceHooks) | nindent 4 }}
 automountServiceAccountToken: true
@@ -23,24 +39,32 @@ metadata:
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "embedded-dex-bootstrap") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "identity-bootstrap") | nindent 4 }}
   annotations:
     {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $resourceHooks) | nindent 4 }}
 rules:
-{{- if $auth.bootstrap.allowInitialGeneration }}
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["create"]
-{{- end }}
 - apiGroups: [""]
   resources: ["secrets"]
   resourceNames:
-  - {{ $auth.adminSecretName | quote }}
-  - {{ $auth.oauthSecretName | quote }}
+  {{- range $passwords }}
+  - {{ .secretName | quote }}
+  {{- end }}
+  {{- range $managedTokens }}
+  - {{ .secretName | quote }}
+  {{- end }}
+  {{- if $embeddedDex }}
+  - {{ $oauthSecretName | quote }}
+  - {{ $hashSecretName | quote }}
+  {{- end }}
   verbs: ["get", "update"]
+{{- if $embeddedDex }}
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["list", "delete"]
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -48,7 +72,7 @@ metadata:
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" . "component" "embedded-dex-bootstrap") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" . "component" "identity-bootstrap") | nindent 4 }}
   annotations:
     {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $resourceHooks) | nindent 4 }}
 subjects:
@@ -59,9 +83,10 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ $name }}
-{{- $phases := list
-      (dict "name" "pre" "hooks" "pre-install,pre-upgrade" "includeConfigIdentity" false)
-      (dict "name" "post" "hooks" "post-install,post-upgrade" "includeConfigIdentity" true) -}}
+{{- $phases := list (dict "name" "pre" "hooks" "pre-install,pre-upgrade" "includeConfigIdentity" false) -}}
+{{- if $embeddedDex -}}
+{{- $phases = append $phases (dict "name" "post" "hooks" "post-install,post-upgrade" "includeConfigIdentity" true) -}}
+{{- end -}}
 {{- range $phase := $phases }}
 ---
 apiVersion: batch/v1
@@ -70,16 +95,16 @@ metadata:
   name: {{ printf "%s-%s" $name $phase.name }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "osmo.component.labels" (dict "root" $ "component" "embedded-dex-bootstrap") | nindent 4 }}
+    {{- include "osmo.component.labels" (dict "root" $ "component" "identity-bootstrap") | nindent 4 }}
   annotations:
     {{- include "osmo.metadata.annotations" (dict "root" $ "protectedAnnotations" (dict "helm.sh/hook" $phase.hooks "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded")) | nindent 4 }}
 spec:
-  activeDeadlineSeconds: {{ $auth.bootstrap.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ $bootstrap.activeDeadlineSeconds }}
   backoffLimit: 1
   template:
     metadata:
       labels:
-        {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "embedded-dex-bootstrap") | nindent 8 }}
+        {{- include "osmo.component.selectorLabels" (dict "root" $ "component" "identity-bootstrap") | nindent 8 }}
     spec:
       restartPolicy: Never
       serviceAccountName: {{ $name }}
@@ -91,40 +116,49 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       {{- include "osmo.component.imagePullSecrets" $ | nindent 6 }}
+      {{- with (include "osmo.pod.affinity" (dict "root" $ "component" $.Values.services.api)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" $ "component" $.Values.services.api)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- include "osmo.pod.tolerations" (dict "root" $ "component" $.Values.services.api) | nindent 8 }}
       containers:
-      - name: embedded-dex-bootstrap
-        image: {{ $image | quote }}
-        imagePullPolicy: {{ $auth.bootstrap.imagePullPolicy }}
-        command: ["embedded-dex-bootstrap"]
+      - name: identity-bootstrap
+        image: {{ include "osmo.component.image" (dict "root" $ "component" $.Values.services.api) | quote }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" $ "component" $.Values.services.api) }}
+        command: ["identity-bootstrap"]
         args:
         - --namespace
         - {{ $.Release.Namespace | quote }}
         - --release-name
         - {{ $.Release.Name | quote }}
-        - --admin-secret-name
-        - {{ $auth.adminSecretName | quote }}
-        - --oauth-secret-name
-        - {{ $auth.oauthSecretName | quote }}
-        {{- if $auth.bootstrap.allowInitialGeneration }}
-        - --allow-initial-generation
-        {{- else }}
-        - --no-allow-initial-generation
+        {{- range $passwords }}
+        - --password
+        - {{ printf "%s=%s=%s" .identityID .secretName .hashEnvironment | quote }}
         {{- end }}
-        - --password-generation
-        - {{ $auth.admin.passwordGeneration | quote }}
-        - --client-generation
-        - {{ $auth.browserClientSecretGeneration | quote }}
-        - --cookie-generation
-        - {{ $auth.cookieSecretGeneration | quote }}
+        {{- range $managedTokens }}
+        - --token
+        - {{ printf "%s/%s=%s" .identityID .tokenName .secretName | quote }}
+        {{- end }}
+        {{- if $embeddedDex }}
+        - --oauth-secret-name
+        - {{ $oauthSecretName | quote }}
+        - --dex-hash-secret-name
+        - {{ $hashSecretName | quote }}
+        {{- if $phase.includeConfigIdentity }}
         - --dex-pod-selector
         - {{ printf "app.kubernetes.io/name=dex,app.kubernetes.io/instance=%s" $.Release.Name | quote }}
         - --oauth-pod-selector
         - {{ printf "app.kubernetes.io/name=%s,app.kubernetes.io/instance=%s,app.kubernetes.io/component=gateway-oauth2-proxy" (include "osmo.name" $) $.Release.Name | quote }}
         - --restart-timeout-seconds
-        - {{ max 1 (sub $auth.bootstrap.activeDeadlineSeconds 30) | quote }}
-        {{- if $phase.includeConfigIdentity }}
+        - {{ max 1 (sub $bootstrap.activeDeadlineSeconds 30) | quote }}
         - --config-rollout-identity
-        - {{ $configRolloutIdentity | quote }}
+        - {{ include "osmo.embeddedDex.config" $ | sha256sum | quote }}
+        {{- end }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -135,6 +169,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 1001
         resources:
-          {{- toYaml $auth.bootstrap.resources | nindent 10 }}
+          {{- toYaml $bootstrap.resources | nindent 10 }}
+{{- end }}
 {{- end }}
 {{- end }}

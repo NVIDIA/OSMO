@@ -37,11 +37,12 @@ import (
 
 const (
 	// Header names
-	headerOsmoUser         = "x-osmo-user"
-	headerOsmoRoles        = "x-osmo-roles"
-	headerOsmoTokenName    = "x-osmo-token-name"
-	headerOsmoWorkflowID   = "x-osmo-workflow-id"
-	headerOsmoAllowedPools = "x-osmo-allowed-pools"
+	headerOsmoUser           = "x-osmo-user"
+	headerOsmoRoles          = "x-osmo-roles"
+	headerOsmoTokenName      = "x-osmo-token-name"
+	headerOsmoIdentitySource = "x-osmo-identity-source"
+	headerOsmoWorkflowID     = "x-osmo-workflow-id"
+	headerOsmoAllowedPools   = "x-osmo-allowed-pools"
 
 	// Default role added to all users
 	defaultRole = "osmo-default"
@@ -101,6 +102,7 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	user := headers[headerOsmoUser]
 	rolesHeader := headers[headerOsmoRoles]
 	tokenName := headers[headerOsmoTokenName]
+	identitySource := headers[headerOsmoIdentitySource]
 	workflowID := headers[headerOsmoWorkflowID]
 
 	// Parse roles (comma-separated)
@@ -120,8 +122,18 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	// headers already contain internal role assignments resolved by the service.
 	if user != "" && tokenName == "" && workflowID == "" {
 		var err error
-		roleNames, err = roles.SyncUserRoles(
-			ctx, s.pgClient, s.fileStore, user, roleNames, s.logger)
+		switch identitySource {
+		case "":
+			roleNames, err = roles.SyncUserRoles(
+				ctx, s.pgClient, s.fileStore, user, roleNames, s.logger)
+		case "embedded-dex":
+			roleNames, err = roles.SyncTrustedUserRoles(
+				ctx, s.pgClient, s.fileStore, user, roleNames, s.logger)
+		default:
+			s.logger.Error("rejected unknown identity source",
+				slog.String("user", user), slog.String("source", identitySource))
+			return s.denyResponse(codes.PermissionDenied, "untrusted identity source"), nil
+		}
 		if err != nil {
 			s.logger.Error("failed to synchronize user roles",
 				slog.String("user", user), slog.String("error", err.Error()))

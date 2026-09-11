@@ -202,7 +202,7 @@ class EmbeddedDexKind(SmokeFixture):
         payload_part += '=' * (-len(payload_part) % 4)
         payload = json.loads(base64.urlsafe_b64decode(payload_part))
         self.assertEqual(
-            'CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs',
+            'CgVhZG1pbhIFbG9jYWw',
             payload['sub'])
         self.assertEqual('admin', payload['name'])
         self.assertEqual(external_url + '/dex', payload['iss'])
@@ -258,6 +258,8 @@ class EmbeddedDexKind(SmokeFixture):
         profile = os.path.join(chart, "profiles", "split-plane-control.yaml")
         external = os.path.join(chart, "tests", "control-external-values.yaml")
         bootstrap_image = self._bootstrap_image()
+        api_registry, api_repository, api_tag, api_digest = (
+            self._component_image_values(bootstrap_image))
         authz_image = self._related_image(bootstrap_image, 'authz-sidecar')
         authz_registry, authz_repository, authz_tag, authz_digest = (
             self._component_image_values(authz_image))
@@ -285,14 +287,19 @@ class EmbeddedDexKind(SmokeFixture):
                     "--install", "-f", profile, "-f", external,
                     "--set", "authentication.provider=embeddedDex",
                     "--set", "embeddedDependencies.dex.enabled=true",
+                    "--set",
+                    "authentication.bootstrap.identities.admin.enabled=true",
                     "--set", "gateway.tls.enabled=false",
                     "--set-string", f"externalUrl={external_url}",
                     "--set-string",
-                    f"authentication.embeddedDex.bootstrap.image={bootstrap_image}",
+                    f"services.api.image.registry={api_registry}",
+                    "--set-string",
+                    f"services.api.image.repository={api_repository}",
+                    "--set-string", f"services.api.image.tag={api_tag}",
+                    "--set-string", f"services.api.image.digest={api_digest}",
+                    "--set", "services.api.image.pullPolicy=IfNotPresent",
                     "--set",
-                    "authentication.embeddedDex.bootstrap.imagePullPolicy=IfNotPresent",
-                    "--set",
-                    "authentication.embeddedDex.bootstrap.activeDeadlineSeconds=90",
+                    "authentication.bootstrap.activeDeadlineSeconds=90",
                     "--set", "gateway.oauth2Proxy.redisSessionStore=false",
                     "--set-string",
                     f"gateway.authz.image.registry={authz_registry}",
@@ -405,9 +412,8 @@ class EmbeddedDexKind(SmokeFixture):
             self._secret_data_identity(initial_oauth),
             self._secret_data_identity(secret(oauth_name)))
 
-        helm_apply(
-            "--set", "authentication.embeddedDex.admin.passwordGeneration=2",
-            reuse_values=True)
+        kubectl("delete", "secret", admin_name)
+        helm_apply(reuse_values=True)
         rotated_admin = secret(admin_name)
         self.assertNotEqual(
             self._secret_data_identity(initial_admin),
@@ -416,30 +422,15 @@ class EmbeddedDexKind(SmokeFixture):
             self._secret_data_identity(initial_oauth),
             self._secret_data_identity(secret(oauth_name)))
 
-        helm_apply(
-            "--set",
-            "authentication.embeddedDex.browserClientSecretGeneration=2",
-            reuse_values=True)
+        kubectl("delete", "secret", oauth_name)
+        helm_apply(reuse_values=True)
         rotated_client = secret(oauth_name)
         self.assertNotEqual(
             self._secret_data_identity(initial_oauth, "browser-client-secret"),
             self._secret_data_identity(rotated_client, "browser-client-secret"))
-        self.assertEqual(
+        self.assertNotEqual(
             self._secret_data_identity(initial_oauth, "cookie-secret"),
             self._secret_data_identity(rotated_client, "cookie-secret"))
-
-        helm_apply(
-            "--set", "authentication.embeddedDex.cookieSecretGeneration=2",
-            "--set",
-            "authentication.embeddedDex.bootstrap.allowInitialGeneration=false",
-            reuse_values=True)
-        rotated_cookie = secret(oauth_name)
-        self.assertNotEqual(
-            self._secret_data_identity(rotated_client, "cookie-secret"),
-            self._secret_data_identity(rotated_cookie, "cookie-secret"))
-        self.assertEqual(
-            self._secret_data_identity(rotated_client, "browser-client-secret"),
-            self._secret_data_identity(rotated_cookie, "browser-client-secret"))
 
         self._run([
             "helm", "uninstall", release, "--kube-context", "kind-osmo",
@@ -449,22 +440,16 @@ class EmbeddedDexKind(SmokeFixture):
             self._secret_data_identity(rotated_admin),
             self._secret_data_identity(secret(admin_name)))
         self.assertEqual(
-            self._secret_data_identity(rotated_cookie),
+            self._secret_data_identity(rotated_client),
             self._secret_data_identity(secret(oauth_name)))
 
-        helm_apply(
-            "--set",
-            "authentication.embeddedDex.bootstrap.allowInitialGeneration=false",
-            "--set", "authentication.embeddedDex.admin.passwordGeneration=2",
-            "--set",
-            "authentication.embeddedDex.browserClientSecretGeneration=2",
-            "--set", "authentication.embeddedDex.cookieSecretGeneration=2")
-        kubectl("delete", "secret", admin_name)
-        missing = helm_apply(reuse_values=True, expected_success=False)
-        self.assertIn("pre-upgrade hooks failed", missing.stderr)
-        bootstrap_logs = kubectl(
-            "logs", "job/" + release + "-osmo-embedded-dex-bootstrap-pre")
-        self.assertIn("initial generation is disabled", bootstrap_logs.stdout)
+        helm_apply()
+        self.assertEqual(
+            self._secret_data_identity(rotated_admin),
+            self._secret_data_identity(secret(admin_name)))
+        self.assertEqual(
+            self._secret_data_identity(rotated_client),
+            self._secret_data_identity(secret(oauth_name)))
 
     def test_unified_generated_and_existing_secret_modes(self):
         """Install the unified chart in both supported OAuth/TLS modes."""
@@ -477,6 +462,8 @@ class EmbeddedDexKind(SmokeFixture):
         profile = os.path.join(chart, "profiles", "split-plane-control.yaml")
         external = os.path.join(chart, "tests", "control-external-values.yaml")
         bootstrap_image = self._bootstrap_image()
+        api_registry, api_repository, api_tag, api_digest = (
+            self._component_image_values(bootstrap_image))
 
         for namespace in (generated_namespace, existing_namespace):
             self.addCleanup(
@@ -495,11 +482,14 @@ class EmbeddedDexKind(SmokeFixture):
             "-f", profile, "-f", external,
             "--set", "authentication.provider=embeddedDex",
             "--set", "embeddedDependencies.dex.enabled=true",
+            "--set", "authentication.bootstrap.identities.admin.enabled=true",
             "--set-string", "externalUrl=http://127.0.0.1:30080",
             "--set-string",
-            f"authentication.embeddedDex.bootstrap.image={bootstrap_image}",
-            "--set",
-            "authentication.embeddedDex.bootstrap.imagePullPolicy=IfNotPresent",
+            f"services.api.image.registry={api_registry}",
+            "--set-string", f"services.api.image.repository={api_repository}",
+            "--set-string", f"services.api.image.tag={api_tag}",
+            "--set-string", f"services.api.image.digest={api_digest}",
+            "--set", "services.api.image.pullPolicy=IfNotPresent",
             "--set", "gateway.tls.enabled=true",
             "--set", "gateway.tls.generated.enabled=true",
             "--set-string",

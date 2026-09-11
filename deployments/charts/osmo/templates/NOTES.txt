@@ -10,22 +10,24 @@ Authentication uses the embedded Dex provider at:
 
   {{ include "osmo.authentication.issuer" . }}
 
-The initial administrator is {{ .Values.authentication.embeddedDex.admin.username }}
-({{ .Values.authentication.embeddedDex.admin.email }}). Retrieve its random
-password only in a private terminal; this prints sensitive material:
+Embedded Dex uses volatile memory storage and is intended for development and
+evaluation only. Dex restarts invalidate active sessions and signing keys.
+Production deployments should use `authentication.provider: externalOidc`.
 
-  kubectl --namespace {{ .Release.Namespace }} get secret {{ .Values.authentication.embeddedDex.adminSecretName }} --output jsonpath='{.data.password}' | base64 --decode; printf '\n'
+Configured local users:
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities }}
+{{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
 
-After the first successful install, back up {{ .Values.authentication.embeddedDex.adminSecretName }}
-and {{ .Values.authentication.embeddedDex.oauthSecretName }}, then set
-authentication.embeddedDex.bootstrap.allowInitialGeneration=false in the next
-Helm or GitOps sync. Retained Secrets are not restored by Helm rollback or
-deleted by Helm uninstall. Dex uses in-memory state, so a Dex restart invalidates
-active browser, refresh/offline, device, and authorization-code sessions.
-The pre-install/pre-upgrade Job reconciles credentials and conditionally deletes
-consumer Pods; the separate post-install/post-upgrade Job conditionally restarts
-Dex after Helm updates its config Secret. Applied identities stay on the
-hook-owned Secrets, so Helm-managed Deployments do not drift.
+  Username: {{ $identity.username }}
+  Email: {{ $identity.dex.email }}
+  Password (prints sensitive material; use only in a private terminal):
+    kubectl --namespace {{ $.Release.Namespace }} get secret {{ include "osmo.bootstrap.dexPasswordSecretName" $identityID }} --output jsonpath='{.data.password}' | base64 --decode; printf '\n'
+{{- end }}
+{{- end }}
+
+Generated credential Secrets are retained across Helm upgrades and uninstall.
+To rotate one credential, delete only its named Secret and run the next Helm or
+GitOps reconciliation. Do not place decoded values in shell history or logs.
 
 {{- if hasPrefix "http://" .Values.externalUrl }}
 WARNING: HTTP is for trusted development networks only. Passwords, authorization

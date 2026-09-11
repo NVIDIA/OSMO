@@ -23,6 +23,10 @@ externalUrl: http://osmo-gateway
 
 authentication:
   provider: externalOidc
+  bootstrap:
+    identities:
+      admin:
+        enabled: false
   externalOidc:
     issuer: https://idp.example.com
     browserClientId: browser-client
@@ -68,9 +72,6 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: external-object-storage-secret
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

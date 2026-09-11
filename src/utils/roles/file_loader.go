@@ -308,6 +308,37 @@ func (s *FileRoleStore) BuildSyncPlan(externalRoles []string) RoleSyncPlan {
 	return plan
 }
 
+// BuildTrustedSyncPlan treats chart-bound embedded identity roles as internal
+// role names while continuing to resolve definitions only from the ConfigMap.
+func (s *FileRoleStore) BuildTrustedSyncPlan(internalRoles []string) RoleSyncPlan {
+	matchedSet := make(map[string]bool)
+	for _, roleName := range internalRoles {
+		if _, defined := s.roles[roleName]; defined {
+			matchedSet[roleName] = true
+		}
+	}
+
+	plan := RoleSyncPlan{
+		MatchedRoles:     []string{},
+		ForceRoles:       []string{},
+		DefinedRoles:     []string{},
+		IDPEligibleRoles: []string{},
+	}
+	for roleName := range s.roles {
+		plan.DefinedRoles = append(plan.DefinedRoles, roleName)
+		plan.ForceRoles = append(plan.ForceRoles, roleName)
+	}
+	for roleName := range matchedSet {
+		plan.MatchedRoles = append(plan.MatchedRoles, roleName)
+		plan.IDPEligibleRoles = append(plan.IDPEligibleRoles, roleName)
+	}
+	sort.Strings(plan.DefinedRoles)
+	sort.Strings(plan.ForceRoles)
+	sort.Strings(plan.MatchedRoles)
+	sort.Strings(plan.IDPEligibleRoles)
+	return plan
+}
+
 // GetPoolNames returns all pool names from the ConfigMap.
 func (s *FileRoleStore) GetPoolNames() []string {
 	result := make([]string, len(s.poolNames))

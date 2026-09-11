@@ -30,19 +30,18 @@ disabled. The quickstart generates its other application credentials and does
 not require an image-pull Secret to be created beforehand. Configure top-level
 `imagePullSecrets` only when using a registry that requires credentials.
 
-The self-contained profile is the production-converged path for environments
-that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version
-OSMO images, production service defaults, a synchronous three-instance
-PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed
-RustFS, embedded Dex, semantic authorization, and network isolation. The
-profile creates and retains its workflow namespace. Back up its retained
-embedded-Dex Secrets immediately after first installation, then set
-`authentication.embeddedDex.bootstrap.allowInitialGeneration: false` in the
-environment values before the next sync. External identity providers remain
-available through `authentication.provider: externalOidc`; their complete
-endpoint and existing-Secret contract belongs in an environment values file.
-Production operators must also provide and test backup and restore for the
-stateful volumes and retained Secrets.
+The self-contained profile is the converged path for environments that host
+OSMO and its stateful dependencies in Kubernetes. It uses chart-version OSMO
+images, production service defaults, a synchronous three-instance PostgreSQL
+Cluster, replicated fixed-primary Valkey, four-node distributed RustFS,
+semantic authorization, and network isolation. The profile creates and retains
+its workflow namespace. Embedded Dex uses volatile memory storage and is
+intended for development and evaluation only. Dex restarts invalidate active
+sessions and signing keys. Production deployments should use
+`authentication.provider: externalOidc`; the complete endpoint and
+existing-Secret contract belongs in an environment values file. Production
+operators must also provide and test backup and restore for the stateful
+volumes and retained Secrets.
 
 `single-plane.yaml` enables both planes with externally managed dependencies.
 It is not directly installable: layer it before a site-specific values file

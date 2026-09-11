@@ -277,7 +277,7 @@ roles
 
 {{- define "osmo.authentication.browserSecretName" -}}
 {{- if eq .Values.authentication.provider "embeddedDex" -}}
-{{- .Values.authentication.embeddedDex.oauthSecretName -}}
+{{- "osmo-embedded-dex-oauth" -}}
 {{- else -}}
 {{- .Values.authentication.externalOidc.browserClientSecret.existingSecret -}}
 {{- end -}}
@@ -289,7 +289,7 @@ roles
 
 {{- define "osmo.authentication.cookieSecretName" -}}
 {{- if eq .Values.authentication.provider "embeddedDex" -}}
-{{- .Values.authentication.embeddedDex.oauthSecretName -}}
+{{- "osmo-embedded-dex-oauth" -}}
 {{- else -}}
 {{- .Values.authentication.externalOidc.cookieSecret.existingSecret -}}
 {{- end -}}
@@ -324,10 +324,14 @@ oauth2:
   passwordConnector: local
   skipApprovalScreen: true
 staticPasswords:
-- email: {{ .Values.authentication.embeddedDex.admin.email | quote }}
-  hashFromEnv: OSMO_DEX_ADMIN_PASSWORD_HASH
-  username: {{ .Values.authentication.embeddedDex.admin.username | quote }}
-  userID: 08a8684b-db88-4b73-90a9-3cd1661f5466
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities }}
+{{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
+- email: {{ $identity.dex.email | quote }}
+  hashFromEnv: {{ include "osmo.bootstrap.dexHashEnvironmentName" $identityID }}
+  username: {{ $identity.username | quote }}
+  userID: {{ $identityID | quote }}
+{{- end }}
+{{- end }}
 staticClients:
 - id: {{ .Values.authentication.embeddedDex.browserClientId | quote }}
   name: OSMO Browser
@@ -337,6 +341,18 @@ staticClients:
 - id: {{ .Values.authentication.embeddedDex.cliClientId | quote }}
   name: OSMO CLI
   public: true
+{{- end -}}
+
+{{- define "osmo.bootstrap.dexPasswordSecretName" -}}
+{{- printf "osmo-embedded-dex-%s" . | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "osmo.bootstrap.dexHashEnvironmentName" -}}
+{{- printf "OSMO_DEX_PASSWORD_HASH_%s" (. | upper | replace "-" "_") -}}
+{{- end -}}
+
+{{- define "osmo.bootstrap.dexSubject" -}}
+{{- printf "\x0a%c%s\x12\x05local" (len .) . | b64enc | replace "+" "-" | replace "/" "_" | trimSuffix "=" | trimSuffix "=" -}}
 {{- end -}}
 
 {{- define "osmo.component.imagePullPolicy" -}}
@@ -469,23 +485,6 @@ data:
 
 {{- define "osmo.api.fullname" -}}
 {{- include "osmo.component.fullname" (dict "root" . "suffix" "api") -}}
-{{- end -}}
-
-{{/* Resolve the Secret selected by one backend API token credential. */}}
-{{- define "osmo.backendApiTokenSecretName" -}}
-{{- $hasExistingSecret := hasKey . "existingSecret" -}}
-{{- $hasManagedSecret := hasKey . "managedSecret" -}}
-{{- $sourceCount := add
-      (ternary 1 0 $hasExistingSecret)
-      (ternary 1 0 $hasManagedSecret) -}}
-{{- if ne $sourceCount 1 -}}
-{{- fail (printf "backend API token credential %q must configure exactly one of existingSecret or managedSecret" (.name | default "")) -}}
-{{- end -}}
-{{- if $hasExistingSecret -}}
-{{- required "backend API token existingSecret.name is required" .existingSecret.name -}}
-{{- else -}}
-{{- required "backend API token managedSecret.name is required" .managedSecret.name -}}
-{{- end -}}
 {{- end -}}
 
 {{- define "osmo.configuration.args" -}}

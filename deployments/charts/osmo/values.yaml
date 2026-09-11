@@ -206,17 +206,42 @@ externalUrl: ''
 # externalOidc keeps integration with an operator-managed identity provider.
 authentication:
   provider: embeddedDex
+  # Bootstrap identities are keyed maps so values overlays can append users,
+  # backend operators, and credentials without replacing chart defaults.
+  bootstrap:
+    activeDeadlineSeconds: 300
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    identities:
+      admin:
+        enabled: true
+        kind: user
+        username: admin
+        roles:
+        - osmo-admin
+        dex:
+          enabled: true
+          email: admin@osmo.local
+        tokens: {}
+      backend-operator-default:
+        enabled: true
+        kind: backend
+        username: backend-operator-default
+        roles:
+        - osmo-backend
+        tokens:
+          primary:
+            managedSecret:
+              name: osmo-backend-token
   embeddedDex:
-    admin:
-      email: admin@osmo.local
-      username: admin
-      passwordGeneration: 1
     browserClientId: osmo-browser
     cliClientId: osmo-cli
     # Bounds how long Envoy can retain a signing key lost with memory storage.
     jwksCacheDurationSeconds: 30
-    browserClientSecretGeneration: 1
-    cookieSecretGeneration: 1
     expiry:
       deviceRequests: 5m
       signingKeys: 6h
@@ -225,19 +250,6 @@ authentication:
         reuseInterval: 3s
         validIfNotUsedFor: 2160h
         absoluteLifetime: 3960h
-    adminSecretName: osmo-embedded-dex-admin
-    oauthSecretName: osmo-embedded-dex-oauth
-    bootstrap:
-      allowInitialGeneration: true
-      image: ''
-      imagePullPolicy: IfNotPresent
-      activeDeadlineSeconds: 300
-      resources:
-        requests:
-          cpu: 25m
-          memory: 32Mi
-        limits:
-          memory: 128Mi
   externalOidc:
     issuer: ''
     browserClientId: ''
@@ -386,33 +398,6 @@ secrets:
       apps:
         name: ''
         key: ''
-  # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Managed Secrets are generated and retained by a
-  # short-lived Helm hook without placing token material in rendered manifests
-  # or Helm release state; existing Secrets remain externally managed.
-  # Every Secret contains `token` and may contain `previous-token` for rotation.
-  backendApiTokens:
-    enabled: true
-    bootstrap:
-      image:
-        registry: ''
-        repository: alpine/k8s
-        tag: 1.30.14
-        digest: ''
-        pullPolicy: IfNotPresent
-    # Change this non-secret value to roll the API after an externally managed
-    # token Secret changes.
-    rolloutNonce: ''
-    credentials:
-    - name: default
-      managedSecret:
-        name: osmo-backend-token
-    # - name: default
-    #   existingSecret:
-    #     name: osmo-backend-token
-    # - name: local
-    #   managedSecret:
-    #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
     # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
@@ -469,14 +454,6 @@ secrets:
       nodeSelector: {}
       tolerations: []
       resources: {}
-  # Optional password used to bootstrap the named administrator account.
-  defaultAdmin:
-    generate: false
-    existingSecret: ''
-    rolloutNonce: ''
-    username: admin
-    keys:
-      password: password
 # Directly owned OSMO services and workload components. Each component owns its
 # image, scaling, probes, resources, environment overrides, and pod-level settings. Internal
 # commands, ports, Service names, and required connection arguments remain
@@ -2119,12 +2096,10 @@ dex:
   rbac:
     create: false
     createClusterScoped: false
+  envFrom:
+  - secretRef:
+      name: osmo-embedded-dex-password-hashes
   envVars:
-  - name: OSMO_DEX_ADMIN_PASSWORD_HASH
-    valueFrom:
-      secretKeyRef:
-        name: osmo-embedded-dex-admin
-        key: password-hash
   - name: OSMO_DEX_BROWSER_CLIENT_SECRET
     valueFrom:
       secretKeyRef:

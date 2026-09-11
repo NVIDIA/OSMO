@@ -290,10 +290,7 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
         osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
-        {{- if eq .Values.authentication.provider "embeddedDex" }}
-        osmo.nvidia.com/oauth-client-secret-generation: {{ .Values.authentication.embeddedDex.browserClientSecretGeneration | quote }}
-        osmo.nvidia.com/oauth-cookie-secret-generation: {{ .Values.authentication.embeddedDex.cookieSecretGeneration | quote }}
-        {{- else }}
+        {{- if eq .Values.authentication.provider "externalOidc" }}
         osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.authentication.externalOidc.browserClientSecret.rolloutNonce | quote }}
         osmo.nvidia.com/oauth-cookie-secret-rollout: {{ .Values.authentication.externalOidc.cookieSecret.rolloutNonce | quote }}
         {{- end }}

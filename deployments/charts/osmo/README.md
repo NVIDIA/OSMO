@@ -95,10 +95,9 @@ helm upgrade osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-Back up the retained Secrets before relying on the installation. In particular,
-restore the original embedded-Dex Secrets under their original names after a
-disaster; with initial generation disabled, a missing Secret makes the bootstrap
-Job fail rather than silently creating a new identity.
+Embedded Dex uses volatile memory storage and is intended for development and
+evaluation only. Dex restarts invalidate active sessions and signing keys.
+Production deployments should use `authentication.provider: externalOidc`.
 
 Inspect the release without reading generated Secret values:
 
@@ -142,9 +141,8 @@ export OSMO_URL=http://127.0.0.1:8080
 ```
 
 The default embedded Dex account signs in as `admin@osmo.local` and appears in
-OSMO as `admin`. Configure both values with
-`authentication.embeddedDex.admin.email` and
-`authentication.embeddedDex.admin.username`. Retrieve its random initial
+OSMO as `admin`. Configure those fields under
+`authentication.bootstrap.identities.admin`. Retrieve its random initial
 password only when you need to sign in. This intentionally writes the password
 to the terminal, so use a private terminal and do not paste it into shell
 history, issue trackers, or logs:
@@ -790,11 +788,12 @@ above.
   chart-protected identity labels and annotations take final precedence.
   Configure dependency metadata in the dependency's native values block.
 - Configure hook and init-container images with their image objects under
-  `secrets.backendApiTokens.bootstrap.image`,
   `secrets.masterEncryptionKey.bootstrap.image`,
   `embeddedDependencies.objectStorage.bootstrap.image`, and
   `services.backendTestRunner.initContainer.image`. Digest references take
   precedence over tags, and all directly owned Pods use `imagePullSecrets`.
+  Identity bootstrap deliberately uses the resolved `services.api.image` and
+  does not have a separate image setting.
 - Supply OSMO application configuration under `configuration`.
 
 See [`values.yaml`](values.yaml) for the complete configuration reference.
@@ -827,6 +826,95 @@ specific destinations.
 Pods. Only one release in a cluster should create them; other compute releases
 must set `create: false`.
 
+## Bootstrap identities
+
+`authentication.bootstrap.identities` is a map so values overlays add entries
+without replacing the default `admin` or `backend-operator-default` entries.
+A user may have a Dex password, one or more OSMO login tokens, or both. An
+email is required only for Dex local login and does not grant any OSMO role.
+Backend identities cannot use Dex and must have exactly the `osmo-backend`
+role.
+
+This example appends a developer with both login methods and two independently
+audited backend identities. Add further map entries in the same form when ten
+or more backend credentials are needed:
+
+```yaml
+authentication:
+  bootstrap:
+    identities:
+      developer:
+        enabled: true
+        kind: user
+        username: developer
+        roles: [osmo-user]
+        dex:
+          enabled: true
+          email: developer@osmo.local
+        tokens:
+          cli:
+            managedSecret:
+              name: osmo-developer-token
+      backend-east:
+        enabled: true
+        kind: backend
+        username: backend-east
+        roles: [osmo-backend]
+        tokens:
+          primary:
+            managedSecret:
+              name: osmo-backend-east-token
+      backend-west:
+        enabled: true
+        kind: backend
+        username: backend-west
+        roles: [osmo-backend]
+        tokens:
+          primary:
+            existingSecret:
+              name: osmo-backend-west-token
+              key: token
+```
+
+Multiple tokens under one identity authenticate as the same username but have
+different token names for audit. Separate backend identity entries produce
+distinct usernames. Set an inherited entry's `enabled: false` to disable it.
+For external OIDC, disable the default local user and configure the provider;
+Secret-backed user and backend tokens remain available:
+
+```yaml
+authentication:
+  provider: externalOidc
+  bootstrap:
+    identities:
+      admin:
+        enabled: false
+```
+
+Managed credentials are generated with Python's cryptographic `secrets`
+module. Dex hashes use bcrypt cost 12. The Job creates one plaintext password
+Secret per Dex user, one Secret per managed token, a shared OAuth Secret, and a
+hash-only Dex environment Secret. It preserves valid owned Secrets across
+install and upgrade, including declarative Helm or Argo CD reconciliation.
+Helm rollback changes declarations but does not roll credential bytes back.
+Helm uninstall does not delete the API-created Secrets.
+
+Retrieve a credential only in a private terminal. For example:
+
+```bash
+kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
+  --output jsonpath='{.data.password}' | base64 --decode
+printf '\n'
+```
+
+To rotate one managed password or token, delete only that exact Secret and run
+the next Helm/GitOps reconciliation. Deleting the OAuth Secret rotates both the
+browser client and cookie secrets. A Dex password rotation also reconciles the
+hash-only aggregate and restarts the affected authentication Pods. Older
+`authentication.embeddedDex.admin`, credential-generation fields,
+`secrets.defaultAdmin`, and `secrets.backendApiTokens` values are removed. Revoke
+any legacy database-backed default-admin token after validating its replacement.
+
 ## Secrets
 
 The same Kubernetes Secret may satisfy several logical blocks, or each block
@@ -838,10 +926,11 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.valkey` | `redis-password` | Valkey clients |
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
-| `secrets.backendApiTokens.credentials[]` | `token`, optional `previous-token` | Backend authentication |
 | `secrets.serviceAuth` | `authentication-config.json` | Stable JWT signing identity |
-| `authentication.embeddedDex.adminSecretName` | `password`, `password-hash` | Retained embedded-Dex administrator credential |
-| `authentication.embeddedDex.oauthSecretName` | `browser-client-secret`, `cookie-secret` | Retained browser OAuth and session-cookie credentials |
+| `authentication.bootstrap.identities.*.tokens.*` | `token`, optional `previous-token` | User or backend bootstrap authentication |
+| `osmo-embedded-dex-<identity-id>` | `password`, `password-hash` | Retained embedded-Dex user credential |
+| `osmo-embedded-dex-oauth` | `browser-client-secret`, `cookie-secret` | Retained browser OAuth and session-cookie credentials |
+| `osmo-embedded-dex-password-hashes` | bcrypt hashes for current and previously configured Dex users | Dex runtime input; contains no plaintext passwords; historical hashes are retained so failed upgrades can roll back safely |
 | `authentication.externalOidc.*Secret` | Configured key | Operator-owned external OIDC credentials |
 
 External object-storage locations may use `s3://`, `azure://`, or `swift://`
@@ -856,15 +945,13 @@ rendered configuration then takes the endpoints only from the Secrets. Either
 configure all three locations or leave all three empty. Do not configure both
 Secret forms.
 
-Generated backend-token, MEK, and service-auth Secrets are intentionally
+Generated identity-token, embedded-Dex, MEK, and service-auth Secrets are intentionally
 retained because replacing them can disconnect the compute plane, make
 encrypted database fields unreadable, or invalidate the installation's signing
-identity. A release-owned, non-secret ConfigMap records the managed
-backend-token Secret names so upgrades can create newly added credentials while
-still failing when a retained credential disappears. Restore the original
-Secret under the same name; do not generate a replacement against a retained
-database. Back up the generated Valkey and RustFS Secrets with their PVCs for
-the same reason.
+identity. Identity credentials are reconciled by a short-lived Job from the API
+service image, and credential bytes are never rendered into Helm manifests or
+logged. The non-secret identity ConfigMap records only usernames, roles, and
+Secret keys. Back up generated Valkey and RustFS Secrets with their PVCs.
 
 `helm uninstall osmo --namespace osmo` removes release-owned workloads but does
 not make retained credentials or data safe to discard. Inspect and back up
@@ -1156,9 +1243,9 @@ consumers.
 
 ### OAuth credentials
 
-In embedded-Dex mode, the bootstrap hooks create and retain the administrator,
-browser-client, and cookie credentials; see [Authentication providers and
-credential lifecycle](#authentication-providers-and-credential-lifecycle). In
+In embedded-Dex mode, the identity bootstrap hooks create and retain the local
+user, browser-client, and cookie credentials; see
+[Bootstrap identities](#bootstrap-identities). In
 external-OIDC mode, client and cookie credentials are operator-owned and may
 share a Secret:
 
@@ -1174,11 +1261,6 @@ authentication:
       key: cookie_secret
       rolloutNonce: ''
 ```
-
-For direct-Helm development only, set
-`secrets.oauthCookieSecret.generate: true` and clear its `existingSecret`.
-Production and GitOps installations must use an existing Secret because
-generated values are stored in Helm release state.
 
 By default, OAuth sessions use `externalDependencies.valkey.database`. Set
 `gateway.oauth2Proxy.redisDatabase` only when the proxy intentionally uses a
