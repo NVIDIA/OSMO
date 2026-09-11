@@ -36,7 +36,7 @@ secrets:
     enabled: true
     credentials:
     - name: default
-      existingSecret:
+      managedSecret:
         name: osmo-backend-token
   masterEncryptionKey:
     managementMode: osmo

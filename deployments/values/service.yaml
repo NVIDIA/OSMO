@@ -3,12 +3,15 @@
 #
 # OSMO minimal-deployment service values.
 #
+# Modeled on the canonical docs example at:
+#   external/docs/deployment_guide/appendix/deploy_minimal.rst
+#
 # This file is consumed by `deploy-osmo-minimal.sh` via `helm install -f`.
 # Values that vary per cluster (PG/Redis hosts, image tag, NGC pull secret
 # name, OSMO namespace) are NOT set here — they're injected with `--set` at
 # install time. Edit the rest of this file directly to customize a deploy.
 #
-# WARNING: minimal mode disables OAuth2 Proxy + authz at the
+# WARNING (matches docs): minimal mode disables OAuth2 Proxy + authz at the
 # gateway. The gateway then trusts client-supplied identity headers. Do NOT
 # expose this gateway to untrusted networks. For production, use the standard
 # deploy guide which keeps `gateway.oauth2Proxy.enabled` and

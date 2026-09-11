@@ -28,32 +28,19 @@ and backed up independently from the cluster.
 
 Choose this model for one-site cloud, edge, or on-premises installations that
 need managed stateful dependencies but do not need control-plane isolation or
-multiple compute clusters. For a workstation evaluation, use the
-:ref:`Quickstart <quickstart>`. To host the stateful dependencies in the same
-cluster, use the :ref:`self-contained deployment <deploy_self_contained>`. Use
-the :ref:`split-plane deployment <deploy_service>` when control and compute
-must scale, upgrade, or fail independently.
+multiple compute clusters.
 
 Topology and trade-offs
 =======================
 
-The ``single-plane.yaml`` profile enables both planes. The unified ``osmo``
-chart creates the control services, gateway, backend listener and worker, and
+The ``single-plane.yaml`` profile enables both planes. The ``osmo`` chart
+creates the control services, gateway, backend listener and worker, and
 workflow configuration in the ``osmo`` namespace. Workflow Pods also run in
 that namespace unless ``compute.workloadNamespace`` selects a different one.
 
-.. code-block:: text
-
-   Users and CLI
-        |
-   TLS edge or port-forward
-        |
-   OSMO gateway ------------------------------+
-        |                                      |
-   Control services                       Backend listener/worker
-        |                                      |
-   PostgreSQL + Valkey + object storage    Workflow Pods
-       (external)                         (same Kubernetes cluster)
+.. image:: deploy_single_plane.svg
+   :align: center
+   :width: 80%
 
 This topology has fewer moving parts than split-plane deployment and avoids
 cross-cluster backend credentials and routing. It also creates a shared cluster
@@ -92,17 +79,8 @@ registry. PostgreSQL and Valkey credentials need access to the configured
 database. The object-storage identity needs read and write access to all three
 configured locations.
 
-Install KAI Scheduler 0.14.0 and verify that its Pods are Ready:
-
-.. code-block:: bash
-
-   helm upgrade --install kai-scheduler \
-     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
-     --namespace kai-scheduler \
-     --create-namespace \
-     --wait \
-     --timeout 10m
-   kubectl --namespace kai-scheduler get pods
+Follow the :ref:`installing_required_dependencies` guide to install KAI
+Scheduler.
 
 Prepare credentials
 ===================
@@ -127,19 +105,16 @@ Store the PostgreSQL CA certificate at
 ``/secure/path/postgresql-ca.crt`` and the complete Valkey CA bundle at
 ``/secure/path/valkey-ca-bundle.crt``.
 
-The backend and default administrator tokens must be independent, high-entropy,
-URL-safe values. Generate each directly into its protected file when an
-external secret manager does not provide it:
+The default administrator token must be a high-entropy, URL-safe value. Generate
+it directly into its protected file when an external secret manager does not
+provide it:
 
 .. code-block:: bash
 
    umask 077
    set -o pipefail
    openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' \
-     > /secure/path/backend-token
-   openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' \
      > /secure/path/admin-token
-   test -s /secure/path/backend-token
    test -s /secure/path/admin-token
 
 Protect all credential files before creating the Kubernetes Secrets:
@@ -153,7 +128,6 @@ Protect all credential files before creating the Kubernetes Secrets:
      /secure/path/object-storage.yaml \
      /secure/path/postgresql-ca.crt \
      /secure/path/valkey-ca-bundle.crt \
-     /secure/path/backend-token \
      /secure/path/admin-token
 
 Create the Kubernetes Secrets expected by the profile:
@@ -171,8 +145,6 @@ Create the Kubernetes Secrets expected by the profile:
      --from-file=ca.crt=/secure/path/postgresql-ca.crt
    kubectl --namespace osmo create secret generic osmo-valkey-ca \
      --from-file=ca-bundle.crt=/secure/path/valkey-ca-bundle.crt
-   kubectl --namespace osmo create secret generic osmo-backend-token \
-     --from-file=token=/secure/path/backend-token
    kubectl --namespace osmo create secret generic osmo-default-admin \
      --from-file=password=/secure/path/admin-token
 
@@ -191,10 +163,6 @@ value. Keep secrets out of this file.
 .. code-block:: yaml
 
    externalUrl: https://osmo.example.com
-
-   imageTag: <osmo-image-tag>
-   runtimeImage:
-     tag: <osmo-image-tag>
 
    compute:
      backendName: default
@@ -239,12 +207,6 @@ value. Keep secrets out of this file.
        bootstrap:
          enabled: true
 
-Use ``sslMode: require`` and leave ``caExistingSecret`` empty only when the
-PostgreSQL server supports encryption but its CA cannot be supplied. Disable
-TLS only on a trusted private network when the dependency does not support it.
-For Valkey certificates signed by a CA in the container system trust store,
-leave its ``caExistingSecret`` empty instead of creating ``osmo-valkey-ca``.
-
 Azure Blob locations use
 ``azure://<account>/<container>/<prefix>``. With Azure Workload Identity or an
 equivalent cloud identity, set
@@ -281,23 +243,11 @@ precedence:
      --wait-for-jobs \
      --timeout 25m
 
-The first installation creates the retained ``osmo-master-encryption-key`` and
-``osmo-service-auth`` Secrets through short-lived bootstrap Jobs without
-placing key material in Helm state. After the install succeeds, set both
-``secrets.masterEncryptionKey.bootstrap.enabled`` and
-``secrets.serviceAuth.bootstrap.enabled`` to ``false`` in the site overlay,
-then remove their temporary Secret-creation permissions:
-
-.. code-block:: bash
-
-   helm upgrade osmo deployments/charts/osmo \
-     --namespace osmo \
-     --values deployments/charts/osmo/profiles/single-plane.yaml \
-     --values /secure/path/single-plane-values.yaml \
-     --wait \
-     --timeout 25m
-
-Do not re-enable either bootstrap setting during routine upgrades.
+The first installation creates the retained ``osmo-backend-token``,
+``osmo-master-encryption-key``, and ``osmo-service-auth`` Secrets through
+bootstrap Jobs without placing key material in Helm state. The Jobs preserve
+and validate the existing Secrets on later upgrades. Disable master encryption
+key bootstrap before requesting a key rotation.
 
 Validate the deployment
 =======================
@@ -391,8 +341,7 @@ Upgrade and recovery
 
 Back up PostgreSQL, object storage, and retained credential Secrets before an
 upgrade. Keep the master encryption key with the database backup. Review the
-rendered change, then apply the same profile and site values with both bootstrap
-settings disabled:
+rendered change, then apply the same profile and site values:
 
 .. code-block:: bash
 
