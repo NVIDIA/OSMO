@@ -445,10 +445,14 @@ class TestKindAdapter(unittest.TestCase):
         rustfs_repo = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "repo", "add", "rustfs"))
+        dex_repo = next(
+            index for index, command in enumerate(cmds)
+            if command[:4] == ("helm", "repo", "add", "dex"))
         osmo_install = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "upgrade", "--install", "osmo"))
         self.assertLess(rustfs_repo, dependency_build)
+        self.assertLess(dex_repo, dependency_build)
         self.assertLess(dependency_build, osmo_install)
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
