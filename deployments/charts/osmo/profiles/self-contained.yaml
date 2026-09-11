@@ -26,8 +26,6 @@ imageTag: ''
 externalUrl: ''
 
 embeddedDependencies:
-  dex:
-    enabled: true
   postgresql:
     enabled: true
   valkey:

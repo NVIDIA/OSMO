@@ -16,8 +16,6 @@ runtimeImage:
   tag: latest
 
 embeddedDependencies:
-  dex:
-    enabled: true
   postgresql:
     enabled: false
   valkey:
