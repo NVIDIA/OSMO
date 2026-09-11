@@ -50,7 +50,7 @@ require() {
         exit 1
     fi
 }
-for component in service logger agent router worker delayed-job-monitor web-ui \
+for component in service logger agent authz-sidecar router worker delayed-job-monitor web-ui \
     backend-listener backend-worker init-container client; do
     require "nvcr.io/nvstaging/osmo/$component:head-contract"
 done
@@ -60,9 +60,15 @@ for contract in 'namespace: osmo' 'name: osmo-gateway' 'k8s_namespace: osmo' \
     'azure://contractstorage/workflows/workflows' 'azure://contractstorage/workflows/logs' \
     'azure://contractstorage/workflows/apps' 'osmo-workflow' \
     'azure.workload.identity/use' 'azure.workload.identity/client-id' \
-    '11111111-2222-3333-4444-555555555555' 'nvcr-pull'; do
+    '11111111-2222-3333-4444-555555555555' 'nvcr-pull' \
+    'name: envoy.filters.http.ext_authz' '--roles-file=/etc/osmo/configs/config.yaml'; do
     require "$contract"
 done
+# Azure uses verified JWT identities and policy-derived pool permissions.
+if grep -Eq 'allow_missing:|key: x-osmo-(user|roles|allowed-pools)' "$private/rendered.yaml"; then
+    echo 'HEAD single-plane chart unexpectedly permits development identity bypass' >&2
+    exit 1
+fi
 # sdkDefault deliberately emits no static object-storage Secret reference.
 if grep -Fq 'secretName: osmo-object-storage' "$private/rendered.yaml"; then
     echo 'HEAD single-plane chart unexpectedly uses static object-storage credentials' >&2

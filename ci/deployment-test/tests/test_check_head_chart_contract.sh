@@ -37,6 +37,13 @@ case "$1" in
         for component in service logger agent router worker delayed-job-monitor web-ui backend-listener backend-worker; do
             echo "image: nvcr.io/nvstaging/osmo/$component:$tag"
         done
+        if [[ "${BROKEN:-}" != authz ]]; then
+            echo "image: nvcr.io/nvstaging/osmo/authz-sidecar:$tag"
+            echo 'name: envoy.filters.http.ext_authz'
+            echo '--roles-file=/etc/osmo/configs/config.yaml'
+        fi
+        if [[ "${BROKEN:-}" == identity-bypass ]]; then echo 'key: x-osmo-allowed-pools'; fi
+        if [[ "${BROKEN:-}" == missing-jwt ]]; then echo 'allow_missing: {}'; fi
         echo "init: nvcr.io/nvstaging/osmo/init-container:$runtime_tag"
         echo "client: nvcr.io/nvstaging/osmo/client:$runtime_tag"
         cat <<'RENDERED'
@@ -60,10 +67,10 @@ MOCK
 chmod +x "$temporary/bin/helm"
 bash "$repo/ci/deployment-test/check-head-chart-contract.sh"
 grep -q 'chart_version=0.1.0' "$GITHUB_OUTPUT"
-for broken in runtime identity mounts; do
+for broken in runtime identity mounts authz identity-bypass missing-jwt; do
     if BROKEN="$broken" bash "$repo/ci/deployment-test/check-head-chart-contract.sh" > "$temporary/failure.log" 2>&1; then
         echo "Broken $broken chart contract passed" >&2; exit 1
     fi
     grep -q 'HEAD single-plane chart' "$temporary/failure.log"
 done
-echo 'Unified HEAD contract and mismatched runtime/identity/registry-mount checks passed'
+echo 'Unified HEAD contract and mismatched runtime/identity/registry-mount/authorization checks passed'

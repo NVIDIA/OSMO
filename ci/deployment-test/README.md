@@ -4,7 +4,9 @@
 `deployments/scripts/deploy-osmo-single-plane.sh`, runs the existing OETF selection,
 and cleans up Azure in a separate job. The installer owns Terraform provisioning,
 KAI, bootstrap Secrets, the unified `osmo` Helm release, and hello/object-storage
-verification. The nightly does not invoke the legacy minimal deployment wrapper.
+verification. The Azure overlay enables the authorization service to resolve verified
+bootstrap and workflow token roles into API permissions, including allowed pools.
+The nightly does not invoke the legacy minimal deployment wrapper.
 
 The schedule, manual `full-deployment` mode, and `ci:azure-deployment` PR-label event
 share this path. Normal deployment-related PR updates retain `init-only` validation;
