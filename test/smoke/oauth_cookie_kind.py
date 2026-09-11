@@ -25,23 +25,25 @@ from test.oetf.smoke_fixture import SmokeFixture
 
 
 def _environment_secret_bytes(random_bytes):
-    return base64.urlsafe_b64encode(random_bytes).rstrip(b'=')
+    return base64.urlsafe_b64encode(random_bytes).rstrip(b"=")
 
 
 class _CallbackRedirect(Exception):
 
     def __init__(self, location):
-        super().__init__('OAuth callback captured')
+        super().__init__("OAuth callback captured")
         self.location = location
 
 
 class _LoopbackRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Capture the OAuth callback instead of following its loopback URL."""
 
     def __init__(self, callback_url):
         super().__init__()
         self.callback_url = callback_url
 
-    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+    def redirect_request(  # pylint: disable=arguments-renamed
+            self, request, file_pointer, code, message, headers, new_url):
         if new_url.startswith(self.callback_url):
             raise _CallbackRedirect(new_url)
         return super().redirect_request(
@@ -104,42 +106,42 @@ class EmbeddedDexKind(SmokeFixture):
 
     @staticmethod
     def _related_image(image, component):
-        image_prefix, separator, image_leaf = image.rpartition('/')
+        image_prefix, separator, image_leaf = image.rpartition("/")
         if not separator or not (
-            image_leaf.startswith('service:')
-            or image_leaf.startswith('service@')
+            image_leaf.startswith("service:")
+            or image_leaf.startswith("service@")
         ):
             raise RuntimeError(
-                f'Cannot derive the {component} image from service image {image}')
+                f"Cannot derive the {component} image from service image {image}")
         return f'{image_prefix}/{component}{image_leaf[len("service"):]}'
 
     @staticmethod
     def _component_image_values(image):
-        image_name, digest_separator, digest = image.partition('@')
-        registry, path_separator, repository_and_tag = image_name.partition('/')
+        image_name, digest_separator, digest = image.partition("@")
+        registry, path_separator, repository_and_tag = image_name.partition("/")
         if not path_separator:
-            raise RuntimeError(f'Component image must include a registry: {image}')
-        repository, tag_separator, tag = repository_and_tag.rpartition(':')
+            raise RuntimeError(f"Component image must include a registry: {image}")
+        repository, tag_separator, tag = repository_and_tag.rpartition(":")
         if not tag_separator:
             repository = repository_and_tag
-            tag = ''
-        return registry, repository, tag, digest if digest_separator else ''
+            tag = ""
+        return registry, repository, tag, digest if digest_separator else ""
 
     def _authenticate_embedded_admin(self, external_url, password):
-        callback_url = 'http://127.0.0.1:33747/callback'
+        callback_url = "http://127.0.0.1:33747/callback"
         verifier = base64.urlsafe_b64encode(
-            secrets.token_bytes(48)).rstrip(b'=').decode('ascii')
+            secrets.token_bytes(48)).rstrip(b"=").decode("ascii")
         challenge = base64.urlsafe_b64encode(hashlib.sha256(
-            verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
+            verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
         state = secrets.token_urlsafe(24)
-        authorization_url = external_url + '/dex/auth?' + urllib.parse.urlencode({
-            'client_id': 'osmo-cli',
-            'redirect_uri': callback_url,
-            'response_type': 'code',
-            'scope': 'openid profile email groups',
-            'state': state,
-            'code_challenge': challenge,
-            'code_challenge_method': 'S256',
+        authorization_url = external_url + "/dex/auth?" + urllib.parse.urlencode({
+            "client_id": "osmo-cli",
+            "redirect_uri": callback_url,
+            "response_type": "code",
+            "scope": "openid profile email groups",
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
         })
         cookie_jar = http.cookiejar.CookieJar()
         opener = urllib.request.build_opener(
@@ -151,26 +153,26 @@ class EmbeddedDexKind(SmokeFixture):
         while time.monotonic() < deadline:
             try:
                 with opener.open(authorization_url, timeout=5) as response:
-                    login_page = response.read().decode('utf-8')
+                    login_page = response.read().decode("utf-8")
                 break
             except (urllib.error.URLError, ConnectionError):
                 time.sleep(1)
         if login_page is None:
-            raise AssertionError('embedded Dex login did not become reachable')
+            raise AssertionError("embedded Dex login did not become reachable")
         form = re.search(
             r'<form[^>]+action=["\']([^"\']+)["\']', login_page,
             flags=re.IGNORECASE)
         if form is None:
-            raise AssertionError('embedded Dex login form was not rendered')
+            raise AssertionError("embedded Dex login form was not rendered")
         login_url = urllib.parse.urljoin(
             authorization_url, html.unescape(form.group(1)))
         login_request = urllib.request.Request(
             login_url,
             data=urllib.parse.urlencode({
-                'login': 'admin@osmo.local',
-                'password': password.decode('ascii'),
-            }).encode('ascii'),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                "login": "admin@osmo.local",
+                "password": password.decode("ascii"),
+            }).encode("ascii"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         callback_location = None
         try:
@@ -178,66 +180,66 @@ class EmbeddedDexKind(SmokeFixture):
         except _CallbackRedirect as redirect:
             callback_location = redirect.location
         if callback_location is None:
-            raise AssertionError('Dex did not redirect after login')
+            raise AssertionError("Dex did not redirect after login")
         callback_query = urllib.parse.parse_qs(
             urllib.parse.urlparse(callback_location).query)
-        self.assertEqual([state], callback_query.get('state'))
-        self.assertIn('code', callback_query)
+        self.assertEqual([state], callback_query.get("state"))
+        self.assertIn("code", callback_query)
 
         token_request = urllib.request.Request(
-            external_url + '/dex/token',
+            external_url + "/dex/token",
             data=urllib.parse.urlencode({
-                'grant_type': 'authorization_code',
-                'code': callback_query['code'][0],
-                'redirect_uri': callback_url,
-                'client_id': 'osmo-cli',
-                'code_verifier': verifier,
-            }).encode('ascii'),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                "grant_type": "authorization_code",
+                "code": callback_query["code"][0],
+                "redirect_uri": callback_url,
+                "client_id": "osmo-cli",
+                "code_verifier": verifier,
+            }).encode("ascii"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         with urllib.request.urlopen(token_request, timeout=10) as response:
             token_response = json.load(response)
-        id_token = token_response['id_token']
-        payload_part = id_token.split('.')[1]
-        payload_part += '=' * (-len(payload_part) % 4)
+        id_token = token_response["id_token"]
+        payload_part = id_token.split(".")[1]
+        payload_part += "=" * (-len(payload_part) % 4)
         payload = json.loads(base64.urlsafe_b64decode(payload_part))
         self.assertEqual(
-            'CgVhZG1pbhIFbG9jYWw',
-            payload['sub'])
-        self.assertEqual('admin', payload['name'])
-        self.assertEqual(external_url + '/dex', payload['iss'])
+            "CgVhZG1pbhIFbG9jYWw",
+            payload["sub"])
+        self.assertEqual("admin", payload["name"])
+        self.assertEqual(external_url + "/dex", payload["iss"])
 
         admin_request = urllib.request.Request(
-            external_url + '/api/configs/pool',
-            headers={'Authorization': 'Bearer ' + id_token},
+            external_url + "/api/configs/pool",
+            headers={"Authorization": "Bearer " + id_token},
         )
         authorization_deadline = time.monotonic() + 45
         while True:
             try:
                 with urllib.request.urlopen(admin_request, timeout=10) as response:
                     status = response.status
-                    response_body = ''
+                    response_body = ""
             except urllib.error.HTTPError as error:
                 status = error.code
-                response_body = error.read().decode('utf-8', errors='replace')
+                response_body = error.read().decode("utf-8", errors="replace")
                 error.close()
             if status != 401 or time.monotonic() >= authorization_deadline:
                 break
             time.sleep(1)
         self.assertNotIn(
             status, (401, 403),
-            'issued administrator identity was rejected by gateway authorization: '
+            "issued administrator identity was rejected by gateway authorization: "
             + response_body)
         self.assertEqual(200, status, response_body)
 
         profile_request = urllib.request.Request(
-            external_url + '/api/profile/settings',
-            headers={'Authorization': 'Bearer ' + id_token},
+            external_url + "/api/profile/settings",
+            headers={"Authorization": "Bearer " + id_token},
         )
         with urllib.request.urlopen(profile_request, timeout=10) as response:
             profile = json.load(response)
-        self.assertEqual('admin', profile['profile']['username'])
-        self.assertIn('osmo-admin', profile['roles'])
+        self.assertEqual("admin", profile["profile"]["username"])
+        self.assertIn("osmo-admin", profile["roles"])
 
     @staticmethod
     def _stop_process(process):
@@ -260,14 +262,14 @@ class EmbeddedDexKind(SmokeFixture):
         bootstrap_image = self._bootstrap_image()
         api_registry, api_repository, api_tag, api_digest = (
             self._component_image_values(bootstrap_image))
-        authz_image = self._related_image(bootstrap_image, 'authz-sidecar')
+        authz_image = self._related_image(bootstrap_image, "authz-sidecar")
         authz_registry, authz_repository, authz_tag, authz_digest = (
             self._component_image_values(authz_image))
         port_reservation = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.addCleanup(port_reservation.close)
-        port_reservation.bind(('127.0.0.1', 0))
+        port_reservation.bind(("127.0.0.1", 0))
         local_port = port_reservation.getsockname()[1]
-        external_url = f'http://127.0.0.1:{local_port}'
+        external_url = f"http://127.0.0.1:{local_port}"
 
         def kubectl(*args, expected_success=True, input_text=None):
             return self._run(
@@ -325,20 +327,20 @@ class EmbeddedDexKind(SmokeFixture):
             "kubectl", "--context", "kind-osmo", "create", "namespace", namespace,
         ])
         for secret_name, secret_key in (
-            ('external-postgresql-secret', 'external-db-password'),
-            ('external-valkey-secret', 'redis-password'),
+            ("external-postgresql-secret", "external-db-password"),
+            ("external-valkey-secret", "redis-password"),
         ):
             kubectl(
                 "apply", "--filename", "-",
                 input_text=json.dumps({
-                    'apiVersion': 'v1',
-                    'kind': 'Secret',
-                    'metadata': {'name': secret_name, 'namespace': namespace},
-                    'type': 'Opaque',
-                    'data': {
+                    "apiVersion": "v1",
+                    "kind": "Secret",
+                    "metadata": {"name": secret_name, "namespace": namespace},
+                    "type": "Opaque",
+                    "data": {
                         secret_key: base64.b64encode(
                             _environment_secret_bytes(
-                                secrets.token_bytes(32))).decode('ascii'),
+                                secrets.token_bytes(32))).decode("ascii"),
                     },
                 }),
             )
@@ -357,25 +359,26 @@ class EmbeddedDexKind(SmokeFixture):
                 "app.kubernetes.io/component=gateway-authz",
                 "--output=json").stdout)
             diagnostics = []
-            for pod in authz_pods['items']:
-                for status in pod.get('status', {}).get(
-                    'containerStatuses', []
+            for pod in authz_pods["items"]:
+                pod_name = pod["metadata"]["name"]
+                for status in pod.get("status", {}).get(
+                    "containerStatuses", []
                 ):
                     diagnostics.append({
-                        'image': status.get('image'),
-                        'state': status.get('state'),
+                        "image": status.get("image"),
+                        "state": status.get("state"),
                     })
                 events = json.loads(kubectl(
                     "get", "events", "--field-selector",
-                    f"involvedObject.name={pod['metadata']['name']}",
+                    f"involvedObject.name={pod_name}",
                     "--output=json").stdout)
                 diagnostics.extend({
-                    'reason': event.get('reason'),
-                    'message': event.get('message'),
-                } for event in events['items'])
+                    "reason": event.get("reason"),
+                    "message": event.get("message"),
+                } for event in events["items"])
             raise RuntimeError(
-                f'{error}; authz container diagnostics: '
-                f'{json.dumps(diagnostics, sort_keys=True)}') from error
+                f"{error}; authz container diagnostics: "
+                f"{json.dumps(diagnostics, sort_keys=True)}") from error
         initial_admin = secret(admin_name)
         initial_oauth = secret(oauth_name)
         password = base64.b64decode(initial_admin["data"]["password"])
@@ -385,7 +388,7 @@ class EmbeddedDexKind(SmokeFixture):
         cookie = base64.b64decode(initial_oauth["data"]["cookie-secret"])
         self.assertEqual(32, len(base64.urlsafe_b64decode(cookie)))
         port_reservation.close()
-        port_forward = subprocess.Popen(
+        port_forward = subprocess.Popen(  # pylint: disable=consider-using-with
             [
                 "kubectl", "--context", "kind-osmo", "--namespace", namespace,
                 "port-forward", f"service/{release}-osmo-gateway",
@@ -402,7 +405,7 @@ class EmbeddedDexKind(SmokeFixture):
                 "logs", f"deployment/{release}-osmo-gateway-authz",
                 "--tail=100").stdout
             raise AssertionError(
-                f'{error}\nauthz logs:\n{authz_logs}') from error
+                f"{error}\nauthz logs:\n{authz_logs}") from error
 
         helm_apply(reuse_values=True)
         self.assertEqual(
@@ -685,8 +688,8 @@ class EnvironmentSecretEncodingTest(unittest.TestCase):
     def test_environment_secret_bytes_are_safe_for_environment_variables(self):
         value = _environment_secret_bytes(bytes(range(32)))
 
-        self.assertIsNotNone(re.fullmatch(rb'[A-Za-z0-9_-]+', value))
-        self.assertNotIn(b'\x00', value)
+        self.assertIsNotNone(re.fullmatch(rb"[A-Za-z0-9_-]+", value))
+        self.assertNotIn(b"\x00", value)
 
 
 if __name__ == "__main__":

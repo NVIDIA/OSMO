@@ -904,6 +904,7 @@ class KindAdapter:
             ]
         else:
             args += [
+                "--set-string", f"externalUrl=http://{KIND_HOSTNAME}",
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]

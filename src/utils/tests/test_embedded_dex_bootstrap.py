@@ -453,14 +453,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
     def test_equal_rollout_identity_does_not_delete_replacement_pod(self) -> None:
         result = self.reconcile()
-        arguments = dict(
-            namespace='osmo',
-            release_name='release',
-            tracking_secret_names=('release-dex-admin', 'release-dex-oauth'),
-            rollout_annotation='osmo.nvidia.com/dex-rollout',
-            rollout_identity=result.dex_credential_identity,
-            pod_label_selector='app=dex',
-        )
+        arguments = {
+            'namespace': 'osmo',
+            'release_name': 'release',
+            'tracking_secret_names': ('release-dex-admin', 'release-dex-oauth'),
+            'rollout_annotation': 'osmo.nvidia.com/dex-rollout',
+            'rollout_identity': result.dex_credential_identity,
+            'pod_label_selector': 'app=dex',
+        }
         embedded_dex_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.api.pods['dex-replacement'] = kubernetes_client.V1Pod(
@@ -475,14 +475,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
     def test_cookie_rotation_preserves_dex_rollout_state(self) -> None:
         result = self.reconcile()
-        arguments = dict(
-            namespace='osmo',
-            release_name='release',
-            tracking_secret_names=('release-dex-admin', 'release-dex-oauth'),
-            rollout_annotation='osmo.nvidia.com/dex-rollout',
-            rollout_identity=result.dex_credential_identity,
-            pod_label_selector='app=dex',
-        )
+        arguments = {
+            'namespace': 'osmo',
+            'release_name': 'release',
+            'tracking_secret_names': ('release-dex-admin', 'release-dex-oauth'),
+            'rollout_annotation': 'osmo.nvidia.com/dex-rollout',
+            'rollout_identity': result.dex_credential_identity,
+            'pod_label_selector': 'app=dex',
+        }
         embedded_dex_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.reconcile(cookie_generation=2)
@@ -497,14 +497,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
     def test_password_rotation_preserves_config_rollout_state(self) -> None:
         self.reconcile()
-        arguments = dict(
-            namespace='osmo',
-            release_name='release',
-            tracking_secret_names=('release-dex-admin',),
-            rollout_annotation='osmo.nvidia.com/config-rollout',
-            rollout_identity='config-v1',
-            pod_label_selector='app=dex',
-        )
+        arguments = {
+            'namespace': 'osmo',
+            'release_name': 'release',
+            'tracking_secret_names': ('release-dex-admin',),
+            'rollout_annotation': 'osmo.nvidia.com/config-rollout',
+            'rollout_identity': 'config-v1',
+            'pod_label_selector': 'app=dex',
+        }
         embedded_dex_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.reconcile(password_generation=2)
@@ -689,10 +689,11 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             contextlib.redirect_stderr(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            embedded_dex_bootstrap._parse_arguments(arguments)
+            embedded_dex_bootstrap._parse_arguments(  # pylint: disable=protected-access
+                arguments)
 
     def test_argument_parser_accepts_unified_identity_specs(self) -> None:
-        arguments = embedded_dex_bootstrap._parse_arguments([
+        arguments = embedded_dex_bootstrap._parse_arguments([  # pylint: disable=protected-access
             '--namespace', 'osmo',
             '--release-name', 'release',
             '--password',

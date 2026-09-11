@@ -473,6 +473,11 @@ class TestKindAdapter(unittest.TestCase):
             "services.agent.resources.requests.memory=1Gi",
             osmo_helm_args,
         )
+        self.assertIn(
+            "externalUrl=http://quick-start.osmo",
+            osmo_helm_args,
+            "source-build KIND must configure the unified chart's public origin",
+        )
         self.assertNotIn(
             "global.osmoImageTag=ci-123",
             osmo_helm_args,
