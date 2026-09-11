@@ -57,7 +57,7 @@ failed jobs cannot overwrite an earlier build's inputs. Do not use a downstream
 job's attempt number to guess the deployment artifact name.
 
 OETF creates fresh AKS credentials and its own gateway port-forward in namespace
-`osmo`. It password-authenticates the bootstrap admin, sets pool `default`, and
+`osmo`. It authenticates with the bootstrap admin access token, sets pool `default`, and
 creates a run-specific PAT with 24–48 hours of validity, revoked on normal exit. The existing OETF overlay hook
 loads `oetf-single-plane.yaml`; no user configuration or framework auth strategy is
 changed. The tags remain `api,websocket,logger,task-env,negative`, with the previous

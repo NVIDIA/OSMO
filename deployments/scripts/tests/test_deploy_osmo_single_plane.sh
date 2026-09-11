@@ -152,8 +152,8 @@ write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMM
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
 write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"' \
     'if [[ "$*" == *"/verify.sh"* ]]; then' \
-    '  [[ "${OSMO_LOGIN_METHOD:-}" == password && "${OSMO_USERNAME:-}" == admin ]] || exit 38' \
-    '  [[ -f "${OSMO_PASSWORD_FILE:-}" && "$(<"$OSMO_PASSWORD_FILE")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 39' \
+    '  [[ "${OSMO_LOGIN_METHOD:-}" == token ]] || exit 38' \
+    '  [[ -f "${OSMO_TOKEN_FILE:-}" && "$(<"$OSMO_TOKEN_FILE")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 39' \
     'fi'
 write_mock osmo '#!/bin/bash' 'exit 0'
 

@@ -39,7 +39,10 @@ cat > "$temporary/bin/osmo" <<'MOCK'
 set -eu
 echo "osmo $*" >> "$COMMAND_LOG"
 case "$1 $2" in
-    'login http://127.0.0.1:9100') [[ "${CASE:-}" != login-error ]] ;;
+    'login http://127.0.0.1:9100')
+        [[ "$3 $4 $5" == '--method token --token-file' ]]
+        [[ "$#" == 6 && "$(cat "$6")" == password-sentinel ]]
+        [[ "${CASE:-}" != login-error ]] ;;
     'profile set') [[ "$*" == *'pool default'* ]] ;;
     'token set')
         if [[ "${CASE:-}" == empty-token ]]; then echo '{"token":""}'

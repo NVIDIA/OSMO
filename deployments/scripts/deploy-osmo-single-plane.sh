@@ -56,7 +56,7 @@ KUBECONFIG="$TEMPORARY_DIRECTORY/kubeconfig"
 TERRAFORM_OUTPUTS="$TEMPORARY_DIRECTORY/terraform-outputs.env"
 DYNAMIC_VALUES="$TEMPORARY_DIRECTORY/single-plane-values.json"
 SECRETS_DIR="$TEMPORARY_DIRECTORY/secrets"
-ADMIN_PASSWORD_FILE="$TEMPORARY_DIRECTORY/admin-password"
+ADMIN_TOKEN_FILE="$TEMPORARY_DIRECTORY/admin-token"
 mkdir -p "$SECRETS_DIR"
 export KUBECONFIG TF_RESOURCE_GROUP TF_SUBSCRIPTION_ID
 
@@ -142,18 +142,19 @@ kubectl create secret generic osmo-postgresql --namespace osmo \
 kubectl create secret generic osmo-valkey --namespace osmo \
     --from-file=redis-password="$SECRETS_DIR/redis-password" \
     --dry-run=client --output yaml | kubectl apply -f -
+# The chart calls this field password, but the service registers it as an access token.
 DEFAULT_ADMIN_SECRET="$(kubectl get secret osmo-default-admin --namespace osmo \
     --ignore-not-found --output name)"
 if [[ -z "$DEFAULT_ADMIN_SECRET" ]]; then
-    GENERATED_ADMIN_PASSWORD="$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '\n=')"
-    printf '%.43s' "$GENERATED_ADMIN_PASSWORD" >"$ADMIN_PASSWORD_FILE"
-    unset GENERATED_ADMIN_PASSWORD
+    GENERATED_ADMIN_TOKEN="$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '\n=')"
+    printf '%.43s' "$GENERATED_ADMIN_TOKEN" >"$ADMIN_TOKEN_FILE"
+    unset GENERATED_ADMIN_TOKEN
     kubectl create secret generic osmo-default-admin --namespace osmo \
-        --from-file=password="$ADMIN_PASSWORD_FILE" \
+        --from-file=password="$ADMIN_TOKEN_FILE" \
         --dry-run=client --output yaml | kubectl apply -f -
 else
     kubectl get secret osmo-default-admin --namespace osmo \
-        --output jsonpath='{.data.password}' | base64 --decode >"$ADMIN_PASSWORD_FILE"
+        --output jsonpath='{.data.password}' | base64 --decode >"$ADMIN_TOKEN_FILE"
 fi
 kubectl create serviceaccount osmo-workflow --namespace osmo --dry-run=client --output yaml | kubectl apply -f -
 kubectl annotate serviceaccount osmo-workflow --namespace osmo \
@@ -205,5 +206,5 @@ for attempt in {1..30}; do
     [[ "$attempt" == 30 ]] && exit 1
     sleep 1
 done
-OSMO_URL=http://127.0.0.1:9000 SKIP_GPU=1 OSMO_LOGIN_METHOD=password \
-    OSMO_USERNAME=admin OSMO_PASSWORD_FILE="$ADMIN_PASSWORD_FILE" bash "$SCRIPT_DIR/verify.sh"
+OSMO_URL=http://127.0.0.1:9000 SKIP_GPU=1 OSMO_LOGIN_METHOD=token \
+    OSMO_TOKEN_FILE="$ADMIN_TOKEN_FILE" bash "$SCRIPT_DIR/verify.sh"

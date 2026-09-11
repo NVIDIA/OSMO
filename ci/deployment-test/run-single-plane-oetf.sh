@@ -49,10 +49,10 @@ done
 [[ "$ready" == true ]] || { echo "Gateway did not become ready" >&2; exit 1; }
 kill -0 "$port_forward_pid" || { echo "Gateway port-forward exited during readiness" >&2; exit 1; }
 kubectl get secret osmo-default-admin --namespace osmo --output jsonpath='{.data.password}' \
-    | base64 --decode > "$private/password"
-test -s "$private/password"
-printf '::add-mask::%s\n' "$(cat "$private/password")"
-osmo login http://127.0.0.1:9100 --method password --username admin --password-file "$private/password"
+    | base64 --decode > "$private/bootstrap-token"
+test -s "$private/bootstrap-token"
+printf '::add-mask::%s\n' "$(cat "$private/bootstrap-token")"
+osmo login http://127.0.0.1:9100 --method token --token-file "$private/bootstrap-token"
 osmo profile set pool default
 # Token expiry is a date at midnight UTC. Keep at least 24 hours even when a
 # manual run starts just before midnight; normal cleanup revokes it immediately.

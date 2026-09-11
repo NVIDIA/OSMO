@@ -24,6 +24,9 @@
 #   - verify-object-storage.yaml — two tasks, proves an object-storage round trip
 #   - verify-gpu.yaml            — nvidia-smi task, proves GPU capacity
 #
+# Authentication: OSMO_LOGIN_METHOD defaults to dev, with OSMO_USERNAME=admin.
+# Password login accepts OSMO_PASSWORD_FILE; token login requires OSMO_TOKEN_FILE.
+#
 # Skips the GPU test if SKIP_GPU=1 (use on CPU-only clusters).
 # Skips the object-storage test if SKIP_OBJECT_STORAGE=1.
 #
@@ -43,6 +46,7 @@ POOL="${POOL:-default}"
 OSMO_USERNAME="${OSMO_USERNAME:-admin}"
 OSMO_LOGIN_METHOD="${OSMO_LOGIN_METHOD:-dev}"
 OSMO_PASSWORD_FILE="${OSMO_PASSWORD_FILE:-}"
+OSMO_TOKEN_FILE="${OSMO_TOKEN_FILE:-}"
 WORKFLOWS_DIR="${WORKFLOWS_DIR:-$SCRIPT_DIR/../workflows}"
 OSMO_REACHABILITY_PATH="${OSMO_REACHABILITY_PATH:-/api/version}"
 OSMO_REACHABILITY_TIMEOUT_SECONDS="${OSMO_REACHABILITY_TIMEOUT_SECONDS:-5}"
@@ -78,9 +82,15 @@ if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$re
     exit 1
 fi
 
-login_arguments=("$OSMO_URL" "--method=$OSMO_LOGIN_METHOD" "--username=$OSMO_USERNAME")
-if [[ -n "$OSMO_PASSWORD_FILE" ]]; then
-    login_arguments+=("--password-file=$OSMO_PASSWORD_FILE")
+login_arguments=("$OSMO_URL" "--method=$OSMO_LOGIN_METHOD")
+if [[ "$OSMO_LOGIN_METHOD" == token ]]; then
+    : "${OSMO_TOKEN_FILE:?set OSMO_TOKEN_FILE for token login}"
+    login_arguments+=("--token-file=$OSMO_TOKEN_FILE")
+else
+    login_arguments+=("--username=$OSMO_USERNAME")
+    if [[ -n "$OSMO_PASSWORD_FILE" ]]; then
+        login_arguments+=("--password-file=$OSMO_PASSWORD_FILE")
+    fi
 fi
 osmo login "${login_arguments[@]}"
 
