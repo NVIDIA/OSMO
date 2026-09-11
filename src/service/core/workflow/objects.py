@@ -92,46 +92,20 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'progress_iter_frequency',
             'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
         })
-    backend_token_directory: str | None = pydantic.Field(
+    bootstrap_identity_config_file: str | None = pydantic.Field(
         default=None,
-        description='Directory containing Kubernetes Secret projections used to authenticate '
-                    'backend operators.',
+        description='JSON configuration for Secret-backed bootstrap identities.',
         json_schema_extra={
-            'command_line': 'backend_token_directory',
-            'env': 'OSMO_BACKEND_TOKEN_DIRECTORY'
+            'command_line': 'bootstrap_identity_config_file',
+            'env': 'OSMO_BOOTSTRAP_IDENTITY_CONFIG_FILE'
         })
-    default_admin_username: str | None = pydantic.Field(
+    bootstrap_token_directory: str | None = pydantic.Field(
         default=None,
-        description='The username for the default admin user to create on startup. '
-                    'If set, default_admin_password must also be set.',
+        description='Directory containing bootstrap identity Secret projections.',
         json_schema_extra={
-            'command_line': 'default_admin_username',
-            'env': 'OSMO_DEFAULT_ADMIN_USERNAME'
+            'command_line': 'bootstrap_token_directory',
+            'env': 'OSMO_BOOTSTRAP_TOKEN_DIRECTORY'
         })
-    default_admin_password: str | None = pydantic.Field(
-        default=None,
-        description='The password (access token value) for the default admin user. '
-                    'Must be set if default_admin_username is set.',
-        json_schema_extra={
-            'command_line': 'default_admin_password',
-            'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
-        })
-    @pydantic.model_validator(mode='before')
-    @classmethod
-    def validate_default_admin(cls, values):
-        """
-        Validate that if default_admin_username is set, default_admin_password must also be set
-        """
-        if not isinstance(values, dict):
-            return values
-        username = values.get('default_admin_username')
-        password = values.get('default_admin_password')
-        if username and not password:
-            raise ValueError(
-                'default_admin_password must be set when default_admin_username is specified')
-        return values
-
-
 class WorkflowServiceContext(pydantic.BaseModel):
     """ Shared context that needs to be access from all api methods. """
     config: WorkflowServiceConfig

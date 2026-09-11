@@ -59,9 +59,6 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: external-control-secrets
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

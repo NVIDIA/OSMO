@@ -1,0 +1,34 @@
+{{- if .Values.planes.control.enabled }}
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $identities := dict -}}
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
+{{- if and $identity.enabled $identity.tokens -}}
+{{- $tokens := dict -}}
+{{- range $tokenName, $token := $identity.tokens -}}
+{{- $key := "token" -}}
+{{- if and (hasKey $token "existingSecret") (hasKey $token.existingSecret "key") -}}
+{{- $key = $token.existingSecret.key -}}
+{{- end -}}
+{{- $_ := set $tokens $tokenName (dict "key" $key) -}}
+{{- end -}}
+{{- $_ := set $identities $identityID (dict "kind" $identity.kind "username" $identity.username "roles" $identity.roles "tokens" $tokens) -}}
+{{- end -}}
+{{- end -}}
+{{- if $identities }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "bootstrap-identities") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap-identities") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  config.json: |
+    {{- dict "identities" $identities | toPrettyJson | nindent 4 }}
+{{- end }}
+{{- end }}

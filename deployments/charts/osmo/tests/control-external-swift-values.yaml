@@ -62,9 +62,6 @@ secrets:
       apps:
         name: workflow-app-credential
         key: ''
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

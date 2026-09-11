@@ -144,7 +144,7 @@ osmo_py_binary(
 
 osmo_python_wrapper(
     name = "embedded_dex_bootstrap_wrapper",
-    bin_name = "embedded-dex-bootstrap",
+    bin_name = "identity-bootstrap",
     main = None,
     module = "src.utils.embedded_dex_bootstrap",
     runfiles_dir = "/src/service/core/service_binary.runfiles",

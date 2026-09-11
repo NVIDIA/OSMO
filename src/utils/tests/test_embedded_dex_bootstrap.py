@@ -195,6 +195,119 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
     def setUp(self) -> None:
         self.api = FakeCoreApi()
 
+    def test_reconciles_multiple_passwords_tokens_and_hash_environment(self) -> None:
+        password_specs = (
+            embedded_dex_bootstrap.PasswordSpec(
+                identity_id='admin',
+                secret_name='osmo-embedded-dex-admin',
+                hash_env_name='OSMO_DEX_PASSWORD_HASH_ADMIN'),
+            embedded_dex_bootstrap.PasswordSpec(
+                identity_id='developer',
+                secret_name='osmo-embedded-dex-developer',
+                hash_env_name='OSMO_DEX_PASSWORD_HASH_DEVELOPER'),
+        )
+        token_specs = (
+            embedded_dex_bootstrap.TokenSpec(
+                identity_id='admin', token_name='cli',
+                secret_name='osmo-admin-token'),
+            embedded_dex_bootstrap.TokenSpec(
+                identity_id='backend-east', token_name='primary',
+                secret_name='osmo-backend-east-token'),
+        )
+
+        embedded_dex_bootstrap.reconcile_identities(
+            self.api,  # type: ignore[arg-type]
+            namespace='osmo',
+            release_name='release',
+            password_specs=password_specs,
+            token_specs=token_specs,
+            oauth_secret_name='osmo-embedded-dex-oauth',
+            dex_hash_secret_name='osmo-embedded-dex-password-hashes',
+        )
+
+        for secret_name in (
+                'osmo-embedded-dex-admin',
+                'osmo-embedded-dex-developer'):
+            secret = self.api.secrets[secret_name]
+            password = self.decode(secret, 'password')
+            password_hash = self.decode(secret, 'password-hash')
+            self.assertTrue(bcrypt.checkpw(password, password_hash))
+            self.assertEqual(12, int(password_hash.split(b'$')[2]))
+        for secret_name in ('osmo-admin-token', 'osmo-backend-east-token'):
+            token = self.decode(self.api.secrets[secret_name], 'token')
+            self.assertEqual(43, len(token))
+        hashes = self.api.secrets['osmo-embedded-dex-password-hashes']
+        self.assertEqual({
+            'OSMO_DEX_PASSWORD_HASH_ADMIN',
+            'OSMO_DEX_PASSWORD_HASH_DEVELOPER',
+        }, set(hashes.data))
+        self.assertIn('osmo-embedded-dex-oauth', self.api.secrets)
+
+    def test_managed_token_preserves_optional_previous_token(self) -> None:
+        token_specs = (embedded_dex_bootstrap.TokenSpec(
+            identity_id='backend-east', token_name='primary',
+            secret_name='osmo-backend-east-token'),)
+        arguments = {
+            'namespace': 'osmo',
+            'release_name': 'release',
+            'password_specs': (),
+            'token_specs': token_specs,
+            'oauth_secret_name': None,
+            'dex_hash_secret_name': None,
+        }
+        embedded_dex_bootstrap.reconcile_identities(
+            self.api, **arguments)  # type: ignore[arg-type]
+        secret = self.api.secrets['osmo-backend-east-token']
+        secret.data['previous-token'] = base64.b64encode(
+            b'p' * 43).decode('ascii')
+        original = copy.deepcopy(secret.data)
+
+        embedded_dex_bootstrap.reconcile_identities(
+            self.api, **arguments)  # type: ignore[arg-type]
+
+        self.assertEqual(
+            original, self.api.secrets['osmo-backend-east-token'].data)
+
+    def test_removed_user_hash_is_retained_for_failed_upgrade_rollback(
+        self,
+    ) -> None:
+        admin = embedded_dex_bootstrap.PasswordSpec(
+            identity_id='admin',
+            secret_name='osmo-embedded-dex-admin',
+            hash_env_name='OSMO_DEX_PASSWORD_HASH_ADMIN')
+        developer = embedded_dex_bootstrap.PasswordSpec(
+            identity_id='developer',
+            secret_name='osmo-embedded-dex-developer',
+            hash_env_name='OSMO_DEX_PASSWORD_HASH_DEVELOPER')
+        embedded_dex_bootstrap.reconcile_identities(
+            self.api,  # type: ignore[arg-type]
+            namespace='osmo',
+            release_name='release',
+            password_specs=(admin, developer),
+            token_specs=(),
+            oauth_secret_name='osmo-embedded-dex-oauth',
+            dex_hash_secret_name='osmo-embedded-dex-password-hashes',
+        )
+        developer_hash = self.api.secrets[
+            'osmo-embedded-dex-password-hashes'
+        ].data['OSMO_DEX_PASSWORD_HASH_DEVELOPER']
+
+        embedded_dex_bootstrap.reconcile_identities(
+            self.api,  # type: ignore[arg-type]
+            namespace='osmo',
+            release_name='release',
+            password_specs=(admin,),
+            token_specs=(),
+            oauth_secret_name='osmo-embedded-dex-oauth',
+            dex_hash_secret_name='osmo-embedded-dex-password-hashes',
+        )
+
+        hashes = self.api.secrets['osmo-embedded-dex-password-hashes'].data
+        self.assertEqual(
+            developer_hash,
+            hashes['OSMO_DEX_PASSWORD_HASH_DEVELOPER'],
+        )
+
     def reconcile(
         self,
         *,
@@ -578,6 +691,24 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         ):
             embedded_dex_bootstrap._parse_arguments(arguments)
 
+    def test_argument_parser_accepts_unified_identity_specs(self) -> None:
+        arguments = embedded_dex_bootstrap._parse_arguments([
+            '--namespace', 'osmo',
+            '--release-name', 'release',
+            '--password',
+            'admin=osmo-embedded-dex-admin=OSMO_DEX_PASSWORD_HASH_ADMIN',
+            '--token', 'admin/cli=osmo-admin-token',
+            '--oauth-secret-name', 'osmo-embedded-dex-oauth',
+            '--dex-hash-secret-name', 'osmo-embedded-dex-password-hashes',
+            '--dex-pod-selector', 'app=dex',
+            '--oauth-pod-selector', 'app=oauth2-proxy',
+        ])
+
+        self.assertEqual(1, len(arguments.password_specs))
+        self.assertEqual('admin', arguments.password_specs[0].identity_id)
+        self.assertEqual(1, len(arguments.token_specs))
+        self.assertEqual('cli', arguments.token_specs[0].token_name)
+
     def test_main_reports_api_failure_without_logging_error_body(self) -> None:
         arguments = types.SimpleNamespace(
             namespace='osmo',
@@ -610,6 +741,50 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
         self.assertNotIn(
             'credential-canary-must-not-be-logged', '\n'.join(logs.output))
+
+    def test_main_reconciles_unified_identity_specs(self) -> None:
+        password_spec = embedded_dex_bootstrap.PasswordSpec(
+            'admin', 'osmo-embedded-dex-admin',
+            'OSMO_DEX_PASSWORD_HASH_ADMIN')
+        token_spec = embedded_dex_bootstrap.TokenSpec(
+            'admin', 'cli', 'osmo-admin-token')
+        arguments = types.SimpleNamespace(
+            namespace='osmo',
+            release_name='release',
+            password_specs=[password_spec],
+            token_specs=[token_spec],
+            oauth_secret_name='osmo-embedded-dex-oauth',
+            dex_hash_secret_name='osmo-embedded-dex-password-hashes',
+            dex_pod_selector=None,
+            oauth_pod_selector=None,
+            restart_timeout_seconds=120,
+            config_rollout_identity=None,
+        )
+        result = types.SimpleNamespace(
+            dex_credential_identity='dex-v1',
+            oauth_credential_identity='oauth-v1')
+        with (
+            mock.patch.object(
+                embedded_dex_bootstrap, '_parse_arguments',
+                return_value=arguments),
+            mock.patch.object(
+                embedded_dex_bootstrap.kubernetes_config,
+                'load_incluster_config'),
+            mock.patch.object(
+                embedded_dex_bootstrap.kubernetes_client,
+                'CoreV1Api', return_value=FakeCoreApi()),
+            mock.patch.object(
+                embedded_dex_bootstrap, 'reconcile_identities',
+                return_value=result) as reconcile_identities,
+        ):
+            embedded_dex_bootstrap.main()
+
+        reconcile_identities.assert_called_once()
+        self.assertEqual(
+            (password_spec,),
+            reconcile_identities.call_args.kwargs['password_specs'])
+        self.assertEqual(
+            (token_spec,), reconcile_identities.call_args.kwargs['token_specs'])
 
     def test_main_shares_timeout_across_sequential_rollouts(self) -> None:
         arguments = types.SimpleNamespace(

@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Production converged profile for self-hosting OSMO on Kubernetes. The cluster
+# Converged profile for self-hosting OSMO on Kubernetes. The cluster
 # must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
 # StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
-# nodes for distributed RustFS. The default embedded Dex provider is part of
-# this control-plane release. Use authentication.provider=externalOidc only
-# when integrating an operator-managed identity provider. The OSMO release owns
+# nodes for distributed RustFS. The default embedded Dex provider is suitable
+# only for development and evaluation because it uses volatile memory storage.
+# Production installations must use authentication.provider=externalOidc. The OSMO release owns
 # the control plane, compute plane, PostgreSQL Cluster, replicated fixed-primary
 # Valkey, and distributed RustFS.
 planes:
@@ -42,15 +42,6 @@ secrets:
   objectStorage:
     generate: true
     existingSecret: ''
-  backendApiTokens:
-    enabled: true
-    bootstrap:
-      image:
-        digest: sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b
-    credentials:
-    - name: default
-      managedSecret:
-        name: osmo-backend-token
   masterEncryptionKey:
     managementMode: osmo
     existingSecret:

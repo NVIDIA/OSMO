@@ -5,6 +5,7 @@
 
 import dataclasses
 import hmac
+import json
 import logging
 from pathlib import Path
 import re
@@ -32,6 +33,30 @@ class BackendTokenIdentity:
     username: str
     roles: tuple[str, ...]
     token_name: str
+
+
+@dataclasses.dataclass(frozen=True)
+class BootstrapTokenIdentity:
+    """The configured identity represented by one bootstrap token."""
+
+    username: str
+    roles: tuple[str, ...]
+    token_name: str
+
+
+@dataclasses.dataclass(frozen=True)
+class _BootstrapTokenSpec:
+    identity_id: str
+    token_name: str
+    current_key: str
+    directory: Path
+    identity: BootstrapTokenIdentity
+
+
+@dataclasses.dataclass(frozen=True)
+class _BootstrapTokenCandidate:
+    token: str
+    identity: BootstrapTokenIdentity
 
 
 @dataclasses.dataclass(frozen=True)
@@ -261,7 +286,188 @@ class BackendSecretAuthenticator:
         return token
 
 
+class BootstrapSecretAuthenticator:
+    """Authenticates configured user and backend identities from Secret mounts."""
+
+    def __init__(self, config_file: str, token_directory: str):
+        self._token_specs = self._read_config(
+            Path(config_file), Path(token_directory))
+        self._cache: tuple[
+            tuple[tuple[str, str, str, int, int], ...] | None,
+            tuple[_BootstrapTokenCandidate, ...],
+        ] = (None, ())
+
+    def validate(self) -> None:
+        self._load_candidates()
+
+    def authenticate(self, access_token: str) -> BootstrapTokenIdentity | None:
+        candidates = self._load_candidates()
+        encoded_access_token = access_token.encode('utf-8')
+        matched_identity = None
+        for candidate in candidates:
+            if hmac.compare_digest(
+                    encoded_access_token, candidate.token.encode('utf-8')):
+                matched_identity = candidate.identity
+        return matched_identity
+
+    @staticmethod
+    def _read_config(
+        config_file: Path,
+        token_directory: Path,
+    ) -> tuple[_BootstrapTokenSpec, ...]:
+        try:
+            raw_config = json.loads(config_file.read_text(encoding='utf-8'))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise BackendTokenConfigurationError(
+                f'Bootstrap identity config {config_file} is unreadable') from error
+        if not isinstance(raw_config, dict) or set(raw_config) != {'identities'}:
+            raise BackendTokenConfigurationError(
+                'Bootstrap identity config must contain only identities')
+        identities = raw_config['identities']
+        if not isinstance(identities, dict) or not identities:
+            raise BackendTokenConfigurationError(
+                'Bootstrap identity config contains no identities')
+
+        token_specs = []
+        usernames = set()
+        for identity_id, identity_config in sorted(identities.items()):
+            if (
+                not isinstance(identity_id, str)
+                or not _CREDENTIAL_NAME_PATTERN.fullmatch(identity_id)
+                or not isinstance(identity_config, dict)
+                or set(identity_config) != {'kind', 'username', 'roles', 'tokens'}
+            ):
+                raise BackendTokenConfigurationError(
+                    f'Invalid bootstrap identity {identity_id}')
+            kind = identity_config['kind']
+            username = identity_config['username']
+            roles = identity_config['roles']
+            tokens = identity_config['tokens']
+            if (
+                kind not in ('user', 'backend')
+                or not isinstance(username, str)
+                or not re.fullmatch(
+                    r'^[a-zA-Z0-9](?:[a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$',
+                    username)
+                or username in usernames
+                or not isinstance(roles, list)
+                or not roles
+                or any(not isinstance(role, str) or not role for role in roles)
+                or len(set(roles)) != len(roles)
+                or not isinstance(tokens, dict)
+                or not tokens
+                or (kind == 'backend' and roles != [BACKEND_ROLE])
+            ):
+                raise BackendTokenConfigurationError(
+                    f'Invalid bootstrap identity {identity_id}')
+            usernames.add(username)
+            for token_name, token_config in sorted(tokens.items()):
+                if (
+                    not isinstance(token_name, str)
+                    or not _CREDENTIAL_NAME_PATTERN.fullmatch(token_name)
+                    or not isinstance(token_config, dict)
+                    or set(token_config) != {'key'}
+                    or not isinstance(token_config['key'], str)
+                    or not re.fullmatch(r'^[A-Za-z0-9._-]+$', token_config['key'])
+                ):
+                    raise BackendTokenConfigurationError(
+                        f'Invalid bootstrap token {identity_id}/{token_name}')
+                token_specs.append(_BootstrapTokenSpec(
+                    identity_id=identity_id,
+                    token_name=token_name,
+                    current_key=token_config['key'],
+                    directory=token_directory / identity_id / token_name,
+                    identity=BootstrapTokenIdentity(
+                        username=username,
+                        roles=tuple(roles),
+                        token_name=f'bootstrap-{identity_id}-{token_name}',
+                    ),
+                ))
+        return tuple(token_specs)
+
+    def _load_candidates(self) -> list[_BootstrapTokenCandidate]:
+        projection_state = []
+        projections: list[tuple[
+            _BootstrapTokenSpec,
+            Path | None,
+            BackendTokenConfigurationError | None,
+        ]] = []
+        for token_spec in self._token_specs:
+            try:
+                generation_directory = BackendSecretAuthenticator._resolve_generation_directory(
+                    token_spec.directory)
+            except BackendTokenConfigurationError as projection_error:
+                generation_directory = None
+                projections.append((
+                    token_spec, generation_directory, projection_error))
+            else:
+                projections.append((token_spec, generation_directory, None))
+            for key in (token_spec.current_key, _PREVIOUS_TOKEN_KEY):
+                path = (generation_directory or token_spec.directory) / key
+                try:
+                    state = path.stat()
+                    modification_time = state.st_mtime_ns
+                    size = state.st_size
+                except FileNotFoundError:
+                    modification_time = -1
+                    size = -1
+                except OSError:
+                    modification_time = -2
+                    size = -2
+                projection_state.append((
+                    token_spec.identity_id, token_spec.token_name,
+                    str(path), modification_time, size))
+        state_tuple = tuple(projection_state)
+        if state_tuple == self._cache[0]:
+            return list(self._cache[1])
+
+        candidates_by_token: list[_BootstrapTokenCandidate] = []
+        for token_spec, generation_directory, stored_error in projections:
+            if stored_error is not None or generation_directory is None:
+                logger.warning(
+                    'Ignoring invalid bootstrap token %s/%s: %s',
+                    token_spec.identity_id, token_spec.token_name,
+                    stored_error)
+                continue
+            try:
+                tokens = []
+                for key, required in (
+                        (token_spec.current_key, True),
+                        (_PREVIOUS_TOKEN_KEY, False)):
+                    token = BackendSecretAuthenticator._read_token(
+                        generation_directory,
+                        f'{token_spec.identity_id}/{token_spec.token_name}',
+                        key,
+                        required)
+                    if token is not None:
+                        tokens.append(token)
+                if len(tokens) != len(set(tokens)):
+                    raise BackendTokenConfigurationError(
+                        f'Duplicate bootstrap token in {token_spec.identity_id}/'
+                        f'{token_spec.token_name}')
+                candidates_by_token.extend(
+                    _BootstrapTokenCandidate(token=token, identity=token_spec.identity)
+                    for token in tokens)
+            except BackendTokenConfigurationError as token_error:
+                logger.warning(
+                    'Ignoring invalid bootstrap token %s/%s: %s',
+                    token_spec.identity_id, token_spec.token_name, token_error)
+
+        token_counts: dict[str, int] = {}
+        for candidate in candidates_by_token:
+            token_counts[candidate.token] = token_counts.get(candidate.token, 0) + 1
+        candidates = [
+            candidate for candidate in candidates_by_token
+            if token_counts[candidate.token] == 1
+        ]
+        if len(candidates) != len(candidates_by_token):
+            logger.warning('Ignoring duplicate bootstrap token values')
+        self._cache = (state_tuple, tuple(candidates))
+        return candidates
+
+
 _authenticator: BackendSecretAuthenticator | None = None
+_bootstrap_authenticator: BootstrapSecretAuthenticator | None = None
 
 
 def configure(token_directory: str | None) -> None:
@@ -275,8 +481,31 @@ def configure(token_directory: str | None) -> None:
     _authenticator = authenticator
 
 
-def authenticate(access_token: str) -> BackendTokenIdentity | None:
+def configure_bootstrap(
+    config_file: str | None,
+    token_directory: str | None,
+) -> None:
+    """Configure or disable generalized Secret-backed identity authentication."""
+    global _bootstrap_authenticator  # pylint: disable=global-statement
+    if config_file is None and token_directory is None:
+        _bootstrap_authenticator = None
+        return
+    if config_file is None or token_directory is None:
+        raise BackendTokenConfigurationError(
+            'Bootstrap identity config and token directory must be set together')
+    authenticator = BootstrapSecretAuthenticator(config_file, token_directory)
+    authenticator.validate()
+    _bootstrap_authenticator = authenticator
+
+
+def authenticate(
+    access_token: str,
+) -> BackendTokenIdentity | BootstrapTokenIdentity | None:
     """Authenticate against the configured Secret directory, when enabled."""
+    if _bootstrap_authenticator is not None:
+        identity = _bootstrap_authenticator.authenticate(access_token)
+        if identity is not None:
+            return identity
     if _authenticator is None:
         return None
     return _authenticator.authenticate(access_token)

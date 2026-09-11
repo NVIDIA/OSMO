@@ -97,22 +97,8 @@
 {{- if not .Values.embeddedDependencies.dex.enabled -}}
 {{- fail "embeddedDependencies.dex.enabled must be true when authentication.provider=embeddedDex" -}}
 {{- end -}}
-{{- if or (lt (int $embeddedAuth.admin.passwordGeneration) 1) (lt (int $embeddedAuth.browserClientSecretGeneration) 1) (lt (int $embeddedAuth.cookieSecretGeneration) 1) -}}
-{{- fail "embedded Dex credential generations must be positive integers" -}}
-{{- end -}}
-{{- range $value := list $embeddedAuth.admin.email $embeddedAuth.admin.username $embeddedAuth.browserClientId $embeddedAuth.cliClientId $embeddedAuth.adminSecretName $embeddedAuth.oauthSecretName -}}
-{{- if not $value -}}{{- fail "embedded Dex administrator, client, and Secret values must be non-empty" -}}{{- end -}}
-{{- end -}}
-{{- if not (regexMatch "^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$" $embeddedAuth.admin.username) -}}
-{{- fail "authentication.embeddedDex.admin.username must be a valid OSMO username containing letters, digits, underscores, periods, @, or hyphens, and must begin and end with a letter or digit" -}}
-{{- end -}}
-{{- range $secretName := list $embeddedAuth.adminSecretName $embeddedAuth.oauthSecretName -}}
-{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
-{{- fail "embedded Dex Secret names must be valid DNS-1123 subdomain names" -}}
-{{- end -}}
-{{- end -}}
-{{- if or (ne $embeddedAuth.adminSecretName "osmo-embedded-dex-admin") (ne $embeddedAuth.oauthSecretName "osmo-embedded-dex-oauth") -}}
-{{- fail "embedded Dex Secret names are chart-managed and cannot be changed" -}}
+{{- range $value := list $embeddedAuth.browserClientId $embeddedAuth.cliClientId -}}
+{{- if not $value -}}{{- fail "embedded Dex client values must be non-empty" -}}{{- end -}}
 {{- end -}}
 {{- if eq $embeddedAuth.browserClientId $embeddedAuth.cliClientId -}}
 {{- fail "embedded Dex browserClientId and cliClientId must be different" -}}
@@ -125,6 +111,7 @@
 {{- $expectedDexSecurityContext := dict "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) "readOnlyRootFilesystem" true "runAsNonRoot" true "runAsUser" 1001 -}}
 {{- $expectedDexVolumes := list (dict "name" "tmp" "emptyDir" dict) -}}
 {{- $expectedDexVolumeMounts := list (dict "name" "tmp" "mountPath" "/tmp") -}}
+{{- $expectedDexEnvFrom := list (dict "secretRef" (dict "name" "osmo-embedded-dex-password-hashes")) -}}
 {{- if or
       (ne (int .Values.dex.replicaCount) 1)
       (ne (toJson .Values.dex.image) (toJson $expectedDexImage))
@@ -135,7 +122,7 @@
       .Values.dex.config
       (ne (toJson .Values.dex.volumes) (toJson $expectedDexVolumes))
       (ne (toJson .Values.dex.volumeMounts) (toJson $expectedDexVolumeMounts))
-      .Values.dex.envFrom
+      (ne (toJson .Values.dex.envFrom) (toJson $expectedDexEnvFrom))
       .Values.dex.env
       .Values.dex.commonLabels
       .Values.dex.deploymentAnnotations
@@ -157,7 +144,6 @@
 {{- fail "embedded Dex security-sensitive dependency values are chart-managed" -}}
 {{- end -}}
 {{- $expectedDexEnvVars := list
-      (dict "name" "OSMO_DEX_ADMIN_PASSWORD_HASH" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-admin" "key" "password-hash")))
       (dict "name" "OSMO_DEX_BROWSER_CLIENT_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-oauth" "key" "browser-client-secret"))) -}}
 {{- if not (deepEqual .Values.dex.envVars $expectedDexEnvVars) -}}
 {{- fail "embedded Dex environment Secret references are chart-managed" -}}
@@ -243,6 +229,99 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- $bootstrapUsernames := dict -}}
+{{- $bootstrapDexEmails := dict -}}
+{{- $bootstrapSecretNames := dict -}}
+{{- $bootstrapBackendSecretNames := dict -}}
+{{- if eq .Values.authentication.provider "embeddedDex" -}}
+{{- $_ := set $bootstrapSecretNames "osmo-embedded-dex-oauth" true -}}
+{{- $_ := set $bootstrapSecretNames "osmo-embedded-dex-password-hashes" true -}}
+{{- end -}}
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
+{{- if $identity.enabled -}}
+{{- if or (gt (len $identityID) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $identityID)) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s must use a DNS-compatible key of at most 63 characters" $identityID) -}}
+{{- end -}}
+{{- if hasKey $bootstrapUsernames $identity.username -}}
+{{- fail (printf "bootstrap identity username %q is used more than once" $identity.username) -}}
+{{- end -}}
+{{- $_ := set $bootstrapUsernames $identity.username true -}}
+{{- if eq $identity.kind "user" -}}
+{{- range $role := $identity.roles -}}
+{{- if not (hasKey $runtimeRoles $role) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s role %q is not defined in the effective configuration" $identityID $role) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $dex := $identity.dex | default dict -}}
+{{- $dexEnabled := dig "enabled" false $dex -}}
+{{- if eq $identity.kind "backend" -}}
+{{- if not (deepEqual $identity.roles (list "osmo-backend")) -}}
+{{- fail "backend bootstrap identities must have exactly the osmo-backend role" -}}
+{{- end -}}
+{{- if $dexEnabled -}}
+{{- fail (printf "authentication.bootstrap.identities.%s cannot enable Dex for a backend identity" $identityID) -}}
+{{- end -}}
+{{- if eq (len $identity.tokens) 0 -}}
+{{- fail (printf "authentication.bootstrap.identities.%s backend identity requires at least one token" $identityID) -}}
+{{- end -}}
+{{- else if and (not $dexEnabled) (eq (len $identity.tokens) 0) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s user requires Dex or at least one token" $identityID) -}}
+{{- end -}}
+{{- if $dexEnabled -}}
+{{- if gt (len $identityID) 45 -}}
+{{- fail (printf "authentication.bootstrap.identities.%s is too long for a derived Dex password Secret name" $identityID) -}}
+{{- end -}}
+{{- $passwordSecretName := include "osmo.bootstrap.dexPasswordSecretName" $identityID -}}
+{{- if hasKey $bootstrapSecretNames $passwordSecretName -}}
+{{- fail (printf "bootstrap credential Secret %q is used more than once" $passwordSecretName) -}}
+{{- end -}}
+{{- $_ := set $bootstrapSecretNames $passwordSecretName true -}}
+{{- if ne $.Values.authentication.provider "embeddedDex" -}}
+{{- fail (printf "authentication.bootstrap.identities.%s cannot enable Dex unless authentication.provider=embeddedDex" $identityID) -}}
+{{- end -}}
+{{- $email := get $dex "email" -}}
+{{- if not (regexMatch "^[^@[:space:]]+@[^@[:space:]]+$" $email) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s.dex.email must be a valid email address" $identityID) -}}
+{{- end -}}
+{{- if hasKey $bootstrapDexEmails $email -}}
+{{- fail (printf "embedded Dex email %q is used more than once" $email) -}}
+{{- end -}}
+{{- $_ := set $bootstrapDexEmails $email true -}}
+{{- end -}}
+{{- range $tokenName, $token := $identity.tokens -}}
+{{- if or (gt (len $tokenName) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $tokenName)) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s.tokens.%s must use a DNS-compatible key of at most 63 characters" $identityID $tokenName) -}}
+{{- end -}}
+{{- $managed := hasKey $token "managedSecret" -}}
+{{- $existing := hasKey $token "existingSecret" -}}
+{{- if eq $managed $existing -}}
+{{- fail (printf "authentication.bootstrap.identities.%s.tokens.%s must select exactly one of managedSecret or existingSecret" $identityID $tokenName) -}}
+{{- end -}}
+{{- $secretSource := ternary $token.managedSecret $token.existingSecret $managed -}}
+{{- $secretName := $secretSource.name -}}
+{{- if or (gt (len $secretName) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $secretName)) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s.tokens.%s Secret name must be a valid DNS-1123 subdomain" $identityID $tokenName) -}}
+{{- end -}}
+{{- if hasKey $bootstrapSecretNames $secretName -}}
+{{- fail (printf "bootstrap credential Secret %q is used more than once" $secretName) -}}
+{{- end -}}
+{{- $_ := set $bootstrapSecretNames $secretName true -}}
+{{- if eq $identity.kind "backend" -}}
+{{- $_ := set $bootstrapBackendSecretNames $secretName true -}}
+{{- end -}}
+{{- if and $existing (hasKey $token.existingSecret "key") (not (regexMatch "^[A-Za-z0-9._-]+$" $token.existingSecret.key)) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s.tokens.%s existing Secret key is invalid" $identityID $tokenName) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.planes.compute.enabled .Values.planes.control.enabled -}}
+{{- $computeSecretName := .Values.compute.authentication.existingSecret -}}
+{{- if not (hasKey $bootstrapBackendSecretNames $computeSecretName) -}}
+{{- fail "compute.authentication.existingSecret must match a configured backend bootstrap identity token Secret in a converged release" -}}
+{{- end -}}
+{{- end -}}
 {{- if and
   .Values.secrets.serviceAuth.bootstrap.enabled
   .Values.secrets.serviceAuth.migration.enabled -}}
@@ -252,43 +331,6 @@
   .Values.secrets.serviceAuth.migration.enabled
   .Values.services.api.enabled -}}
 {{- fail "services.api.enabled must be false during service-auth migration so the 6.4 ConfigMap rollout remains quiesced" -}}
-{{- end -}}
-{{- if and .Values.planes.compute.enabled (not .Values.secrets.backendApiTokens.enabled) -}}
-{{- fail "secrets.backendApiTokens.enabled must be true when both planes are enabled" -}}
-{{- end -}}
-{{- if .Values.secrets.backendApiTokens.enabled -}}
-{{- if not .Values.secrets.backendApiTokens.credentials -}}
-{{- fail "secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled" -}}
-{{- end -}}
-{{- $backendTokenCredentialNames := dict -}}
-{{- $backendTokenSecretNames := dict -}}
-{{- range .Values.secrets.backendApiTokens.credentials -}}
-{{- $credentialName := required "backend API token credential name is required" .name -}}
-{{- if or
-  (gt (len $credentialName) 49)
-  (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $credentialName)) -}}
-{{- fail (printf "invalid backend API token credential name %q" $credentialName) -}}
-{{- end -}}
-{{- if hasKey $backendTokenCredentialNames $credentialName -}}
-{{- fail (printf "duplicate backend API token credential name %q" $credentialName) -}}
-{{- end -}}
-{{- $_ := set $backendTokenCredentialNames $credentialName true -}}
-{{- $secretName := include "osmo.backendApiTokenSecretName" . -}}
-{{- if or
-  (gt (len $secretName) 253)
-  (not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $secretName)) -}}
-{{- fail (printf "invalid backend API token Secret name %q" $secretName) -}}
-{{- end -}}
-{{- if hasKey $backendTokenSecretNames $secretName -}}
-{{- fail (printf "duplicate backend API token Secret name %q" $secretName) -}}
-{{- end -}}
-{{- $_ := set $backendTokenSecretNames $secretName true -}}
-{{- end -}}
-{{- if and
-  .Values.planes.compute.enabled
-  (not (hasKey $backendTokenSecretNames .Values.compute.authentication.existingSecret)) -}}
-{{- fail "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release" -}}
-{{- end -}}
 {{- end -}}
 {{- $objectStorageCredentialsKey := .Values.secrets.objectStorage.keys.credentials -}}
 {{- if or
@@ -532,9 +574,6 @@
 {{- if and (ne .Values.gateway.tls.generated.caRotation.phase "stable") (not .Values.gateway.tls.generated.caRotation.freezeHpas) -}}
 {{- fail "gateway.tls.generated.caRotation.freezeHpas must be true during CA rotation" -}}
 {{- end -}}
-{{- end -}}
-{{- if .Values.secrets.defaultAdmin.generate -}}
-{{- fail "secrets: generated Secrets are not implemented; configure existingSecret" -}}
 {{- end -}}
 {{- if or (hasKey .Values.secrets "oauthClientSecret") (hasKey .Values.secrets "oauthCookieSecret") -}}
 {{- fail "secrets.oauthClientSecret and secrets.oauthCookieSecret are no longer supported; configure authentication.externalOidc Secret references" -}}
