@@ -28,9 +28,7 @@ from src.tests.common.core import network, utils
 
 logger = logging.getLogger(__name__)
 
-# TODO: Switch the localstack image
-#   https://blog.localstack.cloud/localstack-for-aws-release-2026-03-0/
-S3_IMAGE = f'{utils.DOCKER_HUB_REGISTRY}/localstack/localstack:s3-community-archive'
+S3_IMAGE = f'{utils.DOCKER_HUB_REGISTRY}/ministackorg/ministack:1.4.16'
 S3_NAME = f's3-{labels.SESSION_ID}'
 S3_PORT = 4566
 S3_REGION = 'us-east-1'
