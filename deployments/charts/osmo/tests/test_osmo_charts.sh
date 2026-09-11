@@ -768,6 +768,8 @@ test_control_umbrella() {
         "prefix: /dex/"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "claim_name: name"
+    require_occurrences "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "header_name: x-auth-request-preferred-username" 1
     require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         "user_roles:"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
@@ -927,6 +929,8 @@ test_control_umbrella() {
         'exact: "idp.example.com"'
     require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
         "claim_name: sub"
+    require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "header_name: x-auth-request-preferred-username"
     require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
         "table.insert(roles, 'osmo-admin')"
 

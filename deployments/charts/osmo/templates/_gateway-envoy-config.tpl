@@ -50,7 +50,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $dexIssuer := include "osmo.authentication.issuer" . }}
 {{- $dexJwks := "http://osmo-dex:5556/dex/keys" }}
 {{- $jwtProviders = concat $jwtProviders (list
-      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "name" "roles_claim" "roles" "admin_subject" "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs" "cluster" "embedded-dex")) }}
+      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "name" "browser_user_claim" "name" "roles_claim" "roles" "admin_subject" "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs" "cluster" "embedded-dex")) }}
 {{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/dex/")) }}
 {{- else }}
 {{- $external := .Values.authentication.externalOidc }}
@@ -773,6 +773,10 @@ data:
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
                       header_name: {{$envoy.jwt.userHeader}}
+                    {{- if hasKey $provider "browser_user_claim" }}
+                    - claim_name: {{$provider.browser_user_claim}}
+                      header_name: x-auth-request-preferred-username
+                    {{- end }}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
