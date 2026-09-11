@@ -38,10 +38,6 @@ creates the control services, gateway, backend listener and worker, and
 workflow configuration in the ``osmo`` namespace. Workflow Pods also run in
 that namespace unless ``compute.workloadNamespace`` selects a different one.
 
-.. image:: deploy_single_plane.svg
-   :align: center
-   :width: 80%
-
 This topology has fewer moving parts than split-plane deployment and avoids
 cross-cluster backend credentials and routing. It also creates a shared cluster
 failure, security, capacity, maintenance, and upgrade boundary. A busy workflow
