@@ -5552,18 +5552,49 @@ EOF
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-mcp"
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-gateway-authz"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "path: /mcp"
-    # FastMCP serves its own metadata now, so the gateway forwards these
-    # paths instead of synthesising a document, and publishes the OAuth
-    # endpoints under /mcp with the prefix rewritten off before forwarding.
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-oauth"
-    # Anchored: a fixed-string check for "prefix_rewrite: /" also matches the
-    # authorization-server rewrite below it, and would pass with this one gone.
-    require_matches "$TEST_DIRECTORY/osmo-mcp.yaml" "prefix_rewrite: /$"
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "name: mcp-authorization-server-metadata"
-    # The /mcp/ prefix would otherwise publish the container's health routes.
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-health-not-public"
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "status: 404"
+    local route_name route_path route_target route_methods
+    while IFS=' ' read -r route_name route_path route_target route_methods; do
+        awk -v route="mcp-$route_name" '
+            /^                - name:/ { keep = ($3 == route) }
+            keep { print }
+        ' "$TEST_DIRECTORY/osmo-mcp.yaml" >"$TEST_DIRECTORY/mcp-route.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "path: $route_path"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'name: ":method"'
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "regex: \"$route_methods\""
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "prefix_rewrite: $route_target"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'cluster: osmo-mcp'
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'timeout: 45s'
+        require_occurrences "$TEST_DIRECTORY/mcp-route.yaml" 'disabled: true' 2
+    done <<'MCP_ROUTES'
+protected-resource-metadata /.well-known/oauth-protected-resource/mcp /.well-known/oauth-protected-resource/mcp GET|HEAD|OPTIONS
+authorization-server-metadata /.well-known/oauth-authorization-server/mcp /.well-known/oauth-authorization-server GET|HEAD|OPTIONS
+authorize /mcp/authorize /authorize GET|HEAD|POST
+consent /mcp/consent /consent GET|HEAD|POST
+callback /mcp/auth/callback /auth/callback GET|HEAD
+token /mcp/token /token POST|OPTIONS
+register /mcp/register /register POST|OPTIONS
+revoke /mcp/revoke /revoke POST|OPTIONS
+MCP_ROUTES
+    require_not_contains "$TEST_DIRECTORY/osmo-mcp.yaml" 'name: mcp-oauth'
+    awk '
+        /name: mcp-revoke$/ { allowed = NR }
+        /name: mcp-reject-0$/ { rejected = NR }
+        /prefix: \/api\/router$/ { api = NR }
+        END { exit !(allowed && rejected > allowed && api > rejected) }
+    ' "$TEST_DIRECTORY/osmo-mcp.yaml" || fail 'MCP routes must precede rejections and API routes'
+    local rejected_path rejected_index=0
+    for rejected_path in /mcp/ /.well-known/oauth-protected-resource/mcp \
+            /.well-known/oauth-authorization-server/mcp; do
+        awk -v route="mcp-reject-$rejected_index" '
+            /^                - name:/ { keep = ($3 == route) }
+            keep { print }
+        ' "$TEST_DIRECTORY/osmo-mcp.yaml" >"$TEST_DIRECTORY/mcp-reject.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-reject.yaml" "prefix: $rejected_path"
+        require_contains "$TEST_DIRECTORY/mcp-reject.yaml" 'status: 404'
+        require_not_contains "$TEST_DIRECTORY/mcp-reject.yaml" 'cluster:'
+        require_occurrences "$TEST_DIRECTORY/mcp-reject.yaml" 'disabled: true' 2
+        rejected_index=$((rejected_index + 1))
+    done
     # The runtime cannot start without these.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_RESOURCE_URL"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
@@ -5617,6 +5648,101 @@ EOF
         '/etc/osmo/mcp-valkey'
     require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
         'secretName: "external-valkey-secret"'
+
+    helm_template mcp-mounted "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set services.mcp.replicas=2 \
+        --set-string services.mcp.oidcProxy.existingSecret.name= \
+        --set-string services.mcp.oidcProxy.oidc.clientSecretFile=/credentials/client-secret \
+        --set-json 'services.mcp.pod.extraVolumes=[{"name":"credentials","secret":{"secretName":"external-oidc"}}]' \
+        --set-json 'services.mcp.extraVolumeMounts=[{"name":"credentials","mountPath":"/credentials","readOnly":true}]' \
+        >"$TEST_DIRECTORY/mcp-mounted.yaml"
+    resource_document "$TEST_DIRECTORY/mcp-mounted.yaml" Deployment \
+        mcp-mounted-osmo-mcp >"$TEST_DIRECTORY/mcp-mounted-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'replicas: 2'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'mountPath: /credentials'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'secretName: external-oidc'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'value: "/credentials/client-secret"'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'automountServiceAccountToken: false'
+
+    helm_template mcp-ui "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set secrets.oauthClientSecret.existingSecret=ui-client \
+        --set secrets.oauthCookieSecret.existingSecret=ui-cookie \
+        >"$TEST_DIRECTORY/mcp-ui.yaml"
+    awk '
+        /- name: ext-authz-oauth2-proxy$/ { keep = 1 }
+        keep { print }
+        keep && /extension_config:/ { exit }
+    ' "$TEST_DIRECTORY/mcp-ui.yaml" >"$TEST_DIRECTORY/mcp-ui-matcher.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-ui-matcher.yaml" \
+        'regex: "^(/mcp([/?].*)?|/[.]well-known/oauth-(protected-resource|authorization-server)/mcp.*)$"'
+    require_contains "$TEST_DIRECTORY/mcp-ui-matcher.yaml" 'name: skip'
+
+    helm_template mcp-url-port "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set-string services.mcp.resourceUrl=https://osmo.example.com:65535/mcp \
+        --set-string 'services.mcp.allowedOrigins[0]=http://[::1]:6274' \
+        --set-string services.mcp.oidcProxy.oidc.configUrl=https://issuer.example.com/tenant/:0/discovery \
+        --set-string services.mcp.oidcProxy.oidc.accessTokenIssuer=https://issuer.example.com \
+        >"$TEST_DIRECTORY/mcp-url-port.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-url-port.yaml" 'https://osmo.example.com:65535/mcp'
+
+    local invalid_mcp_value
+    while IFS= read -r invalid_mcp_value; do
+        if helm_template mcp-invalid "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set "$invalid_mcp_value" >"$TEST_DIRECTORY/mcp-invalid.out" 2>&1; then
+            fail "expected invalid MCP setting to fail: $invalid_mcp_value"
+        fi
+        require_contains "$TEST_DIRECTORY/mcp-invalid.out" 'Error:'
+    done <<'MCP_INVALID_VALUES'
+services.mcp.unknown=true
+services.mcp.oidcProxy.enabled=false
+services.mcp.oidcProxy.oidc.audience=old
+services.mcp.oidcProxy.redis.host=old
+services.mcp.oidcProxy.existingSecret.unknown=true
+services.mcp.resourceUrl=https://osmo.example.com:0/mcp
+services.mcp.resourceUrl=https://osmo.example.com:65536/mcp
+services.mcp.resourceUrl=https://user@osmo.example.com/mcp
+services.mcp.oidcProxy.oidc.configUrl=http://issuer.example.com/.well-known/openid-configuration
+services.mcp.oidcProxy.oidc.configUrl=https://issuer.example.com:99999/.well-known/openid-configuration
+services.mcp.oidcProxy.oidc.accessTokenIssuer=https://issuer.example.com:0
+services.mcp.oidcProxy.oidc.accessTokenRequiredScope=two scopes
+services.mcp.oidcProxy.redis.keyPrefix=two prefixes
+services.mcp.oidcProxy.redis.dbNumber=16
+services.mcp.oidcProxy.accessTokenTtlSeconds=59
+services.mcp.oidcProxy.refreshTokenTtlSeconds=604801
+services.mcp.oidcProxy.upstreamTimeoutSeconds=61
+services.mcp.oidcProxy.redis.connectTimeoutSeconds=31
+services.mcp.oidcProxy.redis.operationTimeoutSeconds=0
+services.mcp.requestTimeoutSeconds=61
+services.mcp.allowedOrigins[0]=https://host:65536
+services.mcp.allowedOrigins[0]=http://[::1]:0
+services.mcp.allowedOrigins[0]=http://[::1]:65536
+services.mcp.allowedOrigins[0]=https://user@host
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/../credentials
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/osmo/mcp-valkey
+services.mcp.oidcProxy.existingSecret.clientSecretKey=../secret
+services.mcp.oidcProxy.existingSecret.clientSecretKey=..
+services.mcp.pod.extraVolumes[0].name=mcp-valkey
+services.mcp.extraVolumeMounts[0].name=missing,services.mcp.extraVolumeMounts[0].mountPath=/credentials
+services.mcp.extraVolumeMounts[0].name=mcp-valkey,services.mcp.extraVolumeMounts[0].mountPath=/etc
+services.mcp.extraVolumeMounts[0].name=mcp-valkey,services.mcp.extraVolumeMounts[0].mountPath=/etc/osmo/mcp-valkey/child
+services.mcp.extraEnv[0].name=OSMO_MCP_AUTH_RESOURCE_URL,services.mcp.extraEnv[0].value=override
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/mcp
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/mcp/child
+gateway.envoy.extraSkipAuthPaths[0]=/mcp
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-protected-resource/mcp
+gateway.authz.enabled=false
+gateway.envoy.enabled=false
+MCP_INVALID_VALUES
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \

@@ -200,6 +200,47 @@ configuration. Use a production profile with managed credentials, TLS,
 authorization, backups, suitable resource sizing, and HA dependencies for
 long-lived environments.
 
+## MCP
+
+MCP uses an in-process OIDC proxy. Enable Gateway JWT authentication and
+authorization, then provide the public resource URL, OIDC discovery URL,
+client ID and an existing client Secret:
+
+```yaml
+services:
+  mcp:
+    enabled: true
+    resourceUrl: https://osmo.example.com/mcp
+    oidcProxy:
+      oidc:
+        configUrl: https://issuer.example.com/.well-known/openid-configuration
+        clientId: example-mcp-client
+      existingSecret:
+        name: mcp-oidc
+```
+
+The Secret's default key is `client-secret`. MCP inherits the effective
+external or embedded Valkey connection and password Secret; set
+`existingSecret.redisPasswordKey` only for a combined OIDC/Valkey Secret.
+For a custom file mount, leave `existingSecret.name` empty and configure
+`oidc.clientSecretFile`, `services.mcp.extraVolumeMounts` and
+`services.mcp.pod.extraVolumes`. Never put credential contents in values.
+Multiple replicas must share the same OIDC Secret, Valkey DB and key prefix.
+
+Register the upstream callback as `https://osmo.example.com/mcp/auth/callback`
+and the resource scope as `https://osmo.example.com/mcp/access_as_user`.
+Use a JWT provider matching the upstream access-token issuer. Set
+`oidc.accessTokenIssuer` when that issuer differs from discovery.
+Pin a compatible published MCP image using the standard component image fields.
+
+After deployment, connect an OAuth-capable client to `/mcp` and complete browser
+login. Verify `osmo_health`, `osmo_get_profile`, denied access for a restricted
+user, and refresh after token expiry. Discovery is public at the exact paths
+`/.well-known/oauth-authorization-server/mcp` and
+`/.well-known/oauth-protected-resource/mcp`. OAuth routes allow only their
+supported methods; unknown `/mcp/` paths, including health, return 404.
+Tool calls still pass through normal Gateway API authorization.
+
 ## Single-plane external dependencies
 
 `profiles/single-plane.yaml` is a provider-neutral, converged base overlay for
