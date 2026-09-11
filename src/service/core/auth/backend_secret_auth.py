@@ -394,8 +394,9 @@ class BootstrapSecretAuthenticator:
         ]] = []
         for token_spec in self._token_specs:
             try:
-                generation_directory = BackendSecretAuthenticator._resolve_generation_directory(
-                    token_spec.directory)
+                generation_directory = (
+                    BackendSecretAuthenticator._resolve_generation_directory(  # pylint: disable=protected-access
+                        token_spec.directory))
             except BackendTokenConfigurationError as projection_error:
                 generation_directory = None
                 projections.append((
@@ -434,7 +435,7 @@ class BootstrapSecretAuthenticator:
                 for key, required in (
                         (token_spec.current_key, True),
                         (_PREVIOUS_TOKEN_KEY, False)):
-                    token = BackendSecretAuthenticator._read_token(
+                    token = BackendSecretAuthenticator._read_token(  # pylint: disable=protected-access
                         generation_directory,
                         f'{token_spec.identity_id}/{token_spec.token_name}',
                         key,
