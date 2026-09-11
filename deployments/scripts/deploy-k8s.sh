@@ -971,7 +971,6 @@ service_set_flags() {
 
     # UI talks to the API through the gateway (which injects auth headers in
     # minimal mode and is the only HTTP entry point when gateway.enabled=true).
-    # Matches the docs minimal-deploy reference (deploy_minimal.rst:306).
     sets+=" --set services.ui.apiHostname=osmo-gateway.${OSMO_NAMESPACE}.svc.cluster.local:80"
 
     # services.configs.* — namespace and image-tag substitutions for the
@@ -1328,7 +1327,7 @@ print_access_instructions() {
     fi
 
     echo ""
-    echo "Documentation: https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_minimal.html"
+    echo "Documentation: https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_single_plane.html"
     echo "=============================================================================="
 }
 

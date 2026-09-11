@@ -1086,6 +1086,8 @@ test_control_umbrella() {
         "osmo-backend-listener"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
         "osmo-backend-worker"
+    require_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Job \
+        "osmo-backend-token-bootstrap"
     require_no_resource_with_hash_suffix \
         "$TEST_DIRECTORY/single-plane-azure.yaml" Job \
         "service-auth-bootstrap"
