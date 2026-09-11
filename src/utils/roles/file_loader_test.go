@@ -115,6 +115,39 @@ pools: {}
 	}
 }
 
+func TestFileRoleStoreBuildsTrustedInternalSyncPlan(t *testing.T) {
+	path := writeRoleConfig(t, `
+roles:
+  admin:
+    description: admin
+    policies: []
+    external_roles: [unrelated-idp-group]
+  manual:
+    description: manual
+    policies: []
+    sync_mode: ignore
+pools: {}
+`)
+	store := NewFileRoleStore(path, slog.Default())
+	if err := store.Load(); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := store.BuildTrustedSyncPlan([]string{"admin", "undefined"})
+	if got := strings.Join(plan.MatchedRoles, ","); got != "admin" {
+		t.Fatalf("matched roles = %q, want admin", got)
+	}
+	if got := strings.Join(plan.ForceRoles, ","); got != "admin,manual" {
+		t.Fatalf("force roles = %q, want admin,manual", got)
+	}
+	if got := strings.Join(plan.IDPEligibleRoles, ","); got != "admin" {
+		t.Fatalf("IDP-eligible roles = %q, want admin", got)
+	}
+	if got := strings.Join(plan.DefinedRoles, ","); got != "admin,manual" {
+		t.Fatalf("defined roles = %q, want admin,manual", got)
+	}
+}
+
 func TestFileRoleStoreRejectsIncompleteOrInvalidAuthority(t *testing.T) {
 	tests := map[string]string{
 		"missing roles": `pools: {default: {}}`,

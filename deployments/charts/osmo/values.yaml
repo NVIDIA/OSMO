@@ -61,6 +61,8 @@ compute:
 # requires a compatible CloudNativePG operator to be installed first. Embedded
 # Valkey is managed directly by this release.
 embeddedDependencies:
+  dex:
+    enabled: true
   postgresql:
     enabled: true
   valkey:
@@ -196,8 +198,82 @@ logging:
   logFormat: text
 
 # Public OSMO URL used in generated service configuration and redirects.
-# Include the scheme, for example `https://osmo.example.com`.
-externalUrl: http://osmo-gateway
+# Set an externally reachable HTTP or HTTPS origin without a path, for example
+# `https://osmo.example.com` or the development-only `http://127.0.0.1:8080`.
+externalUrl: ''
+
+# Control-plane authentication is mandatory. Embedded Dex is the default;
+# externalOidc keeps integration with an operator-managed identity provider.
+authentication:
+  provider: embeddedDex
+  # Bootstrap identities are keyed maps so values overlays can append users,
+  # backend operators, and credentials without replacing chart defaults.
+  bootstrap:
+    activeDeadlineSeconds: 300
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    identities:
+      admin:
+        enabled: true
+        kind: user
+        username: admin
+        roles:
+        - osmo-admin
+        dex:
+          enabled: true
+          email: admin@osmo.local
+        tokens: {}
+      backend-operator-default:
+        enabled: true
+        kind: backend
+        username: backend-operator-default
+        roles:
+        - osmo-backend
+        tokens:
+          primary:
+            managedSecret:
+              name: osmo-backend-token
+  embeddedDex:
+    browserClientId: osmo-browser
+    cliClientId: osmo-cli
+    # Bounds how long Envoy can retain a signing key lost with memory storage.
+    jwksCacheDurationSeconds: 30
+    expiry:
+      deviceRequests: 5m
+      signingKeys: 6h
+      idTokens: 24h
+      refreshTokens:
+        reuseInterval: 3s
+        validIfNotUsedFor: 2160h
+        absoluteLifetime: 3960h
+  externalOidc:
+    issuer: ''
+    browserClientId: ''
+    cliClientId: ''
+    authorizationEndpoint: ''
+    tokenEndpoint: ''
+    deviceEndpoint: ''
+    jwksUri: ''
+    jwksHost: ''
+    userClaim: sub
+    rolesClaim: roles
+    scopes:
+    - openid
+    - email
+    - profile
+    logoutEndpoint: ''
+    browserClientSecret:
+      existingSecret: ''
+      key: client_secret
+      rolloutNonce: ''
+    cookieSecret:
+      existingSecret: ''
+      key: cookie_secret
+      rolloutNonce: ''
 
 # Optional Kubernetes Ingress for the OSMO gateway Service.
 ingress:
@@ -322,33 +398,6 @@ secrets:
       apps:
         name: ''
         key: ''
-  # Backend compute-plane authentication. Each credential selects exactly one
-  # Kubernetes Secret source. Managed Secrets are generated and retained by a
-  # short-lived Helm hook without placing token material in rendered manifests
-  # or Helm release state; existing Secrets remain externally managed.
-  # Every Secret contains `token` and may contain `previous-token` for rotation.
-  backendApiTokens:
-    enabled: true
-    bootstrap:
-      image:
-        registry: ''
-        repository: alpine/k8s
-        tag: 1.30.14
-        digest: ''
-        pullPolicy: IfNotPresent
-    # Change this non-secret value to roll the API after an externally managed
-    # token Secret changes.
-    rolloutNonce: ''
-    credentials:
-    - name: default
-      managedSecret:
-        name: osmo-backend-token
-    # - name: default
-    #   existingSecret:
-    #     name: osmo-backend-token
-    # - name: local
-    #   managedSecret:
-    #     name: osmo-backend-token-local
   # Master encryption key configuration mounted into OSMO services.
   masterEncryptionKey:
     # OSMO-managed lifecycle Jobs create and rotate the referenced Secret.
@@ -405,31 +454,6 @@ secrets:
       nodeSelector: {}
       tolerations: []
       resources: {}
-  # Optional password used to bootstrap the named administrator account.
-  defaultAdmin:
-    generate: false
-    existingSecret: ''
-    rolloutNonce: ''
-    username: admin
-    keys:
-      password: password
-  # OAuth client Secret consumed only when the OAuth2 proxy is enabled.
-  oauthClientSecret:
-    existingSecret: oauth2-proxy-secrets
-    rolloutNonce: ''
-    keys:
-      value: client_secret
-  # OAuth cookie encryption Secret. This may be owned and rotated separately
-  # from the OAuth client Secret.
-  oauthCookieSecret:
-    # Helm generation is for direct-Helm development/test installs only.
-    generate: false
-    existingSecret: oauth2-proxy-secrets
-    rolloutNonce: ''
-    keys:
-      value: cookie_secret
-
-
 # Directly owned OSMO services and workload components. Each component owns its
 # image, scaling, probes, resources, environment overrides, and pod-level settings. Internal
 # commands, ports, Service names, and required connection arguments remain
@@ -713,6 +737,7 @@ services:
         name: ''
         mountPath: /etc/osmo/mcp-auth
         clientSecretKey: client-secret
+        rolloutNonce: ''
         # Optional compatibility mode for a combined OIDC and Redis Secret.
         # Empty mounts secrets.valkey.keys.password from the effective Valkey
         # Secret at /etc/osmo/mcp-valkey instead.
@@ -1019,14 +1044,6 @@ services:
     hostname: ''
     clientInstallUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
     disableTaskMetrics: false
-    auth:
-      enabled: false
-      deviceEndpoint: ''
-      deviceClientId: ''
-      browserEndpoint: ''
-      browserClientId: ''
-      tokenEndpoint: ''
-      logoutEndpoint: ''
     service:
       labels: {}
       annotations: {}
@@ -1355,10 +1372,6 @@ gateway:
       labels: {}
       annotations: {}
       unhealthyPodEvictionPolicy: IfHealthyBudget
-    defaultIdentity:
-      user: testuser
-      roles: osmo-admin
-      allowedPools: default
     service:
       type: NodePort
       port: 80
@@ -1416,11 +1429,12 @@ gateway:
       port: ''
     jwt:
       userHeader: x-osmo-user
-      # WARNING: Enabling this permits requests without a JWT. Use it only for
-      # trusted, non-public development access with an intentional fallback
-      # identity; never expose such a gateway to untrusted networks.
-      allowMissing: false
-      providers: []
+      providers:
+      - issuer: osmo
+        audience: osmo
+        jwks_uri: http://osmo-api/api/auth/keys
+        user_claim: unique_name
+        cluster: osmo-api-jwks
       additionalProviders: []
     skipAuthPaths:
     - /api/version
@@ -1487,10 +1501,10 @@ gateway:
       host: ''
       port: 80
 
-  # Optional OIDC login/session proxy. Enable it only after configuring an
-  # identity provider and the required existing Secrets.
+  # OIDC login/session proxy. Authentication is mandatory for control-plane
+  # installations and this component cannot be disabled there.
   oauth2Proxy:
-    enabled: false
+    enabled: true
     autoscaling:
       enabled: false
       minReplicas: 1
@@ -1563,9 +1577,10 @@ gateway:
       extraContainers: []
       labels: {}
 
-  # Optional external-authorization service backed by OSMO role policies.
+  # External-authorization service backed by OSMO role policies. This
+  # component cannot be disabled for control-plane installations.
   authz:
-    enabled: false
+    enabled: true
     # Keep authorization available while replacements load their role snapshot.
     # Role changes reach every replica only after the rolling update completes.
     deploymentStrategy:
@@ -2058,6 +2073,72 @@ valkey:
     persistentVolumeClaimRetentionPolicy:
       whenDeleted: Retain
       whenScaled: Retain
+  podDisruptionBudget:
+    enabled: false
+
+# Official Dex dependency configuration. OSMO owns the configuration Secret,
+# credential lifecycle, and tokenless ServiceAccount. Memory storage avoids
+# Dex CRDs and Kubernetes API permissions; Dex restarts invalidate sessions
+# and signing keys.
+dex:
+  fullnameOverride: osmo-dex
+  image:
+    repository: ghcr.io/dexidp/dex
+    tag: v2.44.0
+    digest: sha256:5d0656fce7d453c0e3b2706abf40c0d0ce5b371fb0b73b3cf714d05f35fa5f86
+    pullPolicy: IfNotPresent
+  configSecret:
+    create: false
+    name: osmo-dex-config
+  serviceAccount:
+    create: false
+    name: osmo-dex
+  rbac:
+    create: false
+    createClusterScoped: false
+  envFrom:
+  - secretRef:
+      name: osmo-embedded-dex-password-hashes
+  envVars:
+  - name: OSMO_DEX_BROWSER_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: osmo-embedded-dex-oauth
+        key: browser-client-secret
+  volumes:
+  - name: tmp
+    emptyDir: {}
+  volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  httpRoute:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
   podDisruptionBudget:
     enabled: false
 

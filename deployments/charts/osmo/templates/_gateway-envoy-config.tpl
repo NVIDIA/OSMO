@@ -46,6 +46,17 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
+{{- if eq .Values.authentication.provider "embeddedDex" }}
+{{- $dexIssuer := include "osmo.authentication.issuer" . }}
+{{- $dexJwks := "http://osmo-dex:5556/dex/keys" }}
+{{- $jwtProviders = concat $jwtProviders (list
+      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "name" "browser_user_claim" "name" "roles_claim" "roles" "embedded" true "cluster" "embedded-dex")) }}
+{{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/dex/")) }}
+{{- else }}
+{{- $external := .Values.authentication.externalOidc }}
+{{- $jwtProviders = concat $jwtProviders (list
+      (dict "issuer" $external.issuer "audiences" (list $external.browserClientId $external.cliClientId) "jwks_uri" $external.jwksUri "user_claim" $external.userClaim "roles_claim" $external.rolesClaim "cluster" "external-idp")) }}
+{{- end }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
 {{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}
@@ -233,13 +244,12 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
-              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $jwtProviders }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
+              - x-osmo-identity-source
               - x-osmo-workflow-id
               - x-osmo-allowed-pools
-              {{- end }}
               # Client-supplied x-forwarded-host is not trusted. The
               # osmo-router route re-adds it from :authority after this
               # sanitization step.
@@ -248,40 +258,23 @@ data:
               virtual_hosts:
               - name: gateway
                 domains: ["*"]
-                {{- /* Default identity for minimal/demo deployments without
-                       oauth2Proxy + authz. Uses Envoy's built-in
-                       request_headers_to_add with ADD_IF_ABSENT so that when
-                       authz IS enabled and sets these headers via ext_authz
-                       response, the real values win.
-                */ -}}
-                {{- with $envoy.defaultIdentity }}
-                {{- if .user }}
-                request_headers_to_add:
-                - header:
-                    key: x-osmo-user
-                    value: {{ .user | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- if .roles }}
-                - header:
-                    key: x-osmo-roles
-                    value: {{ .roles | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- end }}
-                {{- if .allowedPools }}
-                - header:
-                    key: x-osmo-allowed-pools
-                    value: {{ .allowedPools | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- end }}
-                {{- end }}
-                {{- end }}
                 routes:
+                {{- if eq .Values.authentication.provider "embeddedDex" }}
+                - match:
+                    prefix: /dex/
+                  route:
+                    cluster: embedded-dex
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                {{- end }}
                 {{- if $gw.oauth2Proxy.enabled }}
                 - match:
                     path: /signout
                   redirect:
-                    {{- if .Values.services.api.auth.logoutEndpoint }}
-                    path_redirect: "/oauth2/sign_out?rd={{ .Values.services.api.auth.logoutEndpoint | urlquery }}"
+                    {{- if (include "osmo.authentication.logoutEndpoint" .) }}
+                    path_redirect: "/oauth2/sign_out?rd={{ include "osmo.authentication.logoutEndpoint" . | urlquery }}"
                     {{- else }}
                     path_redirect: "/oauth2/sign_out"
                     {{- end }}
@@ -748,12 +741,18 @@ data:
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
                     audiences:
+                    {{- if hasKey $provider "audiences" }}
+                    {{- range $provider.audiences }}
+                    - {{ . }}
+                    {{- end }}
+                    {{- else }}
                     - {{ $provider.audience }}
                     {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
                     - {{ $mcpResourceUrl }}
                     {{- end }}
+                    {{- end }}
                     forward: true
-                    payload_in_metadata: verified_jwt
+                    payload_in_metadata: verified_jwt_{{$i}}
                     from_headers:
                     - name: authorization
                       value_prefix: "Bearer "
@@ -764,7 +763,7 @@ data:
                         cluster: {{ $provider.cluster }}
                         timeout: 5s
                       cache_duration:
-                        seconds: 600
+                        seconds: {{ default 600 $provider.jwks_cache_duration_seconds }}
                       async_fetch:
                         failed_refetch_duration: 1s
                       retry_policy:
@@ -775,6 +774,10 @@ data:
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
                       header_name: {{$envoy.jwt.userHeader}}
+                    {{- if hasKey $provider "browser_user_claim" }}
+                    - claim_name: {{$provider.browser_user_claim}}
+                      header_name: x-auth-request-preferred-username
+                    {{- end }}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
@@ -796,14 +799,7 @@ data:
                   - match:
                       prefix: /
                     requires:
-                      {{- if $envoy.jwt.allowMissing }}
-                      requires_any:
-                        requirements:
-                        {{- range $i, $provider := $jwtProviders }}
-                        - provider_name: provider_{{$i}}
-                        {{- end}}
-                        - allow_missing: {}
-                      {{- else if eq (len $jwtProviders) 1 }}
+                      {{- if eq (len $jwtProviders) 1 }}
                       provider_name: provider_0
                       {{- else }}
                       requires_any:
@@ -821,19 +817,43 @@ data:
                   inline_string: |
                     function envoy_on_request(request_handle)
                       local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
-                      if (meta == nil or meta.verified_jwt == nil) then
+                      if (meta == nil) then
                         return
                       end
-                      local roles = meta.verified_jwt.roles
-                      if (roles ~= nil and type(roles) == 'table') then
-                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                      {{- range $i, $provider := $jwtProviders }}
+                      local jwt = meta.verified_jwt_{{$i}}
+                      if (jwt ~= nil) then
+                        local roles = jwt[{{ default "roles" $provider.roles_claim | quote }}]
+                        {{- if $provider.embedded }}
+                        local embedded_roles = nil
+                        {{- range $identityID, $identity := $.Values.authentication.bootstrap.identities }}
+                        {{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
+                        if (jwt.sub == {{ include "osmo.bootstrap.dexSubject" $identityID | quote }}) then
+                          embedded_roles = {
+                            {{- range $identity.roles }}
+                            {{ . | quote }},
+                            {{- end }}
+                          }
+                        end
+                        {{- end }}
+                        {{- end }}
+                        if (embedded_roles ~= nil) then
+                          roles = embedded_roles
+                          request_handle:headers():replace('x-osmo-identity-source', 'embedded-dex')
+                        end
+                        {{- end }}
+                        if (roles ~= nil and type(roles) == 'table') then
+                          request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                        end
+                        if (jwt.osmo_token_name ~= nil) then
+                          request_handle:headers():replace('x-osmo-token-name', tostring(jwt.osmo_token_name))
+                        end
+                        if (jwt.osmo_workflow_id ~= nil) then
+                          request_handle:headers():replace('x-osmo-workflow-id', tostring(jwt.osmo_workflow_id))
+                        end
+                        return
                       end
-                      if (meta.verified_jwt.osmo_token_name ~= nil) then
-                        request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
-                      end
-                      if (meta.verified_jwt.osmo_workflow_id ~= nil) then
-                        request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
-                      end
+                      {{- end }}
                     end
 
             {{- if $gw.authz.enabled }}
@@ -1180,6 +1200,59 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $envoy.idp.host }}
+    {{- end }}
+
+    {{- if eq .Values.authentication.provider "embeddedDex" }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: embedded-dex
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: embedded-dex
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: osmo-dex
+                  port_value: 5556
+    {{- else }}
+    {{- $jwksAuthority := regexFind "^https?://[^/?#]+" .Values.authentication.externalOidc.jwksUri }}
+    {{- $jwksPortText := regexFind ":[0-9]+$" $jwksAuthority | trimPrefix ":" }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: external-idp
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_refresh_rate: 5s
+      respect_dns_ttl: true
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: external-idp
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: {{ .Values.authentication.externalOidc.jwksHost }}
+                  port_value: {{ if $jwksPortText }}{{ $jwksPortText }}{{ else }}{{ ternary 443 80 (hasPrefix "https://" .Values.authentication.externalOidc.jwksUri) }}{{ end }}
+      {{- if hasPrefix "https://" .Values.authentication.externalOidc.jwksUri }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ .Values.authentication.externalOidc.jwksHost }}
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/ssl/certs/ca-certificates.crt
+              match_typed_subject_alt_names:
+              - san_type: DNS
+                matcher:
+                  exact: {{ .Values.authentication.externalOidc.jwksHost | quote }}
+      {{- end }}
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}

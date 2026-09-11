@@ -583,10 +583,10 @@ class LoginManagerPkceTests(unittest.TestCase):
 
         self.assertIn('token endpoint', str(context.exception))
 
-    def test_rejects_insecure_authorization_endpoint(self):
+    def test_rejects_unsupported_authorization_endpoint(self):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
         login_info = {
-            'browser_endpoint': 'http://idp.example.com/authorize',
+            'browser_endpoint': 'ftp://idp.example.com/authorize',
             'browser_client_id': 'cli-client',
             'token_endpoint': 'https://idp.example.com/token',
         }
@@ -596,14 +596,14 @@ class LoginManagerPkceTests(unittest.TestCase):
             with self.assertRaises(osmo_errors.OSMOUserError) as context:
                 manager.pkce_login('https://osmo.example.com', None)
 
-        self.assertIn('authorization endpoint must use HTTPS', str(context.exception))
+        self.assertIn('authorization endpoint must use HTTP or HTTPS', str(context.exception))
 
-    def test_rejects_insecure_token_endpoint(self):
+    def test_rejects_unsupported_token_endpoint(self):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')
         login_info = {
             'browser_endpoint': 'https://idp.example.com/authorize',
             'browser_client_id': 'cli-client',
-            'token_endpoint': 'http://idp.example.com/token',
+            'token_endpoint': 'ftp://idp.example.com/token',
         }
 
         with mock.patch('src.lib.utils.client.login.fetch_login_info',
@@ -611,7 +611,7 @@ class LoginManagerPkceTests(unittest.TestCase):
             with self.assertRaises(osmo_errors.OSMOUserError) as context:
                 manager.pkce_login('https://osmo.example.com', None)
 
-        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+        self.assertIn('token endpoint must use HTTP or HTTPS', str(context.exception))
 
     def test_provider_error_raises(self):
         manager = client.LoginManager(login.LoginConfig(), 'osmo-cli')

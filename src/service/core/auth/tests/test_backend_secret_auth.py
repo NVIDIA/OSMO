@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import datetime
+import json
 import os
 from pathlib import Path
 import secrets
@@ -40,6 +41,48 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
             (credential_directory / 'previous-token').write_text(
                 previous_token, encoding='utf-8')
         return credential_directory
+
+    def test_authenticates_declared_user_and_backend_identities(self) -> None:
+        config_file = self.token_directory / 'config.json'
+        config_file.write_text(json.dumps({
+            'identities': {
+                'admin': {
+                    'kind': 'user',
+                    'username': 'admin',
+                    'roles': ['osmo-admin', 'osmo-user'],
+                    'tokens': {'cli': {'key': 'token'}},
+                },
+                'backend-east': {
+                    'kind': 'backend',
+                    'username': 'backend-east',
+                    'roles': ['osmo-backend'],
+                    'tokens': {'primary': {'key': 'token'}},
+                },
+            },
+        }), encoding='utf-8')
+        token_root = self.token_directory / 'tokens'
+        user_token = self._new_token()
+        backend_token = self._new_token()
+        for identity_id, token_name, token in (
+                ('admin', 'cli', user_token),
+                ('backend-east', 'primary', backend_token)):
+            directory = token_root / identity_id / token_name
+            directory.mkdir(parents=True)
+            (directory / 'token').write_text(token, encoding='utf-8')
+
+        authenticator = backend_secret_auth.BootstrapSecretAuthenticator(
+            str(config_file), str(token_root))
+
+        self.assertEqual(
+            backend_secret_auth.BootstrapTokenIdentity(
+                username='admin', roles=('osmo-admin', 'osmo-user'),
+                token_name='bootstrap-admin-cli'),
+            authenticator.authenticate(user_token))
+        self.assertEqual(
+            backend_secret_auth.BootstrapTokenIdentity(
+                username='backend-east', roles=('osmo-backend',),
+                token_name='bootstrap-backend-east-primary'),
+            authenticator.authenticate(backend_token))
 
     def test_authenticates_current_and_previous_tokens_with_fixed_claims(self) -> None:
         current_token = self._new_token()

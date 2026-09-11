@@ -91,6 +91,9 @@ CNPG_NAMESPACE = "cnpg-system"
 RUSTFS_REPO_NAME = "rustfs"
 RUSTFS_REPO_URL = "https://charts.rustfs.com"
 
+DEX_REPO_NAME = "dex"
+DEX_REPO_URL = "https://charts.dexidp.io"
+
 # When ``--build-local`` is set, every osmo container's image points at the
 # pseudo-registry ``osmo.local/<svc>:latest-<arch>`` — the chart default
 # ``imagePullPolicy: Always`` would force kubelet to round-trip to that
@@ -881,6 +884,7 @@ class KindAdapter:
         if unified:
             chart_ref = self._retain_quick_start_chart(chart_ref)
             self._ensure_helm_repo(RUSTFS_REPO_NAME, RUSTFS_REPO_URL)
+            self._ensure_helm_repo(DEX_REPO_NAME, DEX_REPO_URL)
             self._run(
                 ["helm", "dependency", "build", chart_ref],
                 "Building unified OSMO chart dependencies",
@@ -900,6 +904,7 @@ class KindAdapter:
             ]
         else:
             args += [
+                "--set-string", f"externalUrl=http://{KIND_HOSTNAME}",
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]

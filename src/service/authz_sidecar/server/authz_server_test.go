@@ -860,6 +860,22 @@ func TestFileBackedCheck_HumanCannotBypassExternalRoleMapping(t *testing.T) {
 	}
 }
 
+func TestFileBackedCheck_RejectsUnknownIdentitySource(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	req := makeFileBackedCheckRequest(
+		"attacker@test.com", "/api/configs/pool", "DELETE", "osmo-admin")
+	setRequestHeader(req, headerOsmoIdentitySource, "attacker-controlled")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() == nil {
+		t.Fatal("unknown identity source was not rejected")
+	}
+}
+
 func TestFileBackedCheck_AccessTokenUsesAssignedInternalRoles(t *testing.T) {
 	path := writeTestConfigFile(t, testConfigYAML)
 	server := newFileBackedTestServer(t, path)

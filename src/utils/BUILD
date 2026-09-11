@@ -125,6 +125,37 @@ osmo_py_library(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_library(
+    name = "embedded_dex_bootstrap_lib",
+    srcs = ["embedded_dex_bootstrap.py"],
+    deps = [
+        requirement("bcrypt"),
+        requirement("kubernetes"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "embedded_dex_bootstrap_binary",
+    main = "embedded_dex_bootstrap.py",
+    srcs = ["embedded_dex_bootstrap.py"],
+    deps = [":embedded_dex_bootstrap_lib"],
+)
+
+osmo_python_wrapper(
+    name = "embedded_dex_bootstrap_wrapper",
+    bin_name = "identity-bootstrap",
+    main = None,
+    module = "src.utils.embedded_dex_bootstrap",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
+alias(
+    name = "embedded_dex_bootstrap_wrapper_public",
+    actual = ":embedded_dex_bootstrap_wrapper",
+    visibility = ["//visibility:public"],
+)
+
 osmo_py_binary(
     name = "internal_tls_bootstrap_binary",
     main = "internal_tls_bootstrap.py",

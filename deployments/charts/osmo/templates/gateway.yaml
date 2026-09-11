@@ -290,8 +290,10 @@ spec:
       annotations:
         {{- include "osmo.pod.annotations" (dict "root" . "component" $gw.oauth2Proxy) | nindent 8 }}
         osmo.nvidia.com/valkey-secret-rollout: {{ .Values.secrets.valkey.rolloutNonce | quote }}
-        osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.secrets.oauthClientSecret.rolloutNonce | quote }}
-        osmo.nvidia.com/oauth-cookie-secret-rollout: {{ .Values.secrets.oauthCookieSecret.rolloutNonce | quote }}
+        {{- if eq .Values.authentication.provider "externalOidc" }}
+        osmo.nvidia.com/oauth-client-secret-rollout: {{ .Values.authentication.externalOidc.browserClientSecret.rolloutNonce | quote }}
+        osmo.nvidia.com/oauth-cookie-secret-rollout: {{ .Values.authentication.externalOidc.cookieSecret.rolloutNonce | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: {{ $gw.oauth2Proxy.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -334,16 +336,20 @@ spec:
           - --metrics-address=0.0.0.0:{{ $gw.oauth2Proxy.metricsPort }}
           - --reverse-proxy=true
           - --provider={{ $gw.oauth2Proxy.provider }}
-          - --oidc-issuer-url={{ $gw.oauth2Proxy.oidcIssuerUrl }}
-          - --client-id={{ $gw.oauth2Proxy.clientId }}
-          - --cookie-secure={{ $gw.oauth2Proxy.cookieSecure }}
+          - --oidc-issuer-url={{ include "osmo.authentication.issuer" . }}
+          - --client-id={{ include "osmo.authentication.browserClientId" . }}
+          - --cookie-secure={{ include "osmo.authentication.cookieSecure" . }}
           - --cookie-name={{ $gw.oauth2Proxy.cookieName }}
           {{- if $gw.oauth2Proxy.cookieDomain }}
           - --cookie-domain={{ $gw.oauth2Proxy.cookieDomain }}
           {{- end }}
           - --cookie-expire={{ $gw.oauth2Proxy.cookieExpire }}
           - --cookie-refresh={{ $gw.oauth2Proxy.cookieRefresh }}
+          {{- if eq .Values.authentication.provider "externalOidc" }}
+          - --scope={{ join " " .Values.authentication.externalOidc.scopes }}
+          {{- else }}
           - --scope={{ $gw.oauth2Proxy.scope }}
+          {{- end }}
           - --email-domain=*
           - --set-xauthrequest=true
           - --set-authorization-header=true
@@ -359,6 +365,13 @@ spec:
           {{- end }}
           - --upstream=static://200
           - --redirect-url={{ trimSuffix "/" $.Values.externalUrl }}/oauth2/callback
+          {{- if eq .Values.authentication.provider "embeddedDex" }}
+          - --skip-oidc-discovery=true
+          - --login-url={{ include "osmo.authentication.authorizationEndpoint" . }}
+          - --redeem-url=http://osmo-dex:5556/dex/token
+          - --oidc-jwks-url=http://osmo-dex:5556/dex/keys
+          - --code-challenge-method=S256
+          {{- end }}
           - --silence-ping-logging=true
           - --skip-provider-button=true
           - --api-route=/api/.+
@@ -418,15 +431,15 @@ spec:
       volumes:
         - name: oauth-client-secret
           secret:
-            secretName: {{ .Values.secrets.oauthClientSecret.existingSecret | quote }}
+            secretName: {{ include "osmo.authentication.browserSecretName" . | quote }}
             items:
-            - key: {{ .Values.secrets.oauthClientSecret.keys.value | quote }}
+            - key: {{ include "osmo.authentication.browserSecretKey" . | quote }}
               path: client-secret
         - name: oauth-cookie-secret
           secret:
-            secretName: {{ include "osmo.oauthCookie.secretName" . | quote }}
+            secretName: {{ include "osmo.authentication.cookieSecretName" . | quote }}
             items:
-            - key: {{ .Values.secrets.oauthCookieSecret.keys.value | quote }}
+            - key: {{ include "osmo.authentication.cookieSecretKey" . | quote }}
               path: cookie-secret
         {{- if and $gw.oauth2Proxy.redisSessionStore (eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true") }}
         - name: valkey-ca
@@ -931,6 +944,33 @@ spec:
           {{- toYaml $envoyLabels | nindent 10 }}
     ports:
     - port: {{ .port | default 8000 }}
+      protocol: TCP
+{{- end }}
+{{- if eq $.Values.authentication.provider "embeddedDex" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $gwName }}-allow-envoy-to-dex
+  labels:
+    {{- include "osmo.component.labels" (dict "root" $ "component" "dex") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dex
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- toYaml $envoyLabels | nindent 10 }}
+    - podSelector:
+        matchLabels:
+          {{- include "osmo.gateway.componentSelectorLabels" (dict "component" "oauth2-proxy" "context" $) | nindent 10 }}
+    ports:
+    - port: 5556
       protocol: TCP
 {{- end }}
 {{- end }}

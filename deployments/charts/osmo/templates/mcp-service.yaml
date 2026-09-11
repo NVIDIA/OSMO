@@ -81,7 +81,7 @@ spec:
         {{- include "osmo.pod.labels" (dict "root" . "component" $mcp "componentName" "mcp") | nindent 8 }}
       annotations:
         {{- $secretRolloutAnnotations := dict
-              "osmo.nvidia.com/oauth-client-secret-rollout" .Values.secrets.oauthClientSecret.rolloutNonce
+              "osmo.nvidia.com/oauth-client-secret-rollout" $oidcProxy.existingSecret.rolloutNonce
               "osmo.nvidia.com/valkey-secret-rollout" .Values.secrets.valkey.rolloutNonce -}}
         {{- include "osmo.pod.annotations" (dict "root" . "component" $mcp "protectedAnnotations" $secretRolloutAnnotations) | nindent 8 }}
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}

@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Production converged profile for self-hosting OSMO on Kubernetes. The cluster
+# Converged profile for self-hosting OSMO on Kubernetes. The cluster
 # must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
 # StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
-# nodes for distributed RustFS. Register an OIDC client with an identity provider
-# reachable by users and the OSMO gateway; it may run inside or outside the
-# cluster. The OSMO release owns the control plane, compute plane, PostgreSQL
-# Cluster, replicated fixed-primary Valkey, and distributed RustFS.
+# nodes for distributed RustFS. The default embedded Dex provider is suitable
+# only for development and evaluation because it uses volatile memory storage.
+# Production installations must use authentication.provider=externalOidc. The OSMO release owns
+# the control plane, compute plane, PostgreSQL Cluster, replicated fixed-primary
+# Valkey, and distributed RustFS.
 planes:
   control:
     enabled: true
@@ -41,19 +42,6 @@ secrets:
   objectStorage:
     generate: true
     existingSecret: ''
-  oauthClientSecret:
-    existingSecret: osmo-oauth2-proxy
-  oauthCookieSecret:
-    existingSecret: osmo-oauth2-proxy
-  backendApiTokens:
-    enabled: true
-    bootstrap:
-      image:
-        digest: sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b
-    credentials:
-    - name: default
-      managedSecret:
-        name: osmo-backend-token
   masterEncryptionKey:
     managementMode: osmo
     existingSecret:
@@ -177,10 +165,6 @@ services:
 gateway:
   envoy:
     replicas: 2
-    defaultIdentity:
-      user: ''
-      roles: ''
-      allowedPools: ''
     jwt:
       providers:
       # Keep OSMO-issued access tokens valid for in-cluster compute services.
@@ -199,10 +183,6 @@ gateway:
         memory: 128Mi
       limits:
         memory: 256Mi
-  oauth2Proxy:
-    enabled: true
-  authz:
-    enabled: true
   rateLimit:
     enabled: false
   tls:

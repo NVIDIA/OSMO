@@ -145,6 +145,10 @@ class JwtTests(unittest.TestCase):
 class PkceUtilityTests(unittest.TestCase):
     """Tests for PKCE and authorization-request helpers."""
 
+    def test_oauth_endpoint_accepts_http(self):
+        login.validate_oauth_endpoint(
+            'http://idp.example.com/token', 'token endpoint')
+
     def test_code_challenge_matches_rfc_7636_example(self):
         code_verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 
@@ -458,12 +462,12 @@ class AuthorizationCodeLoginTests(unittest.TestCase):
 
         self.assertIn('nonce', str(context.exception).lower())
 
-    def test_rejects_insecure_token_endpoint_without_posting(self):
+    def test_rejects_unsupported_token_endpoint_without_posting(self):
         with mock.patch('src.lib.utils.login.requests.post') as mock_post:
             with self.assertRaises(osmo_errors.OSMOUserError) as context:
                 login.authorization_code_login(
                     url='https://osmo.example.com',
-                    token_endpoint='http://idp.example.com/token',
+                    token_endpoint='ftp://idp.example.com/token',
                     client_id='cli-client',
                     authorization_code='authorization-code',
                     code_verifier='code-verifier',
@@ -472,7 +476,7 @@ class AuthorizationCodeLoginTests(unittest.TestCase):
                     user_agent=None,
                 )
 
-        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+        self.assertIn('token endpoint must use HTTP or HTTPS', str(context.exception))
         mock_post.assert_not_called()
 
     def test_non_200_token_response_raises(self):
@@ -744,12 +748,12 @@ class RefreshIdTokenTests(unittest.TestCase):
         self.assertEqual(storage.id_token, expired_token)
         self.assertEqual(storage.refresh_token, 'old-refresh')
 
-    def test_oauth_flow_rejects_insecure_refresh_url_without_posting(self):
+    def test_oauth_flow_rejects_unsupported_refresh_url_without_posting(self):
         expired_token = _make_jwt({'exp': int(time.time()) - 60})
         storage = login.TokenLoginStorage(
             id_token=expired_token,
             refresh_token='old-refresh',
-            refresh_url='http://idp.example.com/token',
+            refresh_url='ftp://idp.example.com/token',
             client_id='storage-client',
         )
 
@@ -762,7 +766,7 @@ class RefreshIdTokenTests(unittest.TestCase):
                     osmo_token=False,
                 )
 
-        self.assertIn('token endpoint must use HTTPS', str(context.exception))
+        self.assertIn('token endpoint must use HTTP or HTTPS', str(context.exception))
         mock_post.assert_not_called()
 
     def test_oauth_flow_rejects_refresh_redirect(self):

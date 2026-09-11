@@ -3,6 +3,13 @@
 
 externalUrl: https://osmo.example.com
 
+authentication:
+  externalOidc:
+    browserClientSecret:
+      existingSecret: oauth-client
+    cookieSecret:
+      existingSecret: oauth-cookie
+
 configuration:
   service: null
 
@@ -75,9 +82,3 @@ ingress:
   tls:
     enabled: true
     secretName: osmo-ingress-tls
-
-secrets:
-  oauthClientSecret:
-    existingSecret: oauth-client
-  oauthCookieSecret:
-    existingSecret: oauth-cookie

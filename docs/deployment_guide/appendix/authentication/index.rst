@@ -23,6 +23,15 @@ Authentication and Authorization
 
 This section explains how OSMO identifies users (authentication) and controls what they can do (authorization), in plain terms, and how to set it up with or without an external identity provider (IdP).
 
+.. important::
+
+   The unified ``deployments/charts/osmo`` chart always authenticates its
+   control plane. It defaults to an embedded, memory-backed Dex provider with a
+   randomly generated administrator password; it does not support the disabled
+   mode or the legacy ``services.defaultAdmin`` bootstrap described below.
+   External OIDC remains supported. See :doc:`migrating_to_embedded_dex` and the
+   unified chart README for the current values and credential lifecycle.
+
 Overview
 ========
 
@@ -168,5 +177,6 @@ send it as ``Authorization: Bearer <password>``. You can then create more users 
    roles_policies
    managing_users
    identity_provider_setup
+   migrating_to_embedded_dex
    idp_role_mapping
    service_accounts

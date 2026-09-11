@@ -56,10 +56,34 @@ func SyncUserRoles(
 	externalRoles []string,
 	logger *slog.Logger,
 ) ([]string, error) {
+	return syncUserRolesWithPlan(
+		ctx, client, userName, store.BuildSyncPlan(externalRoles), logger)
+}
+
+// SyncTrustedUserRoles synchronizes chart-bound embedded identity role names.
+// Unlike external IDP claims, these names are already OSMO roles.
+func SyncTrustedUserRoles(
+	ctx context.Context,
+	client *postgres.PostgresClient,
+	store *FileRoleStore,
+	userName string,
+	internalRoles []string,
+	logger *slog.Logger,
+) ([]string, error) {
+	return syncUserRolesWithPlan(
+		ctx, client, userName, store.BuildTrustedSyncPlan(internalRoles), logger)
+}
+
+func syncUserRolesWithPlan(
+	ctx context.Context,
+	client *postgres.PostgresClient,
+	userName string,
+	plan RoleSyncPlan,
+	logger *slog.Logger,
+) ([]string, error) {
 	if userName == "" {
 		return nil, nil
 	}
-	plan := store.BuildSyncPlan(externalRoles)
 	if client == nil {
 		return nil, fmt.Errorf("PostgreSQL client is required for human role synchronization")
 	}

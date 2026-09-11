@@ -17,6 +17,7 @@
     "embeddedDependencies": {
       "type": "object",
       "properties": {
+        "dex": { "$ref": "#/definitions/enabledBlock" },
         "postgresql": { "$ref": "#/definitions/enabledBlock" },
         "valkey": { "$ref": "#/definitions/enabledBlock" },
         "objectStorage": { "$ref": "#/definitions/embeddedObjectStorage" }
@@ -25,6 +26,7 @@
     "valkey": { "type": "object" },
     "postgresql": { "type": "object" },
     "rustfs": { "type": "object" },
+    "dex": { "type": "object" },
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
     "imageRegistry": { "type": "string" },
@@ -50,10 +52,11 @@
         { "maxLength": 0 },
         {
           "format": "uri",
-          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})*)*$"
+          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::(?:[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?/?$"
         }
       ]
     },
+    "authentication": { "$ref": "#/definitions/authentication" },
     "ingress": { "$ref": "#/definitions/ingress" },
     "httproute": { "$ref": "#/definitions/httpRoute" },
     "monitoring": { "$ref": "#/definitions/monitoring" },
@@ -71,12 +74,8 @@
         "postgresql": { "$ref": "#/definitions/postgresqlSecretReference" },
         "valkey": { "$ref": "#/definitions/passwordSecretReference" },
         "objectStorage": { "$ref": "#/definitions/objectStorageSecretReference" },
-        "backendApiTokens": { "$ref": "#/definitions/backendApiTokens" },
         "masterEncryptionKey": { "$ref": "#/definitions/masterEncryptionKeyReference" },
-        "serviceAuth": { "$ref": "#/definitions/serviceAuthReference" },
-        "defaultAdmin": { "$ref": "#/definitions/adminSecretReference" },
-        "oauthClientSecret": { "$ref": "#/definitions/existingValueSecretReference" },
-        "oauthCookieSecret": { "$ref": "#/definitions/generatedValueSecretReference" }
+        "serviceAuth": { "$ref": "#/definitions/serviceAuthReference" }
       }
     },
     "configuration": {
@@ -128,12 +127,160 @@
       }
     }
   },
-  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
+  "required": ["planes", "compute", "databaseMigration", "embeddedDependencies", "externalDependencies", "imageRegistry", "imageRepository", "imageTag", "imagePullSecrets", "runtimeImage", "externalUrl", "authentication", "ingress", "httproute", "monitoring", "secrets", "services", "gateway"],
   "definitions": {
     "enabledBlock": {
       "type": "object",
       "properties": { "enabled": { "type": "boolean" } },
       "required": ["enabled"]
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "enum": ["embeddedDex", "externalOidc"] },
+        "bootstrap": { "$ref": "#/definitions/bootstrapAuthentication" },
+        "embeddedDex": { "$ref": "#/definitions/embeddedDexAuthentication" },
+        "externalOidc": { "$ref": "#/definitions/externalOidcAuthentication" }
+      },
+      "required": ["provider", "bootstrap", "embeddedDex", "externalOidc"]
+    },
+    "bootstrapAuthentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" },
+        "identities": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/bootstrapIdentity" }
+        }
+      },
+      "required": ["activeDeadlineSeconds", "resources", "identities"]
+    },
+    "bootstrapIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kind": { "type": "string", "enum": ["user", "backend"] },
+        "username": { "type": "string", "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$" },
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "dex": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "email": { "type": "string", "minLength": 1 }
+          },
+          "required": ["enabled", "email"]
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/bootstrapToken" }
+        }
+      },
+      "required": ["enabled", "kind", "username", "roles", "tokens"]
+    },
+    "bootstrapToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "managedSecret": { "$ref": "#/definitions/bootstrapManagedSecret" },
+        "existingSecret": { "$ref": "#/definitions/bootstrapExistingSecret" }
+      }
+    },
+    "bootstrapManagedSecret": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 }
+      },
+      "required": ["name"]
+    },
+    "bootstrapExistingSecret": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "key": { "type": "string", "minLength": 1 }
+      },
+      "required": ["name"]
+    },
+    "embeddedDexAuthentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "browserClientId": { "type": "string", "minLength": 1 },
+        "cliClientId": { "type": "string", "minLength": 1 },
+        "jwksCacheDurationSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "expiry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deviceRequests": { "type": "string", "minLength": 1 },
+            "signingKeys": { "type": "string", "minLength": 1 },
+            "idTokens": { "type": "string", "minLength": 1 },
+            "refreshTokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "reuseInterval": { "type": "string", "minLength": 1 },
+                "validIfNotUsedFor": { "type": "string", "minLength": 1 },
+                "absoluteLifetime": { "type": "string", "minLength": 1 }
+              },
+              "required": ["reuseInterval", "validIfNotUsedFor", "absoluteLifetime"]
+            }
+          },
+          "required": ["deviceRequests", "signingKeys", "idTokens", "refreshTokens"]
+        }
+      },
+      "required": ["browserClientId", "cliClientId", "jwksCacheDurationSeconds", "expiry"]
+    },
+    "externalSecretKeyReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "anyOf": [
+            { "maxLength": 0 },
+            {
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?([.][a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+            }
+          ]
+        },
+        "key": { "type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[-._a-zA-Z0-9]+$" },
+        "rolloutNonce": { "type": "string" }
+      },
+      "required": ["existingSecret", "key", "rolloutNonce"]
+    },
+    "externalOidcAuthentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer": { "type": "string" },
+        "browserClientId": { "type": "string" },
+        "cliClientId": { "type": "string" },
+        "authorizationEndpoint": { "type": "string" },
+        "tokenEndpoint": { "type": "string" },
+        "deviceEndpoint": { "type": "string" },
+        "jwksUri": { "type": "string" },
+        "jwksHost": { "type": "string" },
+        "userClaim": { "type": "string", "minLength": 1 },
+        "rolesClaim": { "type": "string", "minLength": 1 },
+        "scopes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        "logoutEndpoint": { "type": "string" },
+        "browserClientSecret": { "$ref": "#/definitions/externalSecretKeyReference" },
+        "cookieSecret": { "$ref": "#/definitions/externalSecretKeyReference" }
+      },
+      "required": ["issuer", "browserClientId", "cliClientId", "authorizationEndpoint", "tokenEndpoint", "deviceEndpoint", "jwksUri", "jwksHost", "userClaim", "rolesClaim", "scopes", "logoutEndpoint", "browserClientSecret", "cookieSecret"]
     },
     "databaseMigration": {
       "type": "object",
@@ -881,18 +1028,6 @@
       },
       "required": ["domain", "descriptors"]
     },
-    "apiAuth": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "deviceEndpoint": { "type": "string" },
-        "deviceClientId": { "type": "string" },
-        "browserEndpoint": { "type": "string" },
-        "browserClientId": { "type": "string" },
-        "tokenEndpoint": { "type": "string" },
-        "logoutEndpoint": { "type": "string" }
-      }
-    },
     "autoscaling": {
       "type": "object",
       "properties": {
@@ -943,9 +1078,9 @@
     },
     "envoyJwt": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "userHeader": { "type": "string" },
-        "allowMissing": { "type": "boolean" },
         "providers": { "type": "array" },
         "additionalProviders": { "type": "array" }
       }
@@ -980,7 +1115,6 @@
         "hostname": { "type": "string" },
         "clientInstallUrl": { "type": "string" },
         "disableTaskMetrics": { "type": "boolean" },
-        "auth": { "$ref": "#/definitions/apiAuth" },
         "service": { "$ref": "#/definitions/serviceMetadata" },
         "livenessProbe": { "$ref": "#/definitions/probe" },
         "readinessProbe": { "$ref": "#/definitions/probe" },
@@ -1140,7 +1274,6 @@
         "hostname": { "type": "string" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
-        "defaultIdentity": { "$ref": "#/definitions/gatewayDefaultIdentity" },
         "service": { "$ref": "#/definitions/gatewayService" },
         "ssl": { "$ref": "#/definitions/gatewaySsl" },
         "resources": { "type": "object" },
@@ -1277,6 +1410,7 @@
                 "name": { "type": "string" },
                 "mountPath": { "type": "string" },
                 "clientSecretKey": { "type": "string" },
+                "rolloutNonce": { "type": "string" },
                 "redisPasswordKey": { "type": "string" }
               }
             }
@@ -1480,42 +1614,6 @@
       },
       "required": ["existingSecret", "rolloutNonce", "keys"]
     },
-    "backendApiTokens": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "bootstrap": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "image": { "$ref": "#/definitions/componentImage" }
-          },
-          "required": ["image"]
-        },
-        "rolloutNonce": { "type": "string" },
-        "credentials": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "name": { "type": "string", "minLength": 1 },
-              "existingSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" },
-              "managedSecret": { "$ref": "#/definitions/backendApiTokenSecretSource" }
-            },
-            "required": ["name"]
-          }
-        }
-      },
-      "required": ["enabled", "bootstrap", "rolloutNonce", "credentials"]
-    },
-    "backendApiTokenSecretSource": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": { "name": { "type": "string", "minLength": 1 } },
-      "required": ["name"]
-    },
     "passwordSecretReference": {
       "type": "object",
       "additionalProperties": false,
@@ -1597,23 +1695,6 @@
         "key": { "type": "string" }
       },
       "required": ["name", "key"]
-    },
-    "adminSecretReference": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "generate": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "rolloutNonce": { "type": "string" },
-        "username": { "type": "string", "minLength": 1 },
-        "keys": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": { "password": { "type": "string", "minLength": 1 } },
-          "required": ["password"]
-        }
-      },
-      "required": ["generate", "existingSecret", "rolloutNonce", "username", "keys"]
     }
   }
 }

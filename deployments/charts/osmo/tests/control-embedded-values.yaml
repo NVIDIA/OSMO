@@ -17,7 +17,7 @@ embeddedDependencies:
   objectStorage:
     enabled: false
 
-externalUrl: http://osmo-gateway
+externalUrl: http://127.0.0.1:30080
 
 externalDependencies:
   postgresql:
@@ -59,9 +59,6 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: external-control-secrets
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:
@@ -72,10 +69,7 @@ secrets:
 
 gateway:
   envoy:
-    defaultIdentity:
-      user: ''
-      roles: ''
-      allowedPools: ''
+    enabled: true
   oauth2Proxy:
     enabled: true
   authz:

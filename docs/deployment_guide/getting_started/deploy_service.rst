@@ -23,6 +23,16 @@ Deploy Service
 
 This guide provides step-by-step instructions for deploying OSMO service components on a Kubernetes cluster.
 
+.. important::
+
+   New unified ``osmo`` chart control-plane releases are authenticated by
+   default with embedded Dex and require a client-reachable HTTP or HTTPS
+   ``externalUrl``. Select ``authentication.provider: externalOidc`` only when
+   supplying a complete external-provider contract. See
+   :doc:`../appendix/authentication/migrating_to_embedded_dex` and the unified
+   chart README; the service-chart-specific values later in this page do not
+   disable authentication in the unified chart.
+
 Components Overview
 ====================
 
@@ -108,10 +118,17 @@ Create the secret used by OAuth2 Proxy for the client secret and session cookie 
 
 .. code-block:: bash
 
-   $ kubectl create secret generic oauth2-proxy-secrets \
-     --from-literal=client_secret=<your-idp-client-secret> \
-     --from-literal=cookie_secret=$(openssl rand -base64 32) \
-     --namespace osmo
+   $ umask 077
+   $ OSMO_OIDC_SECRET_DIR=$(mktemp -d)
+   $ trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
+   $ read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET
+   $ printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
+       "$OSMO_OIDC_SECRET_DIR/client_secret"
+   $ unset OSMO_BROWSER_CLIENT_SECRET
+   $ openssl rand -base64 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
+   $ kubectl --namespace osmo create secret generic oauth2-proxy-secrets \
+       --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
+       --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
 
 
 **Workflow storage credentials (skip if using workload identity)**
