@@ -78,6 +78,7 @@ redirects = {
     # Note: We still need the root index.rst to be present to be the
     # root document and root toctree.
     'index': 'user_guide/index.html',
+    'deployment_guide/appendix/deploy_minimal': 'deploy_single_plane.html',
 }
 
 # Spelling

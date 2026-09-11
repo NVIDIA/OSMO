@@ -219,9 +219,9 @@ Hand-editable static values live in [deployments/values/](../../deployments/valu
 - `gpu-pool.yaml` — opt-in fragment, layered when GPU nodes are detected
 - `pod-monitor-on.yaml` — opt-in fragment, layered when prometheus-operator CRDs are detected
 
-Per-cluster values (PG/Redis hosts, image registry/tag, NGC pull secret name, namespace) are **not** in those files — they're injected at install time via `--set` so users can edit the YAML for things that don't change per-cluster. `service.yaml` mirrors the [docs minimal-deploy reference](../../docs/deployment_guide/appendix/deploy_minimal.rst). See the [values README](../../deployments/values/README.md) for layering details.
+Per-cluster values (PG/Redis hosts, image registry/tag, NGC pull secret name, namespace) are **not** in those files — they're injected at install time via `--set` so users can edit the YAML for things that don't change per-cluster. See the [values README](../../deployments/values/README.md) for layering details.
 
-> **Security note**: `service.yaml` ships with the gateway's OAuth2 Proxy + authz disabled (matching the docs minimal example). The gateway then trusts client-supplied `x-osmo-{user,roles,allowed-pools}` headers. Do **not** expose this gateway to untrusted networks. For production deploys, use the standard deployment guide path which keeps OAuth2 + authz enabled.
+> **Security note**: `service.yaml` ships with the gateway's OAuth2 Proxy + authz disabled. The gateway then trusts client-supplied `x-osmo-{user,roles,allowed-pools}` headers. Do **not** expose this gateway to untrusted networks. For production deploys, use the standard deployment guide path which keeps OAuth2 + authz enabled.
 
 ## Common invocations
 

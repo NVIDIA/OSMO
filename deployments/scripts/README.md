@@ -481,6 +481,6 @@ Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSI
 
 ## Documentation
 
-- [OSMO Deployment Guide](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_minimal.html)
+- [OSMO Single-plane Deployment Guide](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_single_plane.html)
 - [Configure Data Storage](https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/configure_data_storage.html)
 - [Install KAI Scheduler](https://nvidia.github.io/OSMO/main/deployment_guide/byoc/install_dependencies.html)

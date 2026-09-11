@@ -50,12 +50,12 @@ Select the deployment model that fits your needs and environment.
           one non-cloud Kubernetes cluster for edge and local environments.
 
       .. grid-item-card:: :octicon:`server` Single-plane Deployment
-          :link: ../appendix/deploy_minimal
+          :link: ../appendix/deploy_single_plane
           :link-type: doc
           :class-card: tool-card
 
-          Deploy the service and backend operator in the same Kubernetes
-          cluster for testing, development, or evaluation.
+          Run the control and compute planes in one Kubernetes cluster with
+          independently managed stateful dependencies.
 
       .. grid-item-card:: :octicon:`workflow` Split-plane Infrastructure
           :link: ../getting_started/infrastructure_setup

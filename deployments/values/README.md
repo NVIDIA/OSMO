@@ -15,7 +15,7 @@ To customize defaults beyond what `--set` covers, edit these files directly.
 
 | File | Loaded when | Purpose |
 |---|---|---|
-| `service.yaml` | Always | Base values for the `service` chart (now bundles router + UI). Mirrors the [docs minimal-deploy values](../../docs/deployment_guide/appendix/deploy_minimal.rst). |
+| `service.yaml` | Always | Base values for the legacy `service` chart (now bundles router + UI). |
 | `backend-operator.yaml` | Always | Base values for the `backend-operator` chart. |
 | `gpu-pool.yaml` | When GPU nodes are detected (or `--gpu-node-pool`) | Adds `gpu_toleration` pod template + GPU platform on the default pool. |
 | `pod-monitor-on.yaml` | When prometheus-operator CRDs are detected (or `OSMO_POD_MONITOR_ENABLED=true`) | Re-enables PodMonitor scraping. Off by default to avoid CRD-not-installed errors. |
@@ -46,4 +46,4 @@ then generated per-cluster `--set` overrides, then `--helm-values` /
 
 ## Security note: minimal mode auth
 
-`service.yaml` ships with `gateway.oauth2Proxy.enabled: false` and `gateway.authz.enabled: false` — matching the [minimal deploy docs](../../docs/deployment_guide/appendix/deploy_minimal.rst). The gateway then trusts client-supplied `x-osmo-{user,roles,allowed-pools}` headers. **Do not expose this gateway to untrusted networks.** For production, use the standard deploy guide which keeps OAuth2 + authz enabled.
+`service.yaml` ships with `gateway.oauth2Proxy.enabled: false` and `gateway.authz.enabled: false`. The gateway then trusts client-supplied `x-osmo-{user,roles,allowed-pools}` headers. **Do not expose this gateway to untrusted networks.** For production, use the standard deploy guide which keeps OAuth2 + authz enabled.
