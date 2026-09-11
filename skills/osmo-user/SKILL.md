@@ -8,9 +8,11 @@ description: >
   Use whenever the user asks about OSMO pools, quota, GPUs, or nodes, or about
   submitting, listing, querying, monitoring, or troubleshooting workflows —
   including failed, PENDING, queued, stuck, or image-pull-blocked workflows, or
-  when they ask to inspect or transfer direct storage URIs such as `s3://...`,
-  even when they describe a workflow, cluster resource, or storage URI without
-  saying "OSMO".
+  when they ask to inspect or transfer direct storage URIs such as `s3://...`.
+  Use when the request explicitly mentions OSMO or the `osmo` CLI, or otherwise
+  provides unambiguous OSMO context such as an OSMO pool, quota, workflow ID, or
+  storage URI. Do not trigger solely from the word "workflow," which is
+  ambiguous across host environments.
   Do not use for Kubernetes admin, server-side `osmo config` changes, OSMO
   install/deploy, non-OSMO compute, or general NVIDIA hardware questions.
 ---
@@ -25,9 +27,9 @@ router: load only the reference files needed for the current task.
 Before the first OSMO command in a conversation:
 
 0. For cancel/delete/force/destructive requests, ask for explicit confirmation
-   before running any `osmo` command, including `osmo --version` or query
+   before running any `osmo` command, including `osmo version` or query
    commands. After confirmation, continue with the checks below.
-1. Confirm the CLI is available: `osmo --version`. If it fails, tell the user
+1. Confirm the CLI is available: `osmo version`. If it fails, tell the user
    the OSMO CLI is unavailable and stop.
 2. If any command returns an authentication error, ask the user to run
    `osmo login` and stop until they confirm.
@@ -129,6 +131,7 @@ Status, logs, links, live metrics, recent workflows, and workflow explanation.
 ### `references/troubleshooting.md`
 Failed, stuck, sparse-log, or misbehaving workflows.
 - "The logs are empty", "Why did it fail?", "Exit code 137/139/143/127" — match the failure signature and propose a concrete fix.
+- "Workflow X failed/canceled; run it again as-is" — establish the failure is not deterministic, then follow the retry guidance here.
 - For private-image pull failures, establish the failure here, then read `references/workflow-registry-credentials.md`.
 
 ### `references/workflow-credentials.md`

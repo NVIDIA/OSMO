@@ -36,8 +36,10 @@ Common flags:
 | `--rsync local:remote` | Start a background rsync daemon to the lead task. |
 | `--format-type json|text`, `-t` | Output format. |
 
-If the first argument is a workflow ID instead of a file, OSMO treats it as a
-resubmission request. In that mode, `--dry-run` and `--set` are not supported.
+If the first argument is a workflow ID instead of a file, OSMO submits the
+saved spec as a new full run. Use this only when the user explicitly asks to
+submit the saved spec anew. In that mode, `--dry-run` and `--set` are not
+supported.
 
 ## Validate
 
@@ -55,8 +57,12 @@ not submit or start a workflow.
 osmo workflow restart <workflow_id> [--pool <pool>] [--format-type json|text]
 ```
 
-Use for failed workflows when the user wants a restart rather than editing and
-submitting a local YAML file.
+For a failed or `FAILED_CANCELED` workflow that the user wants to run again
+as-is, use `restart` as the normal retry path after confirming the failure is
+not deterministic. Restart is partial recovery: it can retain successful work
+from the previous run. For a deterministic failure, fix and validate a local
+YAML file, then run `osmo workflow submit <workflow_file>`; do not retry with
+`restart` or `submit <workflow_id>`.
 
 ## List
 
