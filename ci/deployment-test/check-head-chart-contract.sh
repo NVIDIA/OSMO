@@ -26,6 +26,21 @@ helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$chart"
 helm lint "$chart" "${values[@]}"
 helm template osmo "$chart" "${values[@]}" > "$private/rendered.yaml"
+# The chart mounts backend_images.credential automatically. A second manual
+# mount can pass Helm lint/render but Kubernetes rejects the Deployment.
+for template in api-service worker agent-service logger-service; do
+    helm template osmo "$chart" "${values[@]}" --show-only "templates/$template.yaml" \
+        > "$private/deployment.yaml"
+    mounts=$(grep -Ec '^[[:space:]]*(-[[:space:]]+)?mountPath: /etc/osmo/secrets/nvcr-pull[[:space:]]*$' \
+        "$private/deployment.yaml" || true)
+    volumes=$(grep -Ec '^[[:space:]]*secretName: "?nvcr-pull"?[[:space:]]*$' \
+        "$private/deployment.yaml" || true)
+    if [[ "$mounts" != 1 || "$volumes" != 1 ]] || \
+        ! grep -Fq 'key: ".dockerconfigjson"' "$private/deployment.yaml"; then
+        echo "HEAD single-plane chart must mount the registry credential exactly once: $template" >&2
+        exit 1
+    fi
+done
 version=$(helm show chart "$chart" | awk '$1 == "version:" {print $2; exit}')
 [[ -n "$version" ]]
 

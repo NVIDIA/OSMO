@@ -203,9 +203,10 @@ jq -e '
   .services.api.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
   .services.worker.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
   (["api", "worker", "agent", "logger"] | all(.[];
-    $services[.].extraVolumeMounts[0].mountPath == "/etc/osmo/secrets/456" and
-    $services[.].pod.extraVolumes[0].secret.secretName == "456")) and
+    $services[.].extraVolumeMounts == null and
+    $services[.].pod.extraVolumes == null)) and
   .configuration.workflow.backend_images.credential.secretName == "456" and
+  .configuration.workflow.backend_images.credential.secretKey == ".dockerconfigjson" and
   .externalDependencies.postgresql.host == "test.postgres.database.azure.com" and
   .externalDependencies.valkey.port == 10000 and
   .externalDependencies.objectStorage.locations.workflows == "azure://teststorage/osmo-workflows/workflows" and
@@ -292,8 +293,8 @@ if ! "$bash_binary" "$script" >"$test_directory/no-pull-secret-output.log" 2>&1;
 fi
 jq -e '
   .imagePullSecrets == [] and
-  .services.api.extraVolumeMounts == [] and
-  .services.api.pod.extraVolumes == [] and
+  .services.api.extraVolumeMounts == null and
+  .services.api.pod.extraVolumes == null and
   .configuration.workflow.backend_images == {}
 ' "$CAPTURED_VALUES" >/dev/null || fail "empty pull-secret configuration was not preserved"
 assert_not_contains "$command_log" 'kubectl create secret generic 456'

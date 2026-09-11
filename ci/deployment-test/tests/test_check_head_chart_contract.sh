@@ -22,6 +22,15 @@ case "$1" in
         for argument in "$@"; do
             if [[ "$argument" == */dynamic.json ]]; then dynamic="$argument"; fi
         done
+        if [[ "$*" == *'--show-only'* ]]; then
+            echo '  mountPath: /etc/osmo/secrets/nvcr-pull'
+            echo '  secretName: "nvcr-pull"'
+            echo '  key: ".dockerconfigjson"'
+            if [[ "${BROKEN:-}" == mounts ]]; then
+                echo '- mountPath: /etc/osmo/secrets/nvcr-pull'
+            fi
+            exit 0
+        fi
         tag=$(jq -r '.imageTag' "$dynamic")
         runtime_tag=$(jq -r '.runtimeImage.tag // "latest"' "$dynamic")
         [[ "${BROKEN:-}" != runtime ]] || runtime_tag=latest
@@ -51,10 +60,10 @@ MOCK
 chmod +x "$temporary/bin/helm"
 bash "$repo/ci/deployment-test/check-head-chart-contract.sh"
 grep -q 'chart_version=0.1.0' "$GITHUB_OUTPUT"
-for broken in runtime identity; do
+for broken in runtime identity mounts; do
     if BROKEN="$broken" bash "$repo/ci/deployment-test/check-head-chart-contract.sh" > "$temporary/failure.log" 2>&1; then
         echo "Broken $broken chart contract passed" >&2; exit 1
     fi
-    grep -q 'HEAD single-plane chart contract missing:' "$temporary/failure.log"
+    grep -q 'HEAD single-plane chart' "$temporary/failure.log"
 done
-echo 'Unified HEAD contract and mismatched runtime/identity checks passed'
+echo 'Unified HEAD contract and mismatched runtime/identity/registry-mount checks passed'
