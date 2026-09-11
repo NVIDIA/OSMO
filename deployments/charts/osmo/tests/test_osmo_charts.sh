@@ -897,7 +897,7 @@ test_control_umbrella() {
             fail "expected removed embedded Dex value '$removed_embedded_value' to fail"
         fi
         require_contains "$TEST_DIRECTORY/removed-embedded-dex-value.out" \
-            "additional properties"
+            "not allowed"
     done
 
     if helm_template hostile-dex-env-vars "$charts_copy/osmo" \
