@@ -67,7 +67,6 @@ Install or provide:
   storage for OSMO and the workflows you plan to run;
 * Helm 3.19 or newer, ``kubectl``, ``openssl``, and the :ref:`OSMO CLI
   <cli_install>`;
-* KAI Scheduler;
 * PostgreSQL 15 or newer with an empty OSMO database;
 * Valkey or Redis 7.0 or newer;
 * S3-compatible, Azure Blob, or Swift object storage for workflow data, logs,
@@ -79,8 +78,8 @@ registry. PostgreSQL and Valkey credentials need access to the configured
 database. The object-storage identity needs read and write access to all three
 configured locations.
 
-Follow the :ref:`installing_required_dependencies` guide to install KAI
-Scheduler.
+Follow the :ref:`installing_required_dependencies` guide to install the
+required dependencies.
 
 Prepare credentials
 ===================
@@ -328,8 +327,9 @@ Common causes include:
   port.
 * Backend authentication failures: confirm the same ``osmo-backend-token``
   Secret is mounted by the API, backend listener, and backend worker.
-* A pool with no resources: wait for the backend heartbeat, confirm KAI is
-  healthy, and check node capacity and workflow Pod events.
+* A pool with no resources: wait for the backend heartbeat, confirm the
+  required dependencies are healthy, and check node capacity and workflow Pod
+  events.
 * Object-storage failures: confirm all locations use the same URI scheme and
   that the static or workload identity can read and write every location.
 * OAuth redirect loops or rejected tokens: make the public URL, issuer,
@@ -376,8 +376,6 @@ required:
    kubectl delete namespace osmo \
      --wait=true \
      --timeout=10m
-
-Remove KAI Scheduler only when no other workloads use it.
 
 What's next
 ===========
