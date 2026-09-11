@@ -17,6 +17,10 @@ services:
     pod:
       labels:
         azure.workload.identity/use: "true"
+gateway:
+  authz:
+    # Resolve verified token roles into the allowed-pool headers required by the API.
+    enabled: true
 externalDependencies:
   postgresql:
     port: 5432

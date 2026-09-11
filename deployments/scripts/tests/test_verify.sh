@@ -111,3 +111,23 @@ export OSMO_LOGIN_METHOD=password OSMO_PASSWORD_FILE="$password_file"
 "$verify_script" >"$test_directory/password-login-output.log" 2>&1
 grep -Fq "osmo login http://localhost:9000 --method=password --username=admin --password-file=$password_file" \
     "$command_log" || fail "password-file login was not passed to the OSMO CLI"
+
+: >"$command_log"
+token_file="$test_directory/admin-token"
+printf '%s' 'bootstrap-token-sentinel' >"$token_file"
+export OSMO_LOGIN_METHOD=token OSMO_TOKEN_FILE="$token_file"
+"$verify_script" >"$test_directory/token-login-output.log" 2>&1
+grep -Fxq "osmo login http://localhost:9000 --method=token --token-file=$token_file" \
+    "$command_log" || fail "token-file login was not passed to the OSMO CLI"
+if grep -Fq bootstrap-token-sentinel "$command_log" "$test_directory/token-login-output.log"; then
+    fail "bootstrap token was exposed"
+fi
+
+: >"$command_log"
+unset OSMO_TOKEN_FILE
+if "$verify_script" >"$test_directory/missing-token-output.log" 2>&1; then
+    fail "token login without a token file unexpectedly succeeded"
+fi
+if grep -q '^osmo login' "$command_log"; then
+    fail "token login without a token file reached the CLI"
+fi

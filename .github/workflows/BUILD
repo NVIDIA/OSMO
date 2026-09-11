@@ -10,3 +10,8 @@ filegroup(
     ),
     visibility = ["//src/scripts/testbot/tests:__pkg__"],
 )
+
+exports_files(
+    ["deployment-test.yaml"],
+    visibility = ["//ci/deployment-test:__pkg__"],
+)

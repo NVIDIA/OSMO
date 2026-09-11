@@ -5,6 +5,7 @@
 
 set -euo pipefail
 
+bash_binary="$(command -v bash)"
 test_directory="$(mktemp -d)"
 mock_directory="$test_directory/mock-bin"
 command_log="$test_directory/commands.log"
@@ -58,6 +59,8 @@ write_mock az '#!/bin/bash' 'set -euo pipefail' 'echo "az $*" >>"$COMMAND_LOG"' 
 write_mock terraform '#!/bin/bash' 'set -euo pipefail' 'echo "terraform pwd=$PWD $*" >>"$COMMAND_LOG"' \
     '[[ -z "${TF_VAR_postgres_password+x}" ]] || exit 18' \
     'if [[ "$*" == *"apply -auto-approve"* ]]; then' \
+    '  printf partial-state-sentinel > terraform.tfstate' \
+    '  [[ "${FAIL_APPLY:-false}" != true ]] || exit 42' \
     '  tfvars_path=' \
     '  for argument in "$@"; do [[ "$argument" == -var-file=* ]] && tfvars_path="${argument#-var-file=}"; done' \
     '  [[ -f "$tfvars_path" ]] || exit 19' \
@@ -149,8 +152,8 @@ write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMM
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
 write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"' \
     'if [[ "$*" == *"/verify.sh"* ]]; then' \
-    '  [[ "${OSMO_LOGIN_METHOD:-}" == password && "${OSMO_USERNAME:-}" == admin ]] || exit 38' \
-    '  [[ -f "${OSMO_PASSWORD_FILE:-}" && "$(<"$OSMO_PASSWORD_FILE")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 39' \
+    '  [[ "${OSMO_LOGIN_METHOD:-}" == token ]] || exit 38' \
+    '  [[ -f "${OSMO_TOKEN_FILE:-}" && "$(<"$OSMO_TOKEN_FILE")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 39' \
     'fi'
 write_mock osmo '#!/bin/bash' 'exit 0'
 
@@ -179,7 +182,7 @@ terraform_example="${TEST_SRCDIR}/_main/deployments/terraform/azure/example/exam
 [[ -x "$script" ]] || fail "deployment script is absent"
 
 export BACKEND_TOKEN_STATE=absent DEFAULT_ADMIN_SECRET_STATE=absent
-if ! "$script" >"$test_directory/output.log" 2>&1; then
+if ! "$bash_binary" "$script" >"$test_directory/output.log" 2>&1; then
     cat "$test_directory/output.log" >&2
     fail "initial deployment-script run failed"
 fi
@@ -191,17 +194,19 @@ done <"$SECRET_PATHS_LOG"
 [[ -f "$CAPTURED_VALUES" ]] || fail "dynamic values were not passed to Helm"
 
 jq -e '
+  .services as $services |
   .imageRegistry == "registry.example.org" and
   .imageRepository == "some/path" and
   .imageTag == "123" and
+  .runtimeImage.tag == "123" and
   .imagePullSecrets == [{"name":"456"}] and
   .services.api.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
   .services.worker.serviceAccount.annotations["azure.workload.identity/client-id"] == "11111111-2222-3333-4444-555555555555" and
-  .services as $services |
   (["api", "worker", "agent", "logger"] | all(.[];
-    $services[.].extraVolumeMounts[0].mountPath == "/etc/osmo/secrets/456" and
-    $services[.].pod.extraVolumes[0].secret.secretName == "456")) and
+    $services[.].extraVolumeMounts == null and
+    $services[.].pod.extraVolumes == null)) and
   .configuration.workflow.backend_images.credential.secretName == "456" and
+  .configuration.workflow.backend_images.credential.secretKey == ".dockerconfigjson" and
   .externalDependencies.postgresql.host == "test.postgres.database.azure.com" and
   .externalDependencies.valkey.port == 10000 and
   .externalDependencies.objectStorage.locations.workflows == "azure://teststorage/osmo-workflows/workflows" and
@@ -252,6 +257,8 @@ assert_ordered \
     'kubectl create serviceaccount osmo-workflow' \
     'kubectl annotate serviceaccount osmo-workflow' \
     'kubectl create secret generic osmo-backend-token' \
+    'helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update' \
+    'helm repo add osmo-rustfs https://charts.rustfs.com --force-update' \
     'helm dependency build' \
     'helm upgrade --install osmo' \
     'kubectl --namespace osmo port-forward service/osmo-gateway 9000:80' \
@@ -267,7 +274,7 @@ assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enab
 rm -f "$PORT_FORWARD_READY"
 export BACKEND_TOKEN_STATE=existing
 export DEFAULT_ADMIN_SECRET_STATE=existing
-if ! "$script" >"$test_directory/existing-token-output.log" 2>&1; then
+if ! "$bash_binary" "$script" >"$test_directory/existing-token-output.log" 2>&1; then
     cat "$test_directory/existing-token-output.log" >&2
     fail "existing-token deployment-script run failed"
 fi
@@ -280,14 +287,14 @@ assert_not_contains "$command_log" 'openssl rand -base64 32'
 rm -f "$PORT_FORWARD_READY"
 unset OSMO_IMAGE_PULL_SECRET OSMO_IMAGE_PULL_CONFIG
 export BACKEND_TOKEN_STATE=existing
-if ! "$script" >"$test_directory/no-pull-secret-output.log" 2>&1; then
+if ! "$bash_binary" "$script" >"$test_directory/no-pull-secret-output.log" 2>&1; then
     cat "$test_directory/no-pull-secret-output.log" >&2
     fail "no-pull-secret deployment-script run failed"
 fi
 jq -e '
   .imagePullSecrets == [] and
-  .services.api.extraVolumeMounts == [] and
-  .services.api.pod.extraVolumes == [] and
+  .services.api.extraVolumeMounts == null and
+  .services.api.pod.extraVolumes == null and
   .configuration.workflow.backend_images == {}
 ' "$CAPTURED_VALUES" >/dev/null || fail "empty pull-secret configuration was not preserved"
 assert_not_contains "$command_log" 'kubectl create secret generic 456'
@@ -295,7 +302,7 @@ assert_not_contains "$command_log" 'kubectl create secret generic 456'
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
 export BACKEND_TOKEN_STATE=error
-if "$script" >"$test_directory/lookup-error-output.log" 2>&1; then
+if "$bash_binary" "$script" >"$test_directory/lookup-error-output.log" 2>&1; then
     fail "backend-token lookup error unexpectedly succeeded"
 fi
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
@@ -303,8 +310,20 @@ assert_not_contains "$command_log" 'openssl rand -base64 32'
 
 : >"$command_log"
 export BACKEND_TOKEN_STATE=existing BLOB_PUBLIC_ACCESS=true
-if "$script" >"$test_directory/public-access-output.log" 2>&1; then
+if "$bash_binary" "$script" >"$test_directory/public-access-output.log" 2>&1; then
     fail "public Blob access unexpectedly passed verification"
 fi
 assert_contains "$test_directory/public-access-output.log" 'allowBlobPublicAccess=true'
 assert_not_contains "$command_log" 'az aks get-credentials'
+
+# Failed apply still leaves its partial state outside the script's temporary
+# kubeconfig/secret directory, ready for CI's always-preserve step.
+: > "$command_log"
+unset BLOB_PUBLIC_ACCESS
+export FAIL_APPLY=true
+if "$bash_binary" "$script" > "$test_directory/partial-apply-output.log" 2>&1; then
+    fail "partial Terraform failure unexpectedly succeeded"
+fi
+assert_contains "$OSMO_TERRAFORM_WORK_DIR/terraform.tfstate" 'partial-state-sentinel'
+assert_not_contains "$command_log" 'helm upgrade'
+assert_not_contains "$command_log" 'verify.sh'

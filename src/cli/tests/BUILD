@@ -37,6 +37,9 @@ py_test(
     ],
     deps = [
         "//src/cli:cli_lib",
+        "//src/lib/utils:client",
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
     ]
 )
 

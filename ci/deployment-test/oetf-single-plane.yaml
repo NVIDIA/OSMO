@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+version: "1"
+environments:
+  azure-single-plane:
+    url: http://127.0.0.1:9100
+    type: custom
+    allow_deploy: false
+    auth:
+      strategy: token
+      token_env: OETF_TOKEN
+    pool: default
+    # Preserve the existing nightly kind/dev selection when switching auth.
+    exclude_tags: [auth, mcp]
