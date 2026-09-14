@@ -16,8 +16,12 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import platform
+import queue
 import time
 import unittest
+from unittest import mock
+
+import jinja2
 
 from src.lib.utils import jinja_sandbox, osmo_errors
 
@@ -169,6 +173,306 @@ class TestJinjaSandbox(unittest.TestCase):
     def test_big_template_multiple_times(self):
         for _ in range(5):
             jinja_sandbox.sandboxed_jinja_substitute(BIG_TEMPLATE, {'name': 'my-workflow'})
+
+
+def raise_value_error(x):
+    raise ValueError(f'rejected {x}')
+
+
+class FakeConnection:
+    """In-process stand-in for a multiprocessing pipe end.
+
+    Lets the containment/recovery branches of SandboxedWorker be driven
+    deterministically without spawning subprocesses, whose bodies are
+    invisible to both the test process and coverage instrumentation.
+    """
+
+    def __init__(self, incoming=None, result_send_effects=None, work_send_error=None):
+        self.incoming = list(incoming or [])
+        self.result_send_effects = list(result_send_effects or [])
+        self.work_send_error = work_send_error
+        self.sent = []
+        self.close_count = 0
+        self.close_error = None
+
+    def close(self):
+        self.close_count += 1
+        if self.close_error is not None:
+            raise self.close_error
+
+    def send(self, payload):
+        if isinstance(payload, jinja_sandbox.WorkResult):
+            if self.result_send_effects:
+                effect = self.result_send_effects.pop(0)
+                if effect is not None:
+                    raise effect
+        elif self.work_send_error is not None:
+            raise self.work_send_error
+        self.sent.append(payload)
+
+    def recv(self):
+        if not self.incoming:
+            raise EOFError('pipe closed')
+        item = self.incoming.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+    def poll(self, timeout=None):
+        del timeout
+        return bool(self.incoming)
+
+
+class FakeProcess:
+    """Records lifecycle calls so shutdown/liveness branches are observable."""
+
+    def __init__(self, alive: bool, exitcode: int = 1):
+        self.alive = alive
+        self.exitcode = exitcode
+        self.terminate_count = 0
+        self.kill_count = 0
+        self.join_count = 0
+
+    def is_alive(self):
+        return self.alive
+
+    def terminate(self):
+        self.terminate_count += 1
+
+    def kill(self):
+        self.kill_count += 1
+
+    def join(self, timeout=None):
+        del timeout
+        self.join_count += 1
+
+
+def detached_worker(func=triple, parent_conn=None, child_conn=None, process=None,
+                    jinja_memory=1024, max_time=0.01):
+    """Build a SandboxedWorker with injected pipes instead of a live subprocess."""
+    # pylint: disable=protected-access
+    worker = jinja_sandbox.SandboxedWorker.__new__(jinja_sandbox.SandboxedWorker)
+    worker._func = func
+    worker._jinja_memory = jinja_memory
+    worker._max_time = max_time
+    worker._parent_conn = parent_conn if parent_conn is not None else FakeConnection()
+    worker._child_conn = child_conn if child_conn is not None else FakeConnection()
+    worker._process = process
+    worker._multiprocessing_context = None
+    return worker
+
+
+class TestSandboxedWorkerSubprocessBody(unittest.TestCase):
+    """Cover the worker loop that normally executes inside a spawned subprocess."""
+
+    def setUp(self):
+        # pylint: disable=protected-access
+        signal_patch = mock.patch.object(jinja_sandbox.signal, 'signal')
+        setrlimit_patch = mock.patch.object(jinja_sandbox.resource, 'setrlimit')
+        self.signal = signal_patch.start()
+        self.setrlimit = setrlimit_patch.start()
+        self.addCleanup(signal_patch.stop)
+        self.addCleanup(setrlimit_patch.stop)
+
+    def test_subprocess_main_signals_ready_then_returns_each_result(self):
+        child = FakeConnection(incoming=[jinja_sandbox.WorkItem((5,), {})])
+        parent = FakeConnection()
+        worker = detached_worker(parent_conn=parent, child_conn=child)
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.assertEqual(child.sent[0], 'ready')
+        self.assertEqual(child.sent[1].result, 15)
+        self.assertFalse(child.sent[1].is_exception)
+        self.assertEqual(parent.close_count, 1)
+
+    def test_subprocess_main_applies_the_memory_limit_before_accepting_work(self):
+        worker = detached_worker(child_conn=FakeConnection())
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.setrlimit.assert_called_once()
+        limit_args = self.setrlimit.call_args.args
+        self.assertEqual(limit_args[0], jinja_sandbox.resource.RLIMIT_AS)
+        self.assertEqual(limit_args[1][0], limit_args[1][1])
+
+    def test_subprocess_main_returns_function_exceptions_as_flagged_results(self):
+        child = FakeConnection(incoming=[jinja_sandbox.WorkItem((7,), {})])
+        worker = detached_worker(func=raise_value_error, child_conn=child)
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.assertTrue(child.sent[1].is_exception)
+        self.assertIsInstance(child.sent[1].result, ValueError)
+
+    def test_subprocess_main_replaces_an_unserializable_result_with_a_memory_error(self):
+        child = FakeConnection(
+            incoming=[jinja_sandbox.WorkItem((5,), {})],
+            result_send_effects=[MemoryError('too big'), None])
+        worker = detached_worker(child_conn=child)
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.assertEqual(len(child.sent), 2)
+        self.assertTrue(child.sent[1].is_exception)
+        self.assertIsInstance(child.sent[1].result, MemoryError)
+        self.assertIn('Result too large', str(child.sent[1].result))
+
+    def test_subprocess_main_stops_when_the_memory_error_report_also_fails(self):
+        child = FakeConnection(
+            incoming=[jinja_sandbox.WorkItem((5,), {}), jinja_sandbox.WorkItem((6,), {})],
+            result_send_effects=[MemoryError('too big'), MemoryError('still too big')])
+        worker = detached_worker(child_conn=child)
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.assertEqual(child.sent, ['ready'])
+        self.assertEqual(len(child.incoming), 1)
+
+    def test_subprocess_main_stops_when_the_parent_closed_the_result_pipe(self):
+        child = FakeConnection(
+            incoming=[jinja_sandbox.WorkItem((5,), {}), jinja_sandbox.WorkItem((6,), {})],
+            result_send_effects=[EOFError('gone')])
+        worker = detached_worker(child_conn=child)
+
+        worker._subprocess_main()  # pylint: disable=protected-access
+
+        self.assertEqual(child.sent, ['ready'])
+        self.assertEqual(len(child.incoming), 1)
+
+    def test_set_memory_limit_is_skipped_on_macos(self):
+        worker = detached_worker()
+
+        with mock.patch.object(jinja_sandbox.platform, 'system', return_value='Darwin'):
+            worker._set_memory_limit()  # pylint: disable=protected-access
+
+        self.setrlimit.assert_not_called()
+
+
+class TestSandboxedWorkerRecovery(unittest.TestCase):
+    """Cover the parent-side failure recovery branches of SandboxedWorker."""
+
+    def test_worker_rejects_a_child_that_sends_an_unexpected_ready_signal(self):
+        worker = detached_worker(parent_conn=FakeConnection(incoming=['not-ready']))
+
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'ready signal'):
+            worker._wait_for_child_ready()  # pylint: disable=protected-access
+
+    def test_worker_rejects_a_child_that_exited_before_signalling_ready(self):
+        worker = detached_worker(parent_conn=FakeConnection())
+
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'failed to start'):
+            worker._wait_for_child_ready()  # pylint: disable=protected-access
+
+    def test_run_gives_up_after_restarting_a_persistently_broken_pipe(self):
+        parent = FakeConnection(work_send_error=BrokenPipeError('broken'))
+        worker = detached_worker(parent_conn=parent)
+        worker._restart = mock.Mock()  # pylint: disable=protected-access
+
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'after 3 retries'):
+            worker.run(5)
+
+        self.assertEqual(worker._restart.call_count, 4)  # pylint: disable=protected-access
+
+    def test_run_raises_a_timeout_when_no_result_arrives_in_time(self):
+        worker = detached_worker(parent_conn=FakeConnection())
+        worker._restart = mock.Mock()  # pylint: disable=protected-access
+
+        with self.assertRaisesRegex(TimeoutError, 'time limit'):
+            worker.run(5)
+
+        worker._restart.assert_called_once()  # pylint: disable=protected-access
+
+    def test_run_reports_a_memory_error_when_the_result_pipe_closes(self):
+        worker = detached_worker(parent_conn=FakeConnection(incoming=[EOFError('gone')]))
+        worker._restart = mock.Mock()  # pylint: disable=protected-access
+
+        with self.assertRaisesRegex(MemoryError, 'memory limit of 1024 bytes'):
+            worker.run(5)
+
+        worker._restart.assert_called_once()  # pylint: disable=protected-access
+
+    def test_run_reports_a_dead_process_even_when_a_result_arrived(self):
+        worker = detached_worker(
+            parent_conn=FakeConnection(incoming=[jinja_sandbox.WorkResult(15)]),
+            process=FakeProcess(alive=False, exitcode=137))
+        worker._restart = mock.Mock()  # pylint: disable=protected-access
+
+        with self.assertRaisesRegex(osmo_errors.OSMOServerError, 'exit code 137'):
+            worker.run(5)
+
+        worker._restart.assert_called_once()  # pylint: disable=protected-access
+
+    def test_run_translates_a_child_memory_error_into_the_configured_limit(self):
+        result = jinja_sandbox.WorkResult(MemoryError('inner'), is_exception=True)
+        worker = detached_worker(
+            parent_conn=FakeConnection(incoming=[result]),
+            process=FakeProcess(alive=True))
+
+        with self.assertRaisesRegex(MemoryError, 'memory limit of 1024 bytes'):
+            worker.run(5)
+
+    def test_shutdown_ignores_a_connection_that_cannot_be_closed(self):
+        parent = FakeConnection()
+        parent.close_error = OSError('already closed')
+        process = FakeProcess(alive=False)
+        worker = detached_worker(parent_conn=parent, process=process)
+
+        worker.shutdown()
+
+        self.assertEqual(parent.close_count, 1)
+        self.assertEqual(process.terminate_count, 0)
+
+    def test_shutdown_kills_a_worker_that_ignores_termination(self):
+        process = FakeProcess(alive=True)
+        worker = detached_worker(process=process)
+
+        worker.shutdown()
+
+        self.assertEqual(process.terminate_count, 1)
+        self.assertEqual(process.kill_count, 1)
+        self.assertEqual(process.join_count, 2)
+
+
+class DrainedQueue:
+    """Queue stub that reports items but hands out none, as in a shutdown race."""
+
+    def empty(self):
+        return False
+
+    def get_nowait(self):
+        raise queue.Empty()
+
+
+class TestSandboxedWorkerPoolShutdown(unittest.TestCase):
+    """Cover the pool shutdown loop's concurrent-drain exit."""
+
+    def test_pool_shutdown_stops_when_the_queue_drains_concurrently(self):
+        # pylint: disable=protected-access
+        pool = jinja_sandbox.SandboxedWorkerPool.__new__(jinja_sandbox.SandboxedWorkerPool)
+        pool._workers = DrainedQueue()  # type: ignore[assignment]
+
+        pool.shutdown()
+
+        self.assertIsInstance(pool._workers, DrainedQueue)
+
+
+class TestRenderTemplate(unittest.TestCase):
+    """Cover the render entry point that normally only runs inside a worker."""
+
+    def test_render_template_substitutes_provided_data(self):
+        result = jinja_sandbox.SandboxedJinjaRenderer.render_template(
+            GOOD_TEMPLATE, {'name': 'World'})
+
+        self.assertEqual(result, 'Hello, World!')
+
+    def test_render_template_blocks_attribute_escapes(self):
+        with self.assertRaises(jinja2.exceptions.SecurityError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(UNSAFE_TEMPLATE, {})
+
+    def test_render_template_rejects_undefined_variables(self):
+        with self.assertRaises(jinja2.exceptions.UndefinedError):
+            jinja_sandbox.SandboxedJinjaRenderer.render_template(GOOD_TEMPLATE, {})
 
 
 if __name__ == '__main__':

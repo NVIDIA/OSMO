@@ -39,7 +39,9 @@ osmo_py_test(
     name = "test_jinja_sandbox",
     srcs = ["test_jinja_sandbox.py"],
     deps = [
+        requirement("jinja2"),
         "//src/lib/utils:jinja_sandbox",
+        "//src/lib/utils:osmo_errors",
     ]
 )
 
