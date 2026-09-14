@@ -5628,6 +5628,42 @@ MCP_ROUTES
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 11
 
+    local mcp_redis_host mcp_redis_authority
+    while IFS='|' read -r mcp_redis_host mcp_redis_authority; do
+        helm_template mcp-ipv6 "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set-string "externalDependencies.valkey.host=$mcp_redis_host" \
+            --set externalDependencies.valkey.port=6380 \
+            --set externalDependencies.valkey.tls.enabled=true \
+            --set services.mcp.oidcProxy.redis.dbNumber=7 \
+            >"$TEST_DIRECTORY/mcp-ipv6.yaml"
+        resource_document "$TEST_DIRECTORY/mcp-ipv6.yaml" Deployment \
+            mcp-ipv6-osmo-mcp >"$TEST_DIRECTORY/mcp-ipv6-deployment.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" \
+            "value: \"rediss://$mcp_redis_authority:6380/7\""
+    done <<'MCP_REDIS_HOSTS'
+external-valkey|external-valkey
+192.0.2.10|192.0.2.10
+2001:db8::10|[2001:db8::10]
+[2001:db8::10]|[2001:db8::10]
+MCP_REDIS_HOSTS
+
+    require_not_contains "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" \
+        'name: OSMO_MCP_GATEWAY_CA_FILE'
+    local mcp_probe mcp_probe_path
+    while IFS='|' read -r mcp_probe mcp_probe_path; do
+        awk -v probe="$mcp_probe" '
+            /^        [A-Za-z]+:/ { keep = ($1 == probe ":") }
+            keep { print }
+        ' "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" >"$TEST_DIRECTORY/mcp-probe.yaml"
+        require_matches "$TEST_DIRECTORY/mcp-probe.yaml" "path: $mcp_probe_path$"
+    done <<'MCP_PROBES'
+readinessProbe|/health/ready
+livenessProbe|/health
+startupProbe|/health
+MCP_PROBES
+
     local mcp_ca_mode
     for mcp_ca_mode in plaintext system private combined; do
         local mcp_ca_settings=()
@@ -5726,6 +5762,7 @@ MCP_CA_COLLISIONS
         --set services.mcp.replicas=2 \
         --set-string services.mcp.oidcProxy.existingSecret.name= \
         --set-string services.mcp.oidcProxy.oidc.clientSecretFile=/credentials/client-secret \
+        --set-string services.mcp.gatewayCaFile=/credentials/gateway.pem \
         --set-json 'services.mcp.pod.extraVolumes=[{"name":"credentials","secret":{"secretName":"external-oidc"}}]' \
         --set-json 'services.mcp.extraVolumeMounts=[{"name":"credentials","mountPath":"/credentials","readOnly":true}]' \
         >"$TEST_DIRECTORY/mcp-mounted.yaml"
@@ -5735,6 +5772,8 @@ MCP_CA_COLLISIONS
     require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'mountPath: /credentials'
     require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'secretName: external-oidc'
     require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'value: "/credentials/client-secret"'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'name: OSMO_MCP_GATEWAY_CA_FILE'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'value: "/credentials/gateway.pem"'
     require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'automountServiceAccountToken: false'
 
     helm_template mcp-ui "$charts_copy/osmo" \
@@ -5774,6 +5813,9 @@ MCP_CA_COLLISIONS
         require_contains "$TEST_DIRECTORY/mcp-invalid.out" 'Error:'
     done <<'MCP_INVALID_VALUES'
 services.mcp.unknown=true
+services.mcp.gatewayCaFile=relative.pem
+services.mcp.gatewayCaFile=/ca/../gateway.pem
+services.mcp.extraEnv[0].name=OSMO_MCP_GATEWAY_CA_FILE,services.mcp.extraEnv[0].value=/other.pem
 services.mcp.oidcProxy.enabled=false
 services.mcp.oidcProxy.oidc.audience=old
 services.mcp.oidcProxy.redis.host=old

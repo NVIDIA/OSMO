@@ -230,6 +230,18 @@ For a custom file mount, leave `existingSecret.name` empty and configure
 `services.mcp.pod.extraVolumes`. Never put credential contents in values.
 Multiple replicas must share the same OIDC Secret, Valkey DB and key prefix.
 
+For a private-CA Gateway, set `services.mcp.gatewayCaFile` to a complete PEM
+trust bundle mounted through `extraVolumeMounts` and `pod.extraVolumes` (for
+example, `/credentials/gateway.pem`). This explicitly configures Gateway TLS
+trust; `SSL_CERT_FILE` does not affect Gateway requests. Certificate and hostname
+verification remain enabled.
+
+Readiness uses `/health/ready` to check Redis connectivity with a two-second
+deadline. `/health` and `/health/live` only check the running process, so a Redis
+outage does not trigger liveness restarts. Readiness does not validate every
+OAuth operation or Redis permission. These readiness and Gateway CA settings
+require an MCP image containing the corresponding runtime support.
+
 Register the upstream callback as `https://osmo.example.com/mcp/auth/callback`
 and the resource scope as `https://osmo.example.com/mcp/access_as_user`.
 Use a JWT provider matching the upstream access-token issuer. Set

@@ -680,6 +680,8 @@ services:
       pullPolicy: IfNotPresent
     port: 8000
     resourceUrl: ''
+    # Optional Gateway HTTPS trust bundle, supplied through extraVolumeMounts.
+    gatewayCaFile: ''
     requestTimeoutSeconds: 10
     allowedOrigins: []
     ## Built-in FastMCP OIDC proxy. MCP authenticates every caller itself and
@@ -751,7 +753,7 @@ services:
       spec:
         httpGet:
           port: http
-          path: /health
+          path: /health/ready
         initialDelaySeconds: 5
         periodSeconds: 5
         timeoutSeconds: 3

@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import asyncio
 from collections.abc import AsyncIterator, Callable, Coroutine
 import unittest
+from unittest import mock
 
 import httpx
 
@@ -67,6 +68,36 @@ class _TrackingTransport(httpx.MockTransport):
 
 class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
     """Validate fixed-origin Gateway request and response boundaries."""
+
+    async def test_gateway_ca_is_explicit_and_does_not_enable_environment_trust(self) -> None:
+        for ca_file in ('', '/ca/gateway.pem'):
+            with (
+                self.subTest(ca_file=ca_file),
+                mock.patch.object(gateway.ssl, 'create_default_context') as create_context,
+                mock.patch.object(gateway.httpx, 'AsyncClient') as create_client,
+            ):
+                async with gateway.create_app_context(
+                    gateway_url='https://gateway.test', request_timeout_seconds=5,
+                    gateway_ca_file=ca_file,
+                ):
+                    pass
+                options = create_client.call_args.kwargs
+                self.assertIs(options['trust_env'], False)
+                self.assertIs(options['follow_redirects'], False)
+                if ca_file:
+                    create_context.assert_called_once_with(cafile=ca_file)
+                    self.assertIs(options['verify'], create_context.return_value)
+                else:
+                    create_context.assert_not_called()
+                    self.assertIs(options['verify'], True)
+
+    async def test_missing_gateway_ca_fails_closed(self) -> None:
+        with self.assertRaises(FileNotFoundError):
+            async with gateway.create_app_context(
+                gateway_url='https://gateway.test', request_timeout_seconds=5,
+                gateway_ca_file='/nonexistent/mcp-gateway-ca.pem',
+            ):
+                self.fail('missing CA must not fall back to unverified TLS')
 
     @staticmethod
     def _credentials(
