@@ -60,11 +60,16 @@
 uses; only the logical database is chosen here, to isolate proxy state. */ -}}
 {{- $redisHost := required "a valkey host is required when MCP is enabled" (include "osmo.valkey.host" .) }}
 {{- $redisScheme := ternary "rediss" "redis" (eq (include "osmo.valkey.tlsEnabled" .) "true") }}
+{{- $valkeyCustomCa := eq (include "osmo.externalDependencies.valkeyCustomCaEnabled" .) "true" }}
 {{- $redisUrl := printf "%s://%s:%v/%v" $redisScheme $redisHost (include "osmo.valkey.port" .) $oidcProxy.redis.dbNumber }}
 {{- include "osmo.mcp.validatePath" (dict "name" "MCP client secret file" "path" $oidcClientSecretFile) }}
 {{- include "osmo.mcp.validatePath" (dict "name" "MCP Redis password file" "path" $redisPasswordFile) }}
 {{- $volumeNames := dict }}
 {{- $mountPaths := list }}
+{{- if $valkeyCustomCa }}
+{{- $_ := set $volumeNames "valkey-ca" true }}
+{{- $mountPaths = append $mountPaths "/etc/osmo/ca/valkey" }}
+{{- end }}
 {{- if .Values.gateway.tls.enabled }}
 {{- $_ := set $volumeNames "tls" true }}
 {{- $mountPaths = append $mountPaths "/etc/osmo/tls" }}
@@ -103,7 +108,7 @@ uses; only the logical database is chosen here, to isolate proxy state. */ -}}
 {{- end }}
 {{- $reservedEnvNames := list "OSMO_MCP_HOST" "OSMO_MCP_PORT" "OSMO_GATEWAY_URL" "OSMO_MCP_REQUEST_TIMEOUT_SECONDS" "OSMO_MCP_ALLOWED_ORIGINS" "OSMO_MCP_AUTH_RESOURCE_URL" "OSMO_MCP_AUTH_REDIS_URL" "OSMO_MCP_AUTH_REDIS_PASSWORD_FILE" "OSMO_MCP_AUTH_REDIS_KEY_PREFIX" "OSMO_MCP_AUTH_OIDC_CONFIG_URL" "OSMO_MCP_AUTH_OIDC_CLIENT_ID" "OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE" "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_ISSUER" "OSMO_MCP_AUTH_OIDC_ACCESS_TOKEN_REQUIRED_SCOPE" "OSMO_MCP_AUTH_ACCESS_TOKEN_TTL_SECONDS" "OSMO_MCP_AUTH_REFRESH_TOKEN_TTL_SECONDS" "OSMO_MCP_AUTH_UPSTREAM_TIMEOUT_SECONDS" "OSMO_MCP_AUTH_REDIS_CONNECT_TIMEOUT_SECONDS" "OSMO_MCP_AUTH_REDIS_OPERATION_TIMEOUT_SECONDS" }}
 {{- range $env := $mcp.extraEnv }}
-{{- if has (toString (default "" $env.name)) $reservedEnvNames }}
+{{- if or (has (toString (default "" $env.name)) $reservedEnvNames) (and $valkeyCustomCa (eq $env.name "SSL_CERT_FILE")) }}
 {{- fail (printf "services.mcp.extraEnv must not override managed variable %s" $env.name) }}
 {{- end }}
 {{- end }}
@@ -190,6 +195,10 @@ spec:
           value: {{ $mcpResourceUrl | quote }}
         - name: OSMO_MCP_AUTH_REDIS_URL
           value: {{ $redisUrl | quote }}
+        {{- if $valkeyCustomCa }}
+        - name: SSL_CERT_FILE
+          value: /etc/osmo/ca/valkey/ca-bundle.crt
+        {{- end }}
         {{- if $redisPasswordFile }}
         - name: OSMO_MCP_AUTH_REDIS_PASSWORD_FILE
           value: {{ $redisPasswordFile | quote }}
@@ -223,8 +232,13 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $mcp.resources | nindent 10 }}
-        {{- if or .Values.gateway.tls.enabled $secretName $redisPasswordSecretName $mcp.extraVolumeMounts }}
+        {{- if or .Values.gateway.tls.enabled $secretName $redisPasswordSecretName $valkeyCustomCa $mcp.extraVolumeMounts }}
         volumeMounts:
+        {{- if $valkeyCustomCa }}
+        - name: valkey-ca
+          mountPath: /etc/osmo/ca/valkey
+          readOnly: true
+        {{- end }}
         {{- if .Values.gateway.tls.enabled }}
         {{- include "osmo.gateway.upstreamTlsVolumeMount" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 8 }}
         {{- end }}
@@ -253,8 +267,16 @@ spec:
           {{- . | nindent 10 }}
         {{- end }}
       {{- include "osmo.pod.extraContainers" $mcp | nindent 6 }}
-      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes $secretName $redisPasswordSecretName }}
+      {{- if or .Values.gateway.tls.enabled $mcp.pod.extraVolumes $secretName $redisPasswordSecretName $valkeyCustomCa }}
       volumes:
+      {{- if $valkeyCustomCa }}
+      - name: valkey-ca
+        secret:
+          secretName: {{ .Values.externalDependencies.valkey.tls.caExistingSecret }}
+          items:
+          - key: {{ .Values.externalDependencies.valkey.tls.caKey }}
+            path: ca-bundle.crt
+      {{- end }}
       {{- include "osmo.gateway.upstreamTlsVolume" (dict "context" . "secretName" (include "osmo.gateway.tlsLeafSecretName" (dict "root" . "component" "mcp"))) | nindent 6 }}
       {{- if $secretName }}
       - name: mcp-oidc-proxy

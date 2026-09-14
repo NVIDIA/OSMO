@@ -222,6 +222,9 @@ services:
 The Secret's default key is `client-secret`. MCP inherits the effective
 external or embedded Valkey connection and password Secret; set
 `existingSecret.redisPasswordKey` only for a combined OIDC/Valkey Secret.
+For private-CA Valkey TLS, MCP also mounts `externalDependencies.valkey.tls.caExistingSecret`
+using `caKey` and sets `SSL_CERT_FILE`. Supply a complete trust bundle, including
+the public roots needed for OIDC HTTPS connections.
 For a custom file mount, leave `existingSecret.name` empty and configure
 `oidc.clientSecretFile`, `services.mcp.extraVolumeMounts` and
 `services.mcp.pod.extraVolumes`. Never put credential contents in values.
