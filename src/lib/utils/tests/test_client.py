@@ -217,27 +217,24 @@ class HandleResponseClientErrorTests(unittest.TestCase):
         self.assertEqual(cm.exception.message, 'nope')
         self.assertEqual(cm.exception.workflow_id, 'wf-2')
 
-    def test_4xx_image_not_found_raises_the_matching_registry_error(self):
-        response = FakeResponse(
-            status_code=400,
-            text=json.dumps({'message': 'Could not resolve image tag a/b:1',
-                             'error_code': 'IMAGE_NOT_FOUND',
-                             'workflow_id': 'wf-3'}))
+    def test_4xx_registry_error_codes_raise_their_matching_error(self):
+        for error_code, error_class in [
+                ('REGISTRY', osmo_errors.OSMORegistryError),
+                ('IMAGE_NOT_FOUND', osmo_errors.OSMOImageNotFoundError),
+                ('REGISTRY_RATE_LIMIT', osmo_errors.OSMORegistryRateLimitError),
+                ('REGISTRY_UNAVAILABLE', osmo_errors.OSMORegistryUnavailableError)]:
+            with self.subTest(error_code=error_code):
+                response = FakeResponse(
+                    status_code=400,
+                    text=json.dumps({'message': 'Could not resolve image tag a/b:1',
+                                     'error_code': error_code,
+                                     'workflow_id': 'wf-3'}))
 
-        with self.assertRaises(osmo_errors.OSMOImageNotFoundError) as cm:
-            client.handle_response(response)
+                with self.assertRaises(error_class) as cm:
+                    client.handle_response(response)
 
-        self.assertEqual(cm.exception.message, 'Could not resolve image tag a/b:1')
-        self.assertEqual(cm.exception.workflow_id, 'wf-3')
-
-    def test_4xx_registry_unavailable_raises_the_matching_registry_error(self):
-        response = FakeResponse(
-            status_code=400,
-            text=json.dumps({'message': 'registry down',
-                             'error_code': 'REGISTRY_UNAVAILABLE'}))
-
-        with self.assertRaises(osmo_errors.OSMORegistryUnavailableError):
-            client.handle_response(response)
+                self.assertEqual(cm.exception.message, 'Could not resolve image tag a/b:1')
+                self.assertEqual(cm.exception.workflow_id, 'wf-3')
 
     def test_4xx_without_error_code_raises_user_error_with_text(self):
         response = FakeResponse(status_code=400, text='{"message": "bad"}')

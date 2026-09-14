@@ -413,20 +413,28 @@ class WorkflowSpecValidateCredentialsTest(unittest.TestCase):
         self.assertEqual(spec.groups[0].tasks[0].image, 'nvcr.io/nvstaging/osmo/app:latest')
 
 
+_CREDS = [('registry-1.docker.io/hijkzzz', {'username': 'user', 'auth': 'token'})]
+
+
 class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
     def _spec(self, image: str) -> workflow.WorkflowSpec:
         return workflow.WorkflowSpec(
             name='wf',
             tasks=[{'name': 'task', 'image': image, 'command': ['echo']}])
 
-    def _validate(self, spec: workflow.WorkflowSpec, response: mock.Mock,
-                  registry_creds: list | None = None):
+    def _validate(self, spec: workflow.WorkflowSpec, response: mock.Mock | None = None,
+                  registry_creds: list | None = None,
+                  responses: list | None = None):
+        """Runs validate_registry, recording the registry_auth mock on self.registry_auth."""
         database = _mock_database()
         database.get_matching_registry_creds.return_value = registry_creds or []
+        auth_patch = ({'side_effect': responses} if responses is not None
+                      else {'return_value': response})
         with mock.patch('src.utils.job.workflow.common.registry_auth',
-                        return_value=response), \
+                        **auth_patch) as registry_auth, \
              mock.patch.object(connectors.PostgresConnector, 'get_instance',
                                return_value=database):
+            self.registry_auth = registry_auth
             return spec.validate_registry('alice', spec.tasks[0], {}, [])
 
     def test_validate_registry_raises_when_no_credential_authenticates(self):
@@ -477,36 +485,34 @@ class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
     def test_validate_registry_skips_credentials_a_failing_registry_cannot_accept(self):
         """Rate limits and outages are not credential problems; do not retry per credential."""
         spec = self._spec('hijkzzz/molt:0.1')
-        database = _mock_database()
-        database.get_matching_registry_creds.return_value = [
-            ('registry-1.docker.io/hijkzzz', {'username': 'user', 'auth': 'token'}),
-        ]
 
-        with mock.patch('src.utils.job.workflow.common.registry_auth',
-                        return_value=mock.Mock(status_code=429)) as registry_auth, \
-             mock.patch.object(connectors.PostgresConnector, 'get_instance',
-                               return_value=database):
-            with self.assertRaises(osmo_errors.OSMORegistryRateLimitError):
-                spec.validate_registry('alice', spec.tasks[0], {}, [])
+        with self.assertRaises(osmo_errors.OSMORegistryRateLimitError):
+            self._validate(spec, mock.Mock(status_code=429), _CREDS)
 
-        self.assertEqual(registry_auth.call_count, 1)
+        self.assertEqual(self.registry_auth.call_count, 1)
+
+    def test_validate_registry_stops_when_the_registry_starts_failing_mid_loop(self):
+        """A registry that begins rate limiting part-way stops the remaining credentials."""
+        spec = self._spec('hijkzzz/molt:0.1')
+
+        with self.assertRaises(osmo_errors.OSMORegistryRateLimitError):
+            self._validate(spec, registry_creds=_CREDS * 2,
+                           responses=[mock.Mock(status_code=401),
+                                      mock.Mock(status_code=429),
+                                      mock.Mock(status_code=429)])
+
+        # Anonymous attempt plus the first credential only; the second is not tried.
+        self.assertEqual(self.registry_auth.call_count, 2)
 
     def test_validate_registry_classifies_the_last_credential_response(self):
         """A credential that turns a 401 into a 404 reports the missing tag, not auth."""
         spec = self._spec('hijkzzz/molt:0.1')
-        database = _mock_database()
-        database.get_matching_registry_creds.return_value = [
-            ('registry-1.docker.io/hijkzzz', {'username': 'user', 'auth': 'token'}),
-        ]
         not_found = mock.Mock(status_code=404)
         not_found.json.return_value = {'errors': [{'code': 'MANIFEST_UNKNOWN'}]}
 
-        with mock.patch('src.utils.job.workflow.common.registry_auth',
-                        side_effect=[mock.Mock(status_code=401), not_found]), \
-             mock.patch.object(connectors.PostgresConnector, 'get_instance',
-                               return_value=database):
-            with self.assertRaises(osmo_errors.OSMOImageNotFoundError):
-                spec.validate_registry('alice', spec.tasks[0], {}, [])
+        with self.assertRaises(osmo_errors.OSMOImageNotFoundError):
+            self._validate(spec, registry_creds=_CREDS,
+                           responses=[mock.Mock(status_code=401), not_found])
 
 
 class WorkflowSpecValidateGenericCredTest(unittest.TestCase):

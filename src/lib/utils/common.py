@@ -380,6 +380,11 @@ def registry_error_code(response) -> str:
     return ''
 
 
+def registry_failure_is_terminal(response) -> bool:
+    """ Returns whether a failing manifest response is one no credential can change. """
+    return response.status_code == 429 or response.status_code >= 500
+
+
 def registry_manifest_error(image_info: DockerImageInfo, response,
                             workflow_id: Optional[str] = None) -> osmo_errors.OSMOError:
     """ Classifies a non-200 manifest response into a specific, actionable error. """

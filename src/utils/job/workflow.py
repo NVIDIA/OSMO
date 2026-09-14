@@ -633,22 +633,21 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             seen_registries[image_info.manifest_url] = response
             return response
 
-        # Rate limits and registry outages are not credential problems, and retrying with every
-        # credential only adds load to a registry that is already failing.
-        if response.status_code == 429 or response.status_code >= 500:
-            raise common.registry_manifest_error(image_info, response, workflow_id=self.name)
-
-        # A 404 still goes through the credential loop: registries that hide private
-        # repositories answer 404 with an auth challenge, which registry_auth resolves once a
-        # credential is supplied.
-        for _, registry_cred in connectors.PostgresConnector.get_instance()\
-                .get_matching_registry_creds(user, image_info):
-            response = common.registry_auth(image_info.manifest_url,
-                                            registry_cred['username'],
-                                            registry_cred['auth'])
-            if response.status_code == 200:
-                seen_registries[image_info.manifest_url] = response
-                return response
+        # Rate limits and registry outages are not credential problems, so stop as soon as one
+        # appears rather than adding load to a registry that is already failing. A 404 still
+        # goes through the credentials: registries that hide private repositories answer 404
+        # with an auth challenge, which registry_auth resolves once a credential is supplied.
+        if not common.registry_failure_is_terminal(response):
+            for _, registry_cred in connectors.PostgresConnector.get_instance()\
+                    .get_matching_registry_creds(user, image_info):
+                response = common.registry_auth(image_info.manifest_url,
+                                                registry_cred['username'],
+                                                registry_cred['auth'])
+                if response.status_code == 200:
+                    seen_registries[image_info.manifest_url] = response
+                    return response
+                if common.registry_failure_is_terminal(response):
+                    break
 
         # Classify the most authenticated attempt so a missing tag is not reported as an
         # authentication failure.
