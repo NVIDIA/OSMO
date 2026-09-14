@@ -40,6 +40,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpEnabled := $mcp.enabled | default false }}
 {{- $mcpPath := "/mcp" }}
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
+{{- $mcpAuthServerMetadataPath := "/.well-known/oauth-authorization-server/mcp" }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpTokenIssuer := "" }}
 {{- $mcpMetadataUrl := "" }}
@@ -102,7 +103,8 @@ application configured for v1-format tokens does.
 {{- range $skipPath := $skipAuthPaths }}
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
-{{- if or $overlapsMcpPath $overlapsMcpMetadataPath }}
+{{- $overlapsMcpAuthServerPath := or (hasPrefix $skipPath $mcpAuthServerMetadataPath) (hasPrefix $mcpAuthServerMetadataPath $skipPath) }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsMcpAuthServerPath }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
@@ -690,6 +692,17 @@ data:
                                       header_name: ":method"
                                   value_match:
                                     exact: "GET"
+                          # FastMCP is authoritative for its own OAuth surface.
+                          - single_predicate:
+                              input:
+                                name: request-headers
+                                typed_config:
+                                  "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                                  header_name: ":path"
+                              value_match:
+                                safe_regex:
+                                  google_re2: {}
+                                  regex: "^(/mcp/.*|/[.]well-known/oauth-authorization-server/mcp([?].*)?)$"
                           {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:

@@ -5597,6 +5597,37 @@ EOF
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 11
 
+    # OAuth2 Proxy answers an unauthenticated browser with a 302 to the identity
+    # provider. MCP clients are not browsers, so every path FastMCP owns has to
+    # bypass it or discovery and dynamic client registration get HTML instead of
+    # JSON. The control profile leaves OAuth2 Proxy off, so enable it here.
+    helm_template mcp-oauth2-proxy "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        >"$TEST_DIRECTORY/osmo-mcp-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-mcp-oauth2-proxy.yaml" \
+        'regex: "^(/mcp/.*|/[.]well-known/oauth-authorization-server/mcp([?].*)?)$"'
+    # The routes disable jwt_authn and the semantic ext_authz by name. OAuth2
+    # Proxy runs as a separate filter that those per-route configs do not reach,
+    # so its own matcher is the only thing keeping these paths reachable.
+    require_contains "$TEST_DIRECTORY/osmo-mcp-oauth2-proxy.yaml" \
+        'regex: "^/mcp([?].*)?$"'
+    require_contains "$TEST_DIRECTORY/osmo-mcp-oauth2-proxy.yaml" \
+        'regex: "^/[.]well-known/oauth-protected-resource/mcp([?].*)?$"'
+
+    if helm_template mcp-skip-path-overlap "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set 'gateway.envoy.skipAuthPaths[0]=/.well-known/oauth-authorization-server' \
+            >"$TEST_DIRECTORY/mcp-skip-path-overlap.out" 2>&1; then
+        fail "expected a skip path overlapping the MCP metadata paths to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/mcp-skip-path-overlap.out" \
+        "overlaps a protected MCP path"
+
     helm_template mcp-combined-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
