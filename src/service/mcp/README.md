@@ -137,7 +137,7 @@ metadata-document URL as a stable client ID. DCR-capable clients without CIMD
 support can use the same endpoint-only flow through `/register`. A DCR record
 is stored in OSMO; neither approach creates an application in the upstream
 identity provider. The deployment owns one administrator-managed confidential
-upstream OIDC application and one stable `/auth/callback` redirect URL.
+upstream OIDC application and one stable `/mcp/auth/callback` redirect URL.
 
 FastMCP's OIDC proxy owns CIMD, DCR fallback, PKCE, consent, upstream OIDC
 exchange, refresh, proxy-token issuance, and encrypted state. OSMO supplies a
@@ -160,14 +160,14 @@ OIDC client secret; no proxy signing key is mounted into Gateway.
 Before enabling OIDC proxy mode, an administrator must provide:
 
 - one confidential OIDC application in the deployment identity provider, with
-  the exact `https://<osmo-host>/auth/callback` redirect registered;
+  the exact `https://<osmo-host>/mcp/auth/callback` redirect registered;
 - its client ID and client secret through the deployment's secret manager;
 - the full delegated `<resource-url>/access_as_user` scope on that application;
 - OIDC discovery plus explicit issuer, audience, JWKS URL, and short
   `access_as_user` scope requirements for upstream API access-token validation;
 - a shared Redis namespace for FastMCP's encrypted clients, authorization
   transactions, upstream tokens, and refresh state;
-- an exact public MCP resource URL; the OAuth issuer is its origin; and
+- an exact public MCP resource URL, which is also the OAuth issuer; and
 - an existing Gateway identity-provider JWT provider and role mapping for the
   verified upstream token relayed to `/api`.
 
@@ -175,20 +175,21 @@ The public protocol surface is deliberately narrow:
 
 ```text
 GET  /.well-known/oauth-protected-resource/mcp
-GET  /.well-known/oauth-authorization-server
-GET  /authorize
-POST /authorize
-GET  /auth/callback
-POST /register
-POST /token
-GET  /consent
-POST /consent
+GET  /.well-known/oauth-authorization-server/mcp
+GET  /mcp/authorize
+POST /mcp/authorize
+GET  /mcp/auth/callback
+POST /mcp/register
+POST /mcp/token
+GET  /mcp/consent
+POST /mcp/consent
 ```
 
-Only these exact OAuth paths and methods bypass the normal Gateway JWT and OSMO
-authorization filters. In OIDC proxy mode, exact `/mcp` also bypasses those
-Gateway filters because FastMCP authenticates it in-process. Neighboring paths
-remain protected. All resulting `/api` calls use normal Gateway authentication
+The gateway publishes the whole `/mcp/` prefix plus the two metadata documents
+with Gateway JWT and OSMO authorization disabled, so a new non-OAuth route at
+the container root is published too unless it is carved out; `/mcp/health`
+already is. Exact `/mcp` also bypasses those filters because FastMCP
+authenticates it in-process. Paths outside that prefix remain protected. All resulting `/api` calls use normal Gateway authentication
 and authorization.
 
 A minimal values overlay selects OIDC proxy mode and its upstream provider;
