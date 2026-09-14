@@ -489,10 +489,30 @@ data:
 
 {{- define "osmo.mcp.resourceUrl" -}}
 {{- $resourceUrl := required "services.mcp.resourceUrl is required when MCP is enabled" .Values.services.mcp.resourceUrl -}}
+{{- include "osmo.mcp.validateUrl" (dict "name" "services.mcp.resourceUrl" "url" $resourceUrl) -}}
 {{- if not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/mcp$" $resourceUrl) -}}
 {{- fail "services.mcp.resourceUrl must be a valid HTTPS origin followed by the exact /mcp path" -}}
 {{- end -}}
 {{- $resourceUrl -}}
+{{- end -}}
+
+{{- define "osmo.mcp.validateUrl" -}}
+{{- if not (regexMatch "^https?://([A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?|\\[[0-9A-Fa-f:.]+\\])(:[0-9]{1,5})?(/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?$" .url) -}}
+{{- fail (printf "%s must be an absolute HTTP(S) URL without credentials, query or fragment" .name) -}}
+{{- end -}}
+{{- $port := regexFind ":[0-9]+$" (urlParse .url).host -}}
+{{- if $port -}}
+{{- $number := trimSuffix "/" (trimPrefix ":" $port) | int -}}
+{{- if or (lt $number 1) (gt $number 65535) -}}
+{{- fail (printf "%s port must be between 1 and 65535" .name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "osmo.mcp.validatePath" -}}
+{{- if or (not (regexMatch "^/[A-Za-z0-9._/-]+$" .path)) (regexMatch "(^|/)[.]{1,2}(/|$)|//" .path) -}}
+{{- fail (printf "%s must be a safe absolute path without dot segments or empty components" .name) -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "osmo.secrets.mekVolume" -}}

@@ -270,6 +270,22 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     '/.well-known/oauth-authorization-server',
                     route_paths,
                 )
+                expected_methods = {
+                    '/authorize': {'GET', 'HEAD', 'POST'},
+                    '/consent': {'GET', 'HEAD', 'POST'},
+                    '/auth/callback': {'GET', 'HEAD'},
+                    '/token': {'POST', 'OPTIONS'},
+                    '/register': {'POST', 'OPTIONS'},
+                    '/.well-known/oauth-authorization-server': {'GET', 'HEAD', 'OPTIONS'},
+                    '/.well-known/oauth-protected-resource/mcp': {'GET', 'HEAD', 'OPTIONS'},
+                }
+                actual_methods = {
+                    route.path: set(route.methods)
+                    for route in application.routes
+                    if hasattr(route, 'path') and hasattr(route, 'methods')
+                    and route.path in expected_methods
+                }
+                self.assertEqual(actual_methods, expected_methods)
                 async with (
                     application.router.lifespan_context(application),
                     httpx.AsyncClient(

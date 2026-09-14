@@ -95,6 +95,7 @@ application configured for v1-format tokens does.
 {{- fail "services.mcp.allowedOrigins must be a list" }}
 {{- end }}
 {{- range $origin := $mcp.allowedOrigins }}
+{{- include "osmo.mcp.validateUrl" (dict "name" "services.mcp.allowedOrigins" "url" $origin) }}
 {{- if not (regexMatch "^https?://[^/?#]+$" $origin) }}
 {{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without a path" $origin) }}
 {{- end }}
@@ -102,7 +103,9 @@ application configured for v1-format tokens does.
 {{- range $skipPath := $skipAuthPaths }}
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
-{{- if or $overlapsMcpPath $overlapsMcpMetadataPath }}
+{{- $authorizationMetadataPath := "/.well-known/oauth-authorization-server/mcp" }}
+{{- $overlapsAuthorizationMetadata := or (hasPrefix $skipPath $authorizationMetadataPath) (hasPrefix $authorizationMetadataPath $skipPath) }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsAuthorizationMetadata }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
@@ -307,18 +310,29 @@ data:
                 {{- end }}
 
                 {{- if $mcpEnabled }}
-                # FastMCP serves its own RFC 9728 document, so the gateway
-                # forwards this path instead of synthesising it.
-                - name: mcp-protected-resource-metadata
+                {{- $oauthRoutes := list
+                    (dict "name" "protected-resource-metadata" "path" $mcpMetadataPath "target" $mcpMetadataPath "methods" "GET|HEAD|OPTIONS")
+                    (dict "name" "authorization-server-metadata" "path" "/.well-known/oauth-authorization-server/mcp" "target" "/.well-known/oauth-authorization-server" "methods" "GET|HEAD|OPTIONS")
+                    (dict "name" "authorize" "path" "/mcp/authorize" "target" "/authorize" "methods" "GET|HEAD|POST")
+                    (dict "name" "consent" "path" "/mcp/consent" "target" "/consent" "methods" "GET|HEAD|POST")
+                    (dict "name" "callback" "path" "/mcp/auth/callback" "target" "/auth/callback" "methods" "GET|HEAD")
+                    (dict "name" "token" "path" "/mcp/token" "target" "/token" "methods" "POST|OPTIONS")
+                    (dict "name" "register" "path" "/mcp/register" "target" "/register" "methods" "POST|OPTIONS")
+                    (dict "name" "revoke" "path" "/mcp/revoke" "target" "/revoke" "methods" "POST|OPTIONS") }}
+                {{- range $route := $oauthRoutes }}
+                - name: mcp-{{ $route.name }}
                   match:
-                    path: {{ $mcpMetadataPath }}
+                    path: {{ $route.path }}
                     headers:
                     - name: ":method"
                       string_match:
-                        exact: GET
+                        safe_regex:
+                          google_re2: {}
+                          regex: {{ $route.methods | quote }}
                   route:
                     cluster: osmo-mcp
-                    timeout: 15s
+                    prefix_rewrite: {{ $route.target }}
+                    timeout: 45s
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
@@ -326,35 +340,12 @@ data:
                     envoy.filters.http.ext_authz:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
+                {{- end }}
 
-                # RFC 8414 path-aware authorization-server metadata. FastMCP
-                # registers it at the root, so the prefix is rewritten off.
-                - name: mcp-authorization-server-metadata
+                {{- range $index, $path := list "/mcp/" $mcpMetadataPath "/.well-known/oauth-authorization-server/mcp" }}
+                - name: mcp-reject-{{ $index }}
                   match:
-                    path: /.well-known/oauth-authorization-server/mcp
-                    headers:
-                    - name: ":method"
-                      string_match:
-                        exact: GET
-                  route:
-                    cluster: osmo-mcp
-                    prefix_rewrite: /.well-known/oauth-authorization-server
-                    timeout: 15s
-                  typed_per_filter_config:
-                    envoy.filters.http.jwt_authn:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
-                      disabled: true
-                    envoy.filters.http.ext_authz:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                      disabled: true
-
-                # The /mcp/ prefix below publishes the container's whole root
-                # namespace, so any new non-OAuth root route must be carved out
-                # here too. Auth filters are off so the 404 is this route's own
-                # answer, not jwt_authn's 401 that a later change could move.
-                - name: mcp-health-not-public
-                  match:
-                    prefix: /mcp/health
+                    prefix: {{ $path }}
                   direct_response:
                     status: 404
                   typed_per_filter_config:
@@ -364,24 +355,7 @@ data:
                     envoy.filters.http.ext_authz:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
-
-                # The MCP SDK registers OAuth at fixed root paths, so the
-                # gateway publishes them under /mcp -- matching what FastMCP
-                # advertises -- and rewrites the prefix off before forwarding.
-                - name: mcp-oauth
-                  match:
-                    prefix: /mcp/
-                  route:
-                    cluster: osmo-mcp
-                    prefix_rewrite: /
-                    timeout: 15s
-                  typed_per_filter_config:
-                    envoy.filters.http.jwt_authn:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
-                      disabled: true
-                    envoy.filters.http.ext_authz:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                      disabled: true
+                {{- end }}
 
                 # FastMCP validates its own token and relays the verified
                 # upstream token to protected /api.
@@ -654,10 +628,8 @@ data:
                               value_match:
                                 prefix: "Bearer "
                           {{- if $mcpEnabled }}
-                          # MCP clients authenticate with bearer JWTs and must
-                          # receive the jwt_authn challenge when the token is
-                          # missing or invalid. Bypass only OAuth2 Proxy here;
-                          # jwt_authn and semantic ext_authz stay enabled.
+                          # These namespaces are handled only by the exact
+                          # FastMCP routes or local rejection routes above.
                           - single_predicate:
                               input:
                                 name: request-headers
@@ -667,29 +639,7 @@ data:
                               value_match:
                                 safe_regex:
                                   google_re2: {}
-                                  regex: "^/mcp([?].*)?$"
-                          # The protected-resource document is public only for
-                          # the exact GET route configured above.
-                          - and_matcher:
-                              predicate:
-                              - single_predicate:
-                                  input:
-                                    name: request-headers
-                                    typed_config:
-                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                                      header_name: ":path"
-                                  value_match:
-                                    safe_regex:
-                                      google_re2: {}
-                                      regex: "^/[.]well-known/oauth-protected-resource/mcp([?].*)?$"
-                              - single_predicate:
-                                  input:
-                                    name: request-headers
-                                    typed_config:
-                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                                      header_name: ":method"
-                                  value_match:
-                                    exact: "GET"
+                                  regex: "^(/mcp([/?].*)?|/[.]well-known/oauth-(protected-resource|authorization-server)/mcp.*)$"
                           {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:

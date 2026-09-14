@@ -767,6 +767,7 @@ services:
         timeoutSeconds: 3
         failureThreshold: 24
     extraEnv: []
+    extraVolumeMounts: []
     pod:
       labels: {}
       annotations: {}

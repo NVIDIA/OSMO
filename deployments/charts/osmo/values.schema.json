@@ -1239,6 +1239,7 @@
     },
     "mcpComponent": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "replicas": { "type": "integer", "minimum": 0 },
@@ -1248,15 +1249,17 @@
         "requestTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
         "oidcProxy": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "oidc": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "configUrl": { "type": "string" },
                 "clientId": { "type": "string" },
-                "clientSecretFile": { "type": "string" },
+                "clientSecretFile": { "type": "string", "pattern": "^$|^/[^\\s]+$" },
                 "accessTokenIssuer": { "type": "string" },
-                "accessTokenRequiredScope": { "type": "string" }
+                "accessTokenRequiredScope": { "type": "string", "pattern": "^[A-Za-z0-9:._~-]{1,128}$" }
               }
             },
             "accessTokenTtlSeconds": { "type": "integer", "minimum": 60, "maximum": 3600 },
@@ -1264,25 +1267,27 @@
             "upstreamTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
             "redis": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "dbNumber": { "type": "integer", "minimum": 0, "maximum": 15 },
-                "keyPrefix": { "type": "string" },
+                "keyPrefix": { "type": "string", "pattern": "^[A-Za-z0-9:._~-]{1,128}$" },
                 "connectTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 30 },
                 "operationTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 30 }
               }
             },
             "existingSecret": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "name": { "type": "string" },
-                "mountPath": { "type": "string" },
-                "clientSecretKey": { "type": "string" },
-                "redisPasswordKey": { "type": "string" }
+                "mountPath": { "type": "string", "pattern": "^/[^\\s]+$" },
+                "clientSecretKey": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+                "redisPasswordKey": { "type": "string", "pattern": "^[A-Za-z0-9._-]*$" }
               }
             }
           }
         },
-        "allowedOrigins": { "type": "array" },
+        "allowedOrigins": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "service": { "$ref": "#/definitions/serviceMetadata" },
         "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "podDisruptionBudget": { "$ref": "#/definitions/podDisruptionBudget" },
@@ -1291,6 +1296,7 @@
         "readinessProbe": { "$ref": "#/definitions/probe" },
         "startupProbe": { "$ref": "#/definitions/probe" },
         "extraEnv": { "type": "array" },
+        "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "pod": { "$ref": "#/definitions/podSettingsSchedulingOnly" },
         "deploymentStrategy": { "type": "object" }
       }
