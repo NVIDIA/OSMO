@@ -16,7 +16,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 
-Convert legacy backend-operator values to compute-only umbrella-chart values.
+Convert legacy backend-operator values to compute-only unified-chart values.
 """
 
 import argparse
@@ -295,7 +295,7 @@ class _Converter:
             login_method = 'password'
         if login_method != 'token':
             self.issue('global.loginMethod',
-                       'the umbrella compute plane supports token '
+                       'the unified compute plane supports token '
                        'authentication only')
         _move(self.source, self.output, 'global.accountTokenSecret',
               'compute.authentication.existingSecret')
@@ -315,7 +315,7 @@ class _Converter:
         if agent_namespace != self.release_namespace:
             self.issue(
                 'global.agentNamespace',
-                'the umbrella chart uses the Helm release namespace for '
+                'the unified chart uses the Helm release namespace for '
                 'backend agents; set --release-namespace to the legacy '
                 'agent namespace and install the unified release there')
 
@@ -324,8 +324,9 @@ class _Converter:
         if include_namespaces is MISSING:
             self.issue(
                 'global.includeNamespaceUsage',
-                'set the workflow namespaces whose usage the backend '
-                'listener should monitor')
+                'set the workflow namespaces whose usage the backend listener '
+                'should monitor; the converter writes them to '
+                'services.backendListener.extraArgs')
         else:
             self.include_namespace_usage = include_namespaces
 
@@ -340,7 +341,7 @@ class _Converter:
                      priority_classes.pop('classes'))
             for path in _leaf_paths(priority_classes,
                                     'global.priorityClasses'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         elif priority_classes is not MISSING:
             self.issue('global.priorityClasses', 'expected a mapping')
 
@@ -461,7 +462,7 @@ class _Converter:
                 _set(self.output, 'services.backendTestRunner.extraEnv',
                      additional)
             for path in _leaf_paths(environment, 'backendTestRunner.env'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         for old_key, new_key in (
                 ('configMap', 'configMap'),
                 ('labels', 'labels'),
@@ -482,11 +483,11 @@ class _Converter:
                      'services.backendTestRunner.testConfigVolume',
                      converted_volume)
             for path in _leaf_paths(volumes, 'backendTestRunner.volumes'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         elif volumes is not MISSING:
             self.issue('backendTestRunner.volumes', 'expected a mapping')
         for path in _leaf_paths(source, 'backendTestRunner'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def _convert_test_runner_pod(self, pod_template: YamlObject) -> None:
         image = pod_template.pop('image', MISSING)
@@ -514,7 +515,7 @@ class _Converter:
                          image.pop(old_key))
             for path in _leaf_paths(
                     image, 'backendTestRunner.podTemplate.image'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         elif image is not MISSING:
             self.issue('backendTestRunner.podTemplate.image',
                        'expected a mapping')
@@ -544,7 +545,7 @@ class _Converter:
             for path in _leaf_paths(
                     init_container,
                     'backendTestRunner.podTemplate.initContainer'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         elif init_container is not MISSING:
             self.issue('backendTestRunner.podTemplate.initContainer',
                        'expected a mapping')
@@ -562,7 +563,7 @@ class _Converter:
                 container.pop('args')
             for path in _leaf_paths(
                     container, 'backendTestRunner.podTemplate.container'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         elif container is not MISSING:
             self.issue('backendTestRunner.podTemplate.container',
                        'expected a mapping')
@@ -600,7 +601,7 @@ class _Converter:
             pod_template.pop(ignored_key, None)
         for path in _leaf_paths(pod_template,
                                 'backendTestRunner.podTemplate'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def finish(self) -> ConversionResult:
         _move(self.source, self.output, 'podMonitor.enabled',
@@ -621,7 +622,7 @@ class _Converter:
                 'set it explicitly or disable backendTestRunner.enabled')
         remaining = _prune_empty(self.source)
         for path in _leaf_paths(remaining):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
         unique_issues = sorted(set(self.issues), key=lambda issue: issue.path)
         return ConversionResult(_prune_empty(self.output), unique_issues)
 
@@ -650,7 +651,7 @@ def _load(path: pathlib.Path) -> YamlObject:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            'Convert legacy backend-operator values to compute-only umbrella '
+            'Convert legacy backend-operator values to compute-only unified '
             'osmo-chart values. Multiple inputs merge left-to-right like '
             'Helm.'),
         epilog=(
@@ -664,7 +665,7 @@ def _parser() -> argparse.ArgumentParser:
                         help='write converted YAML here instead of stdout')
     parser.add_argument(
         '--release-namespace', default='osmo',
-        help=('namespace where the umbrella Helm release will run; must '
+        help=('namespace where the unified Helm release will run; must '
               'match legacy global.agentNamespace (default: osmo)'))
     parser.add_argument(
         '--release-name',

@@ -16,7 +16,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 
-Convert legacy deployments/charts/service values to umbrella-chart values.
+Convert legacy deployments/charts/service values to unified-chart values.
 
 The converter is deliberately strict. It emits no YAML when a setting cannot
 be translated without operator input, unless --allow-unmapped is supplied.
@@ -140,7 +140,7 @@ def _image(value: Any) -> YamlObject:
         result['registry'] = parts.pop(0)
     else:
         # Legacy full-image fields use Docker's unqualified-name semantics.
-        # Set this explicitly so the umbrella image helper does not inherit
+        # Set this explicitly so the unified image helper does not inherit
         # the OSMO image registry for third-party images.
         result['registry'] = 'docker.io'
     result['repository'] = '/'.join(parts)
@@ -254,13 +254,13 @@ class _Converter:
             # The legacy chart hard-codes the osmo-* resource prefix. The
             # control profile clears this value, so restore it explicitly.
             'fullnameOverride': 'osmo',
-            # The service chart defaults Redis TLS on. The umbrella profile
+            # The service chart defaults Redis TLS on. The unified profile
             # defaults it off and additionally requires an explicit CA Secret.
             'externalDependencies': {
                 'valkey': {'tls': {'enabled': True}},
             },
             'configuration': {
-                # This template is new in the umbrella defaults. Suppress it
+                # This template is new in the unified defaults. Suppress it
                 # so converting a legacy override does not add configuration.
                 'podTemplates': {'default_gpu_user': None},
             },
@@ -352,7 +352,7 @@ class _Converter:
                 _set(self.output, 'services.api.serviceAccount.annotations',
                      legacy_account.pop('annotations'))
             for path in _leaf_paths(legacy_account, 'serviceAccount'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
 
     def convert_dependencies(self) -> None:
         postgres_enabled = _pop(self.source, 'services.postgres.enabled')
@@ -410,7 +410,7 @@ class _Converter:
                  False)
             if localstack_enabled:
                 self.issue('services.localstackS3.enabled',
-                           'LocalStack has no umbrella-chart equivalent; '
+                           'LocalStack has no unified-chart equivalent; '
                            'choose external storage or embedded RustFS')
         self.unsupported(
             'services.localstackS3',
@@ -455,9 +455,9 @@ class _Converter:
                     configs.pop('dataset')
                     self.issue('services.configs.dataset',
                                'dataset configuration is not rendered by the '
-                               'umbrella chart')
+                               'unified chart')
                 for path in _leaf_paths(configs, 'services.configs'):
-                    self.issue(path, 'no umbrella-chart mapping')
+                    self.issue(path, 'no unified-chart mapping')
         _move(self.source, self.output, 'extraConfigMaps',
               'configuration.extraConfigMaps')
         self._convert_storage_configuration()
@@ -499,10 +499,6 @@ class _Converter:
                 _set(self.output,
                      f'externalDependencies.objectStorage.locations.{new_name}',
                      endpoint)
-            else:
-                self.issue(
-                    f'configuration.workflow.{old_name}.credential.endpoint',
-                    'endpoint is absent or supplied only by an injected Secret')
             secret_name = credential.get('secretName')
             if secret_name:
                 _set(
@@ -524,6 +520,22 @@ class _Converter:
                     'inline or unsupported credential data is not converted; '
                     'move it to a Kubernetes Secret and reference it with '
                     'secretName')
+        has_all_secret_references = (
+            len(credentials) == 3
+            and all(credential.get('secretName')
+                    for credential in credentials.values()))
+        if not has_all_secret_references:
+            for old_name, new_name in (
+                    ('workflow_data', 'workflows'),
+                    ('workflow_log', 'logs'),
+                    ('workflow_app', 'apps')):
+                credential = credentials.get(new_name)
+                if isinstance(credential, dict) and not credential.get(
+                        'endpoint'):
+                    self.issue(
+                        f'configuration.workflow.{old_name}.credential.endpoint',
+                        'endpoint is absent and all three per-location Secret '
+                        'references are not configured')
         endpoints = [credential.get('endpoint', '')
                      for credential in credentials.values()]
         schemes = {str(endpoint).split('://', 1)[0]
@@ -531,7 +543,7 @@ class _Converter:
         if schemes and not schemes <= {'s3', 'azure', 'swift'}:
             scheme_list = ', '.join(sorted(schemes))
             self.issue('externalDependencies.objectStorage.locations',
-                       'the umbrella chart supports only s3://, azure://, or '
+                       'the unified chart supports only s3://, azure://, or '
                        'swift://; '
                        f'found {scheme_list}')
         static_credential_keys = {
@@ -596,21 +608,55 @@ class _Converter:
                     _set(self.output, f'services.api.auth.{new_key}',
                          auth.pop(old_key))
             for path in _leaf_paths(auth, 'services.service.auth'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         self.unsupported(
             'services.service.ingress',
             'the API-specific Ingress was removed; configure the root ingress')
         self.unsupported(
             'services.mcp.oidcProxy',
-            'the umbrella chart does not include the legacy MCP OIDC proxy')
-        self.unsupported(
-            'services.migration',
-            'configure the unified chart databaseMigration settings manually '
-            'in a separate override file')
+            'the unified chart does not include the legacy MCP OIDC proxy')
+        self._convert_database_migration()
         self.unsupported(
             'services.configFile',
             'an injected whole-service config file cannot be translated; use '
             'configuration and explicit Secret values')
+
+    def _convert_database_migration(self) -> None:
+        migration = _pop(self.source, 'services.migration')
+        if migration is MISSING:
+            return
+        if not isinstance(migration, dict):
+            self.issue('services.migration', 'expected a mapping')
+            return
+        migration = copy.deepcopy(migration)
+        for field in ('enabled', 'targetSchema', 'pgrollVersion', 'resources'):
+            if field in migration:
+                _set(self.output, f'databaseMigration.{field}',
+                     migration.pop(field))
+        image = migration.pop('image', MISSING)
+        if image is not MISSING:
+            try:
+                _set(self.output, 'databaseMigration.image', _image(image))
+            except ValueError as error:
+                self.issue('services.migration.image', str(error))
+        for field in ('nodeSelector', 'tolerations'):
+            if field in migration:
+                _set(self.output, f'databaseMigration.pod.{field}',
+                     migration.pop(field))
+        for field in (
+                'serviceAccountName', 'extraAnnotations',
+                'extraPodAnnotations', 'extraEnv', 'extraVolumeMounts',
+                'extraVolumes', 'initContainers'):
+            value = migration.pop(field, MISSING)
+            if value is MISSING or value in ('', [], {}):
+                continue
+            for path in _leaf_paths(value, f'services.migration.{field}'):
+                self.issue(
+                    path,
+                    'not converted; review against the unified migration Job '
+                    'and configure an environment-specific override if needed')
+        for path in _leaf_paths(migration, 'services.migration'):
+            self.issue(path, 'no unified-chart mapping')
 
     def convert_secrets(self) -> None:
         master_key = _pop(self.source, 'services.masterEncryptionKey')
@@ -651,7 +697,7 @@ class _Converter:
                 converted_admin['keys'] = {'password': secret_key}
             _set(self.output, 'secrets.defaultAdmin', converted_admin)
             for path in _leaf_paths(default_admin, 'services.defaultAdmin'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
 
     def convert_gateway(self) -> None:
         for component in ('envoy', 'oauth2Proxy', 'authz', 'rateLimit'):
@@ -669,7 +715,7 @@ class _Converter:
                     if old_name != 'service':
                         values['enabled'] = enabled
                     elif values.get('host') == 'osmo-service':
-                        # The umbrella chart renames this Service to osmo-api.
+                        # The unified chart renames this Service to osmo-api.
                         # Empty selects the correctly derived release name.
                         values['host'] = ''
                 _set(self.output, f'gateway.upstreams.{new_name}', values)
@@ -713,18 +759,18 @@ class _Converter:
                 'component': component,
                 'port': upstream.pop('port', 8000),
             })
-            # The umbrella chart derives a release-scoped selector from the
+            # The unified chart derives a release-scoped selector from the
             # component. Retaining the legacy app-only selector would allow
             # cross-release matches in a shared namespace.
             upstream.pop('podSelector', None)
             for path in _leaf_paths(
                     upstream,
                     f'gateway.networkPolicies.upstreams[{index}]'):
-                self.issue(path, 'no umbrella-chart mapping')
+                self.issue(path, 'no unified-chart mapping')
         converted['upstreams'] = converted_upstreams
         _set(self.output, 'gateway.networkPolicies', converted)
         for path in _leaf_paths(policies, 'gateway.networkPolicies'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def _gateway_component(self, name: str) -> None:
         old_root = f'gateway.{name}'
@@ -795,7 +841,7 @@ class _Converter:
         if name == 'rateLimit':
             self.unsupported(
                 f'{old_root}.redis',
-                'the umbrella rate limiter shares externalDependencies.valkey')
+                'the unified rate limiter shares externalDependencies.valkey')
         if name != 'envoy':
             _move(self.source, self.output, f'{old_root}.service',
                   f'{new_root}.service')
@@ -823,7 +869,7 @@ class _Converter:
             if value != shared_value:
                 self.issue(
                     f'{old_root}.redis.{old_key}',
-                    'does not match the shared umbrella Valkey connection')
+                    'does not match the shared unified-chart Valkey connection')
         database = redis.pop('dbNumber', MISSING)
         if database is not MISSING:
             _set(self.output, f'{new_root}.redisDatabase', database)
@@ -832,7 +878,7 @@ class _Converter:
                 f'{old_root}.redis.passwordFile',
                 'Vault file paths are unsupported; configure secrets.valkey')
         for path in _leaf_paths(redis, f'{old_root}.redis'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def _convert_gateway_service(self) -> None:
         service = _pop(self.source, 'gateway.envoy.service')
@@ -857,7 +903,7 @@ class _Converter:
                 })
         _set(self.output, 'gateway.envoy.service', converted)
         for path in _leaf_paths(service, 'gateway.envoy.service'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def _convert_ingress(self) -> None:
         ingress = _pop(self.source, 'gateway.envoy.ingress')
@@ -893,16 +939,16 @@ class _Converter:
                                    alb.pop('sslCertArn', ''))
             _set(self.output, 'ingress.annotations', annotations)
         for path in _leaf_paths(alb, 'gateway.envoy.ingress.albAnnotations'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
         for path in _leaf_paths(ingress, 'gateway.envoy.ingress'):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
 
     def finish(self) -> ConversionResult:
         _move(self.source, self.output, 'podMonitor.enabled',
               'monitoring.podMonitor.control.enabled')
         remaining = _prune_empty(self.source)
         for path in _leaf_paths(remaining):
-            self.issue(path, 'no umbrella-chart mapping')
+            self.issue(path, 'no unified-chart mapping')
         unique_issues = sorted(set(self.issues), key=lambda issue: issue.path)
         return ConversionResult(_prune_empty(self.output), unique_issues)
 
@@ -941,7 +987,7 @@ def _load(path: pathlib.Path) -> YamlObject:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            'Convert legacy service-chart values to umbrella osmo-chart '
+            'Convert legacy service-chart values to unified osmo-chart '
             'values. Multiple inputs are merged left-to-right like Helm.'),
         epilog=(
             'By default, any unsupported or ambiguous input suppresses YAML '

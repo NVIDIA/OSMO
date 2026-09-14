@@ -353,6 +353,147 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                 'download_type': 'download',
             })
 
+    def test_accepts_secret_only_storage_endpoints(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'configs': {
+                    'workflow': {
+                        'workflow_data': {
+                            'credential': {'secretName': 'workflow-data'},
+                        },
+                        'workflow_log': {
+                            'credential': {'secretName': 'workflow-logs'},
+                        },
+                        'workflow_app': {
+                            'credential': {'secretName': 'workflow-apps'},
+                        },
+                    },
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertNotIn(
+            'configuration.workflow.workflow_data.credential.endpoint',
+            issue_paths)
+        self.assertNotIn(
+            'configuration.workflow.workflow_log.credential.endpoint',
+            issue_paths)
+        self.assertNotIn(
+            'configuration.workflow.workflow_app.credential.endpoint',
+            issue_paths)
+        self.assertEqual(
+            result.values['externalDependencies']['objectStorage'],
+            {'authentication': {'type': 'static'}})
+        self.assertEqual(
+            result.values['secrets']['objectStorage']['credentialSecretRefs'],
+            {
+                'workflows': {'name': 'workflow-data', 'key': ''},
+                'logs': {'name': 'workflow-logs', 'key': ''},
+                'apps': {'name': 'workflow-apps', 'key': ''},
+            })
+
+    def test_rejects_incomplete_secret_only_storage_endpoints(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'configs': {
+                    'workflow': {
+                        'workflow_data': {
+                            'credential': {'secretName': 'workflow-data'},
+                        },
+                        'workflow_log': {
+                            'credential': {'secretName': 'workflow-logs'},
+                        },
+                        'workflow_app': {'credential': {}},
+                    },
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn(
+            'configuration.workflow.workflow_app.credential.endpoint',
+            issue_paths)
+
+    def test_maps_database_migration(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'migration': {
+                    'enabled': True,
+                    'targetSchema': 'public_v6_4_0',
+                    'image': 'registry.example.com/tools/postgres:15-alpine',
+                    'pgrollVersion': 'v0.16.1',
+                    'nodeSelector': {'pool': 'database'},
+                    'tolerations': [{
+                        'key': 'database',
+                        'operator': 'Exists',
+                        'effect': 'NoSchedule',
+                    }],
+                    'resources': {
+                        'requests': {'cpu': '100m', 'memory': '128Mi'},
+                    },
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertNotIn('services.migration', issue_paths)
+        self.assertEqual(result.values['databaseMigration'], {
+            'enabled': True,
+            'targetSchema': 'public_v6_4_0',
+            'image': {
+                'registry': 'registry.example.com',
+                'repository': 'tools/postgres',
+                'tag': '15-alpine',
+            },
+            'pgrollVersion': 'v0.16.1',
+            'pod': {
+                'nodeSelector': {'pool': 'database'},
+                'tolerations': [{
+                    'key': 'database',
+                    'operator': 'Exists',
+                    'effect': 'NoSchedule',
+                }],
+            },
+            'resources': {
+                'requests': {'cpu': '100m', 'memory': '128Mi'},
+            },
+        })
+
+    def test_preserves_disabled_database_migration(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'migration': {'enabled': False}},
+        })
+
+        self.assertFalse(result.values['databaseMigration']['enabled'])
+
+    def test_reports_unsupported_database_migration_extensions(self):
+        secret_value = 'must-not-appear-in-diagnostics'
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'migration': {
+                    'enabled': True,
+                    'serviceAccountName': 'legacy-migration',
+                    'extraPodAnnotations': {
+                        'example.com/injected-secret': secret_value,
+                    },
+                    'extraEnv': [{
+                        'name': 'LEGACY_SECRET',
+                        'value': secret_value,
+                    }],
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        messages = '\n'.join(issue.message for issue in result.issues)
+        self.assertIn('services.migration.serviceAccountName', issue_paths)
+        self.assertIn(
+            'services.migration.extraPodAnnotations.'
+            'example.com/injected-secret', issue_paths)
+        self.assertIn('services.migration.extraEnv[]', issue_paths)
+        self.assertNotIn(secret_value, messages)
+
     def test_reports_inline_storage_credentials_without_values(self):
         secret_value = 'must-not-appear-in-diagnostics'
         result = control_plane_values_convert.convert_values({

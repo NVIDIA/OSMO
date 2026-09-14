@@ -1,64 +1,54 @@
 # Migrating legacy OSMO charts to the unified chart
 
 This guide describes how to migrate an OSMO 6.3 installation from the legacy
-`service` and `backend-operator` charts to the unified `osmo` chart for OSMO
-6.4. It is written for operators using Helm directly or through a deployment
-controller.
+`service` and `backend-operator` charts to the unified `osmo` chart in OSMO
+6.4. It covers control planes that use externally managed PostgreSQL,
+Redis or Valkey, and object storage. It does not cover moving data out of a
+dependency deployed by a legacy chart.
 
-The control plane and compute planes are separate Helm releases in many
-installations. Migrate and verify them independently unless they are already
-deployed as one converged release.
+Control and compute planes are commonly separate Helm releases. Convert,
+render, and verify each release independently unless they already share one
+converged release.
+
+This migration has a maintenance window. All OSMO workloads may be stopped and
+recreated. The goal is to preserve data, identity, credentials, namespaces, and
+required behavior, not to provide a zero-downtime chart transition.
 
 The supplied converters translate supported legacy overrides into the unified
-values schema. They do not inspect a cluster, read Secret data, modify
-resources, or make the migration automatic. Treat their output as a reviewed
-starting point and resolve every diagnostic before deployment.
+values schema. They do not inspect a cluster, read Secret data, or modify
+resources. Treat converted values as a reviewed starting point rather than an
+automatic deployment.
 
-Only the 6.3-to-6.4 upgrade path is supported here. Do not use these
-instructions for a database older than the OSMO 6.3 schema.
+Only the 6.3-to-6.4 upgrade path is supported. Bring older databases to the
+OSMO 6.3 schema with the applicable legacy migrations before following this
+guide.
 
-## Migration overview
+## Common preparation
 
-For each release:
+Before converting either release:
 
-1. Record the release name, release namespace, chart version, image tag, and
-   ordered values files currently in use.
-2. Back up PostgreSQL and every externally managed credential or identity
-   Secret required for rollback.
-3. Render and save the legacy manifests.
-4. Convert the legacy values and resolve every reported item.
-5. Create or update the typed Kubernetes Secrets expected by the unified
-   chart.
-6. Render the unified chart and compare the manifests semantically.
-7. Test the migration in a non-production environment.
-8. Perform the cutover during a maintenance window, verify the installation,
-   and retain the rollback inputs until the rollback window closes.
+1. Record the Helm release name, Helm release namespace, chart version, image
+   tag or digest, and every values file in deployment order.
+2. For a compute release, separately record the namespace containing its
+   agents, the namespace containing workflow workloads, and the backend test
+   namespace.
+3. Pin compatible OSMO 6.4 chart and image versions for the migration and
+   rollback window.
+4. Render and save the complete legacy manifests.
+5. Inventory resources that the unified release will retain, update, rename,
+   recreate, or remove. Include cluster-scoped resources and resources managed
+   outside Helm.
+6. Back up PostgreSQL and the master encryption key (MEK), service-auth
+   identity, OAuth credentials, backend tokens, object-storage credentials,
+   and generated TLS Secrets.
+7. Verify that externally managed Secrets can be restored under the same names
+   and keys. Do not print their values while checking them.
+8. Test database restore procedures before the maintenance window. Helm and
+   deployment-controller rollback cannot reverse a database migration.
+9. Confirm sufficient permissions to stop the old workloads, create the new
+   resources, and restore the old release if necessary.
 
-If a deployment controller reconciles the release automatically, pause that
-reconciliation while reviewing replacement resources and performing the
-cutover. Resume it only after the deployed values and one-time migration flags
-are in their intended steady state.
-
-## Prerequisites
-
-- Confirm that the source application is OSMO 6.3 and that PostgreSQL has the
-  OSMO 6.3 schema.
-- Use OSMO 6.4 images with the OSMO 6.4 unified chart. Pin the chart version and
-  image tag for the migration and rollback window.
-- Install Helm and build the dependencies for both charts that you render.
-- Have read access to the current Helm values and manifests, and permission to
-  create the replacement Secrets and resources during the maintenance window.
-- Inventory Secret names and data-key names without printing their values.
-- Take and test a PostgreSQL backup. Back up the master encryption key (MEK),
-  service-auth identity, backend tokens, OAuth credentials, storage
-  credentials, and custom TLS material.
-- Record any resources managed outside Helm, including externally managed
-  Secrets and cluster-scoped RBAC or PriorityClasses. Do not transfer ownership
-  of those resources accidentally.
-- Check available capacity for replacement workloads. Some resource names and
-  selectors differ, so the old and new workloads may coexist briefly.
-
-Build local chart dependencies before rendering:
+Build the chart dependencies before rendering:
 
 ```bash
 helm dependency build deployments/charts/service
@@ -66,17 +56,35 @@ helm dependency build deployments/charts/backend-operator
 helm dependency build deployments/charts/osmo
 ```
 
+### Establish the control-plane writer fence
+
+Before running database or service-auth migration hooks, stop every legacy
+PostgreSQL writer and configuration initializer. Prevent HPAs and automated
+reconciliation from restarting them. Verify that no old API Pod remains.
+
+Keep the writer fence in place until the database migration, service-auth
+migration, and any internal-TLS bootstrap have completed and the new API is
+ready. A failed deployment is not permission to restart an old binary against
+an uncertain schema.
+
+Use one PostgreSQL TLS policy for both migration Jobs and application
+workloads. The unified chart uses `verify-full` when PostgreSQL TLS is enabled
+and `disable` when it is disabled. If the legacy deployment uses another mode,
+such as encryption without server verification, do not silently change it.
+Provision a trusted CA and use `verify-full`, or add the required chart support
+before migrating.
+
 ## Converter behavior
 
 Both converters accept one or more YAML files. Inputs are merged from left to
-right using Helm's map-merge and list-replace behavior, so pass files in the
-same order as the existing release.
+right using Helm's map-merge and list-replace behavior. Pass files in the same
+order as the legacy release.
 
 The default mode is fail-closed. An unsupported or ambiguous value produces a
-path-based diagnostic on standard error, suppresses YAML output, and exits
-with status 2. Diagnostics do not include Secret values.
+path-only diagnostic on standard error, suppresses YAML output, and exits with
+status 2. Diagnostics do not include Secret values.
 
-`--allow-unmapped` emits the safe partial conversion for inspection:
+Use `--allow-unmapped` only to inspect the safe partial conversion:
 
 ```bash
 python3 CONVERTER.py \
@@ -86,17 +94,16 @@ python3 CONVERTER.py \
   2>conversion-report.txt
 ```
 
-Never deploy the partial output by itself. Keep the original legacy values
-unchanged and create a temporary migration copy. For every diagnostic:
+Never deploy the partial output by itself. Keep the original values unchanged
+and work from a migration copy. For every diagnostic:
 
-- remove settings that are inactive or intentionally retired from the
-  migration copy; or
-- translate settings that require operator input into a separate unified-chart
-  override file, then remove the legacy form from the migration copy.
+- remove a legacy setting that is inactive or deliberately retired; or
+- translate it into a separate unified-chart override, then remove the legacy
+  form from the migration copy.
 
-Rerun the converter without `--allow-unmapped` against the migration copy and
-require a successful exit. For rendering and deployment, layer the reviewed
-manual override after the converted output so deliberate operator choices win:
+Rerun the converter without `--allow-unmapped` and require a successful exit.
+Always layer manual overrides after converted values so explicit operator
+decisions win:
 
 ```bash
 helm template "${RELEASE_NAME}" deployments/charts/osmo \
@@ -105,84 +112,208 @@ helm template "${RELEASE_NAME}" deployments/charts/osmo \
   --values manual-overrides.yaml
 ```
 
-The converters process explicit overrides. They cannot infer live Secret
-contents, resources created outside the release, or behavior inherited only
-from an older chart's defaults. Render both charts to account for those
-differences.
+The converters see only explicit inputs. They cannot infer live Secret
+contents, resources outside the Helm release, controller settings, or behavior
+inherited only from legacy chart defaults. The render comparison later in this
+guide is therefore mandatory even when conversion produces no diagnostics.
 
-## Migrating a control-plane release
+## Migrate a control-plane release
 
-Use `control_plane_values_convert.py` for values previously consumed by the
-legacy `service` chart:
+### 1. Prepare and format control-plane Secrets
 
-```bash
-python3 deployments/upgrades/service_to_osmo_chart/control_plane_values_convert.py \
-  legacy-values.yaml \
-  --output control-plane-values.yaml
+The unified chart uses typed Secret references. Secret names are
+operator-selected unless a chart-managed lifecycle is explicitly enabled. A
+Secret managed by an external secret controller may remain externally owned;
+configure the chart to consume it without generating or adopting it.
+
+| Purpose | Required | Legacy reference | Unified reference and default key |
+| --- | --- | --- | --- |
+| PostgreSQL password | Yes | `services.postgres.passwordSecretName` and `passwordSecretKey` | `secrets.postgresql.existingSecret` and `keys.password` (`db-password`) |
+| Valkey password | Yes | `services.redis.passwordSecretName` and `passwordSecretKey` | `secrets.valkey.existingSecret` and `keys.password` (`redis-password`) |
+| Object storage | With static authentication | `services.configs.secretRefs` and each workflow credential's `secretName` | `secrets.objectStorage.existingSecret` or all three `credentialSecretRefs` |
+| MEK | Yes | `services.masterEncryptionKey` or an injected file | `secrets.masterEncryptionKey.existingSecret` (`mek.yaml`) |
+| Service-auth identity | Yes | PostgreSQL-backed in OSMO 6.3 | `secrets.serviceAuth.existingSecret` (`authentication-config.json`) |
+| Backend API token | When token-authenticated compute planes connect | `services.backendApiTokens.credentials[]` | `secrets.backendApiTokens.credentials[]` (`token`, optional `previous-token`) |
+| OAuth client and cookie | When OAuth is enabled | OAuth proxy Secret or injected paths | `secrets.oauthClientSecret` and `secrets.oauthCookieSecret` |
+| Default administrator | When bootstrap is enabled | `services.defaultAdmin` | `secrets.defaultAdmin` (`password`) |
+| Private CAs | When private trust roots are used | Custom mounts or injected configuration | Dependency TLS blocks selecting a Secret and key |
+| Internal gateway TLS | When internal TLS is enabled | Legacy gateway TLS Secrets | Generated retained Secrets or `gateway.tls.{caSecret,upstreamCerts}` |
+
+PostgreSQL and Valkey keep ordinary single-key Secrets. Only their values paths
+change:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: external-postgresql-credentials
+type: Opaque
+stringData:
+  db-password: <existing PostgreSQL password>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: external-valkey-credentials
+type: Opaque
+stringData:
+  redis-password: <existing Valkey password>
 ```
 
-For split values, preserve their existing order:
+Reference them without placing credential values in Helm values:
 
-```bash
-python3 deployments/upgrades/service_to_osmo_chart/control_plane_values_convert.py \
-  base-values.yaml \
-  config-values.yaml \
-  template-values.yaml \
-  pool-values.yaml \
-  --output control-plane-values.yaml
+```yaml
+secrets:
+  postgresql:
+    existingSecret: external-postgresql-credentials
+    keys:
+      password: db-password
+  valkey:
+    generate: false
+    existingSecret: external-valkey-credentials
+    keys:
+      password: redis-password
 ```
 
-The converter selects the control-plane composition and maps supported image,
-gateway, service, autoscaling, scheduling, ingress, monitoring, dependency,
-configuration, and Secret-reference settings. It disables unified-chart
-defaults that would otherwise add behavior not present in the legacy release,
-such as component PodDisruptionBudgets.
+For PostgreSQL or Valkey using a private CA, place the complete trust bundle in
+an externally managed Secret and select its key from the applicable
+`externalDependencies.*.tls` block.
 
-### Review control-plane supporting services
+#### Object-storage Secret formats
 
-This guide covers only externally managed PostgreSQL, Redis or Valkey, and
-object storage. Migrating a supporting service managed by the legacy Helm
-release is outside its scope.
+The legacy chart mounted arbitrary `services.configs.secretRefs` under
+`/etc/osmo/secrets/<secret-name>` and resolved `secretName` from configuration.
+The unified chart selects object-storage Secrets through typed values and
+mounts them at the same `/etc/osmo/secrets/<secret-name>` location.
 
-The unified chart does not accept inline credentials. Arbitrary credential
-files or file paths from legacy values must be replaced with the typed Secret
-references documented by the chart. An external secret controller may continue
-to own those Secrets; configure the chart to consume them without generating or
-adopting them.
+The converter reports the legacy `services.configs.secretRefs` list because it
+cannot prove that every entry is used only for object storage. After adding the
+typed object-storage references, remove legacy entries used only for those
+credentials. Move any remaining application-configuration Secret mounts to
+`configuration.secretRefs` and make each consuming configuration field name
+both its `secretName` and `secretKey`:
 
-#### PostgreSQL
+```yaml
+configuration:
+  secretRefs:
+  - secretName: additional-configuration-secret
+```
 
-Configure the existing host, port, database, and username under
-`externalDependencies.postgresql`. Reference the existing password Secret
-under `secrets.postgresql`, and verify its configured name and key in the
-release namespace. Preserve the existing TLS mode; when the server certificate
-uses a private CA, configure its Secret under
-`externalDependencies.postgresql.tls`.
+These general configuration Secrets also remain mounted read-only at
+`/etc/osmo/secrets/<secret-name>`.
 
-#### Redis or Valkey
+Choose one credential source. With SDK-default authentication, create no
+object-storage credential Secret. Define all three locations in values and let
+the provider SDK use its workload, managed, or instance identity:
 
-Configure the existing Redis or Valkey host, port, and database under
-`externalDependencies.valkey`. Reference the existing password Secret under
-`secrets.valkey`, and verify its configured name and key in the release
-namespace. Preserve the existing TLS mode; when the server certificate uses a
-private CA, configure its Secret under `externalDependencies.valkey.tls`.
+```yaml
+externalDependencies:
+  objectStorage:
+    authentication:
+      type: sdkDefault
+    locations:
+      workflows: azure://<account>/<workflow-container>/<prefix>
+      logs: azure://<account>/<log-container>/<prefix>
+      apps: azure://<account>/<application-container>/<prefix>
 
-#### Object storage
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: ""
+```
 
-Preserve the provider, endpoint, bucket or container, region, and credential
-source for workflow data, logs, and applications. The unified chart supports
-S3-compatible, Azure Blob, and OpenStack Swift or SwiftStack locations. The
-chart accepts `s3://`, `azure://`, and `swift://` location URIs.
+For static authentication, choose exactly one of the following Secret formats.
 
-Use `secrets.objectStorage.existingSecret` when all locations share one
-credentials document. Use
-`secrets.objectStorage.credentialSecretRefs` when each location already has a
-separate Secret. If an endpoint is stored only in a referenced Secret, leave
-the corresponding explicit location empty rather than creating a conflicting
-fallback endpoint.
+For one credential document shared by all three locations, put the secret
+fields in one YAML document. Define the three locations explicitly in values:
 
-Validate read and write access with least-privilege credentials before the
-maintenance window. Do not print credentials while checking Secret structure.
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: object-storage-credentials
+type: Opaque
+stringData:
+  object-storage.yaml: |
+    access_key_id: <existing access key identifier>
+    access_key: <existing secret access key>
+```
+
+```yaml
+externalDependencies:
+  objectStorage:
+    authentication:
+      type: static
+    locations:
+      workflows: s3://<workflow-bucket>/<prefix>
+      logs: s3://<log-bucket>/<prefix>
+      apps: s3://<application-bucket>/<prefix>
+    s3:
+      region: <region>
+      overrideUrl: <S3-compatible HTTPS endpoint or empty>
+
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: object-storage-credentials
+    keys:
+      credentials: object-storage.yaml
+```
+
+For separate per-location Secrets, configure all three references. A blank
+`key` loads the Secret's individual data keys:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: workflow-storage-credentials
+type: Opaque
+stringData:
+  endpoint: swift://<account>/<workflow-container>/<prefix>
+  access_key_id: <existing access key identifier>
+  access_key: <existing secret access key>
+```
+
+```yaml
+externalDependencies:
+  objectStorage:
+    authentication:
+      type: static
+    locations:
+      workflows: ""
+      logs: ""
+      apps: ""
+    s3:
+      region: ""
+      overrideUrl: ""
+
+secrets:
+  objectStorage:
+    generate: false
+    existingSecret: ""
+    credentialSecretRefs:
+      workflows:
+        name: workflow-storage-credentials
+        key: ""
+      logs:
+        name: log-storage-credentials
+        key: ""
+      apps:
+        name: application-storage-credentials
+        key: ""
+```
+
+This Secret-only endpoint form is valid only when every referenced Secret
+provides its own `endpoint`. Alternatively, set each reference's `key` to a
+YAML document containing that location's credential. Do not combine the shared
+`existingSecret` form with per-location references, and do not configure only
+some of the three per-location references.
+
+Static credential documents use `access_key_id` and `access_key`; optional
+fields include `endpoint`, `region`, `override_url`, and `addressing_style`.
+Keep the provider and URI scheme consistent across workflow data, logs, and
+applications.
 
 For Azure Blob Storage, private containers are necessary but insufficient:
 
@@ -202,74 +333,338 @@ An empty, `null`, or `true` result is not verified. If anonymous access is
 actually required, stop and obtain explicit approval for the exact account,
 container, and data scope before changing it.
 
-### Preserve encryption and authentication identities
+#### Preserve the MEK
 
-Do not generate a replacement MEK for an existing database. Configure
-`secrets.masterEncryptionKey` to use the existing key material and choose the
-management mode deliberately:
+Do not generate a replacement MEK for an existing database. Preserve the
+existing `mek.yaml` document and reference it through the new values path:
 
-- `external` keeps an operator or external secret controller responsible for
-  the Secret; or
-- `osmo` enables the chart's explicit bootstrap and rotation lifecycle.
+```yaml
+secrets:
+  masterEncryptionKey:
+    managementMode: external
+    existingSecret:
+      name: existing-mek
+      key: mek.yaml
+    bootstrap:
+      enabled: false
+```
 
-Bootstrap is for a new, empty database. It is not a recovery path for a missing
-MEK.
+The unified chart mounts it at `/opt/osmo/mek/mek.yaml`. Keep the Secret and
+its key ID and key material unchanged through the rollback window.
 
-The service-auth identity signs and verifies credentials. Replacing it during
-the migration invalidates existing tokens. Follow the service-auth migration
-procedure in `deployments/charts/osmo/README.md` to copy the existing
-database-backed identity into the chart's typed Secret. Keep the existing MEK
-available for that migration.
+#### Prepare the service-auth identity
 
-Before the first control-plane cutover:
+OSMO 6.3 stores the service-auth signing identity in PostgreSQL. The unified
+chart mounts a Kubernetes Secret containing `authentication-config.json` at
+`/etc/osmo/service-auth/authentication-config.json`. Replacing this identity
+invalidates existing tokens.
 
-1. Configure the existing PostgreSQL credentials and MEK Secret references.
-2. Prepare the release-authorized service-auth destination Secret as described
-   by the chart.
-3. Stop legacy API writers before the migration hooks run.
-4. Enable the service-auth migration only for the first successful upgrade.
-5. Verify existing tokens against the new API.
-6. Disable the one-time migration flag in the follow-up values update.
+After establishing the writer fence, create an empty destination Secret and
+authorize it for the exact Helm release:
 
-Retain the old database identity and MEK until rollback is no longer required.
+```bash
+kubectl create secret generic "${SERVICE_AUTH_SECRET}" \
+  --namespace "${RELEASE_NAMESPACE}"
+kubectl annotate secret "${SERVICE_AUTH_SECRET}" \
+  --namespace "${RELEASE_NAMESPACE}" \
+  "osmo.nvidia.com/service-auth-db-migration-placeholder=${RELEASE_NAME}"
+```
 
-### Run the database migration
+Configure external ownership and enable the migration only for the first
+cutover phase:
 
-The unified chart's bundled pgroll migration supports the OSMO 6.3-to-6.4
-schema transition. Configure `databaseMigration` with the same PostgreSQL
-Secret, schema, scheduling constraints, and network access required by the
-control plane.
+```yaml
+services:
+  api:
+    enabled: false
 
-Enable it for the upgrade, render the Job, and verify its annotations and
-credentials before deployment. The deployment system must run the database
-migration before the service-auth migration and before new API writers start.
-After a successful upgrade, disable one-time migration settings as documented
-by the chart.
+secrets:
+  serviceAuth:
+    managementMode: external
+    existingSecret:
+      name: <service-auth Secret name>
+      key: authentication-config.json
+    bootstrap:
+      enabled: false
+    migration:
+      enabled: true
+```
 
-Do not run the migration against an unverified database version. A Helm
-rollback does not reverse a database migration.
+The migration Job decrypts and copies the existing database-backed identity;
+it does not generate or rotate one. The Job uses the configured MEK and
+PostgreSQL credential references.
 
-### Review gateway and TLS changes
+After the migration and every non-API configuration consumer are healthy,
+perform a second deployment with the same configuration and images, API
+enabled, and service-auth migration disabled:
 
-The unified gateway may expose different Service ports or resource names from
-the legacy chart. Preserve every port used by an in-cluster consumer through
-the unified gateway's service configuration.
+```yaml
+services:
+  api:
+    enabled: true
 
-`gateway.tls` protects internal gateway-to-service traffic. For generated
-internal TLS, set
-`gateway.tls.generated.bootstrap.allowInitialGeneration=true` only for the
-first migration. Verify that the retained CA and leaf Secrets were created,
-then set the flag back to `false`. Never regenerate a missing retained CA
-during rollback; restore the backed-up Secret.
+secrets:
+  serviceAuth:
+    migration:
+      enabled: false
+```
 
-Preserve OAuth client and cookie Secret references. Rotating the cookie Secret
-logs users out, so credential rotation should be a separate operation unless
-it is required for the migration.
+#### Translate OAuth and backend-token Secrets
 
-## Migrating a compute-plane release
+Legacy OAuth proxy Secret paths are not accepted by the unified chart. The
+client and cookie may still use the same Kubernetes Secret, but they have
+separate typed references:
 
-Use `compute_values_convert.py` for values previously consumed by the legacy
-`backend-operator` chart:
+```yaml
+secrets:
+  oauthClientSecret:
+    existingSecret: oauth-credentials
+    keys:
+      value: client_secret
+  oauthCookieSecret:
+    generate: false
+    existingSecret: oauth-credentials
+    keys:
+      value: cookie_secret
+```
+
+Preserve existing backend token Secrets. Each credential must select exactly
+one existing or managed Secret source:
+
+```yaml
+secrets:
+  backendApiTokens:
+    enabled: true
+    credentials:
+    - name: primary
+      existingSecret:
+        name: existing-backend-token
+```
+
+Each token Secret contains `token` and may contain a distinct
+`previous-token` during rotation.
+
+### 2. Run the control-plane converter
+
+Run `control_plane_values_convert.py` with the legacy service-chart values:
+
+```bash
+python3 deployments/upgrades/service_to_osmo_chart/control_plane_values_convert.py \
+  legacy-values.yaml \
+  --output control-plane-values.yaml
+```
+
+For split files, preserve their deployment order:
+
+```bash
+python3 deployments/upgrades/service_to_osmo_chart/control_plane_values_convert.py \
+  base-values.yaml \
+  config-values.yaml \
+  template-values.yaml \
+  pool-values.yaml \
+  --output control-plane-values.yaml
+```
+
+The converter selects a control-only composition and maps supported images,
+services, gateway settings, scheduling, configuration, external dependencies,
+typed Secret references, and database-migration settings. It also disables
+unified defaults that would otherwise introduce behavior absent from the
+legacy release.
+
+An enabled legacy `services.migration` becomes an enabled
+`databaseMigration`. The converter maps its target schema, pgroll version,
+image, node selector, tolerations, and resources. It deliberately diagnoses
+legacy service-account, arbitrary annotation, injected environment, volume,
+and init-container extensions because the unified migration Job obtains
+PostgreSQL credentials and trust through typed fields and does not mount a
+service-account token.
+
+### 3. Complete the control-plane values
+
+Add a final override only for information that cannot be recovered safely from
+the legacy input.
+
+#### External connections and TLS
+
+Confirm the final values contain the actual external hosts, ports, database
+names, usernames, and TLS policy. These often came from an injected whole-file
+configuration rather than legacy Helm values:
+
+```yaml
+embeddedDependencies:
+  postgresql:
+    enabled: false
+  valkey:
+    enabled: false
+  objectStorage:
+    enabled: false
+
+externalDependencies:
+  postgresql:
+    host: <PostgreSQL host>
+    port: 5432
+    database: <database name>
+    username: <database user>
+    tls:
+      enabled: true
+      caExistingSecret: <PostgreSQL CA Secret>
+      caKey: ca.crt
+  valkey:
+    host: <Valkey host>
+    port: 6379
+    database: 0
+    tls:
+      enabled: true
+      caExistingSecret: <empty for a public CA, otherwise the CA Secret>
+      caKey: ca-bundle.crt
+```
+
+Do not add a fallback object-storage endpoint when all three per-location
+Secrets contain their endpoints. Leave all locations and S3 fields empty in
+that case, as shown in the Secret-only example.
+
+#### Database migration
+
+For an unmigrated OSMO 6.3 database, the final first-phase values must enable
+the bundled OSMO 6.4 migrations:
+
+```yaml
+databaseMigration:
+  enabled: true
+  targetSchema: public
+```
+
+The converter preserves an enabled legacy migration. If the legacy setting was
+disabled, enable the unified migration after confirming the source schema. The
+Job reads the same external PostgreSQL Secret and TLS settings as the
+applications and runs before the service-auth migration and new API writers.
+
+Use the migrations bundled in the selected OSMO 6.4 chart. Do not apply ad hoc
+SQL for legacy empty-user data or historical role-constraint names. If the
+bundled migration fails, stop with the writer fence intact and correct the
+chart or source data deliberately.
+
+Migration hooks are not a database rollback mechanism. Keep
+`databaseMigration.enabled` set when services use a versioned target schema;
+otherwise follow the chart's steady-state guidance after a successful upgrade.
+
+#### Identity, gateway, and ownership settings
+
+Complete the MEK, service-auth, OAuth, backend-token, and object-storage blocks
+from the Secret preparation section. Also review:
+
+- gateway Service ports still used by clients or in-cluster consumers;
+- ingress and external TLS Secret references;
+- generated internal TLS bootstrap and retained CA, trust, and leaf Secrets;
+- cluster-scoped resource ownership;
+- custom ServiceAccounts, RBAC, NetworkPolicies, and monitoring; and
+- environment-specific hook annotations needed to order this release relative
+  to resources outside the chart.
+
+When generated internal TLS is used for the first time, enable initial
+generation only for the transition:
+
+```yaml
+gateway:
+  tls:
+    generated:
+      bootstrap:
+        allowInitialGeneration: true
+```
+
+After the retained TLS Secrets exist and have been verified, set this value to
+`false`. A missing retained CA must fail closed rather than be regenerated
+during recovery.
+
+### 4. Render and classify control-plane changes
+
+Render both charts with their exact deployment layers:
+
+```bash
+helm template "${RELEASE_NAME}" deployments/charts/service \
+  --namespace "${RELEASE_NAMESPACE}" \
+  --values legacy-values.yaml \
+  > /tmp/osmo-legacy-control.yaml
+
+helm lint deployments/charts/osmo \
+  --values control-plane-values.yaml \
+  --values control-plane-overrides.yaml
+
+helm template "${RELEASE_NAME}" deployments/charts/osmo \
+  --namespace "${RELEASE_NAMESPACE}" \
+  --values control-plane-values.yaml \
+  --values control-plane-overrides.yaml \
+  > /tmp/osmo-unified-control.yaml
+```
+
+Repeat `--values` for every legacy input when rendering the old chart. Compare
+resources by kind, namespace, component, and behavior rather than YAML document
+order or generated checksums.
+
+Classify every object as retained, normally updated, renamed, recreated, or
+removed. At minimum compare:
+
+- names, namespaces, labels, immutable selectors, and ownership annotations;
+- images, commands, arguments, environment, ports, and Services;
+- Secret names, data keys, projected paths, mount paths, and rollout triggers;
+- resources, replicas, HPAs, probes, disruption budgets, and scheduling;
+- ServiceAccounts, Roles, ClusterRoles, and bindings;
+- NetworkPolicies, ingress, monitoring, and TLS resources; and
+- migration Jobs, annotations, ordering, retry behavior, and cleanup.
+
+Several legacy control-plane Deployments may need recreation because the
+unified chart changes immutable selectors. Review the gateway Envoy, agent,
+delayed-job monitor, authorization, OAuth proxy, logger, MCP, router, UI, and
+worker components. Derive the actual resource names from the rendered diff;
+do not assume a fixed release prefix.
+
+## Migrate a compute-plane release
+
+### 1. Prepare and format compute-plane Secrets
+
+The unified compute plane supports token authentication. Preserve the existing
+backend token rather than issuing a new identity during the chart migration.
+
+The Secret data format is unchanged:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: existing-backend-token
+type: Opaque
+stringData:
+  token: <existing 43- or 64-character URL-safe token>
+  # previous-token: <distinct previous token during rotation>
+```
+
+Only the values path changes:
+
+| Legacy | Unified |
+| --- | --- |
+| `global.accountTokenSecret` | `compute.authentication.existingSecret` |
+| `global.accountTokenSecretKey` | `compute.authentication.tokenKey` |
+
+```yaml
+compute:
+  authentication:
+    existingSecret: existing-backend-token
+    tokenKey: token
+```
+
+The Secret must exist in the unified Helm release namespace. Both compute
+agents continue to mount the selected key at
+`/opt/osmo/secrets/token.txt`. Preserve any image-pull Secret selected through
+`global.imagePullSecret`; it becomes an entry in `imagePullSecrets`.
+
+Compute-only values intentionally disable control-plane Secret generation and
+embedded dependencies. Keep the generated `secrets` block even though the
+compute plane does not consume those control-plane credentials; omitting the
+overrides can re-enable incompatible unified defaults or fail validation.
+
+### 2. Run the compute-plane converter
+
+Run `compute_values_convert.py` with the legacy backend chart values:
 
 ```bash
 python3 deployments/upgrades/service_to_osmo_chart/compute_values_convert.py \
@@ -279,225 +674,280 @@ python3 deployments/upgrades/service_to_osmo_chart/compute_values_convert.py \
   --output compute-plane-values.yaml
 ```
 
-`--release-name` is the existing Helm release name. It is required when the
-legacy backend test runner is enabled and `global.name` is unset so the
-converter can preserve the test-runner ServiceAccount name.
+`--release-name` preserves the legacy backend test-runner ServiceAccount name
+when the test runner is enabled and `global.name` is unset.
 
-Set `global.includeNamespaceUsage` explicitly in the migration input to the
-workflow namespaces whose usage the backend listener should monitor. The
-converter does not carry forward the legacy chart's environment-specific
-default. If the backend test runner remains enabled, also set
-`global.backendTestNamespace`; otherwise explicitly disable
-`backendTestRunner.enabled`.
+The legacy chart can render agents into `global.agentNamespace` even when the
+Helm release itself lives elsewhere. The unified chart renders agents into the
+Helm release namespace. Set `--release-namespace` to the effective legacy
+agent namespace and deploy the unified release there.
 
-The namespace distinction is important:
+`global.backendNamespace` is the workflow namespace, not the agent namespace.
+The converter maps it to `compute.workloadNamespace.name`. It separately
+preserves `global.backendTestNamespace`.
 
-- the legacy chart renders backend agents into `global.agentNamespace`, even
-  when the Helm release namespace differs;
-- the unified chart renders backend agents into its Helm release namespace;
-  and
-- `global.backendNamespace` is the workflow namespace, not necessarily the
-  agent namespace.
+Make `global.includeNamespaceUsage` explicit in the migration input before
+running the converter. It may have been inherited only from a legacy chart
+default. The converter writes it as
+`--include_namespace_usage=...` under
+`services.backendListener.extraArgs` and refuses to guess when it is absent.
 
-Set `--release-namespace` to the effective legacy `global.agentNamespace`, and
-install the unified release in that namespace. The converter maps the workflow
-namespace to `compute.workloadNamespace.name` and preserves the separate test
-namespace. This keeps agents, their token Secret, workflows, and test resources
-in their established namespaces.
+If the backend test runner remains enabled, set
+`global.backendTestNamespace`. Otherwise explicitly set
+`backendTestRunner.enabled: false` in the migration input.
 
-### Plan for a compute release namespace change
+### 3. Complete the compute-plane values
 
-Helm identifies a release by both its name and namespace. If the legacy release
-namespace differs from `global.agentNamespace`, installing the unified chart in
-the agent namespace creates a new Helm release even when the release name stays
-the same. Resources rendered into the agent namespace by the legacy release
-remain owned by the old release and cannot also be adopted safely by the new
-one.
+Review the converted backend identity, control-plane endpoint, agent and
+workload namespaces, token reference, images, pull policy, scheduling,
+resources, probes, listener cache and API settings, worker progress interval,
+RBAC, NetworkPolicy, monitoring, and test-runner configuration.
 
-Before the maintenance window, save the old release manifest and list the
-namespaced and cluster-scoped resources it owns. Check their
-`meta.helm.sh/release-name` and `meta.helm.sh/release-namespace` annotations.
-Separate resources that must survive the replacement, especially externally
-managed Secrets and pre-existing Namespaces, from resources that the unified
-release will recreate.
+The following choices require cluster or environment knowledge and cannot be
+made safely by the converter.
 
-During cutover, pause reconciliation and retire the old Helm release before
-installing the new release in the agent namespace. Expect the compute agents to
-be temporarily unavailable. Ensure uninstalling the old release cannot remove
-an externally owned Secret, Namespace, or shared cluster-scoped resource. Do
-not run both releases concurrently or transfer ownership annotations while the
-old release still manages the resources. Install the unified release, verify
-that the backend reconnects and can run a small workflow, and only then remove
-any remaining legacy resources.
+#### PriorityClass ownership
 
-The converter supports token authentication. Confirm that
-`compute.authentication.existingSecret` exists in the release namespace and
-contains `compute.authentication.tokenKey`. Both agent containers mount that
-key at `/opt/osmo/secrets/token.txt`.
+The fixed `osmo-high`, `osmo-normal`, and `osmo-low` PriorityClasses may be
+consumed by many compute releases. Exactly one release or an external
+administrator should own them:
 
-The generated compute-only values explicitly disable control-plane Secret
-generation and embedded dependencies. Keep the generated `secrets` section:
-the current unified defaults enable control-plane or embedded Secret workflows
-that do not apply to a compute-only release, and omitting the overrides fails
-chart validation.
-
-Review the converted backend identity, endpoint, image, pull policy,
-scheduling, resources, probes, listener cache and API settings, worker progress
-interval, RBAC, NetworkPolicy, PriorityClasses, monitoring, and test-runner
-configuration. The converter makes legacy defaults explicit where unified
-defaults differ.
-
-## Render and compare
-
-Render the legacy and unified releases with the same release identity and their
-effective namespaces. Repeat `--values` for every input file in deployment
-order. The examples use separate reviewed override files for manual control-
-and compute-plane mappings; create an empty file when no manual mappings are
-required.
-
-Control plane:
-
-```bash
-helm template "${RELEASE_NAME}" deployments/charts/service \
-  --namespace "${RELEASE_NAMESPACE}" \
-  --values legacy-values.yaml > /tmp/osmo-legacy-control.yaml
-
-helm template "${RELEASE_NAME}" deployments/charts/osmo \
-  --namespace "${RELEASE_NAMESPACE}" \
-  --values control-plane-values.yaml \
-  --values control-plane-overrides.yaml > /tmp/osmo-unified-control.yaml
+```yaml
+compute:
+  priorityClasses:
+    create: false
 ```
 
-Compute plane:
+Set `create: true` only for the designated owning release. The converter
+preserves the legacy value because it cannot identify the cluster owner.
+
+#### Namespaces, RBAC, and NetworkPolicy
+
+Confirm the established workflow namespace is retained rather than created or
+renamed accidentally:
+
+```yaml
+compute:
+  workloadNamespace:
+    name: <existing workflow namespace>
+    create: false
+```
+
+Review whether namespaced and cluster-scoped RBAC are owned by this release or
+provided externally. Cross-namespace test-runner Roles and RoleBindings need
+names that do not collide with other releases. The converter preserves custom
+objects but does not rename them.
+
+When `compute.workflowNetworkPolicy.enabled` is true, verify cluster CIDRs,
+DNS, allowed namespaces, and additional egress rules against the target
+cluster. This policy selects the workflow namespace, not only OSMO Pods.
+
+### 4. Render and classify compute-plane changes
+
+Render with the legacy release namespace and the unified agent namespace:
 
 ```bash
 helm template "${RELEASE_NAME}" deployments/charts/backend-operator \
   --namespace "${LEGACY_RELEASE_NAMESPACE}" \
-  --values legacy-backend-values.yaml > /tmp/osmo-legacy-compute.yaml
-
-helm template "${RELEASE_NAME}" deployments/charts/osmo \
-  --namespace "${AGENT_NAMESPACE}" \
-  --values compute-plane-values.yaml \
-  --values compute-plane-overrides.yaml > /tmp/osmo-unified-compute.yaml
-```
-
-Lint the same layered unified values that you rendered:
-
-```bash
-helm lint deployments/charts/osmo \
-  --values control-plane-values.yaml \
-  --values control-plane-overrides.yaml
+  --values legacy-backend-values.yaml \
+  > /tmp/osmo-legacy-compute.yaml
 
 helm lint deployments/charts/osmo \
   --values compute-plane-values.yaml \
   --values compute-plane-overrides.yaml
+
+helm template "${RELEASE_NAME}" deployments/charts/osmo \
+  --namespace "${AGENT_NAMESPACE}" \
+  --values compute-plane-values.yaml \
+  --values compute-plane-overrides.yaml \
+  > /tmp/osmo-unified-compute.yaml
 ```
 
-Compare resources by kind, namespace, component, and behavior rather than YAML
-document order or generated checksums.
+Compare listener, worker, test-runner, ServiceAccounts, RBAC, NetworkPolicy,
+PriorityClasses, PodMonitors, token Secret projections, and namespaces.
 
-Review at least:
+Helm identifies a release by name and namespace. When the legacy Helm release
+namespace differs from its agent namespace, installing the unified chart in
+the agent namespace creates a separate Helm release even if its name is
+unchanged. Treat this as replacement, not an in-place upgrade. Do not allow the
+old and new releases to claim the same namespaced or cluster-scoped resources
+concurrently.
 
-- resource kinds, names, namespaces, labels, selectors, and ownership;
-- images, commands, arguments, environment variables, and ports;
-- Secret and ConfigMap names, keys, volumes, mount paths, and rollout triggers;
-- replicas, HPAs, PodDisruptionBudgets, resources, probes, and security
-  contexts;
-- node selectors, affinity, tolerations, topology constraints, and priority;
-- ServiceAccounts, Role and ClusterRole rules, and bindings;
-- NetworkPolicies, ingress, Services, and monitoring resources; and
-- migration Jobs, lifecycle annotations, ordering, retry behavior, and
-  cleanup.
+## Deploy the unified release
 
-Expect some intentional replacement resources. The unified chart uses
-release-scoped labels and names, collision-resistant cluster RBAC names, and
-additional pod hardening. A component with a changed immutable selector cannot
-roll in place. Plan for the old and new workloads to overlap or for a brief
-service interruption.
+The migration may use a full release replacement or a selective in-place
+replacement. Downtime is expected in both cases.
 
-Do not accept unexplained drift in images, credentials, namespaces, database
-targets, storage locations, scheduling, resources, RBAC permissions, or
-network access.
+A full replacement is often simpler: establish the writer fence, preserve all
+external and retained state, remove the old chart-owned resources, and deploy
+the unified release cleanly. Selective replacement is also valid when an
+operator wants to retain normally updatable objects and recreate only those
+with immutable-field conflicts.
 
-## Cutover
+Whichever method is selected:
 
-Migrate a non-production release first. Use a maintenance window for any
-control-plane migration that changes database schema, service-auth identity
-storage, immutable selectors, or stable Service names.
+1. Confirm PostgreSQL and every retained or externally managed Secret are
+   protected from deletion.
+2. Establish the legacy-writer fence.
+3. Apply or reconcile externally managed Secrets.
+4. Re-render the exact converted and manual value layers to be deployed.
+5. Run the database, service-auth, and internal-TLS hooks in their required
+   order.
+6. Recreate resources whose immutable fields conflict with the unified
+   manifests, or replace the release as a whole.
+7. Wait for the unified workloads to become ready.
+8. Review and remove remaining legacy resources.
+9. Perform the verification and steady-state update below.
 
-1. Confirm backups and rollback inputs are current.
-2. Pause automatic reconciliation for the release, if applicable.
-3. Apply externally managed Secrets and verify only their names and key
-   structure.
-4. Re-render the exact values that will be deployed and review the final diff.
-5. Stop legacy API writers before database and service-auth migration hooks
-   start.
-6. Remove only legacy resources that conflict with replacement immutable
-   selectors or stable names.
-7. Upgrade or synchronize the release using the unified chart. For Helm:
+### Argo CD and other GitOps controllers
 
-   ```bash
-   helm upgrade --install "${RELEASE_NAME}" deployments/charts/osmo \
-     --namespace "${RELEASE_NAMESPACE}" \
-     --values converted-values.yaml \
-     --values manual-overrides.yaml \
-     --wait \
-     --timeout 20m
-   ```
+Put the complete migration values in the controller's source of truth. When an
+Application is generated by an ApplicationSet or equivalent, change the
+generator or template inputs rather than editing the generated child.
 
-8. Require database and service-auth migration Jobs to complete successfully
-   before accepting new API traffic.
-9. Complete the verification checklist below.
-10. Disable one-time migration and TLS-generation flags, deploy the steady-state
-    values, and verify again.
-11. Resume automatic reconciliation only after the deployed release and stored
-    values agree.
+Pause automated reconciliation while establishing the writer fence and
+reviewing the migration. Keep pruning enabled when it is part of the intended
+deployment model, and prefer prune-last ordering so replacement resources can
+be created before obsolete resources are removed when their names do not
+conflict. Configure that ordering on the Application or its ApplicationSet
+template:
 
-Migrate compute-plane releases one at a time. Confirm each backend reconnects
-and can run a small workflow before moving to the next one.
+```yaml
+spec:
+  syncPolicy:
+    syncOptions:
+    - PruneLast=true
+```
 
-## Verification
+Run the controller's normal synchronization first so pre-deployment migration
+and bootstrap hooks can complete. Stop on the first hook failure and verify the
+database version and destination Secrets without printing secret material.
+For example, with Argo CD:
+
+```bash
+argocd app sync "${APPLICATION_NAME}" --prune
+argocd app wait "${APPLICATION_NAME}" --operation --sync --health
+```
+
+For the workload transition, either:
+
+- perform a full Application replacement, including Force or Replace semantics
+  when that is the chosen migration method; or
+- selectively delete and recreate only resources with immutable-field
+  conflicts.
+
+An Argo CD full replacement can be requested explicitly:
+
+```bash
+argocd app sync "${APPLICATION_NAME}" \
+  --force \
+  --replace \
+  --prune
+argocd app wait "${APPLICATION_NAME}" --operation --sync --health
+```
+
+A full replacement intentionally restarts every workload. Before using it,
+confirm its deletion and prune set excludes externally owned Secrets, retained
+identity and TLS Secrets, PVCs, Namespaces that must survive, and shared
+cluster-scoped resources. Forced hook or RBAC creation may encounter a stale
+object with the same name; inspect that object and either remove it deliberately
+or retry with a normal synchronization after the replacement attempt.
+
+After the unified resources are healthy, run a normal synchronization without
+one-time replacement options. Review every remaining prune candidate, then
+restore the installation's intended automated reconciliation policy.
+
+For a compute release, verify the new listener and worker connect before
+considering the migration complete. They do not need to overlap with the old
+agents; an interval with no connected backend is acceptable during the
+maintenance window.
+
+### Direct Helm
+
+Use Helm 3.19 or newer when generated internal TLS is enabled. Complete the
+writer fence and Secret preparation before changing the Helm release.
+
+For an in-place upgrade, keep the release name and namespace and delete
+selector-incompatible resources immediately before `helm upgrade`:
+
+```bash
+helm upgrade --install "${RELEASE_NAME}" deployments/charts/osmo \
+  --namespace "${RELEASE_NAMESPACE}" \
+  --values converted-values.yaml \
+  --values manual-overrides.yaml \
+  --wait \
+  --wait-for-jobs \
+  --timeout 25m
+```
+
+A full uninstall and reinstall is also valid when downtime and complete
+resource recreation are accepted. Before uninstalling, verify which resources
+Helm will delete and separately protect the database, PVCs, Namespaces,
+identity Secrets, credentials, TLS material, and shared cluster-scoped
+resources. Reinstall with the intended release name and namespace so Secret
+authorization and derived resource identities remain correct.
+
+Do not treat `--atomic` as a database or external-Secret rollback plan.
+Completed migrations and externally managed Secret updates survive a failed or
+rolled-back Helm deployment. On failure, keep legacy writers stopped, correct
+the cause, and retry or execute the explicit rollback procedure.
+
+For a compute release, an in-place upgrade or full replacement causes a short
+backend interruption. A separately named replacement release is optional when
+operators want to validate it before deleting the old release. Before running
+two releases concurrently, ensure they do not claim the same PriorityClasses,
+fixed-name RBAC, test resources, or mutable Secrets.
+
+## Verify and establish steady state
 
 For a control-plane release, verify:
 
-- every Deployment is available and every expected HPA targets the replacement
+- the database-migration and service-auth migration Jobs completed;
+- the deployed schema version is the intended OSMO 6.4 schema;
+- the service-auth Secret contains the migrated identity and existing tokens
+  remain valid;
+- the retained MEK, TLS, OAuth, storage, and backend-token Secrets still exist;
+- every enabled Deployment is available and every HPA targets the replacement
   workload;
-- gateway health, ingress, API readiness, UI access, and authentication;
-- existing access tokens remain valid after service-auth migration;
-- PostgreSQL and Valkey connectivity, including TLS and password keys;
-- workflow submission, scheduling, cancellation, logs, and data transfer;
-- router HTTP, WebSocket, exec, port-forward, and rsync paths;
-- object-storage read and write access for workflows, logs, and applications;
-- authorization, rate limiting, monitoring, and alerts; and
-- the deployed schema version and successful cleanup of one-time Jobs.
+- gateway health, ingress, API readiness, UI, and authentication;
+- PostgreSQL and Valkey connectivity with the intended TLS policy;
+- object-storage reads and writes for workflows, logs, and applications;
+- workflow submission, scheduling, cancellation, logs, and data transfer; and
+- router HTTP, WebSocket, exec, port-forward, and rsync paths.
 
 For a compute-plane release, verify:
 
 - listener and worker Deployments are available in the agent namespace;
 - the backend reconnects with its existing identity;
-- node, pod, event, and heartbeat streams recover;
-- workflow and test resources remain in their original namespaces;
-- the token Secret name, key, and mount path are unchanged;
-- the test-runner template and ServiceAccount are usable;
-- monitoring discovers both agent components; and
-- a small workflow schedules and completes successfully.
+- node, Pod, event, and heartbeat streams recover;
+- workflow and test resources remain in their intended namespaces;
+- the token Secret name, key, and `/opt/osmo/secrets/token.txt` mount are
+  preserved;
+- test-runner RBAC and templates remain usable; and
+- a small workflow schedules and completes.
 
-Review the final prune or deletion set before removing legacy resources. Keep
-resources whose ownership or consumers have not been established.
+After verification:
+
+1. Disable the one-time service-auth migration.
+2. Disable initial internal-TLS generation after retained TLS state is proven.
+3. Apply or synchronize the steady-state values without one-time replacement
+   options.
+4. Restore the intended automated reconciliation policy.
+5. Confirm no unexplained legacy resources or prune candidates remain.
 
 ## Rollback
 
-Preserve the legacy values, chart version, image tag, database backup, and all
-identity and credential Secrets until the rollback window closes.
+Preserve the legacy values, chart version, images, database backup, manifests,
+and every identity and credential Secret until the rollback window closes.
 
-A rollback may require more than changing the chart path:
+A rollback may require more than restoring the old chart:
 
-- stop new API writers before restoring the old control plane;
-- determine whether the old binaries are compatible with the migrated schema;
-- restore the database backup when schema rollback is required;
-- restore the original MEK, service-auth identity, TLS, OAuth, storage, and
+- keep all writers stopped while determining schema compatibility;
+- restore PostgreSQL when the legacy binaries cannot use the migrated schema;
+- restore the original MEK, service-auth identity, OAuth, TLS, storage, and
   backend-token Secrets;
-- restore the legacy release namespace and chart values together; and
+- restore the legacy release name and namespace together;
+- restore cluster-scoped ownership and namespaced RBAC deliberately; and
 - verify authentication, workflows, logs, storage, and backend connectivity
   before reopening traffic.
 

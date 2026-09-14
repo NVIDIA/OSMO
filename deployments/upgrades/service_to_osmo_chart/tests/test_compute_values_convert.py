@@ -398,6 +398,7 @@ class ComputeValuesConvertTest(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 2)
         self.assertIn('global.includeNamespaceUsage', completed.stderr)
+        self.assertIn('services.backendListener.extraArgs', completed.stderr)
 
 
 if __name__ == '__main__':
