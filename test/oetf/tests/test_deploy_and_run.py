@@ -46,7 +46,9 @@ class RunTestsAuthTest(unittest.TestCase):
             "run",
             side_effect=[kubectl_result, test_result],
         ) as run_mock:
-            result = deploy_and_run_main._run_tests(args, environment)
+            result = deploy_and_run_main._run_tests(  # pylint: disable=protected-access
+                args, environment,
+            )
 
         self.assertEqual(result, 0)
         kubectl_command = run_mock.call_args_list[0].args[0]
