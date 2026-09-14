@@ -133,7 +133,7 @@ pools: {}
 		t.Fatal(err)
 	}
 
-	plan := store.BuildTrustedSyncPlan([]string{"admin", "undefined"})
+	plan := store.BuildTrustedSyncPlan([]string{"admin", "manual", "undefined"})
 	if got := strings.Join(plan.MatchedRoles, ","); got != "admin" {
 		t.Fatalf("matched roles = %q, want admin", got)
 	}

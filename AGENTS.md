@@ -139,6 +139,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | `utils/job/` | `Task`, `FrontendJob`, `K8sObjectFactory`, `PodGroupTopologyBuilder` | Workflow execution framework. Task → K8s spec generation. Gang scheduling via PodGroup. Topology constraints. Backend job definitions. |
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
+| `utils/identity_bootstrap.py` | `PasswordSpec`, `TokenSpec` | Reconciles retained embedded-Dex passwords, OAuth credentials, and Secret-backed OSMO bootstrap tokens. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 

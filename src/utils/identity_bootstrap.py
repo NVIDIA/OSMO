@@ -799,7 +799,7 @@ def _token_spec(value: str) -> TokenSpec:
 def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         allow_abbrev=False,
-        description='Reconcile retained embedded Dex credentials.')
+        description='Reconcile retained bootstrap identity credentials.')
     parser.add_argument('--namespace', required=True)
     parser.add_argument('--release-name', required=True)
     parser.add_argument('--admin-secret-name')
@@ -831,15 +831,28 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     arguments = _parse_arguments()
-    kubernetes_config.load_incluster_config()
     try:
-        api = kubernetes_client.CoreV1Api()
         password_specs = tuple(getattr(arguments, 'password_specs', ()))
         token_specs = tuple(getattr(arguments, 'token_specs', ()))
         unified = bool(
             password_specs
             or token_specs
             or getattr(arguments, 'dex_hash_secret_name', None))
+        if not unified and (
+            not arguments.admin_secret_name or not arguments.oauth_secret_name
+        ):
+            raise BootstrapError(
+                '--admin-secret-name and --oauth-secret-name are required in legacy mode')
+        if (
+            unified
+            and arguments.config_rollout_identity is not None
+            and arguments.dex_pod_selector
+            and not arguments.dex_hash_secret_name
+        ):
+            raise BootstrapError(
+                '--dex-hash-secret-name is required for a unified Dex config rollout')
+        kubernetes_config.load_incluster_config()
+        api = kubernetes_client.CoreV1Api()
         if unified:
             result = reconcile_identities(
                 api,

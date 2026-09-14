@@ -126,8 +126,8 @@ osmo_py_library(
 )
 
 osmo_py_library(
-    name = "embedded_dex_bootstrap_lib",
-    srcs = ["embedded_dex_bootstrap.py"],
+    name = "identity_bootstrap_lib",
+    srcs = ["identity_bootstrap.py"],
     deps = [
         requirement("bcrypt"),
         requirement("kubernetes"),
@@ -136,23 +136,23 @@ osmo_py_library(
 )
 
 osmo_py_binary(
-    name = "embedded_dex_bootstrap_binary",
-    main = "embedded_dex_bootstrap.py",
-    srcs = ["embedded_dex_bootstrap.py"],
-    deps = [":embedded_dex_bootstrap_lib"],
+    name = "identity_bootstrap_binary",
+    main = "identity_bootstrap.py",
+    srcs = ["identity_bootstrap.py"],
+    deps = [":identity_bootstrap_lib"],
 )
 
 osmo_python_wrapper(
-    name = "embedded_dex_bootstrap_wrapper",
+    name = "identity_bootstrap_wrapper",
     bin_name = "identity-bootstrap",
     main = None,
-    module = "src.utils.embedded_dex_bootstrap",
+    module = "src.utils.identity_bootstrap",
     runfiles_dir = "/src/service/core/service_binary.runfiles",
 )
 
 alias(
-    name = "embedded_dex_bootstrap_wrapper_public",
-    actual = ":embedded_dex_bootstrap_wrapper",
+    name = "identity_bootstrap_wrapper_public",
+    actual = ":identity_bootstrap_wrapper",
     visibility = ["//visibility:public"],
 )
 

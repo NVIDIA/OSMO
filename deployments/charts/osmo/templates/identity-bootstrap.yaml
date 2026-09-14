@@ -18,7 +18,7 @@
 {{- end -}}
 {{- if or $embeddedDex $managedTokens -}}
 {{- $bootstrap := .Values.authentication.bootstrap -}}
-{{- $name := printf "%s-identity-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- $name := printf "%s-identity-bootstrap" (include "osmo.fullname" .) | trunc 58 | trimSuffix "-" -}}
 {{- $resourceHooks := dict "helm.sh/hook" "pre-install,pre-upgrade,post-install,post-upgrade" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
 {{- $oauthSecretName := "osmo-embedded-dex-oauth" -}}
 {{- $hashSecretName := "osmo-embedded-dex-password-hashes" -}}

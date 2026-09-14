@@ -313,7 +313,7 @@ func (s *FileRoleStore) BuildSyncPlan(externalRoles []string) RoleSyncPlan {
 func (s *FileRoleStore) BuildTrustedSyncPlan(internalRoles []string) RoleSyncPlan {
 	matchedSet := make(map[string]bool)
 	for _, roleName := range internalRoles {
-		if _, defined := s.roles[roleName]; defined {
+		if _, defined := s.roles[roleName]; defined && s.syncModes[roleName] != SyncModeIgnore {
 			matchedSet[roleName] = true
 		}
 	}

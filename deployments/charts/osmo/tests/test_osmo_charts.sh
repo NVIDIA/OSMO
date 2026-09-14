@@ -706,6 +706,19 @@ test_control_umbrella() {
         osmo-identity-bootstrap-pre
     require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
         osmo-identity-bootstrap-post
+
+    local long_identity_bootstrap_override
+    printf -v long_identity_bootstrap_override '%*s' 63 ''
+    long_identity_bootstrap_override=${long_identity_bootstrap_override// /a}
+    helm_template embedded-auth-name-boundary "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string fullnameOverride="$long_identity_bootstrap_override" \
+        >"$TEST_DIRECTORY/embedded-auth-name-boundary.yaml"
+    local expected_identity_bootstrap_base=${long_identity_bootstrap_override:0:58}
+    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
+        "$expected_identity_bootstrap_base-pre"
+    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
+        "$expected_identity_bootstrap_base-post"
     require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Role \
         osmo-identity-bootstrap
     require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" RoleBinding \
@@ -885,21 +898,24 @@ test_control_umbrella() {
     require_resource "$TEST_DIRECTORY/embedded-auth-pdb.yaml" PodDisruptionBudget \
         osmo-dex
 
-    local removed_embedded_value
-    for removed_embedded_value in \
-            'authentication.embeddedDex.admin.username=legacy-admin' \
-            'authentication.embeddedDex.adminSecretName=legacy-admin-secret' \
-            'authentication.embeddedDex.oauthSecretName=legacy-oauth-secret' \
-            'authentication.embeddedDex.bootstrap.allowInitialGeneration=false' \
-            'authentication.embeddedDex.passwordGeneration=2'; do
+    local removed_embedded_case removed_embedded_value removed_embedded_property
+    for removed_embedded_case in \
+            'authentication.embeddedDex.admin.username=legacy-admin|admin' \
+            'authentication.embeddedDex.adminSecretName=legacy-admin-secret|adminSecretName' \
+            'authentication.embeddedDex.oauthSecretName=legacy-oauth-secret|oauthSecretName' \
+            'authentication.embeddedDex.bootstrap.allowInitialGeneration=false|bootstrap' \
+            'authentication.embeddedDex.passwordGeneration=2|passwordGeneration'; do
+        removed_embedded_value=${removed_embedded_case%%|*}
+        removed_embedded_property=${removed_embedded_case##*|}
         if helm_template removed-embedded-dex-value "$charts_copy/osmo" \
                 --api-versions postgresql.cnpg.io/v1 \
                 --set-string "$removed_embedded_value" \
                 >"$TEST_DIRECTORY/removed-embedded-dex-value.out" 2>&1; then
             fail "expected removed embedded Dex value '$removed_embedded_value' to fail"
         fi
-        require_contains "$TEST_DIRECTORY/removed-embedded-dex-value.out" \
-            "not allowed"
+        require_additional_property_error \
+            "$TEST_DIRECTORY/removed-embedded-dex-value.out" \
+            "$removed_embedded_property"
     done
 
     if helm_template hostile-dex-env-vars "$charts_copy/osmo" \
@@ -4058,7 +4074,8 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client"
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
         "https://idp.example.com/authorize"
-    require_occurrences "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client" 2
+    require_occurrences "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "browser-client" 1
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
         "https://idp.example.com/token"
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
@@ -6107,8 +6124,8 @@ MCP_ROUTES
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
         --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=ui-client \
-        --set secrets.oauthCookieSecret.existingSecret=ui-cookie \
+        --set authentication.externalOidc.browserClientSecret.existingSecret=ui-client \
+        --set authentication.externalOidc.cookieSecret.existingSecret=ui-cookie \
         >"$TEST_DIRECTORY/mcp-ui.yaml"
     awk '
         /- name: ext-authz-oauth2-proxy$/ { keep = 1 }

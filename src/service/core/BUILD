@@ -54,7 +54,7 @@ osmo_py_library(
         "//src/service/core/profile",
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
-        "//src/utils:embedded_dex_bootstrap_lib",
+        "//src/utils:identity_bootstrap_lib",
         "//src/utils:ssl_init",
         "//src/utils/progress_check:progress_check_lib",
         "//src/utils:internal_tls_bootstrap_lib",
@@ -133,7 +133,7 @@ filegroup(
         ":service_layer_packages",
         ":service_wrapper",
         ":mek_lifecycle_wrapper",
-        "//src/utils:embedded_dex_bootstrap_wrapper_public",
+        "//src/utils:identity_bootstrap_wrapper_public",
         "//src/utils:internal_tls_bootstrap_wrapper_public",
     ],
 )

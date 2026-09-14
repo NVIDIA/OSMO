@@ -106,6 +106,39 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'bootstrap_token_directory',
             'env': 'OSMO_BOOTSTRAP_TOKEN_DIRECTORY'
         })
+    backend_token_directory: str | None = pydantic.Field(
+        default=None,
+        description=(
+            'Legacy directory containing Kubernetes Secret projections used '
+            'to authenticate backend operators.'),
+        json_schema_extra={
+            'command_line': 'backend_token_directory',
+            'env': 'OSMO_BACKEND_TOKEN_DIRECTORY'
+        })
+    default_admin_username: str | None = pydantic.Field(
+        default=None,
+        description='Legacy default administrator username.',
+        json_schema_extra={
+            'command_line': 'default_admin_username',
+            'env': 'OSMO_DEFAULT_ADMIN_USERNAME'
+        })
+    default_admin_password: str | None = pydantic.Field(
+        default=None,
+        description='Legacy default administrator access token.',
+        json_schema_extra={
+            'command_line': 'default_admin_password',
+            'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
+        })
+
+    @pydantic.model_validator(mode='after')
+    def validate_default_admin(self) -> 'WorkflowServiceConfig':
+        if self.default_admin_username and not self.default_admin_password:
+            raise ValueError(
+                'default_admin_password must be set when '
+                'default_admin_username is specified')
+        return self
+
+
 class WorkflowServiceContext(pydantic.BaseModel):
     """ Shared context that needs to be access from all api methods. """
     config: WorkflowServiceConfig

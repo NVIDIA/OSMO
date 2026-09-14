@@ -129,7 +129,7 @@ spec:
         - --browser_endpoint
         - {{ include "osmo.authentication.authorizationEndpoint" . | quote }}
         - --browser_client_id
-        - {{ include "osmo.authentication.cliClientId" . | quote }}
+        - {{ include "osmo.authentication.browserClientId" . | quote }}
         - --token_endpoint
         - {{ include "osmo.authentication.tokenEndpoint" . | quote }}
         - --logout_endpoint

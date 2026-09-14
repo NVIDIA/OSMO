@@ -28,7 +28,7 @@ import bcrypt
 from kubernetes import client as kubernetes_client
 from kubernetes.client import exceptions as kubernetes_exceptions
 
-from src.utils import embedded_dex_bootstrap
+from src.utils import identity_bootstrap
 
 
 class FakeCoreApi:
@@ -190,32 +190,32 @@ class FailingReadCoreApi(FakeCoreApi):
             status=500, reason='credential-canary-must-not-be-logged')
 
 
-class EmbeddedDexBootstrapTest(unittest.TestCase):
+class IdentityBootstrapTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = FakeCoreApi()
 
     def test_reconciles_multiple_passwords_tokens_and_hash_environment(self) -> None:
         password_specs = (
-            embedded_dex_bootstrap.PasswordSpec(
+            identity_bootstrap.PasswordSpec(
                 identity_id='admin',
                 secret_name='osmo-embedded-dex-admin',
                 hash_env_name='OSMO_DEX_PASSWORD_HASH_ADMIN'),
-            embedded_dex_bootstrap.PasswordSpec(
+            identity_bootstrap.PasswordSpec(
                 identity_id='developer',
                 secret_name='osmo-embedded-dex-developer',
                 hash_env_name='OSMO_DEX_PASSWORD_HASH_DEVELOPER'),
         )
         token_specs = (
-            embedded_dex_bootstrap.TokenSpec(
+            identity_bootstrap.TokenSpec(
                 identity_id='admin', token_name='cli',
                 secret_name='osmo-admin-token'),
-            embedded_dex_bootstrap.TokenSpec(
+            identity_bootstrap.TokenSpec(
                 identity_id='backend-east', token_name='primary',
                 secret_name='osmo-backend-east-token'),
         )
 
-        embedded_dex_bootstrap.reconcile_identities(
+        identity_bootstrap.reconcile_identities(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -244,7 +244,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         self.assertIn('osmo-embedded-dex-oauth', self.api.secrets)
 
     def test_managed_token_preserves_optional_previous_token(self) -> None:
-        token_specs = (embedded_dex_bootstrap.TokenSpec(
+        token_specs = (identity_bootstrap.TokenSpec(
             identity_id='backend-east', token_name='primary',
             secret_name='osmo-backend-east-token'),)
         arguments = {
@@ -255,14 +255,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'oauth_secret_name': None,
             'dex_hash_secret_name': None,
         }
-        embedded_dex_bootstrap.reconcile_identities(
+        identity_bootstrap.reconcile_identities(
             self.api, **arguments)  # type: ignore[arg-type]
         secret = self.api.secrets['osmo-backend-east-token']
         secret.data['previous-token'] = base64.b64encode(
             b'p' * 43).decode('ascii')
         original = copy.deepcopy(secret.data)
 
-        embedded_dex_bootstrap.reconcile_identities(
+        identity_bootstrap.reconcile_identities(
             self.api, **arguments)  # type: ignore[arg-type]
 
         self.assertEqual(
@@ -271,15 +271,15 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
     def test_removed_user_hash_is_retained_for_failed_upgrade_rollback(
         self,
     ) -> None:
-        admin = embedded_dex_bootstrap.PasswordSpec(
+        admin = identity_bootstrap.PasswordSpec(
             identity_id='admin',
             secret_name='osmo-embedded-dex-admin',
             hash_env_name='OSMO_DEX_PASSWORD_HASH_ADMIN')
-        developer = embedded_dex_bootstrap.PasswordSpec(
+        developer = identity_bootstrap.PasswordSpec(
             identity_id='developer',
             secret_name='osmo-embedded-dex-developer',
             hash_env_name='OSMO_DEX_PASSWORD_HASH_DEVELOPER')
-        embedded_dex_bootstrap.reconcile_identities(
+        identity_bootstrap.reconcile_identities(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -292,7 +292,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'osmo-embedded-dex-password-hashes'
         ].data['OSMO_DEX_PASSWORD_HASH_DEVELOPER']
 
-        embedded_dex_bootstrap.reconcile_identities(
+        identity_bootstrap.reconcile_identities(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -315,8 +315,8 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         password_generation: int = 1,
         client_generation: int = 1,
         cookie_generation: int = 1,
-    ) -> 'embedded_dex_bootstrap.BootstrapResult':
-        return embedded_dex_bootstrap.reconcile(
+    ) -> 'identity_bootstrap.BootstrapResult':
+        return identity_bootstrap.reconcile(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -382,7 +382,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
     def test_missing_secret_is_rejected_when_initial_generation_is_disabled(self) -> None:
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'release-dex-admin is missing',
         ):
             self.reconcile(allow_initial_generation=False)
@@ -393,7 +393,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'app.kubernetes.io/instance'
         ] = 'other-release'
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'is not owned by this release',
         ):
             self.reconcile(password_generation=2)
@@ -402,7 +402,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'app.kubernetes.io/instance'
         ] = 'release'
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'generation cannot decrease',
         ):
             self.reconcile(password_generation=1)
@@ -414,7 +414,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             b'not-bcrypt').decode('ascii')
 
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'contains invalid credentials',
         ):
             self.reconcile()
@@ -432,7 +432,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
                 name='unrelated', labels={'app': 'api'})),
         }
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -461,13 +461,13 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'rollout_identity': result.dex_credential_identity,
             'pod_label_selector': 'app=dex',
         }
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.api.pods['dex-replacement'] = kubernetes_client.V1Pod(
             metadata=kubernetes_client.V1ObjectMeta(
                 name='dex-replacement', labels={'app': 'dex'}))
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
 
         self.assertIn('dex-replacement', self.api.pods)
@@ -483,14 +483,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'rollout_identity': result.dex_credential_identity,
             'pod_label_selector': 'app=dex',
         }
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.reconcile(cookie_generation=2)
         self.api.pods['dex'] = kubernetes_client.V1Pod(
             metadata=kubernetes_client.V1ObjectMeta(
                 name='dex', labels={'app': 'dex'}))
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
 
         self.assertIn('dex', self.api.pods)
@@ -505,14 +505,14 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             'rollout_identity': 'config-v1',
             'pod_label_selector': 'app=dex',
         }
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
         self.reconcile(password_generation=2)
         self.api.pods['dex'] = kubernetes_client.V1Pod(
             metadata=kubernetes_client.V1ObjectMeta(
                 name='dex', labels={'app': 'dex'}))
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api, **arguments)  # type: ignore[arg-type]
 
         self.assertIn('dex', self.api.pods)
@@ -520,7 +520,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
     def test_rollout_records_identity_when_pods_do_not_exist_yet(self) -> None:
         self.reconcile()
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -548,10 +548,10 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'did not become ready',
         ):
-            embedded_dex_bootstrap.restart_pods_if_needed(
+            identity_bootstrap.restart_pods_if_needed(
                 self.api,  # type: ignore[arg-type]
                 namespace='osmo',
                 release_name='release',
@@ -582,7 +582,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
                 ]),
             )
 
-        embedded_dex_bootstrap.restart_pods_if_needed(
+        identity_bootstrap.restart_pods_if_needed(
             self.api,  # type: ignore[arg-type]
             namespace='osmo',
             release_name='release',
@@ -632,7 +632,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         self.assertTrue(self.api.conflicted)
         self.assertEqual(
             result.dex_credential_identity,
-            embedded_dex_bootstrap.credential_identity(
+            identity_bootstrap.credential_identity(
                 'dex',
                 self.decode(self.api.secrets['release-dex-admin'], 'password-hash'),
                 self.decode(
@@ -647,7 +647,7 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         self.reconcile()
 
         with self.assertRaisesRegex(
-            embedded_dex_bootstrap.BootstrapError,
+            identity_bootstrap.BootstrapError,
             'Unable to write credential Secret release-dex-oauth',
         ):
             self.reconcile(
@@ -689,11 +689,11 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             contextlib.redirect_stderr(io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            embedded_dex_bootstrap._parse_arguments(  # pylint: disable=protected-access
+            identity_bootstrap._parse_arguments(  # pylint: disable=protected-access
                 arguments)
 
     def test_argument_parser_accepts_unified_identity_specs(self) -> None:
-        arguments = embedded_dex_bootstrap._parse_arguments([  # pylint: disable=protected-access
+        arguments = identity_bootstrap._parse_arguments([  # pylint: disable=protected-access
             '--namespace', 'osmo',
             '--release-name', 'release',
             '--password',
@@ -727,27 +727,95 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
         )
         with (
             mock.patch.object(
-                embedded_dex_bootstrap, '_parse_arguments',
+                identity_bootstrap, '_parse_arguments',
                 return_value=arguments),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_config,
+                identity_bootstrap.kubernetes_config,
                 'load_incluster_config'),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_client,
+                identity_bootstrap.kubernetes_client,
                 'CoreV1Api', return_value=FailingReadCoreApi()),
             self.assertLogs(level='ERROR') as logs,
             self.assertRaises(SystemExit),
         ):
-            embedded_dex_bootstrap.main()
+            identity_bootstrap.main()
 
         self.assertNotIn(
             'credential-canary-must-not-be-logged', '\n'.join(logs.output))
 
+    def test_main_rejects_legacy_mode_without_secret_names(self) -> None:
+        arguments = types.SimpleNamespace(
+            namespace='osmo',
+            release_name='release',
+            admin_secret_name=None,
+            oauth_secret_name=None,
+            password_specs=[],
+            token_specs=[],
+            dex_hash_secret_name=None,
+            allow_initial_generation=True,
+            password_generation=1,
+            client_generation=1,
+            cookie_generation=1,
+            dex_pod_selector=None,
+            oauth_pod_selector=None,
+            restart_timeout_seconds=120,
+            config_rollout_identity=None,
+        )
+        with (
+            mock.patch.object(
+                identity_bootstrap, '_parse_arguments',
+                return_value=arguments),
+            mock.patch.object(
+                identity_bootstrap.kubernetes_config,
+                'load_incluster_config'),
+            self.assertLogs(level='ERROR') as logs,
+            self.assertRaises(SystemExit),
+        ):
+            identity_bootstrap.main()
+
+        self.assertIn(
+            '--admin-secret-name and --oauth-secret-name are required in legacy mode',
+            '\n'.join(logs.output),
+        )
+
+    def test_main_requires_hash_secret_for_unified_config_rollout(self) -> None:
+        arguments = types.SimpleNamespace(
+            namespace='osmo',
+            release_name='release',
+            admin_secret_name=None,
+            oauth_secret_name=None,
+            password_specs=[identity_bootstrap.PasswordSpec(
+                'admin', 'osmo-embedded-dex-admin',
+                'OSMO_DEX_PASSWORD_HASH_ADMIN')],
+            token_specs=[],
+            dex_hash_secret_name=None,
+            dex_pod_selector='app=dex',
+            oauth_pod_selector=None,
+            restart_timeout_seconds=120,
+            config_rollout_identity='config-v1',
+        )
+        with (
+            mock.patch.object(
+                identity_bootstrap, '_parse_arguments',
+                return_value=arguments),
+            mock.patch.object(
+                identity_bootstrap.kubernetes_config,
+                'load_incluster_config'),
+            self.assertLogs(level='ERROR') as logs,
+            self.assertRaises(SystemExit),
+        ):
+            identity_bootstrap.main()
+
+        self.assertIn(
+            '--dex-hash-secret-name is required for a unified Dex config rollout',
+            '\n'.join(logs.output),
+        )
+
     def test_main_reconciles_unified_identity_specs(self) -> None:
-        password_spec = embedded_dex_bootstrap.PasswordSpec(
+        password_spec = identity_bootstrap.PasswordSpec(
             'admin', 'osmo-embedded-dex-admin',
             'OSMO_DEX_PASSWORD_HASH_ADMIN')
-        token_spec = embedded_dex_bootstrap.TokenSpec(
+        token_spec = identity_bootstrap.TokenSpec(
             'admin', 'cli', 'osmo-admin-token')
         arguments = types.SimpleNamespace(
             namespace='osmo',
@@ -766,19 +834,19 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
             oauth_credential_identity='oauth-v1')
         with (
             mock.patch.object(
-                embedded_dex_bootstrap, '_parse_arguments',
+                identity_bootstrap, '_parse_arguments',
                 return_value=arguments),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_config,
+                identity_bootstrap.kubernetes_config,
                 'load_incluster_config'),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_client,
+                identity_bootstrap.kubernetes_client,
                 'CoreV1Api', return_value=FakeCoreApi()),
             mock.patch.object(
-                embedded_dex_bootstrap, 'reconcile_identities',
+                identity_bootstrap, 'reconcile_identities',
                 return_value=result) as reconcile_identities,
         ):
-            embedded_dex_bootstrap.main()
+            identity_bootstrap.main()
 
         reconcile_identities.assert_called_once()
         self.assertEqual(
@@ -814,24 +882,24 @@ class EmbeddedDexBootstrapTest(unittest.TestCase):
 
         with (
             mock.patch.object(
-                embedded_dex_bootstrap, '_parse_arguments',
+                identity_bootstrap, '_parse_arguments',
                 return_value=arguments),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_config,
+                identity_bootstrap.kubernetes_config,
                 'load_incluster_config'),
             mock.patch.object(
-                embedded_dex_bootstrap.kubernetes_client,
+                identity_bootstrap.kubernetes_client,
                 'CoreV1Api', return_value=FakeCoreApi()),
             mock.patch.object(
-                embedded_dex_bootstrap, 'reconcile', return_value=result),
+                identity_bootstrap, 'reconcile', return_value=result),
             mock.patch.object(
-                embedded_dex_bootstrap, 'restart_pods_if_needed',
+                identity_bootstrap, 'restart_pods_if_needed',
                 side_effect=observe_restart),
             mock.patch.object(
-                embedded_dex_bootstrap.time, 'monotonic',
+                identity_bootstrap.time, 'monotonic',
                 side_effect=[100, 110, 150, 210]),
         ):
-            embedded_dex_bootstrap.main()
+            identity_bootstrap.main()
 
         self.assertEqual([110, 70, 10], observed_timeouts)
 

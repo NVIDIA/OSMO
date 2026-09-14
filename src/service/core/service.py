@@ -32,7 +32,7 @@ import fastapi.responses
 import uvicorn  # type: ignore
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 
-from src.lib.utils import login, osmo_errors, version
+from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
@@ -50,6 +50,7 @@ from src.service.core.workflow import (
 )
 from src.service.logger import ctrl_websocket
 from src.utils import auth, connectors
+from src.utils.job import task as task_lib
 
 
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
@@ -256,6 +257,67 @@ async def top_level_exception_handler(request: fastapi.Request, error: Exception
     )
 
 
+def setup_default_admin(postgres: connectors.PostgresConnector,
+                        config: objects.WorkflowServiceConfig) -> None:
+    """Reconcile the legacy service chart's default administrator token."""
+    if not config.default_admin_username or not config.default_admin_password:
+        return
+
+    admin_username = config.default_admin_username
+    admin_password = config.default_admin_password
+    token_name = 'default-admin-token'
+    if len(admin_password) != task_lib.REFRESH_TOKEN_STR_LENGTH:
+        raise osmo_errors.OSMOUserError(
+            'Default admin password must be '
+            f'{task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
+
+    logging.info('Setting up default admin user: %s', admin_username)
+    connectors.upsert_user(postgres, admin_username)
+    now = common.current_time()
+    assignment = postgres.assign_user_role(
+        admin_username, 'osmo-admin', 'System', now)
+    if not assignment:
+        raise osmo_errors.OSMOUserError(
+            'Default admin requires the osmo-admin role in the mounted '
+            'ConfigMap configuration.')
+
+    existing_token = postgres.execute_fetch_command(
+        '''
+        SELECT access_token FROM access_token
+        WHERE user_name = %s AND token_name = %s;
+        ''',
+        (admin_username, token_name),
+        True,
+    )
+    new_hashed_token = auth.hash_access_token(admin_password)
+    if existing_token:
+        existing_hashed_token = bytes(existing_token[0]['access_token'])
+        if existing_hashed_token == new_hashed_token:
+            logging.info(
+                'Default admin user %s already has the configured access token',
+                admin_username)
+            return
+        auth_objects.AccessToken.delete_from_db(
+            postgres, token_name, admin_username)
+
+    expires_at = (
+        datetime.datetime.now() + datetime.timedelta(days=3650)
+    ).strftime('%Y-%m-%d')
+    auth_objects.AccessToken.insert_into_db(
+        database=postgres,
+        user_name=admin_username,
+        token_name=token_name,
+        access_token=admin_password,
+        expires_at=expires_at,
+        description='Default admin access token created during service initialization',
+        roles=['osmo-admin'],
+        assigned_by='System',
+    )
+    logging.info(
+        'Default admin user %s configured successfully with an access token',
+        admin_username)
+
+
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):
     src.lib.utils.logging.init_logger('service', config)
 
@@ -264,6 +326,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     api_service_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
+    backend_secret_auth.configure(config.backend_token_directory)
     backend_secret_auth.configure_bootstrap(
         config.bootstrap_identity_config_file,
         config.bootstrap_token_directory)
@@ -286,6 +349,8 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         config.config_file, postgres, is_api_service=True,
         backend_queue_updater=config_helpers.update_backend_queues_from_configmap,
         backend_test_updater=config_helpers.update_backend_tests_cronjobs_from_configmap)
+
+    setup_default_admin(postgres, config)
 
     if config.method != 'dev':
         FastAPIInstrumentor().instrument_app(
