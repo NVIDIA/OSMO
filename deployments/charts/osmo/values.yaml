@@ -226,7 +226,10 @@ authentication:
         dex:
           enabled: true
           email: admin@osmo.local
-        tokens: {}
+        tokens:
+          primary:
+            managedSecret:
+              name: osmo-admin-token
       backend-operator-default:
         enabled: true
         kind: backend

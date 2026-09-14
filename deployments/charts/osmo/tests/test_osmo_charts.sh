@@ -609,6 +609,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         '"developer/cli=osmo-developer-token"'
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        '"admin/primary=osmo-admin-token"'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         'mountPath: /etc/osmo/bootstrap-tokens/developer/cli'
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         'secretName: osmo-developer-token'
@@ -2082,7 +2084,6 @@ test_control_umbrella() {
             -f "$charts_copy/osmo/profiles/self-contained.yaml" \
             --set externalUrl=https://osmo.example.com \
             --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
-            --set authentication.bootstrap.identities.admin.tokens.cli.managedSecret.name=osmo-admin-token \
             --set compute.authentication.existingSecret=osmo-admin-token \
             >"$TEST_DIRECTORY/user-token-for-converged-backend.out" 2>&1; then
         fail "expected a user token selected for compute authentication to fail"
