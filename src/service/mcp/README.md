@@ -30,6 +30,7 @@ alongside the MCP endpoint in the same process.
 - [Deployment and operations](../../../docs/deployment_guide/advanced_config/mcp.rst)
 - [Capabilities and permissions](../../../docs/user_guide/appendix/mcp/index.rst)
 - [Tool contracts and API mappings](TOOLS.md)
+- [Generated tool reference](docs/TOOL_REFERENCE.md)
 
 ## Request flow and trust boundary
 
@@ -134,6 +135,23 @@ OSMO does not implement OAuth endpoints or run a second auth service.
 Do not import the CLI runtime. Extract only pure public helpers when behavior
 needs to match another OSMO surface.
 
+## Dispatch boundary decision
+
+The pinned FastMCP middleware chain re-enters `call_tool` with
+`run_middleware=False`. OSMO keeps one guard on that inner invocation: it binds
+verified credentials, rejects credential-bearing arguments, classifies public
+errors, validates the tool-execution result, and emits one final outcome. Actual tool
+execution stays delegated to FastMCP; `get_tool(name, version)` supplies its
+visibility and authorization rules without rebuilding the catalog.
+
+A middleware-only replacement would not guard explicit
+`call_tool(..., run_middleware=False)` calls. Preserving that behavior would
+still require an equivalent inner guard, so this simplification does not add
+another middleware layer. This flag is a trusted Python API, not a wire-level
+client option. Protocol regressions cover that direct path as well
+as the normal transport path. Reevaluate the choice when the pinned framework
+changes, retaining credential cleanup and non-reflective error/result handling.
+
 ## Adding a tool
 
 Keep each new tool a narrow adapter:
@@ -144,9 +162,10 @@ Keep each new tool a narrow adapter:
    input. Validate every legitimate argument and encode path segments safely.
 3. Reuse or extract a lightweight external API contract. Do not pull Core,
    database, Kubernetes, or CLI client dependencies into the MCP image.
-4. Use `tool_requests` to obtain `AppContext` from the active HTTP request and
-   credentials from `request_context`. The shared relay passes both explicitly
-   to `GatewayClient`; the injected FastMCP `Context` is not an identity source.
+4. Use `tool_requests` to resolve application state and verified credentials
+   from the active HTTP request. Handler and helper signatures need no FastMCP
+   `Context` unless they actually use its functionality. The shared relay passes
+   request-local credentials explicitly to `GatewayClient`.
 5. Set a tool-specific response ceiling. Validate complete JSON responses;
    expose long text only through the shared truncation contract. Preserve only
    centrally scrubbed, allowlisted details from actionable client errors.

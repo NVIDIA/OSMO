@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
 import pydantic
 
 from src.lib.utils import resource_quantities
@@ -70,7 +69,6 @@ _RESOURCE_NOT_FOUND_MESSAGE = 'The requested node is not available.'
 
 
 async def osmo_list_resources(
-    context: Context,
     pool: SelectorList | None = None,
     platform: SelectorList | None = None,
     all_pools: bool = False,
@@ -91,7 +89,7 @@ async def osmo_list_resources(
             'pool and all_pools=true cannot be used together.'
         )
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     if scope.empty:
         return ResourceListResult(
             resources=[],
@@ -127,7 +125,6 @@ async def osmo_list_resources(
         query['platforms'] = platforms
 
     payload = await tool_requests.request_json_object(
-        context,
         path=_RESOURCES_PATH,
         operation='list node resources',
         max_response_bytes=_MAX_RESOURCES_RESPONSE_BYTES,
@@ -165,7 +162,6 @@ async def osmo_list_resources(
 
 
 async def osmo_get_resource(
-    context: Context,
     node_name: Selector,
     pool: Selector | None = None,
     platform: Selector | None = None,
@@ -187,7 +183,7 @@ async def osmo_get_resource(
         else None
     )
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     if (
         scope.empty
         or (
@@ -198,7 +194,6 @@ async def osmo_get_resource(
         raise _resource_not_found()
 
     payload = await tool_requests.request_json_object(
-        context,
         path=f'{_RESOURCES_PATH}/{encoded_node_name}',
         operation='get a node resource',
         max_response_bytes=_MAX_RESOURCES_RESPONSE_BYTES,

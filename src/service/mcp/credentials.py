@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 from collections.abc import Mapping
 from typing import Annotated
 
-from fastmcp import Context
 import pydantic
 
 from src.service.mcp import tool_requests
@@ -44,10 +43,9 @@ class CredentialListResult(pydantic.BaseModel, extra='forbid'):
     credentials: list[CredentialMetadata]
 
 
-async def osmo_list_credentials(context: Context) -> CredentialListResult:
+async def osmo_list_credentials() -> CredentialListResult:
     """List credential names and types without secret-bearing values."""
     response = await tool_requests.request_json_object(
-        context,
         path=_CREDENTIALS_PATH,
         operation='list OSMO credentials',
         max_response_bytes=_MAX_CREDENTIAL_RESPONSE_BYTES,
