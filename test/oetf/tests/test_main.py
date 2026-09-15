@@ -9,13 +9,14 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
 import argparse
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from test.oetf import main as oetf_main
+from test.oetf.models import EnvironmentAuth, EnvironmentConfig
 
 
 class MainResultContractTest(unittest.TestCase):
@@ -111,6 +112,50 @@ class MainResultContractTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("RESULT: PASS", output)
+
+
+class ResolveMcpSessionDirectoryTest(unittest.TestCase):
+    """The runner forwards only an explicit local directory, before sandboxing."""
+
+    @staticmethod
+    def _resolve(*flags: str) -> dict[str, str]:
+        args = oetf_main.parse_args(["--env", "test", *flags])
+        environment = EnvironmentConfig(
+            name="test", url="https://example.com", pool="test-pool",
+            auth=EnvironmentAuth(strategy="dev", username="api-caller"),
+        )
+        with mock.patch.object(oetf_main, "resolve_environment", return_value=environment):
+            return oetf_main.resolve_env(args)
+
+    def test_inherits_and_normalizes_environment_path(self):
+        with mock.patch.dict(oetf_main.os.environ, {
+            "OETF_MCP_SESSION_DIR": "private/mcp session",
+        }, clear=True):
+            result = self._resolve()
+        self.assertEqual(
+            result["mcp_session_dir"],
+            str(oetf_main.Path("private/mcp session").absolute()),
+        )
+
+    def test_flag_overrides_environment_path(self):
+        with mock.patch.dict(oetf_main.os.environ, {
+            "OETF_MCP_SESSION_DIR": "/private/ignored",
+        }, clear=True):
+            result = self._resolve("--mcp-session-dir", "/private/selected")
+        self.assertEqual(result["mcp_session_dir"], "/private/selected")
+
+    def test_non_mcp_runs_do_not_require_a_session(self):
+        with mock.patch.dict(oetf_main.os.environ, {}, clear=True):
+            self.assertEqual(self._resolve()["mcp_session_dir"], "")
+
+    def test_invalid_paths_fail_without_echoing_input(self):
+        for invalid in ("https://secret.invalid/token", "private\nsecret", "private\x00secret"):
+            with self.subTest(path_kind=repr(invalid[:7])), \
+                    redirect_stderr(io.StringIO()) as errors:
+                with self.assertRaises(SystemExit) as raised:
+                    self._resolve("--mcp-session-dir", invalid)
+                self.assertEqual(raised.exception.code, 2)
+                self.assertNotIn(invalid, errors.getvalue())
 
 
 class BuildBazelCommandTest(unittest.TestCase):
@@ -230,6 +275,24 @@ class BuildBazelCommandTest(unittest.TestCase):
             argument.startswith("--test_env=OETF_HELM_CHART_PATH=")
             for argument in command
         ))
+
+    @mock.patch.object(
+        oetf_main, "_resolve_targets_via_query",
+        return_value=["//test/smoke:mcp-checks"],
+    )
+    def test_mcp_session_path_is_forwarded_without_inline_tokens(self, resolve_mock):
+        self.assertIsNotNone(resolve_mock)
+        environment = self._env()
+        environment["mcp_session_dir"] = "/private/mcp session"
+        with mock.patch.dict(oetf_main.os.environ, {
+            "OSMO_MCP_ACCESS_TOKEN": "obsolete-inline-token",
+        }, clear=True):
+            command = oetf_main.build_bazel_command(
+                self._args("staging"), environment, "/tmp/bep.json",
+            )
+        self.assertIn("--test_env=OETF_MCP_SESSION_DIR=/private/mcp session", command)
+        self.assertNotIn("obsolete-inline-token", " ".join(command))
+        self.assertFalse(any("OSMO_MCP_ACCESS_TOKEN" in argument for argument in command))
 
 
 if __name__ == "__main__":

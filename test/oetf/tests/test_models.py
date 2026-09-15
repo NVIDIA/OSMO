@@ -62,6 +62,16 @@ class TestOetfConfigFromEnv(unittest.TestCase):
         self.assertEqual(config.pool, "default")
         self.assertEqual(config.client, "api")
         self.assertEqual(config.auth_method, "token")
+        self.assertEqual(config.mcp_session_dir, "")
+
+    def test_inherits_mcp_session_directory_not_a_bearer_token(self):
+        with mock.patch.dict(os.environ, {
+            "OETF_MCP_SESSION_DIR": "/private/mcp session",
+            "OSMO_MCP_ACCESS_TOKEN": "obsolete-inline-token",
+        }, clear=True):
+            config = OetfConfig.from_env()
+        self.assertEqual(config.mcp_session_dir, "/private/mcp session")
+        self.assertNotIn("obsolete-inline-token", repr(config))
 
 
 if __name__ == "__main__":

@@ -97,6 +97,7 @@ class OetfConfig:
     pool: str = "default"
     client: str = "api"              # "api" | "cli" | "hybrid"
     local_osmo: str = ""             # optional explicit osmo CLI path
+    mcp_session_dir: str = ""        # private OAuth session directory, never a token
     data_storage_access_key_id: str = ""
     data_storage_access_key: str = ""
     data_storage_endpoint: str = ""
@@ -121,6 +122,7 @@ class OetfConfig:
             pool=os.environ.get("OETF_POOL", "default"),
             client=os.environ.get("OETF_CLIENT", "api"),
             local_osmo=os.environ.get("OETF_LOCAL_OSMO", ""),
+            mcp_session_dir=os.environ.get("OETF_MCP_SESSION_DIR", ""),
             data_storage_access_key_id=os.environ.get("OETF_DATA_STORAGE_ACCESS_KEY_ID", ""),
             data_storage_access_key=os.environ.get("OETF_DATA_STORAGE_ACCESS_KEY", ""),
             data_storage_endpoint=os.environ.get("OETF_DATA_STORAGE_ENDPOINT", ""),

@@ -182,18 +182,19 @@ profile and credential metadata and create workflows in `OETF_POOL`:
 
 ```bash
 bazel run //test/oetf:run -- \
-  --env <mcp-enabled-env> --tags mcp \
-  --bazel-arg=--test_env=OSMO_MCP_ACCESS_TOKEN
+  --env <mcp-enabled-dev-env> --tags mcp \
+  --mcp-session-dir /path/to/private/mcp-session
 ```
 
-Authenticated checks also require `OSMO_MCP_ACCESS_TOKEN`, obtained through the
-deployment's MCP OAuth flow and passed through the test environment. The normal
-OETF API token cannot authenticate to `/mcp`. Use the same identity for CLI and
-MCP comparisons, and do not put token values in command arguments or logs. If
-the MCP token is absent, those checks are skipped; a run containing skips does
-not establish authenticated tool coverage.
+First follow the [OETF MCP bootstrap guide](../../../test/oetf/MCP.md) to create
+a private, refreshable OAuth session. The normal OETF API token cannot
+authenticate to `/mcp`. Use the same principal and compatible permissions for
+CLI and MCP comparisons; their token metadata is authentication-specific.
+Missing or invalid MCP sessions fail authenticated tests instead of skipping.
+Never put token values in command arguments, logs or test artifacts.
 
-The suite verifies discovery, the current catalog, caller-bound health, profile
+The suite verifies discovery, API-token rejection, session refresh, the current catalog,
+caller-bound health, profile
 and credential projections against the CLI, and successful workflow validation
 through Gateway → MCP → Gateway → Core. The known-good validation case does not
 enqueue compute or create a workflow row; failed validation can create a
@@ -203,8 +204,8 @@ If the deployment cannot validate `ubuntu:22.04`, select an approved image:
 
 ```bash
 bazel run //test/oetf:run -- \
-  --env <mcp-enabled-env> --tags mcp \
-  --bazel-arg=--test_env=OSMO_MCP_ACCESS_TOKEN \
+  --env <mcp-enabled-dev-env> --tags mcp \
+  --mcp-session-dir /path/to/private/mcp-session \
   --bazel-arg=--test_env=OETF_DEFAULT_IMAGE=<registry/image:tag>
 ```
 

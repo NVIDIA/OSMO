@@ -232,6 +232,10 @@ AI-powered test generation and review response using Claude Code CLI. See `scrip
 
 ### Key Architecture Patterns
 
+The root-level `test/oetf/` owns deployed smoke/scenario fixtures. Its `mcp.py`
+client and `mcp_login.py` bootstrap support OAuth-backed MCP coverage;
+see `test/oetf/MCP.md` for session handling and dev verification.
+
 - **Container runtime**: Three container types per workflow — ctrl (orchestrator), user (execution), data (rsync sidecar)
 - **IPC**: WebSocket (ctrl↔workflow service), Unix sockets (ctrl↔user), gRPC (authz sidecar)
 - **Auth**: API gateway → authz_sidecar (semantic RBAC with `x-osmo-user`, `x-osmo-roles`, `x-osmo-allowed-pools` headers)

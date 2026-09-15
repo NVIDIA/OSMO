@@ -210,6 +210,11 @@ def add_run_args(parser: argparse.ArgumentParser) -> None:
         help="Path to the osmo CLI binary used by scenarios.",
     )
     parser.add_argument(
+        "--mcp-session-dir", default="",
+        help="Private MCP OAuth session directory created by oetf:mcp_login "
+             "(default: OETF_MCP_SESSION_DIR). Never pass a token here.",
+    )
+    parser.add_argument(
         "--data-cred-access-key-id", default="",
         help="Data-backend access key ID (swift/S3 user).",
     )
@@ -268,6 +273,7 @@ _RUN_ARG_TABLE = (
     ("--jobs", "jobs", "value"),
     ("--output-json", "output_json", "value"),
     ("--local-osmo", "local_osmo", "value"),
+    ("--mcp-session-dir", "mcp_session_dir", "value"),
     ("--data-cred-access-key-id", "data_cred_access_key_id", "value"),
     ("--data-cred-access-key", "data_cred_access_key", "value"),
     ("--data-cred-endpoint", "data_cred_endpoint", "value"),

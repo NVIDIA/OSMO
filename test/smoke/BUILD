@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("//test/oetf/bzl:oetf.bzl", "oetf_smoke_test")
+load("//bzl:py.bzl", "osmo_py_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -26,6 +27,18 @@ oetf_smoke_test(
     name = "mcp-checks",
     src = "mcp_checks.py",
     tags = ["api", "mcp"],
+)
+
+# Import the deployed assertions into local fail-on-bad regression tests.
+osmo_py_library(
+    name = "mcp_checks_lib",
+    srcs = ["mcp_checks.py"],
+    deps = [
+        "//src/lib/utils:client",
+        "//src/lib/utils:osmo_errors",
+        "//test/oetf:smoke_fixture",
+        requirement("requests"),
+    ],
 )
 
 # auth-checks stays internal — public quick-start chart ships no JWT issuer

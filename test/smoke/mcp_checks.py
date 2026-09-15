@@ -16,6 +16,8 @@ import unittest
 
 import requests
 
+from src.lib.utils.client import RequestMethod
+from src.lib.utils.osmo_errors import OSMOError
 from test.oetf.smoke_fixture import SmokeFixture
 
 
@@ -56,10 +58,6 @@ _PROFILE_FIELDS = (
     "slack_notification",
     "pool",
 )
-_TOKEN_FIELDS = (
-    "name",
-    "expires_at",
-)
 _CREDENTIAL_FIELDS = (
     "cred_name",
     "cred_type",
@@ -89,20 +87,6 @@ workflow:
 class McpChecks(SmokeFixture):
     """Exercise the deployed external MCP through its public Gateway route."""
 
-    def _jsonrpc_result(self, response, request_id):
-        if (
-            not isinstance(response, dict)
-            or response.get("jsonrpc") != "2.0"
-            or response.get("id") != request_id
-            or "error" in response
-        ):
-            self.fail("MCP returned an unsuccessful JSON-RPC response.")
-
-        result = response.get("result")
-        if not isinstance(result, dict):
-            self.fail("MCP returned an invalid JSON-RPC result.")
-        return result
-
     def _base_url(self):
         return self.config.url.rstrip("/")
 
@@ -115,60 +99,6 @@ class McpChecks(SmokeFixture):
         )
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
-
-    def _mcp_access_token(self):
-        """Return the caller token, or skip: only MCP's own proxy issues one.
-
-        FastMCP issues its own token to the client and keeps the upstream
-        identity-provider token server-side, validating it by JTI lookup on
-        each request. So neither the OSMO-issued OETF token nor a raw
-        identity-provider token authenticates to /mcp.
-        """
-        token = os.environ.get("OSMO_MCP_ACCESS_TOKEN")
-        if not token:
-            self.skipTest(
-                "MCP authenticates callers with a token its own OAuth proxy "
-                "issues, so the OSMO-issued OETF token cannot reach /mcp. Set "
-                "OSMO_MCP_ACCESS_TOKEN to a token obtained by completing the "
-                "OAuth flow against <deployment>/mcp to run these checks."
-            )
-        return token
-
-    def _mcp_request(self, request_id, method, params):
-        payload = {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "method": method,
-            "params": params,
-        }
-        headers = dict(_MCP_ACCEPT_HEADERS)
-        headers["Authorization"] = f"Bearer {self._mcp_access_token()}"
-        response = requests.post(
-            f"{self._base_url()}/mcp",
-            headers=headers,
-            json=payload,
-            timeout=30,
-            allow_redirects=False,
-        )
-        self.assertEqual(response.status_code, 200, response.text)
-        return self._jsonrpc_result(response.json(), request_id)
-
-    def _call_tool(self, request_id, name, arguments):
-        result = self._mcp_request(
-            request_id,
-            "tools/call",
-            {
-                "name": name,
-                "arguments": arguments,
-            },
-        )
-        structured_content = result.get("structuredContent")
-        if (
-            result.get("isError") is not False
-            or not isinstance(structured_content, dict)
-        ):
-            self.fail(f"MCP tool {name} returned an unsuccessful result.")
-        return structured_content
 
     def test_public_discovery_surface(self):
         """The unauthenticated surface clients rely on to bootstrap OAuth.
@@ -220,8 +150,7 @@ class McpChecks(SmokeFixture):
             f"{base_url}/mcp/authorize",
         )
 
-        # The /mcp prefix route publishes the container root, so the health
-        # endpoints are carved out ahead of it.
+        # Container health endpoints must not be exposed by the public Gateway.
         for path in ("/mcp/health", "/mcp/health/live"):
             health = requests.get(
                 f"{base_url}{path}", timeout=10, allow_redirects=False
@@ -233,8 +162,8 @@ class McpChecks(SmokeFixture):
             )
 
     def test_catalog_profile_and_credential_parity(self):
-        self._mcp_access_token()
-        catalog_result = self._mcp_request(1, "tools/list", {})
+        client = self.mcp()
+        catalog_result = client.request(1, "tools/list", {})
         catalog_tools = catalog_result.get("tools")
         if not isinstance(catalog_tools, list) or not all(
             isinstance(tool, dict) for tool in catalog_tools
@@ -285,14 +214,20 @@ class McpChecks(SmokeFixture):
             )
 
         cli_token = cli_profile.get("token")
-        expected_token = None
         if cli_token is not None:
-            if not isinstance(cli_token, dict):
+            if (
+                not isinstance(cli_token, dict)
+                or not isinstance(cli_token.get("name"), str)
+                or not cli_token["name"]
+                or (
+                    cli_token.get("expires_at") is not None
+                    and not isinstance(cli_token["expires_at"], str)
+                )
+            ):
                 self.fail("OSMO CLI returned invalid token metadata.")
-            expected_token = {
-                field: cli_token.get(field)
-                for field in _TOKEN_FIELDS
-            }
+        # API-token login may report token metadata; MCP relays the SSO identity,
+        # for which Core returns no OSMO API-token metadata. Principal and
+        # effective permissions must still match for this parity environment.
         expected_profile = {
             "profile": {
                 field: cli_profile_settings.get(field)
@@ -300,16 +235,16 @@ class McpChecks(SmokeFixture):
             },
             "roles": cli_profile["roles"],
             "pools": cli_profile["pools"],
-            "token": expected_token,
+            "token": None,
         }
 
-        profile = self._call_tool(2, "osmo_get_profile", {})
+        profile = client.call_tool("osmo_get_profile", {})
         if profile != expected_profile:
             self.fail(
                 "MCP profile projection does not match the OSMO CLI profile."
             )
 
-        health = self._call_tool(3, "osmo_health", {})
+        health = client.call_tool("osmo_health", {})
         if health != {"status": "healthy"}:
             self.fail("MCP health tool returned an invalid response.")
 
@@ -333,8 +268,7 @@ class McpChecks(SmokeFixture):
                 for field in _CREDENTIAL_FIELDS
             })
 
-        mcp_credentials = self._call_tool(
-            4,
+        mcp_credentials = client.call_tool(
             "osmo_list_credentials",
             {},
         )
@@ -358,13 +292,12 @@ class McpChecks(SmokeFixture):
         )
 
     def test_workflow_validation_round_trip(self):
-        self._mcp_access_token()
+        client = self.mcp()
         pool = self.config.pool
         if not pool:
             self.fail("OETF_POOL must select a workflow validation pool.")
 
-        validation = self._call_tool(
-            1,
+        validation = client.call_tool(
             "osmo_validate_workflow",
             {
                 "workflow_spec": _validation_workflow_spec(),
@@ -380,6 +313,60 @@ class McpChecks(SmokeFixture):
                 "warnings": [],
             },
         )
+
+    def test_rejects_non_mcp_tokens(self):
+        """An API-valid ID token still cannot authenticate to the MCP proxy."""
+        try:
+            self.service_client.request(
+                method=RequestMethod.GET, endpoint="api/profile/settings",
+            )
+            token_login = self.service_client.login_manager.login_storage.token_login
+        except OSMOError:
+            self.fail("Cannot obtain an authenticated Core API session for rejection checks.")
+        # get_access_token() returns a refresh credential, not the ID token that
+        # ServiceClient actually puts in its Authorization header.
+        api_jwt = token_login.id_token if token_login is not None else None
+        if not isinstance(api_jwt, str) or not api_jwt:
+            self.fail("MCP rejection checks require an authenticated Core API ID token.")
+        try:
+            with requests.Session() as client:
+                client.trust_env = False
+                with client.get(
+                    f"{self._base_url()}/api/profile/settings",
+                    headers={"Authorization": f"Bearer {api_jwt}"},
+                    timeout=10, allow_redirects=False, stream=True,
+                ) as response:
+                    self.assertEqual(
+                        response.status_code, 200,
+                        "The rejection-test ID token is not valid for the Core API.",
+                    )
+                for label, token in (
+                    ("missing", None),
+                    ("invalid", "oetf-invalid-mcp-token"),
+                    ("api-only", api_jwt),
+                ):
+                    with self.subTest(credential=label):
+                        headers = dict(_MCP_ACCEPT_HEADERS)
+                        if token is not None:
+                            headers["Authorization"] = f"Bearer {token}"
+                        with client.post(
+                            f"{self._base_url()}/mcp", headers=headers,
+                            json={"jsonrpc": "2.0", "id": 1,
+                                  "method": "tools/list", "params": {}},
+                            timeout=10, allow_redirects=False, stream=True,
+                        ) as response:
+                            self.assertEqual(
+                                response.status_code, 401,
+                                "MCP accepted a credential outside its OAuth session contract.",
+                            )
+        except requests.RequestException:
+            self.fail("MCP credential-rejection checks could not reach the configured service.")
+
+    def test_oauth_session_refresh(self):
+        """A fresh fixture must refresh its persisted session before a tool call."""
+        client = self.mcp()
+        client.refresh()
+        self.assertEqual(client.call_tool("osmo_health", {}), {"status": "healthy"})
 
 
 if __name__ == "__main__":

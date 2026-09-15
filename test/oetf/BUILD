@@ -176,10 +176,39 @@ osmo_py_library(
     srcs = ["smoke_fixture.py"],
     deps = [
         ":fixture_base",
+        ":mcp",
         ":osmo_cli",
         "//src/lib/utils:client",
         "//src/lib/utils:osmo_errors",
     ],
+)
+
+osmo_py_library(
+    name = "mcp",
+    srcs = ["mcp.py"],
+    deps = [
+        requirement("cryptography"),
+        requirement("requests"),
+    ],
+)
+
+osmo_py_library(
+    name = "mcp_login_lib",
+    srcs = ["mcp_login.py"],
+    deps = [
+        ":mcp",
+        requirement("fastmcp-slim"),
+        requirement("httpx"),
+        requirement("py-key-value-aio"),
+    ],
+)
+
+osmo_py_binary(
+    name = "mcp_login",
+    srcs = ["mcp_login.py"],
+    main = "mcp_login.py",
+    deps = [":mcp_login_lib"],
+    tags = ["manual"],
 )
 
 osmo_py_library(

@@ -142,6 +142,22 @@ def resolve_env(args: argparse.Namespace) -> Dict[str, str]:
     if auth_method == "dev" and "auth" not in exclude_tags:
         exclude_tags.append("auth")
 
+    mcp_session_dir = getattr(args, "mcp_session_dir", "") or os.environ.get(
+        "OETF_MCP_SESSION_DIR", "",
+    )
+    if mcp_session_dir:
+        if "://" in mcp_session_dir or any(
+            ord(character) < 32 or ord(character) == 127
+            for character in mcp_session_dir
+        ):
+            _config_error(
+                "MCP session directory must be a local path without control characters.",
+                "Pass --mcp-session-dir with the private directory created by oetf:mcp_login.",
+            )
+        # Resolve relative paths before Bazel changes the test working directory.
+        # Do not resolve symlinks: the session store checks their safety itself.
+        mcp_session_dir = str(Path(mcp_session_dir).expanduser().absolute())
+
     return {
         "url": url,
         "auth_method": auth_method,
@@ -149,6 +165,7 @@ def resolve_env(args: argparse.Namespace) -> Dict[str, str]:
         "auth_username": auth_username,
         "pool": pool,
         "local_osmo": args.local_osmo,
+        "mcp_session_dir": mcp_session_dir,
         "exclude_tags": ",".join(exclude_tags),
     }
 
@@ -254,6 +271,7 @@ def build_bazel_command(
         f"--test_env=OETF_AUTH_USERNAME={env["auth_username"]}",
         f"--test_env=OETF_POOL={env["pool"]}",
         f"--test_env=OETF_LOCAL_OSMO={env["local_osmo"]}",
+        f"--test_env=OETF_MCP_SESSION_DIR={env.get("mcp_session_dir", "")}",
         f"--test_env=OETF_ENV={args.env}",
         "--cache_test_results=no",
         f"--local_test_jobs={args.jobs}",

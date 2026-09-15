@@ -12,6 +12,42 @@ load("@osmo_workspace//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
+    name = "test_mcp",
+    srcs = ["test_mcp.py"],
+    deps = [
+        "//test/oetf:mcp",
+        requirement("cryptography"),
+        requirement("requests"),
+    ],
+)
+
+osmo_py_test(
+    name = "test_mcp_login",
+    srcs = ["test_mcp_login.py"],
+    deps = [
+        "//test/oetf:mcp",
+        "//test/oetf:mcp_login_lib",
+        requirement("fastmcp-slim"),
+        requirement("httpx"),
+        requirement("mcp"),
+    ],
+)
+
+osmo_py_test(
+    name = "test_mcp_smoke",
+    srcs = ["test_mcp_smoke.py"],
+    deps = [
+        "//test/oetf:mcp",
+        "//test/oetf:models",
+        "//test/oetf:smoke_fixture",
+        "//test/smoke:mcp_checks_lib",
+        "//src/lib/utils:client",
+        "//src/lib/utils:osmo_errors",
+        requirement("requests"),
+    ],
+)
+
+osmo_py_test(
     name = "test_models",
     srcs = ["test_models.py"],
     deps = ["//test/oetf:models"],

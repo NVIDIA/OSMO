@@ -104,6 +104,7 @@ class TestForwardRunArgs(unittest.TestCase):
             "--jobs", "5",
             "--output-json", "/tmp/r.json",
             "--local-osmo", "/usr/local/bin/osmo",
+            "--mcp-session-dir", "/private/mcp session",
             "--data-cred-access-key-id", "AK",
             "--data-cred-access-key", "SK",
             "--data-cred-endpoint", "swift://e",
@@ -134,6 +135,17 @@ class TestForwardRunArgs(unittest.TestCase):
         # The forwarder skips empty/zero values.
         self.assertNotIn("--tags", forwarded)
         self.assertNotIn("--name", forwarded)
+        self.assertNotIn("--mcp-session-dir", forwarded)
+
+    def test_session_directory_with_spaces_is_one_forwarded_argument(self):
+        parser = argparse.ArgumentParser(add_help=False)
+        cli_args.add_run_args(parser)
+        args = parser.parse_args(["--mcp-session-dir", "/private/mcp session"])
+        forwarded = cli_args.forward_run_args(args)
+        self.assertEqual(
+            forwarded[forwarded.index("--mcp-session-dir") + 1],
+            "/private/mcp session",
+        )
 
 
 class TestTargetPattern(unittest.TestCase):

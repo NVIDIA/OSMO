@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 from src.lib.utils.client import RequestMethod
 from src.lib.utils.osmo_errors import OSMOError
+from test.oetf import mcp as mcp_session
 from test.oetf import reporter
 from test.oetf.fixture_base import OetfFixture
 from test.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
@@ -322,7 +323,7 @@ _CLI_LOGGED_IN = False
 
 
 class SmokeFixture(OetfFixture):
-    """Base class for smoke test files. Provides self.http / self.cli / self.ws.
+    """Base class for smoke files, with HTTP/CLI/WebSocket probes and an MCP client.
 
     Each method returns a chainable probe builder; terminate with .expect_* to
     run + assert.
@@ -330,6 +331,35 @@ class SmokeFixture(OetfFixture):
 
     def http(self, method: str, endpoint: str) -> HttpProbe:
         return HttpProbe(self, method, endpoint)
+
+    def mcp(self) -> mcp_session.McpClient:
+        """Reuse a protected OAuth session bound to the authenticated API caller."""
+        existing = getattr(self, "_mcp_client", None)
+        if existing is not None:
+            return existing
+        if not self.config.mcp_session_dir:
+            raise mcp_session.McpSessionError(
+                "MCP session is required; run //test/oetf:mcp_login and pass "
+                "--mcp-session-dir (or OETF_MCP_SESSION_DIR)."
+            )
+        try:
+            profile = self.service_client.request(
+                method=RequestMethod.GET, endpoint="api/profile/settings",
+            )
+        except OSMOError:
+            raise mcp_session.McpSessionError(
+                "Cannot verify the authenticated OETF caller for the MCP session."
+            ) from None
+        settings = profile.get("profile") if isinstance(profile, dict) else None
+        username = settings.get("username") if isinstance(settings, dict) else None
+        if not isinstance(username, str) or not username.strip():
+            raise mcp_session.McpSessionError(
+                "The authenticated OETF profile has no valid MCP session identity."
+            )
+        self._mcp_client = mcp_session.McpClient(
+            self.config.url, self.config.mcp_session_dir, username,
+        )
+        return self._mcp_client
 
     def cli(self, command: CliCommand) -> CliProbe:
         # Fresh sandboxes (e.g. Jenkins) have no cached login, so the first
