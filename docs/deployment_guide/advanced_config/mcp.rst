@@ -21,152 +21,88 @@
 MCP
 ===
 
-MCP is an optional feature deployed in the same Helm release as the OSMO
-service. The chart creates an MCP Deployment, a ClusterIP Service, Gateway
-routes, and an ingress NetworkPolicy. The recommended authentication mode passes
-FastMCP's built-in ``OIDCProxy`` directly to the existing MCP server; it does
-not deploy a second OAuth broker service.
+The unified ``osmo`` Helm chart supports MCP as an optional control-plane
+feature. The ``service`` chart also supports it, with the Redis differences
+described below. Enabling MCP creates a Deployment, a ClusterIP Service,
+Gateway routes, and an ingress NetworkPolicy. Authentication is mandatory:
+FastMCP's OIDC proxy runs in the MCP process and relays each user's verified
+upstream token to the Gateway for normal API authorization.
 
-Authentication
-==============
+This guide covers setup and operations. Give users the MCP URL and refer them
+to :ref:`getting_started_mcp` for client setup. See
+:ref:`mcp_identity_permissions` for the API actions each tool requires.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Client configuration
-     - Request authentication
-   * - The user configures only ``https://<osmo-host>/mcp``. FastMCP advertises
-       Client ID Metadata Documents (CIMD) and retains Dynamic Client
-       Registration (DCR) as a compatibility fallback.
-     - FastMCP authenticates requests to the ``/mcp`` route in the MCP process
-       and relays the verified upstream access token to normal OSMO API
-       authorization.
-
-Every tool call re-enters the OSMO Gateway and is authorized by
-the normal API action and pool scope. MCP never assumes a service identity and
-cannot elevate the user. See :ref:`mcp_identity_permissions` and
-:ref:`actions_resources_reference`.
-
-Shared Prerequisites
-====================
+Prerequisites
+=============
 
 Before enabling MCP:
 
-* Keep ``gateway.envoy.enabled`` and ``gateway.authz.enabled`` set to ``true``.
-* Configure a ``gateway.envoy.jwt.providers`` entry that validates the bearer
-  token used for downstream ``/api`` requests and resolves its identity and
-  roles to the intended OSMO user. The chart adds the MCP resource URL to the
-  audiences of the entry whose issuer matches the one MCP authenticates
-  against, so no second entry is needed for MCP itself.
-* Publish the release Gateway on one HTTPS hostname. Set
-  ``services.mcp.resourceUrl`` to that origin plus the exact ``/mcp`` path.
-* Ensure that the MCP pod can resolve and reach the public Gateway origin.
-* Grant users the API actions and pool-scoped permissions required by the
-  tools they can call.
-* Keep Gateway NetworkPolicy enforcement enabled and ensure that no broader
-  policy unintentionally permits direct ingress to the MCP pod.
+* Publish the Gateway on one HTTPS hostname that the MCP pod can resolve and
+  reach. Set ``services.mcp.resourceUrl`` to that origin plus the exact
+  ``/mcp`` path; the chart derives the outbound Gateway origin from it.
+* In the unified ``osmo`` chart, enable ``planes.control.enabled``.
+  For either chart, keep ``gateway.envoy.enabled`` and
+  ``gateway.authz.enabled`` set to ``true``. The development quickstart does
+  not provision the public HTTPS endpoint or confidential application needed
+  for MCP.
+* Configure a matching identity-provider JWT entry under
+  ``gateway.envoy.jwt.providers``
+  and role mappings for the upstream API token. The chart adds the MCP
+  audience to the explicit entry matching the configured issuer. Grant users
+  the API actions and pool-scoped permissions required by their tools.
+* Provide shared Redis or Valkey storage and externally managed credentials.
+  Keep MCP's ingress NetworkPolicy enforced by the cluster CNI; another policy
+  selecting the same pod must not grant broader ingress.
 
-Configure OIDC Proxy Mode
-=========================
-
-The OIDC proxy provides endpoint-only client setup. The deployment owns one
-confidential upstream OIDC application. Individual MCP clients do not need to
-configure its client ID and never receive its client secret.
-
-Register the Upstream Application
----------------------------------
+Register the OIDC Application
+=============================
 
 Configure one confidential application in the identity provider with:
 
-* An Application ID URI of exactly ``https://<osmo-host>/mcp``.
-* The exact redirect URL ``https://<osmo-host>/mcp/auth/callback``.
-* Authorization code flow and the ``client_secret_post`` token authentication
-  method.
-* A delegated API scope whose full URI is
-  ``https://<osmo-host>/mcp/access_as_user``.
-* User or group assignments and administrator consent appropriate for the
-  deployment.
+* Application ID URI: ``https://<osmo-host>/mcp``.
+* Web redirect URL: ``https://<osmo-host>/mcp/auth/callback``.
+* Authorization code flow with ``client_secret_post`` token authentication.
+* Delegated API scope: ``https://<osmo-host>/mcp/access_as_user``.
+* The intended user or group assignments and administrator consent.
+
+The upstream API token must be an RS256 JWT with that audience and the short
+``access_as_user`` value in its ``scp`` claim. MCP reads the issuer and JWKS
+URL from OIDC discovery. Set ``oidc.accessTokenIssuer`` only when access
+tokens use a different issuer, as Entra applications issuing v1-format tokens
+do. The Gateway must validate the same token and resolve its OSMO identity and
+roles. The delegated scope permits MCP access; it grants no additional OSMO
+API or pool permissions.
+
+Microsoft Entra is the validated provider profile. Verify this token contract
+before using another OIDC provider.
 
 .. important::
 
-   The application is per host, not per deployment fleet. OSMO derives the
-   audience it validates from ``services.mcp.resourceUrl``, and that audience
-   must exist as an Application ID URI on the registered application, so
-   enabling MCP on a second host requires either a second application or an
-   additional Application ID URI on the existing one.
+   Each hostname needs its exact audience and callback registered. Prefer a
+   separate application for a new environment; inspect all consumers before
+   changing a shared application's identifier URIs or redirect URIs.
 
-   Prefer a separate application for a new environment. Editing
-   ``identifierUris`` or ``redirectUris`` on an application that other
-   environments already depend on can break sign-in for those environments;
-   check every consumer before changing a shared registration.
+   The registered upstream callback belongs to the deployment. Native clients
+   receive a later redirect to their own temporary loopback URL. MCP accepts
+   only loopback client redirects; administrators do not register those with
+   the upstream identity provider.
 
-``access_as_user`` permits delegated MCP access as the signed-in user. It does
-not grant workflow, application, credential, or pool permissions; each tool's
-normal OSMO authorization still applies.
+Configure Credentials and Helm Values
+======================================
 
-The upstream access token must be an RS256 JWT with the configured issuer, the
-exact ``https://<osmo-host>/mcp`` audience, and the short scope value
-``access_as_user`` in its ``scp`` claim. Configure the existing Gateway JWT
-provider for the same token and its OSMO identity or role mappings.
+Store the OIDC client secret in an existing Kubernetes Secret or inject it
+through your secret manager. Never put client secrets, Redis passwords,
+authorization codes, access tokens, or refresh tokens in Helm values, Git, or
+logs. MCP requires a client secret of at least 32 characters because its
+proxy-token signing and Redis encryption keys derive from that secret.
 
-FastMCP's proxy is based on standard OIDC discovery, but this OSMO profile
-currently supports one upstream provider and enforces the token contract above.
-Microsoft Entra is the validated provider profile. Test claim and scope
-compatibility before using another provider.
-
-.. important::
-
-   Do not confuse the fixed upstream ``/mcp/auth/callback`` URL with a native MCP
-   client's temporary localhost callback. FastMCP accepts native loopback
-   callbacks automatically; only loopback client redirects are accepted.
-
-Provide Redis and Secrets
--------------------------
-
-FastMCP stores client registrations, authorization transactions, and encrypted
-upstream token state in Redis. Use a dedicated database number or key prefix.
-The chart mounts externally managed credentials but does not generate them.
-
-Create or inject the client secret and, when required, the Redis password at
-their configured paths. The example below uses:
-
-* The upstream OIDC client secret at
-  ``/etc/osmo/mcp-auth/client-secret``.
-* The Redis password at ``/etc/osmo/mcp-auth/redis-password`` when Redis
-  requires one.
-
-Use an external secret manager or an existing Kubernetes Secret. Never place
-the client secret, Redis password, authorization code, access token, or refresh
-token in Helm values, Git, or logs.
-
-FastMCP deterministically derives its proxy-token signing key from the OIDC
-client secret. OSMO derives the Redis encryption key from the same secret with
-a separate salt. Rotating the client secret therefore invalidates active proxy
-sessions and makes old encrypted state, including DCR registrations, unusable.
-Users must authenticate again, and DCR clients might need to remove and re-add
-the MCP entry before login.
-
-Because both keys come from the client secret, the strength they provide is the
-strength of that secret. FastMCP passes it through HKDF as high-entropy key
-material, a path distinct from the password-based derivation it reserves for
-low-entropy operator-supplied strings. The service therefore requires a client
-secret of at least 32 characters and refuses to start below it. Identity
-providers issue secrets well above that length; the check exists to reject a
-hand-written placeholder.
-
-Configure Helm Values
----------------------
-
-The following example uses an existing Secret. Adapt the OIDC and Redis values
-to the deployment:
+Layer this minimal MCP overlay onto your configured OSMO release:
 
 .. code-block:: yaml
 
    services:
      mcp:
        enabled: true
-       replicas: 1
        resourceUrl: https://osmo.example.com/mcp
        oidcProxy:
          oidc:
@@ -175,124 +111,153 @@ to the deployment:
          existingSecret:
            name: osmo-mcp-oidc
 
-The secret file paths follow ``existingSecret.mountPath``, and Redis is
-inherited from ``services.redis``, so neither is stated. Set
-``oidc.accessTokenIssuer`` only for a provider whose access tokens come from an
-issuer its discovery document does not advertise, as an application configured
-for v1-format tokens does. Name ``existingSecret.redisPasswordKey`` only when
-that Redis requires a password.
-Native clients normally omit ``Origin`` and need no extra configuration. For a
-browser-hosted MCP client, ``services.mcp.allowedOrigins`` controls which
-browser origins may call ``/mcp``.
+The existing Secret must be in the Helm release namespace and contain
+``client-secret`` by default. The default mount is
+``/etc/osmo/mcp-auth/client-secret``; the chart derives the mounted path.
+Change ``existingSecret.clientSecretKey`` if the Secret uses another key,
+or ``existingSecret.mountPath`` for another mount directory. When a secret
+manager supplies the file directly, omit ``existingSecret.name`` and set
+``oidc.clientSecretFile`` to its mounted absolute path.
 
-How the Proxy Flow Works
-------------------------
+Redis connection and password sources follow the selected chart:
 
-FastMCP serves OAuth and MCP from the same process:
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
 
-#. The client discovers protected-resource and authorization-server metadata.
-#. The client uses CIMD or falls back to DCR through ``POST /register``.
-#. FastMCP obtains user consent, runs authorization code flow with Proof Key for
-   Code Exchange (PKCE), and sends the user to the upstream OIDC provider.
-#. The provider returns to the fixed ``/mcp/auth/callback`` URL.
-#. FastMCP exchanges the upstream authorization code for tokens, stores the
-   resulting token state encrypted in Redis, and redirects the browser to the
-   MCP client with a FastMCP authorization code.
-#. The client sends that code and its PKCE verifier to ``POST /token``. FastMCP
-   validates them and issues a short-lived resource token.
-#. FastMCP authenticates the resource token on ``/mcp`` and exposes the
-   verified upstream bearer to the tool request.
-#. The tool relays that upstream bearer to ``/api``, where Gateway JWT,
-   semantic RBAC, and pool authorization remain authoritative.
+   * - Chart
+     - Redis or Valkey settings
+   * - ``osmo``
+     - Connection settings come from ``embeddedDependencies.valkey`` or
+       ``externalDependencies.valkey``. The chart mounts the password from
+       ``secrets.valkey`` automatically, using ``secrets.valkey.keys.password``.
+       Set ``oidcProxy.existingSecret.redisPasswordKey`` to use a password key
+       in the OIDC Secret instead. This chart does not use
+       ``oidcProxy.redis.passwordFile``.
+   * - ``service``
+     - Host, port, and TLS come from ``services.redis``. If Redis requires a
+       password, name ``oidcProxy.existingSecret.redisPasswordKey`` in the
+       OIDC Secret. A mounted ``oidcProxy.redis.passwordFile`` is used only
+       when ``existingSecret.name`` is unset and the OIDC client secret is
+       also supplied as a mounted file.
 
-FastMCP requests the full delegated MCP scope plus ``openid``, ``profile``,
-``email``, and ``offline_access`` upstream. Clients discover the delegated MCP
-scope and do not supply these upstream scopes manually. Proxy access tokens
-default to 600 seconds. ``refreshTokenTtlSeconds`` is a fallback only when the
-upstream provider omits refresh-token expiry.
+Use ``services.mcp.oidcProxy.redis.dbNumber`` and ``keyPrefix`` to isolate
+proxy state from other Redis users. Replicas share the same storage and client
+secret, so ``services.mcp.replicas`` may exceed one. The chart references
+externally managed MCP credentials without creating them.
 
-``offline_access`` lets the proxy request a refresh token so a session can
-renew without another browser sign-in. It does not grant additional OSMO
-permissions.
+Native clients normally omit ``Origin``. If a compatible client sends a
+browser origin, permit it through ``services.mcp.allowedOrigins``. This
+setting does not expand the loopback-only client redirect policy.
 
-Deploy or Upgrade
+OAuth and Gateway Routing
+=========================
+
+The MCP URL is also the OAuth issuer. The main login and token-exchange
+endpoints are:
+
+.. code-block:: text
+
+   GET  /.well-known/oauth-protected-resource/mcp
+   GET  /.well-known/oauth-authorization-server/mcp
+   GET  /mcp/authorize
+   POST /mcp/authorize
+   GET  /mcp/auth/callback
+   POST /mcp/register
+   POST /mcp/token
+   GET  /mcp/consent
+   POST /mcp/consent
+
+Gateway forwards the MCP and OAuth endpoints to the MCP process without
+Gateway JWT or semantic authorization. Process health endpoints remain private.
+FastMCP authenticates ``POST /mcp``. Every resulting ``/api`` call re-enters
+the Gateway with the verified upstream token and receives normal JWT,
+API-action, and pool authorization checks.
+
+The unified chart matches the supported OAuth paths and methods explicitly;
+unknown ``/mcp/`` paths and unsupported OAuth methods return ``404``.
+The service chart forwards the ``/mcp/`` prefix to FastMCP while blocking
+public health paths. Both publish the same login and token-exchange flow.
+
+The client discovers the metadata, identifies itself through Client ID
+Metadata Documents (CIMD) or Dynamic Client Registration (DCR), and starts a
+consent and browser sign-in flow. The identity provider returns to
+``/mcp/auth/callback``. FastMCP stores the upstream tokens encrypted in Redis
+and returns an authorization code to the client's loopback URL. The client
+exchanges that code and its Proof Key for Code Exchange (PKCE) verifier at
+``/mcp/token`` for a resource token.
+
+FastMCP requests the full delegated scope plus ``openid profile email
+offline_access`` upstream. The client discovers its required scope without
+manual configuration. ``offline_access`` allows session refresh without
+granting additional OSMO permissions. Proxy access tokens default to 600
+seconds; ``refreshTokenTtlSeconds`` is a fallback when the upstream provider
+omits refresh-token expiry.
+
+Deploy and Verify
 =================
 
-Save the values overlay, then use the normal OSMO service install or upgrade in
-:ref:`Step 5: Deploy Components <deploy_service_deploy_components>`. MCP is
-part of that Helm release when ``services.mcp.enabled`` is ``true``. Enabling
-OIDC proxy changes the existing MCP Deployment and Gateway routes; it does not
-create another application service.
-
-Verify MCP
-==========
-
-Verify the chart-created resources:
+Apply the overlay through the normal install or upgrade of your chosen chart.
+For the service chart, see
+:ref:`Step 5: Deploy Components <deploy_service_deploy_components>`.
+Verify the MCP resources in the release namespace:
 
 .. code-block:: bash
 
    $ kubectl rollout status deployment \
-       -l app.kubernetes.io/component=mcp \
-       -n osmo
-   $ kubectl get deployment,service \
-       -l app.kubernetes.io/component=mcp \
-       -n osmo
-   $ kubectl get networkpolicy -n osmo
+       -l app.kubernetes.io/component=mcp -n osmo
+   $ kubectl get deployment,service,networkpolicy \
+       -l app.kubernetes.io/component=mcp -n osmo
 
-Confirm that ``<services.mcp.serviceName>-allow-gateway-envoy`` is present.
-With the default service name, it is
-``osmo-mcp-allow-gateway-envoy``.
-
-For either mode, verify protected-resource metadata:
+Confirm that the NetworkPolicy allows ingress only from this release's
+Gateway Envoy pods. Then inspect both discovery documents:
 
 .. code-block:: bash
 
    $ curl --fail --silent --show-error \
        https://osmo.example.com/.well-known/oauth-protected-resource/mcp
-
-Also verify authorization-server metadata:
-
-.. code-block:: bash
-
    $ curl --fail --silent --show-error \
        https://osmo.example.com/.well-known/oauth-authorization-server/mcp
 
-Confirm the exact resource URL and full delegated scope. Proxy metadata must
-also contain ``client_id_metadata_document_supported`` set to ``true`` and a
-``registration_endpoint`` for DCR fallback. Complete a fresh endpoint-only
-login and run the read-only verification in :ref:`getting_started_mcp`.
+Check that the resource, issuer, and delegated scope use the configured MCP
+URL, ``client_id_metadata_document_supported`` is ``true``, and
+``registration_endpoint`` points to ``/mcp/register``. Complete a fresh login
+and run the read-only verification in :ref:`getting_started_mcp`.
+Also confirm that a restricted user's tool call is denied when its API action
+or target pool is outside that user's permissions.
 
-Provide Connection Details
-==========================
+Before promoting a deployment, verify CIMD and DCR clients, token expiry and
+refresh, restart recovery, and client-secret rotation using disposable client
+registrations. These checks exercise identity-provider and Redis behavior
+that readiness and process health probes do not cover.
 
-Give users only the MCP URL. Clients discover scopes from the proxy metadata,
-and the proxy accepts native loopback redirects automatically. Client setup is
-covered in :ref:`getting_started_mcp`.
+Operations and Rollback
+=======================
 
-Operate OIDC Proxy Safely
-=========================
-
-* Monitor authorization, callback, token, refresh, Redis, and upstream OIDC
-  outcomes without recording codes, tokens, client secrets, or identity
-  payloads.
-* Health probes report MCP process health; they do not prove Redis or upstream
-  identity-provider connectivity.
+* Monitor metadata, registration, authorization, callback, token, refresh,
+  consent, Redis, and upstream identity-provider outcomes without recording
+  credential or identity payloads.
 * Keep FastMCP's CIMD URL validation and server-side request forgery (SSRF)
-  protections enabled. CIMD causes the server to fetch client-controlled HTTPS
-  metadata URLs.
-* Add deliberate ingress or Gateway rate limits to the exact public OAuth
-  routes, especially ``POST /register`` and ``POST /token``. Do not apply a
-  shared limit to long-lived MCP traffic without considering denial-of-service
-  effects.
-* Keep the MCP ingress NetworkPolicy. It is additive, so audit other policies
-  that select the same pod.
+  protections enabled; metadata fetches use client-controlled HTTPS URLs.
+* Add ingress or Gateway rate limits to the public OAuth routes, especially
+  ``POST /mcp/register`` and ``POST /mcp/token``. Choose a trusted client-IP
+  source and limits that do not let one caller block all users' logins.
+* The ``/health``, ``/health/live``, and ``/health/ready`` endpoints report
+  process health. They do not validate Redis connectivity, OAuth operations,
+  or Gateway connections. Tool failures alone do not make the pod unhealthy.
+* After an identity-provider role assignment changes, have the user log out
+  and sign in again to obtain updated claims.
 
-The public proxy surface is the protected-resource and authorization-server
-metadata documents plus everything under ``/mcp``, where FastMCP serves
-``authorize``, ``token``, ``register``, ``consent`` and the callback. Gateway
-bypasses its own JWT and semantic authorization filters only for that prefix
-and the two metadata documents. FastMCP authenticates ``/mcp``; all ``/api``
-calls keep normal Gateway validation and authorization.
+Rotating the client secret invalidates proxy tokens and makes old encrypted
+Redis entries unusable, including DCR registrations. Users must sign in
+again; DCR clients may need to remove and re-add the MCP entry first. All
+replicas must use the new secret.
+
+Restart every MCP pod after rotating the client Secret so all replicas load
+the new value.
+
+To disable MCP, set ``services.mcp.enabled`` to ``false`` and redeploy.
+Clients lose the endpoint; other OSMO routes are unaffected.
 
 .. _mcp_deployment_troubleshooting:
 
@@ -305,45 +270,32 @@ Troubleshooting
 
    * - Symptom
      - Action
-   * - Metadata returns ``404`` or unexpected values
-     - Verify that ``services.mcp.enabled`` is true, DNS points to this
-       release's Gateway, and ``resourceUrl`` ends with the exact path
-       ``/mcp``. Also verify the authorization-server metadata route.
-   * - MCP pod does not become ready
-     - Inspect configuration and credential-file errors first. The client
-       secret and optional Redis password must exist at the configured absolute
-       paths.
-   * - Browser reports a redirect mismatch or no reply address
-     - Register exact ``https://<osmo-host>/mcp/auth/callback`` on the
-       confidential upstream application. For Entra, use the Web platform for this
-       server-side client.
+   * - Discovery returns ``404`` or unexpected values
+     - Verify MCP is enabled, DNS reaches this release's Gateway, and
+       ``resourceUrl`` ends with the exact path ``/mcp``.
+   * - Pod does not become ready
+     - Inspect configuration and credential-file errors. Required files must
+       exist at the configured absolute paths. Process readiness alone does
+       not verify Redis connectivity, credentials, or TLS trust.
+   * - Browser reports a redirect mismatch
+     - Register the exact ``https://<osmo-host>/mcp/auth/callback`` URL on the
+       confidential application's Web platform.
    * - Browser reports ``Approval required``
-     - Grant administrator consent and assign the intended users or groups to
-       the upstream application and delegated MCP scope.
-   * - Proxy login or refresh fails
-     - Verify Redis connectivity, OIDC discovery, client-secret validity,
-       upstream token endpoint responses, and the configured issuer, audience,
-       JWKS URL, and short access-token scope. Never log response tokens.
+     - Verify administrator consent and user or group assignments for the
+       application and delegated scope.
+   * - Login or refresh fails
+     - Check Redis connectivity, discovery, secret validity, upstream token
+       responses, and the expected issuer, audience and scope. Never log tokens.
    * - MCP initialization returns ``HTTP 401``
-     - Have the user log out and authenticate again. If it persists, verify the
-       FastMCP token route and proxy session state.
+     - Have the user authenticate again; inspect proxy token and session state
+       if it persists.
    * - MCP initialization returns ``HTTP 403``
-     - Verify the
-       advertised full MCP scope and the scope on the issued FastMCP resource
-       token.
+     - Check the advertised delegated scope and the issued resource token's scope.
    * - A tool returns ``HTTP 403``
-     - Authentication succeeded. Verify the user's OSMO API action and pool
-       scope for that tool.
+     - Verify the user's API action and pool access for that tool.
    * - Tools time out or report a Gateway dependency failure
-     - Verify that the MCP pod can resolve and reach the public origin derived
-       from ``resourceUrl``, and inspect Gateway and target API health.
-   * - Direct in-cluster requests to MCP fail
-     - This is expected when NetworkPolicy is enforced. The chart permits
-       ingress from this release's Gateway Envoy pods, not arbitrary pods.
-
-Rollback
-========
-
-To roll back, disable ``services.mcp.enabled`` and redeploy. Clients lose the
-MCP endpoint; no other OSMO route is affected. The MCP tool catalog and
-API-specific permissions do not change.
+     - Check reachability of the public Gateway origin derived from
+       ``resourceUrl``, then Gateway and API health.
+   * - Direct in-cluster requests fail
+     - With NetworkPolicy enforced, only this release's Gateway Envoy pods may
+       reach MCP.

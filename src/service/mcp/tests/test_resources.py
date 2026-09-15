@@ -257,7 +257,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(get_tool['inputSchema']['required'], ['node_name'])
 
     async def test_list_uses_default_pool_and_projects_allowlisted_fields(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(side_effect=[
             _profile(),
             {'resources': [_resource()]},
@@ -269,19 +268,16 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await resources.osmo_list_resources(
-                context,
                 platform=['gpu'],
             )
 
         self.assertEqual(request_json.await_args_list, [
             mock.call(
-                context,
                 path='/api/profile/settings',
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
             mock.call(
-                context,
                 path='/api/resources',
                 operation='list node resources',
                 max_response_bytes=2 * 1024 * 1024,
@@ -351,7 +347,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('taints', result_json)
 
     async def test_list_explicit_pools_deduplicates_and_paginates_locally(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(side_effect=[
             _profile(),
             {'resources': [_resource()]},
@@ -363,7 +358,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await resources.osmo_list_resources(
-                context,
                 pool=['alpha', 'alpha', 'beta'],
                 limit=1,
                 offset=1,
@@ -371,13 +365,11 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(request_json.await_args_list, [
             mock.call(
-                context,
                 path='/api/profile/settings',
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
             mock.call(
-                context,
                 path='/api/resources',
                 operation='list node resources',
                 max_response_bytes=2 * 1024 * 1024,
@@ -394,7 +386,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.resources[0].platform, 'gpu')
 
     async def test_list_with_no_accessible_pools_short_circuits(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(return_value=_profile(
             accessible_pools=[],
         ))
@@ -405,13 +396,11 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await resources.osmo_list_resources(
-                context,
                 limit=10,
                 offset=7,
             )
 
         request_json.assert_awaited_once_with(
-            context,
             path='/api/profile/settings',
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
@@ -573,7 +562,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(_BEARER_SECRET, response.text)
 
     async def test_get_resource_uses_node_route_and_returns_configuration(self) -> None:
-        context = mock.Mock()
         node_name = 'node name+日本語'
         node = _resource(node_name)
         node['pool_platform_labels'] = {'alpha': ['gpu', 'cpu']}
@@ -588,7 +576,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await resources.osmo_get_resource(
-                context,
                 node_name,
                 pool='alpha',
                 platform='gpu',
@@ -596,13 +583,11 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(request_json.await_args_list, [
             mock.call(
-                context,
                 path='/api/profile/settings',
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
             mock.call(
-                context,
                 path=(
                     '/api/resources/'
                     'node%20name%2B%E6%97%A5%E6%9C%AC%E8%AA%9E'
@@ -630,7 +615,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('internal_config', result.model_dump_json())
 
     async def test_get_resource_disambiguates_duplicate_node_names_by_assignment(self) -> None:
-        context = mock.Mock()
         alpha_resource = _resource()
         alpha_resource['pool_platform_labels'] = {'alpha': ['gpu']}
         beta_resource = _resource()
@@ -647,7 +631,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await resources.osmo_get_resource(
-                context,
                 'node-1',
                 pool='alpha',
                 platform='gpu',
@@ -657,7 +640,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.assignments, {'alpha': ['gpu']})
 
     async def test_get_resource_requires_selection_for_multiple_assignments(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(side_effect=[
             _profile(),
             {'resources': [_resource()]},
@@ -671,12 +653,11 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaisesRegex(ToolError, 'provide pool and platform'),
         ):
-            await resources.osmo_get_resource(context, 'node-1')
+            await resources.osmo_get_resource('node-1')
 
         self.assertEqual(request_json.await_count, 2)
 
     async def test_get_resource_auto_selects_exactly_one_assignment(self) -> None:
-        context = mock.Mock()
         node = _resource()
         node['pool_platform_labels'] = {
             'alpha': ['gpu'],
@@ -692,7 +673,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             'request_json_object',
             request_json,
         ):
-            result = await resources.osmo_get_resource(context, 'node-1')
+            result = await resources.osmo_get_resource('node-1')
 
         self.assertEqual(result.selected, resources.ResourceSelection(
             pool='alpha',
@@ -702,7 +683,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('beta', result.model_dump_json())
 
     async def test_get_resource_has_uniform_not_found_result(self) -> None:
-        context = mock.Mock()
         messages: list[str] = []
 
         payloads: tuple[dict[str, object], ...] = (
@@ -718,7 +698,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
                 ),
                 self.assertRaises(ToolError) as raised,
             ):
-                await resources.osmo_get_resource(context, 'node-1')
+                await resources.osmo_get_resource('node-1')
             messages.append(str(raised.exception))
 
         self.assertEqual(messages, [
@@ -727,7 +707,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         ])
 
     async def test_get_resource_with_no_accessible_pools_short_circuits(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(return_value=_profile(accessible_pools=[]))
 
         with (
@@ -741,17 +720,15 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
                 'The requested node is not available',
             ),
         ):
-            await resources.osmo_get_resource(context, 'node-1')
+            await resources.osmo_get_resource('node-1')
 
         request_json.assert_awaited_once_with(
-            context,
             path='/api/profile/settings',
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
 
     async def test_get_resource_in_inaccessible_pool_uses_uniform_not_found(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(return_value=_profile(
             accessible_pools=['alpha'],
         ))
@@ -765,7 +742,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             self.assertRaises(ToolError) as raised,
         ):
             await resources.osmo_get_resource(
-                context,
                 'node-1',
                 pool='beta',
                 platform='gpu',
@@ -776,14 +752,12 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             'The requested node is not available.',
         )
         request_json.assert_awaited_once_with(
-            context,
             path='/api/profile/settings',
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
 
     async def test_invalid_paths_filters_and_bounds_fail_before_transport(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock()
         with mock.patch.object(
             tool_requests,
@@ -791,39 +765,35 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             with self.assertRaisesRegex(ToolError, 'Invalid node_name'):
-                await resources.osmo_get_resource(context, '../node')
+                await resources.osmo_get_resource('../node')
             with self.assertRaisesRegex(ToolError, 'provided together'):
                 await resources.osmo_get_resource(
-                    context,
                     'node-1',
                     pool='alpha',
                 )
             with self.assertRaisesRegex(ToolError, 'Invalid pool'):
                 await resources.osmo_list_resources(
-                    context,
                     pool=['alpha/other'],
                 )
             with self.assertRaisesRegex(ToolError, 'Invalid pool'):
-                await resources.osmo_list_resources(context, pool=[])
+                await resources.osmo_list_resources(pool=[])
             with self.assertRaisesRegex(ToolError, 'Invalid platform'):
-                await resources.osmo_list_resources(context, platform=[])
+                await resources.osmo_list_resources(platform=[])
             with self.assertRaisesRegex(ToolError, 'cannot be used together'):
                 await resources.osmo_list_resources(
-                    context,
                     pool=['alpha'],
                     all_pools=True,
                 )
             with self.assertRaisesRegex(ToolError, 'pagination'):
-                await resources.osmo_list_resources(context, limit=201)
+                await resources.osmo_list_resources(limit=201)
             with self.assertRaisesRegex(ToolError, 'pagination'):
-                await resources.osmo_list_resources(context, limit=True)
+                await resources.osmo_list_resources(limit=True)
             with self.assertRaisesRegex(ToolError, 'pagination'):
-                await resources.osmo_list_resources(context, offset=True)
+                await resources.osmo_list_resources(offset=True)
 
         request_json.assert_not_awaited()
 
     async def test_inaccessible_pool_is_rejected_before_resource_request(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(return_value=_profile(
             accessible_pools=['alpha'],
         ))
@@ -836,17 +806,15 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaisesRegex(ToolError, 'not accessible'),
         ):
-            await resources.osmo_list_resources(context, pool=['beta'])
+            await resources.osmo_list_resources(pool=['beta'])
 
         request_json.assert_awaited_once_with(
-            context,
             path='/api/profile/settings',
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
 
     async def test_malformed_and_gateway_failures_are_sanitized_or_preserved(self) -> None:
-        context = mock.Mock()
         malformed = mock.AsyncMock(side_effect=[
             _profile(),
             {'resources': [{'hostname': 'node-1'}]},
@@ -860,7 +828,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             self.assertRaisesRegex(ToolError, 'invalid resource response'),
         ):
             await resources.osmo_list_resources(
-                context,
                 pool=['alpha'],
             )
 
@@ -878,7 +845,6 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             self.assertRaisesRegex(ToolError, 'invalid node resource response'),
         ):
             await resources.osmo_get_resource(
-                context,
                 'node-1',
                 pool='alpha',
                 platform='gpu',
@@ -893,7 +859,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaises(ToolError) as raised,
         ):
-            await resources.osmo_get_resource(context, 'node-1')
+            await resources.osmo_get_resource('node-1')
         self.assertIs(raised.exception, upstream_error)
 
 

@@ -16,8 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
-
 from src.service.mcp import (
     gateway,
     tool_errors,
@@ -53,7 +51,6 @@ _MAX_VALIDATION_SPEC_BYTES = 256 * 1024
 
 
 async def osmo_submit_workflow(
-    context: Context,
     workflow_spec: SubmitWorkflowSpecText,
     pool: PoolName | None = None,
     set_variables: VariableOverrides | None = None,
@@ -83,11 +80,9 @@ async def osmo_submit_workflow(
         set_string_variables=validated_set_string_variables,
     )
     pool_name = await workflow_submission.resolve_pool(
-        context,
         validated_pool,
     )
     upstream = await workflow_submission.request_submission(
-        context,
         pool=pool_name,
         priority=validated_priority,
         payload=payload,
@@ -104,7 +99,6 @@ async def osmo_submit_workflow(
 
 
 async def osmo_validate_workflow(
-    context: Context,
     workflow_spec: WorkflowSpecText,
     pool: PoolName | None = None,
     set_variables: VariableOverrides | None = None,
@@ -132,7 +126,6 @@ async def osmo_validate_workflow(
     )
     validated_pool = workflow_submission.validate_pool_name(pool)
     pool_name = await workflow_submission.resolve_pool(
-        context,
         validated_pool,
     )
     encoded_pool = tool_validation.safe_path_segment(
@@ -145,7 +138,6 @@ async def osmo_validate_workflow(
         set_string_variables=validated_set_string_variables,
     )
     response = await tool_requests.request_json_mutation(
-        context,
         path=f'/api/pool/{encoded_pool}/workflow',
         operation='validate a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
@@ -169,19 +161,17 @@ async def osmo_validate_workflow(
 
 
 async def osmo_restart_workflow(
-    context: Context,
     workflow_id: WorkflowId,
     pool: PoolName | None = None,
 ) -> RestartWorkflowResult:
     """Restart a failed workflow after authorizing read access to its source."""
     validated_pool = workflow_submission.validate_pool_name(pool)
     source = await workflows.osmo_get_workflow(
-        context,
         workflow_id,
         skip_groups=True,
     )
     pool_name = (
-        await workflow_submission.resolve_pool(context, validated_pool)
+        await workflow_submission.resolve_pool(validated_pool)
         if validated_pool is not None or source.workflow.pool is None
         else source.workflow.pool
     )
@@ -191,7 +181,6 @@ async def osmo_restart_workflow(
     )
     encoded_workflow_id = workflows.workflow_path_segment(workflow_id)
     response = await tool_requests.request_json_mutation(
-        context,
         path=(
             f'/api/pool/{encoded_pool}/workflow/'
             f'{encoded_workflow_id}/restart'
@@ -214,7 +203,6 @@ async def osmo_restart_workflow(
 
 
 async def osmo_cancel_workflow(
-    context: Context,
     workflow_id: WorkflowId,
     force: ForceCancel = False,
 ) -> CancelWorkflowResult:
@@ -224,7 +212,6 @@ async def osmo_cancel_workflow(
     encoded_workflow_id = workflows.workflow_path_segment(workflow_id)
     query: dict[str, gateway.QueryValue] = {'force': force}
     response = await tool_requests.request_json_mutation(
-        context,
         path=f'/api/workflow/{encoded_workflow_id}/cancel',
         operation='cancel a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,

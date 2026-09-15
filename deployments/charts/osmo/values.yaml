@@ -674,7 +674,7 @@ services:
     image:
       registry: ''
       repository: ''
-      name: mcp-self-hosted
+      name: mcp
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent

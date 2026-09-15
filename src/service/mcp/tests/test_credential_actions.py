@@ -142,7 +142,6 @@ class CredentialActionTest(unittest.IsolatedAsyncioTestCase):
     """Validate secret-safe credential deletion mappings."""
 
     def setUp(self) -> None:
-        self.context = mock.Mock()
         self.request_mutation = mock.AsyncMock()
         self.request_patch = mock.patch.object(
             credential_actions.tool_requests,
@@ -164,7 +163,6 @@ class CredentialActionTest(unittest.IsolatedAsyncioTestCase):
         }
 
         result = await credential_actions.osmo_delete_credential(
-            self.context,
             'generic-cred',
         )
 
@@ -178,7 +176,6 @@ class CredentialActionTest(unittest.IsolatedAsyncioTestCase):
             result.model_dump_json(),
         )
         self.request_mutation.assert_awaited_once_with(
-            self.context,
             method='DELETE',
             path='/api/credentials/generic-cred',
             operation='delete an OSMO credential',
@@ -192,7 +189,6 @@ class CredentialActionTest(unittest.IsolatedAsyncioTestCase):
             '^Invalid credential name\\.$',
         ):
             await credential_actions.osmo_delete_credential(
-                self.context,
                 'invalid/name',
             )
 
@@ -240,7 +236,6 @@ class CredentialActionTest(unittest.IsolatedAsyncioTestCase):
                     'write outcome is unknown',
                 ) as delete_error:
                     await credential_actions.osmo_delete_credential(
-                        self.context,
                         'generic-cred',
                     )
                 self.assertNotIn(

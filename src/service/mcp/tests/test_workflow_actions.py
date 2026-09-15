@@ -941,13 +941,11 @@ class WorkflowActionValidationUnitTest(unittest.IsolatedAsyncioTestCase):
     async def test_direct_invalid_values_fail_before_context(self) -> None:
         with self.assertRaises(ToolError):
             await workflow_actions.osmo_validate_workflow(
-                None,  # type: ignore[arg-type]
                 'version: 2\0',
                 pool='pool-a',
             )
         with self.assertRaises(ToolError):
             await workflow_actions.osmo_validate_workflow(
-                None,  # type: ignore[arg-type]
                 _WORKFLOW_SPEC,
                 pool='pool-a',
                 set_variables=['missing-equals'],

@@ -5624,7 +5624,7 @@ MCP_ROUTES
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:latest"
+        "image: nvcr.io/nvidia/osmo/mcp:latest"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 11
 

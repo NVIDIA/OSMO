@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
 import pydantic
 
 from src.service.mcp import apps, tool_errors, tool_requests, tool_validation
@@ -47,7 +46,6 @@ _DELETE_SELECTOR_ERROR = (
 
 
 async def osmo_create_app(
-    context: Context,
     name: AppName,
     description: AppDescription,
     spec_content: AppSpecText,
@@ -61,7 +59,6 @@ async def osmo_create_app(
     )
     validated_spec = _validate_app_spec(spec_content)
     response = await tool_requests.request_json_mutation(
-        context,
         method='POST',
         path=f'/api/app/user/{encoded_name}',
         operation='create an OSMO app',
@@ -79,7 +76,6 @@ async def osmo_create_app(
 
 
 async def osmo_update_app(
-    context: Context,
     name: AppName,
     spec_content: AppSpecText,
 ) -> UpdateAppResult:
@@ -87,7 +83,6 @@ async def osmo_update_app(
     encoded_name = apps.validated_app_name(name)
     validated_spec = _validate_app_spec(spec_content)
     response = await tool_requests.request_json_mutation(
-        context,
         method='PATCH',
         path=f'/api/app/user/{encoded_name}',
         operation='update an OSMO app',
@@ -109,7 +104,6 @@ async def osmo_update_app(
 
 
 async def osmo_delete_app(
-    context: Context,
     name: AppName,
     version: DeleteAppVersion | None = None,
     all_versions: DeleteAllVersions = False,
@@ -135,7 +129,6 @@ async def osmo_delete_app(
     else:
         raise tool_errors.PublicToolError(_DELETE_SELECTOR_ERROR)
     response = await tool_requests.request_json_mutation(
-        context,
         method='DELETE',
         path=f'/api/app/user/{encoded_name}',
         operation='delete an OSMO app',
@@ -170,7 +163,6 @@ async def osmo_delete_app(
 
 
 async def osmo_rename_app(
-    context: Context,
     original_name: AppName,
     new_name: AppName,
 ) -> RenameAppResult:
@@ -186,7 +178,6 @@ async def osmo_rename_app(
         )
 
     response = await tool_requests.request_json_mutation(
-        context,
         method='POST',
         path=f'/api/app/user/{encoded_original_name}/rename',
         operation='rename an OSMO app',
