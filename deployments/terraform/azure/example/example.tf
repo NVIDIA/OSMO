@@ -275,10 +275,9 @@ resource "azurerm_kubernetes_cluster" "main" {
 ################################################################################
 # Optional GPU node pool (gated on var.gpu_node_pool_enabled)
 #
-# Adds a separate AKS node pool with `sku=gpu:NoSchedule` taint so non-GPU
-# workloads don't schedule there. deploy-k8s.sh detects nodes labeled
-# `nvidia.com/gpu.present` (set by the NVIDIA GPU Operator's device plugin)
-# and renders a matching toleration into Helm values for the OSMO pool.
+# Adds a separate AKS node pool with a GPU NoSchedule taint so non-GPU
+# workloads do not schedule there. deploy-osmo.sh supplies the matching
+# GPU platform toleration.
 ################################################################################
 
 resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
@@ -315,7 +314,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
 ################################################################################
 # Optional Storage Account for OSMO workflow data (gated on var.storage_account_enabled)
 #
-# When enabled, configure-storage.sh --backend azure-blob reads the outputs
+# When enabled, deploy-osmo.sh --storage-backend azure-blob reads the outputs
 # (storage_account, storage_account_key) directly. Disable to BYO an existing
 # Storage Account; pass STORAGE_ACCOUNT/STORAGE_KEY as env vars instead.
 ################################################################################
@@ -538,7 +537,7 @@ resource "azurerm_subnet_network_security_group_association" "database" {
 ################################################################################
 # Optional NFS Premium FileStorage SA (gated on var.nfs_storage_account_enabled)
 #
-# Enabled via `--with-nfs-storage` on deploy-osmo-minimal.sh, which exports
+# Enabled via `--with-nfs-storage` on deploy-osmo.sh, which exports
 # TF_NFS_STORAGE_ACCOUNT_ENABLED=true so the heredoc in azure/terraform.sh
 # flips this var. Provides a Premium FileStorage SA + the 4 AKS role
 # assignments file.csi.azure.com needs to dynamically provision NFS shares.

@@ -77,7 +77,7 @@ reachability_url="${OSMO_URL%/}${reachability_url_path}"
 if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$reachability_url"; then
     log_error "OSMO not reachable at $OSMO_URL"
     log_error "Reachability probe failed: $reachability_url"
-    log_error "Ensure port-forward is running (./port-forward.sh --watchdog osmo-service 9000)"
+    log_error "Ensure port-forward is running (./port-forward.sh osmo 9000)"
     log_error "or set OSMO_URL to a reachable endpoint."
     exit 1
 fi

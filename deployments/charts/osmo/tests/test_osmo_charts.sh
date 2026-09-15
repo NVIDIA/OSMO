@@ -1782,6 +1782,24 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         "kind: HTTPRoute"
 
+    helm_template osmo "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-s3-values.yaml" \
+        -f "$CHARTS_ROOT/../scripts/single-plane-aws.yaml" \
+        >"$TEST_DIRECTORY/installer-single-plane-aws.yaml"
+    resource_document "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Deployment osmo-api \
+        >"$TEST_DIRECTORY/installer-single-plane-aws-api.yaml"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "value: verify-full"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-postgresql-ca"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: osmo-default-admin"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: OSMO_REDIS_PASSWORD"
+    require_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-gateway-authz
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Cluster osmo-pg
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-valkey
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-rustfs
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Secret osmo-object-storage
+
     helm_template single-plane-s3 "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \

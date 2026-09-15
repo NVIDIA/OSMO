@@ -8,6 +8,15 @@ verification. The Azure overlay enables the authorization service to resolve ver
 bootstrap and workflow token roles into API permissions, including allowed pools.
 The nightly does not invoke the legacy minimal deployment wrapper.
 
+The former `deployments/scripts/run-deployment-test.sh` has been removed.
+Use this workflow's `full-deployment` mode for the Azure deployment/OETF/cleanup
+gate. Its old `byo-kind` mode and wrapper-level JSON/JUnit results interface are
+retired; the current workflow reports deployment, OETF and cleanup separately.
+For a local development cluster, follow the
+[unified chart quickstart](../../deployments/charts/osmo/README.md#quick-start).
+That quickstart replaces the local installation instructions, not the old
+wrapper's end-to-end CI contract.
+
 The schedule, manual `full-deployment` mode, and `ci:azure-deployment` PR-label event
 share this path. Normal deployment-related PR updates retain `init-only` validation;
 manual `auth-check` plans the same single-plane Terraform inputs without provisioning.

@@ -22,7 +22,6 @@
 # This installs the GPU Operator so GPU node pools can run GPU workloads.
 #
 # Skips when any working GPU stack is already present:
-#  - microk8s `nvidia` addon (covers single-node K8s)
 #  - existing helm release of any nvidia gpu-operator chart
 #  - clusterpolicies.nvidia.com CR (covers NVAIE)
 #  - working nvidia-device-plugin DaemonSet
@@ -47,17 +46,15 @@ NO_GPU="${NO_GPU:-0}"
 KUBECTL="${KUBECTL:-kubectl}"
 HELM="${HELM:-helm}"
 GPU_HELM_TIMEOUT="${GPU_HELM_TIMEOUT:-10m}"
+# Accelerated EKS AMIs provide the host driver and container toolkit.
+GPU_DRIVER_ENABLED="${GPU_DRIVER_ENABLED:-true}"
+GPU_TOOLKIT_ENABLED="${GPU_TOOLKIT_ENABLED:-true}"
 
 for arg in "$@"; do
     [[ "$arg" == "--no-gpu" ]] && NO_GPU=1
 done
 
 detect_existing_gpu_stack() {
-    # microk8s nvidia addon — emits a clusterpolicy + the operator
-    if microk8s_addon_enabled nvidia; then
-        echo "microk8s nvidia addon"
-        return 0
-    fi
     # Existing clusterpolicy backed by an active controller — bare CRDs left
     # over from a previous `helm uninstall` are orphans, not a working stack.
     if $KUBECTL get clusterpolicies.nvidia.com -A &>/dev/null \
@@ -120,6 +117,8 @@ main() {
     $HELM upgrade --install "$GPU_OPERATOR_RELEASE" nvidia/gpu-operator \
         --namespace "$GPU_OPERATOR_NAMESPACE" \
         --version "$GPU_OPERATOR_VERSION" \
+        --set "driver.enabled=$GPU_DRIVER_ENABLED" \
+        --set "toolkit.enabled=$GPU_TOOLKIT_ENABLED" \
         --wait --timeout "$GPU_HELM_TIMEOUT"
 
     log_success "GPU Operator ${GPU_OPERATOR_VERSION} installed"

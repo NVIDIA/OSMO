@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Layer after the chart's single-plane profile. Endpoints come from Terraform;
+# the shared installer provisions referenced credentials outside Helm values.
+externalUrl: http://osmo-gateway
+compute:
+  backendName: default
+gateway:
+  authz:
+    enabled: true
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      sslMode: verify-full
+      caExistingSecret: osmo-postgresql-ca
+      caKey: ca.crt
+  valkey:
+    tls:
+      enabled: true
+secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
+  masterEncryptionKey:
+    bootstrap:
+      enabled: true
+  serviceAuth:
+    managementMode: osmo
+    bootstrap:
+      enabled: true
+  backendApiTokens:
+    credentials:
+    - name: default
+      managedSecret:
+        name: osmo-backend-token

@@ -113,6 +113,7 @@ module "eks" {
     subnet_ids = module.vpc.private_subnets
 
     attach_cluster_primary_security_group = true
+    ami_type = var.node_ami_type
   }
 
   eks_managed_node_groups = merge(
@@ -140,7 +141,7 @@ module "eks" {
     },
     # Optional GPU node group (gated on var.gpu_node_pool_enabled).
     # Tainted with sku=gpu:NoSchedule so non-GPU pods don't schedule here;
-    # deploy-k8s.sh detects GPU nodes and renders a matching toleration.
+    # deploy-osmo.sh supplies the matching GPU platform toleration.
     var.gpu_node_pool_enabled ? {
       gpu = {
         name = "${local.name}-gpu"
@@ -151,7 +152,7 @@ module "eks" {
 
         instance_types = [var.gpu_instance_type]
         capacity_type  = var.gpu_node_group_capacity_type
-        ami_type       = "AL2_x86_64_GPU"
+        ami_type       = var.gpu_ami_type
 
         labels = {
           "nvidia.com/gpu" = "present"
@@ -429,7 +430,7 @@ resource "aws_security_group_rule" "alb_to_eks" {
 ################################################################################
 # Optional S3 bucket for OSMO workflow data (gated on var.s3_bucket_enabled)
 #
-# When enabled, configure-storage.sh --backend s3 reads outputs (s3_bucket,
+# When enabled, deploy-osmo.sh --storage-backend s3 reads outputs (s3_bucket,
 # s3_access_key_id, s3_secret_access_key) directly. Disable to BYO an existing
 # bucket; pass STORAGE_ENDPOINT + STORAGE_ACCESS_KEY_ID + STORAGE_ACCESS_KEY
 # as env vars and use --backend byo instead.

@@ -5,6 +5,32 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Azure remains the no-argument CI entrypoint. AWS shares the unified installer.
+provider=azure
+arguments=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --provider)
+            [[ $# -ge 2 ]] || { echo '--provider requires azure or aws' >&2; exit 2; }
+            provider="$2"; shift 2 ;;
+        --provider=*) provider="${1#*=}"; shift ;;
+        *) arguments+=("$1"); shift ;;
+    esac
+done
+case "$provider" in
+    aws) exec python3 "$SCRIPT_DIR/lib/deploy.py" "${arguments[@]}" --provider aws --profile single-plane ;;
+    azure)
+        if [[ ${#arguments[@]} -gt 0 ]]; then
+            if [[ ${#arguments[@]} -eq 1 && "${arguments[0]}" == --help ]]; then
+                echo 'Usage: deploy-osmo-single-plane.sh [--provider azure|aws]'
+                echo 'Azure uses TF_* environment inputs; use --provider aws --help for AWS options.'
+                exit 0
+            fi
+            echo 'Azure uses TF_* environment inputs; unsupported arguments supplied (see --help).' >&2
+            exit 2
+        fi ;;
+    *) echo "Unsupported provider: $provider (choose azure or aws)" >&2; exit 2 ;;
+esac
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TERRAFORM_SOURCE_DIR="$REPOSITORY_ROOT/deployments/terraform/azure/example"
 TERRAFORM_VARS="$SCRIPT_DIR/azure/single-plane.tfvars"
