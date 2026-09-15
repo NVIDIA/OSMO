@@ -8,6 +8,15 @@ verification. The Azure overlay enables the authorization service to resolve ver
 bootstrap and workflow token roles into API permissions, including allowed pools.
 The nightly does not invoke the legacy minimal deployment wrapper.
 
+The former `deployments/scripts/run-deployment-test.sh` has been removed.
+Use this workflow's `full-deployment` mode for the Azure deployment/OETF/cleanup
+gate. Its old `byo-kind` mode and wrapper-level JSON/JUnit results interface are
+retired; the current workflow reports deployment, OETF and cleanup separately.
+For a local development cluster, follow the
+[unified chart quickstart](../../deployments/charts/osmo/README.md#quick-start).
+That quickstart replaces the local installation instructions, not the old
+wrapper's end-to-end CI contract.
+
 The schedule, manual `full-deployment` mode, and `ci:azure-deployment` PR-label event
 share this path. Normal deployment-related PR updates retain `init-only` validation;
 manual `auth-check` plans the same single-plane Terraform inputs without provisioning.
@@ -59,8 +68,11 @@ failed jobs cannot overwrite an earlier build's inputs. Do not use a downstream
 job's attempt number to guess the deployment artifact name.
 
 OETF creates fresh AKS credentials and its own gateway port-forward in namespace
-`osmo`. It authenticates with the bootstrap admin access token, sets pool `default`, and
-creates a run-specific PAT with 24–48 hours of validity, revoked on normal exit. The existing OETF overlay hook
+`osmo`. It authenticates with the bootstrap admin access token, sets pool `default`,
+and passes that same masked credential to OETF through `OETF_TOKEN`. Bootstrap
+roles do not require database user-role assignments, so this path does not mint
+a personal access token. Local credential copies are removed on exit; teardown
+removes the ephemeral cluster and its bootstrap Secret. The existing OETF overlay hook
 loads `oetf-single-plane.yaml`; no user configuration or framework auth strategy is
 changed. The tags remain `api,websocket,logger,task-env,negative`, with the previous
 `auth,mcp` exclusions preserved. Missing, empty or entirely skipped results fail.

@@ -32,7 +32,7 @@ data:
     {{- end }}
     service:
       {{- $service := deepCopy ($cfg.service | default dict) }}
-      {{- if .Values.externalUrl }}
+      {{- if and .Values.externalUrl (not (get $service "service_base_url")) }}
       {{- $_ := set $service "service_base_url" .Values.externalUrl }}
       {{- end }}
       {{- toYaml $service | nindent 6 }}
