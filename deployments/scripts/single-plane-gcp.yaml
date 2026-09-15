@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+externalUrl: http://osmo-gateway
+compute:
+  backendName: default
+gateway:
+  authz:
+    enabled: true
+externalDependencies:
+  postgresql:
+    tls:
+      enabled: true
+      # Cloud SQL's default certificate does not identify its private IP.
+      # This development example encrypts the connection without verifying identity.
+      sslMode: require
+  valkey:
+    tls:
+      enabled: true
+      caExistingSecret: osmo-valkey-ca
+  objectStorage:
+    authentication:
+      type: static
+secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
+  serviceAuth:
+    managementMode: osmo
+    bootstrap:
+      enabled: true
+  objectStorage:
+    existingSecret: osmo-object-storage

@@ -18,7 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # OSMO Deployment Scripts
 
-End-to-end deployer for OSMO 6.3 across multiple Kubernetes flavors and storage backends. The single entry point is `deploy-osmo-minimal.sh`; everything else (Terraform, KAI install, GPU Operator, MinIO, storage credential wiring, smoke tests) is invoked as a phase.
+Deployment scripts for OSMO across Kubernetes flavors and storage backends.
+`deploy-osmo-minimal.sh` orchestrates the provider-specific phases. Separate
+single-plane installers use the unified chart on Azure and GCP.
 
 ## Quick Start
 
@@ -39,6 +41,29 @@ export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
 ```
 
 Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--destroy`.
+
+## GCP single-plane deployment
+
+`deploy-osmo-gcp.sh` uses the repository's
+[GCP Terraform example](../terraform/gcp/example/README.md) to provision a private
+GKE Standard cluster, Cloud SQL, Memorystore and GCS in an existing billed project.
+It installs the unified `osmo` chart with static GCS HMAC credentials in Kubernetes
+Secrets. Infrastructure and application deployment are separate stages:
+
+```bash
+export TF_VAR_project_id='<existing-project-id>'
+export TF_VAR_cluster_name='osmo-dev'
+export OSMO_IMAGE_TAG='<tested-image-tag>'
+./deploy-osmo-gcp.sh plan
+./deploy-osmo-gcp.sh apply
+./deploy-osmo-gcp.sh deploy
+# Re-run CPU and object-storage smoke workflows:
+./deploy-osmo-gcp.sh verify
+```
+
+The default location is `asia-southeast1-b`. This development example provisions
+CPU capacity; it does not provision GPUs. See the example README for authentication,
+TLS limitations, image access, state protection, ongoing billing and teardown.
 
 ## Azure single-plane umbrella deployment
 
