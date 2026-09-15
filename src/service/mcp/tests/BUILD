@@ -215,6 +215,7 @@ osmo_py_test(
     name = "test_server",
     srcs = ["test_server.py"],
     deps = [
+        "//src/service/mcp:auth",
         ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
         requirement("httpx"),

@@ -24,6 +24,7 @@ import json
 import os
 import sys
 import types
+from typing import cast
 import unittest
 from unittest import mock
 
@@ -37,6 +38,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.service.mcp.tests import protocol_harness
 from src.service.mcp import (
+    auth,
     gateway,
     request_body,
     request_context,
@@ -398,8 +400,34 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(live_response.json(), {'status': 'ok'})
         self.assertEqual(health_response.status_code, 200)
         self.assertEqual(health_response.json(), {'status': 'ok'})
-        self.assertEqual(ready_response.status_code, 200)
-        self.assertEqual(ready_response.json(), {'status': 'ok'})
+        self.assertEqual(ready_response.status_code, 503)
+        self.assertEqual(ready_response.json(), {'status': 'unavailable'})
+
+    async def test_runtime_readiness_tracks_redis_without_affecting_liveness(self) -> None:
+        redis_client = mock.AsyncMock()
+        runtime = auth.MCPAuthRuntime(
+            provider=cast(auth.OIDCProxy, protocol_harness.any_token_verifier()),
+            redis_client=redis_client,
+        )
+        with mock.patch.object(auth, 'create_auth_runtime', return_value=runtime):
+            application = server.create_runtime_application(protocol_harness.service_config())
+        async with application.router.lifespan_context(application):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=application), base_url='http://mcp.test',
+            ) as client:
+                outcomes = ((None, 200), (OSError('secret details'), 503), (None, 200))
+                for failure, expected in outcomes:
+                    redis_client.ping.side_effect = failure
+                    redis_client.ping.return_value = True
+                    response = await client.get('/health/ready')
+                    self.assertEqual(response.status_code, expected)
+                    self.assertEqual(response.json(), {
+                        'status': 'ok' if expected == 200 else 'unavailable',
+                    })
+                    for path in ('/health', '/health/live'):
+                        self.assertEqual((await client.get(path)).status_code, 200)
+                self.assertEqual(redis_client.ping.await_count, 3)
+        redis_client.aclose.assert_awaited_once()
 
     async def test_initialize_and_tool_catalog(self) -> None:
         mcp_server = server.create_mcp_server(protocol_harness.any_token_verifier())
@@ -633,7 +661,8 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('user:', output.getvalue())
 
     async def test_runtime_application_owns_gateway_context(self) -> None:
-        config = protocol_harness.service_config(request_timeout_seconds=7)
+        config = protocol_harness.service_config(
+            request_timeout_seconds=7, gateway_ca_file='/ca/gateway.pem')
         app_context = gateway.AppContext(gateway=mock.Mock())
         lifecycle_events: list[str] = []
 
@@ -645,6 +674,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 'gateway_url': 'https://gateway.test/',
                 'request_timeout_seconds': 7,
                 'transport': None,
+                'gateway_ca_file': '/ca/gateway.pem',
             })
             lifecycle_events.append('entered')
             try:

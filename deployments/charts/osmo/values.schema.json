@@ -1246,6 +1246,7 @@
         "image": { "$ref": "#/definitions/componentImage" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "resourceUrl": { "type": "string" },
+        "gatewayCaFile": { "type": "string", "pattern": "^$|^/[^\\s]+$" },
         "requestTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
         "oidcProxy": {
           "type": "object",
