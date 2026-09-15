@@ -121,10 +121,12 @@ class ComputeValuesConvertTest(unittest.TestCase):
             'compute': {'enabled': True},
         })
         self.assertEqual(converted['embeddedDependencies'], {
+            'dex': {'enabled': False},
             'postgresql': {'enabled': False},
             'valkey': {'enabled': False},
             'objectStorage': {'enabled': False},
         })
+        self.assertNotIn('backendApiTokens', converted['secrets'])
         self.assertEqual(converted['nameOverride'], 'backend-operator')
         self.assertEqual(converted['fullnameOverride'], '')
         self.assertEqual(converted['imageRegistry'], 'registry.example.com')

@@ -173,6 +173,7 @@ class _Converter:
                 'compute': {'enabled': True},
             },
             'embeddedDependencies': {
+                'dex': {'enabled': False},
                 'postgresql': {'enabled': False},
                 'valkey': {'enabled': False},
                 'objectStorage': {'enabled': False},
@@ -200,10 +201,6 @@ class _Converter:
             'secrets': {
                 'valkey': {'generate': False},
                 'objectStorage': {'generate': False},
-                'backendApiTokens': {
-                    'enabled': False,
-                    'credentials': [],
-                },
                 'masterEncryptionKey': {
                     'managementMode': 'external',
                     'existingSecret': {'name': ''},

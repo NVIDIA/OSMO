@@ -233,17 +233,29 @@ stringData:
   cookie_secret: <existing OAuth cookie secret>
 ```
 
+In the migration copy of the legacy values, replace `secretPaths` with the
+Secret reference so the converter can verify and translate it:
+
 ```yaml
-secrets:
-  oauthClientSecret:
-    existingSecret: oauth-credentials
-    keys:
-      value: client_secret
-  oauthCookieSecret:
-    generate: false
-    existingSecret: oauth-credentials
-    keys:
-      value: cookie_secret
+gateway:
+  oauth2Proxy:
+    useKubernetesSecrets: true
+    secretName: oauth-credentials
+    clientSecretKey: client_secret
+    cookieSecretKey: cookie_secret
+```
+
+The converter emits the equivalent 6.4 references:
+
+```yaml
+authentication:
+  externalOidc:
+    browserClientSecret:
+      existingSecret: oauth-credentials
+      key: client_secret
+    cookieSecret:
+      existingSecret: oauth-credentials
+      key: cookie_secret
 ```
 
 ### 2. Run the control-plane converter
@@ -269,8 +281,10 @@ python3 deployments/upgrades/service_to_osmo_chart/control_plane_values_convert.
 
 The converter selects a control-only composition and maps supported images,
 services, gateway settings, scheduling, configuration, external dependencies,
-typed Secret references, and database-migration settings. It also disables
-unified defaults that would introduce behavior absent from the legacy release.
+typed Secret references, and database-migration settings. It derives the 6.4
+`authentication.externalOidc` contract from the legacy service, OAuth2 proxy,
+and matching Envoy JWT-provider values. It disables embedded Dex and bootstrap
+identities that would introduce behavior absent from the legacy release.
 
 ### 3. Complete the control-plane values
 
@@ -280,6 +294,8 @@ object-storage locations, and TLS policy:
 
 ```yaml
 embeddedDependencies:
+  dex:
+    enabled: false
   postgresql:
     enabled: false
   valkey:
@@ -583,7 +599,9 @@ backend test runner remains enabled, also set `global.backendTestNamespace`;
 otherwise set `backendTestRunner.enabled: false`.
 
 Keep the converter's compute-only `secrets` block. It disables control-plane
-Secret generation for this release.
+Secret generation for this release. Keep
+`embeddedDependencies.dex.enabled: false`; compute-only releases cannot run an
+embedded identity provider.
 
 ### 3. Complete the compute-plane values
 
