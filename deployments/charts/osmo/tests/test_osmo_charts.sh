@@ -1293,6 +1293,43 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/single-plane-s3.yaml" Secret \
         "osmo-backend-token"
 
+    local gcs_settings=(
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml"
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml"
+        --set-string externalDependencies.objectStorage.locations.workflows=gs://osmo-gcs/workflows
+        --set-string externalDependencies.objectStorage.locations.logs=gs://osmo-gcs/logs
+        --set-string externalDependencies.objectStorage.locations.apps=gs://osmo-gcs/apps
+        --set-string externalDependencies.objectStorage.s3.region=
+        --set-string externalDependencies.objectStorage.s3.overrideUrl=
+    )
+    helm_template external-gcs "$charts_copy/osmo" "${gcs_settings[@]}" \
+        >"$TEST_DIRECTORY/external-gcs.yaml"
+    resource_document "$TEST_DIRECTORY/external-gcs.yaml" ConfigMap \
+        "external-gcs-osmo-api-config" >"$TEST_DIRECTORY/external-gcs-config.yaml"
+    for location in workflows logs apps; do
+        require_contains "$TEST_DIRECTORY/external-gcs-config.yaml" "gs://osmo-gcs/$location"
+    done
+    require_contains "$TEST_DIRECTORY/external-gcs-config.yaml" \
+        "secretName: external-object-storage-secret"
+    require_contains "$TEST_DIRECTORY/external-gcs-config.yaml" "secretKey: object-storage.yaml"
+    require_not_contains "$TEST_DIRECTORY/external-gcs-config.yaml" "override_url:"
+    require_no_resource "$TEST_DIRECTORY/external-gcs.yaml" Secret "external-object-storage-secret"
+
+    local invalid_gcs_value expected_gcs_error
+    while IFS='|' read -r invalid_gcs_value expected_gcs_error; do
+        if helm_template invalid-gcs "$charts_copy/osmo" "${gcs_settings[@]}" \
+            --set-string "$invalid_gcs_value" >"$TEST_DIRECTORY/invalid-gcs.out" 2>&1; then
+            fail "expected GCS configuration to reject $invalid_gcs_value"
+        fi
+        require_contains "$TEST_DIRECTORY/invalid-gcs.out" "$expected_gcs_error"
+    done <<'EOF'
+externalDependencies.objectStorage.locations.logs=s3://osmo-gcs/logs|locations must use one storage URI scheme
+externalDependencies.objectStorage.locations.logs=gs:///logs|externalDependencies
+externalDependencies.objectStorage.s3.region=us-east-1|s3 must be empty for non-S3 locations
+externalDependencies.objectStorage.authentication.type=sdkDefault|GCS locations require static HMAC credentials
+secrets.objectStorage.existingSecret=|static object storage requires
+EOF
+
     helm_template external-swift "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-swift-values.yaml" \

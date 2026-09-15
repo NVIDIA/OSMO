@@ -123,8 +123,8 @@ externalDependencies:
     authentication:
       # static loads SDK credentials from secrets.objectStorage.existingSecret.
       # sdkDefault delegates credential discovery to the provider SDK, such as
-      # Azure DefaultAzureCredential, the AWS default credential provider
-      # chain, or Google Application Default Credentials.
+      # Azure DefaultAzureCredential or the AWS default credential provider
+      # chain. GCS currently requires static HMAC credentials.
       type: static
     locations:
       workflows: ''

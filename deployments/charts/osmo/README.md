@@ -218,17 +218,20 @@ remain site-specific gateway configuration.
 Object storage uses exact `locations` for workflow data, logs, and apps. All
 three locations must use the same URI scheme. The URI scheme selects the storage
 backend: Azure locations use `azure://<account>/<container>/<prefix>`, while S3
-locations use `s3://<bucket>/<prefix>`. Azure locations forbid the S3-only
+locations use `s3://<bucket>/<prefix>`. GCS uses `gs://<bucket>/<prefix>`.
+Non-S3 locations forbid the S3-only
 settings in `externalDependencies.objectStorage.s3`; set that block only for S3
-locations. Authentication is independent of the URI scheme:
+locations. Authentication is configured separately:
 
 - `authentication.type: static` is the default. Store credentials for all
   three locations in one pre-provisioned Kubernetes Secret selected by
   `secrets.objectStorage.existingSecret`.
 - `authentication.type: sdkDefault` omits static credential mounts and lets the
-  provider SDK discover credentials, such as Azure DefaultAzureCredential, the
-  AWS default credential provider chain, or Google Application Default
-  Credentials. Leave `secrets.objectStorage.existingSecret` empty.
+  provider SDK discover credentials, such as Azure DefaultAzureCredential or the
+  AWS default credential provider chain. Leave `secrets.objectStorage.existingSecret`
+  empty. GCS currently requires `static` HMAC credentials (`access_key_id` and
+  `access_key` in the Secret's YAML document); its backend does not support
+  default credentials.
 
 Do not place credential material in values files or Helm command lines.
 
@@ -831,7 +834,7 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.oauthClientSecret` | `client_secret` | OAuth2 proxy client authentication |
 | `secrets.oauthCookieSecret` | `cookie_secret` | OAuth2 proxy sessions |
 
-External object-storage locations may use `s3://`, `azure://`, or `swift://`
+External object-storage locations may use `s3://`, `gs://`, `azure://`, or `swift://`
 URIs, but all three locations must use the same scheme. The usual static
 credential form stores one YAML document in `secrets.objectStorage.existingSecret`.
 To reuse separate per-location Secrets, leave `existingSecret` empty and set
