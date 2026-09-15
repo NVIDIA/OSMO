@@ -572,14 +572,13 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/altered-rustfs-archive.out" \
         "RustFS chart archive SHA-256 mismatch:"
 
-    if helm template missing-external-url "$charts_copy/osmo" \
-            >"$TEST_DIRECTORY/osmo-missing-external-url.out" 2>&1; then
-        fail "expected chart defaults without an externalUrl to fail rendering"
+    if ! helm template chart-defaults "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            >"$TEST_DIRECTORY/osmo-chart-defaults.yaml" 2>&1; then
+        cat "$TEST_DIRECTORY/osmo-chart-defaults.yaml" >&2
+        fail "expected chart defaults to render"
     fi
-    require_contains "$TEST_DIRECTORY/osmo-missing-external-url.out" \
-        "externalUrl is required for the control plane"
     if ! helm lint "$charts_copy/osmo" \
-            --set-string externalUrl=http://127.0.0.1:30080 \
             >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
         fail "expected chart defaults to pass helm lint"
@@ -593,7 +592,6 @@ test_control_umbrella() {
     helm_template bootstrap-identities-contract "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         --set authentication.bootstrap.identities.developer.enabled=true \
-        --set-string authentication.bootstrap.identities.developer.kind=user \
         --set-string authentication.bootstrap.identities.developer.username=developer \
         --set-string authentication.bootstrap.identities.developer.roles[0]=osmo-user \
         --set authentication.bootstrap.identities.developer.dex.enabled=true \
@@ -618,19 +616,27 @@ test_control_umbrella() {
         osmo-developer-token
     require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
         osmo-embedded-dex-developer
-    if helm_template invalid-bootstrap-backend-role "$charts_copy/osmo" \
+    if helm_template invalid-bootstrap-kind "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
-            --set-string authentication.bootstrap.identities.backend-operator-default.roles[0]=osmo-admin \
-            >"$TEST_DIRECTORY/invalid-bootstrap-backend-role.out" 2>&1; then
-        fail "expected a backend bootstrap identity with an elevated role to fail"
+            --set-string authentication.bootstrap.identities.admin.kind=user \
+            >"$TEST_DIRECTORY/invalid-bootstrap-kind.out" 2>&1; then
+        fail "expected removed bootstrap identity kind to fail schema validation"
     fi
-    require_contains "$TEST_DIRECTORY/invalid-bootstrap-backend-role.out" \
-        "backend bootstrap identities must have exactly the osmo-backend role"
+    require_additional_property_error \
+        "$TEST_DIRECTORY/invalid-bootstrap-kind.out" "kind"
+
+    if helm_template invalid-bootstrap-dex-role-mapping "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set-string configuration.roles.osmo-admin.external_roles[0]=idp-admin \
+            >"$TEST_DIRECTORY/invalid-bootstrap-dex-role-mapping.out" 2>&1; then
+        fail "expected an indirect external mapping for a Dex bootstrap role to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-dex-role-mapping.out" \
+        'Dex bootstrap identity role "osmo-admin" must set external_roles to ["osmo-admin"]'
 
     if helm_template invalid-bootstrap-duplicate-username "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
             --set authentication.bootstrap.identities.developer.enabled=true \
-            --set-string authentication.bootstrap.identities.developer.kind=user \
             --set-string authentication.bootstrap.identities.developer.username=admin \
             --set-string authentication.bootstrap.identities.developer.roles[0]=osmo-user \
             --set authentication.bootstrap.identities.developer.tokens.cli.managedSecret.name=osmo-developer-token \

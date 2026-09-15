@@ -246,29 +246,23 @@
 {{- fail (printf "bootstrap identity username %q is used more than once" $identity.username) -}}
 {{- end -}}
 {{- $_ := set $bootstrapUsernames $identity.username true -}}
-{{- if eq $identity.kind "user" -}}
 {{- range $role := $identity.roles -}}
 {{- if not (hasKey $runtimeRoles $role) -}}
 {{- fail (printf "authentication.bootstrap.identities.%s role %q is not defined in the effective configuration" $identityID $role) -}}
 {{- end -}}
 {{- end -}}
-{{- end -}}
 {{- $dex := $identity.dex | default dict -}}
 {{- $dexEnabled := dig "enabled" false $dex -}}
-{{- if eq $identity.kind "backend" -}}
-{{- if not (deepEqual $identity.roles (list "osmo-backend")) -}}
-{{- fail "backend bootstrap identities must have exactly the osmo-backend role" -}}
+{{- if and (not $dexEnabled) (eq (len $identity.tokens) 0) -}}
+{{- fail (printf "authentication.bootstrap.identities.%s requires Dex or at least one token" $identityID) -}}
 {{- end -}}
 {{- if $dexEnabled -}}
-{{- fail (printf "authentication.bootstrap.identities.%s cannot enable Dex for a backend identity" $identityID) -}}
+{{- range $role := $identity.roles -}}
+{{- $roleDefinition := get $runtimeRoles $role -}}
+{{- if not (deepEqual (get $roleDefinition "external_roles") (list $role)) -}}
+{{- fail (printf "Dex bootstrap identity role %q must set external_roles to [%q]" $role $role) -}}
 {{- end -}}
-{{- if eq (len $identity.tokens) 0 -}}
-{{- fail (printf "authentication.bootstrap.identities.%s backend identity requires at least one token" $identityID) -}}
 {{- end -}}
-{{- else if and (not $dexEnabled) (eq (len $identity.tokens) 0) -}}
-{{- fail (printf "authentication.bootstrap.identities.%s user requires Dex or at least one token" $identityID) -}}
-{{- end -}}
-{{- if $dexEnabled -}}
 {{- if gt (len $identityID) 45 -}}
 {{- fail (printf "authentication.bootstrap.identities.%s is too long for a derived Dex password Secret name" $identityID) -}}
 {{- end -}}
@@ -307,7 +301,7 @@
 {{- fail (printf "bootstrap credential Secret %q is used more than once" $secretName) -}}
 {{- end -}}
 {{- $_ := set $bootstrapSecretNames $secretName true -}}
-{{- if eq $identity.kind "backend" -}}
+{{- if deepEqual $identity.roles (list "osmo-backend") -}}
 {{- $_ := set $bootstrapBackendSecretNames $secretName true -}}
 {{- end -}}
 {{- if and $existing (hasKey $token.existingSecret "key") (not (regexMatch "^[A-Za-z0-9._-]+$" $token.existingSecret.key)) -}}

@@ -67,14 +67,14 @@ helm upgrade --install cnpg cnpg/cloudnative-pg \
 ### Install OSMO
 
 Install the chart defaults. Its bootstrap Job creates the shared development
-identity directly in Kubernetes:
+identity directly in Kubernetes. The defaults use `http://127.0.0.1` to
+match the quickstart Kind port mapping:
 
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --set-string externalUrl="$OSMO_URL" \
   --wait \
   --wait-for-jobs \
   --timeout 20m
@@ -108,33 +108,24 @@ kubectl --namespace osmo get service osmo-gateway
 
 ### Open the UI and use the CLI
 
-The gateway exposes the UI and API on NodePort `30080`. Open the `OSMO_URL`
-selected during installation in a browser:
-
-```bash
-export OSMO_NODE_ADDRESS="$(kubectl get nodes \
-  --output jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')"
-export OSMO_URL="http://${OSMO_NODE_ADDRESS}:30080"
-curl --fail "$OSMO_URL/api/version"
-```
-
-For a kind cluster whose `extraPortMappings` maps container port `30080` to
-host port `80`, use this URL instead:
+The gateway exposes the UI and API on NodePort `30080`, which the quickstart
+Kind configuration maps to host port `80`. Open the default URL in a browser:
 
 ```bash
 export OSMO_URL=http://127.0.0.1
+curl --fail "$OSMO_URL/api/version"
 ```
 
-If the NodePort is not reachable from the workstation, run a port-forward in
-one terminal:
+For another development cluster, set `externalUrl` to the exact URL that its
+browser and CLI clients use. For example, to use a port-forward, install with
+`--set-string externalUrl=http://127.0.0.1:8080`, then run in one terminal:
 
 ```bash
 kubectl --namespace osmo \
   port-forward service/osmo-gateway 8080:80
 ```
 
-Port-forwarding works only when the release was installed with the same public
-origin. If you selected that mode before installation, use:
+Use the same origin for the client:
 
 ```bash
 export OSMO_URL=http://127.0.0.1:8080
@@ -814,7 +805,7 @@ above.
 - Configure per-Service labels and annotations under each component's
   `service` block. Service ports and names that wire chart components together
   remain chart-managed.
-- Configure compute-wide workflow namespace, backend identity, authentication
+- Configure compute-wide workflow namespace, compute token identity, authentication
   Secret, RBAC, namespace-wide workflow network policy, and priority classes
   under `compute`.
   Listener, worker, and test-runner workload settings live under
@@ -871,14 +862,17 @@ must set `create: false`.
 
 `authentication.bootstrap.identities` is a map so values overlays add entries
 without replacing the default `admin` or `backend-operator-default` entries.
-A user may have a Dex password, one or more OSMO login tokens, or both. An
+An identity may have a Dex password, one or more OSMO login tokens, or both. An
 email is required only for Dex local login and does not grant any OSMO role.
-Backend identities cannot use Dex and must have exactly the `osmo-backend`
-role.
+For each role assigned to a Dex-enabled identity, the corresponding
+`configuration.roles.<role>.external_roles` must be exactly `[<role>]`. This
+keeps embedded-Dex users on the existing external-role synchronization path;
+the default roles already use this mapping. Compute-plane authentication must
+reference a token identity whose only role is `osmo-backend`.
 
 This example appends a developer with both login methods and two independently
-audited backend identities. Add further map entries in the same form when ten
-or more backend credentials are needed:
+audited compute token identities. Add further map entries in the same form
+when ten or more compute credentials are needed:
 
 ```yaml
 authentication:
@@ -886,7 +880,6 @@ authentication:
     identities:
       developer:
         enabled: true
-        kind: user
         username: developer
         roles: [osmo-user]
         dex:
@@ -898,7 +891,6 @@ authentication:
               name: osmo-developer-token
       backend-east:
         enabled: true
-        kind: backend
         username: backend-east
         roles: [osmo-backend]
         tokens:
@@ -907,7 +899,6 @@ authentication:
               name: osmo-backend-east-token
       backend-west:
         enabled: true
-        kind: backend
         username: backend-west
         roles: [osmo-backend]
         tokens:
@@ -918,8 +909,9 @@ authentication:
 ```
 
 Multiple tokens under one identity authenticate as the same username but have
-different token names for audit. Separate backend identity entries produce
-distinct usernames. Set an inherited entry's `enabled: false` to disable it.
+different token names for audit. Separate compute token identity entries
+produce distinct usernames. Set an inherited entry's `enabled: false` to
+disable it.
 For external OIDC, disable the default local user and configure the provider;
 Secret-backed user and backend tokens remain available:
 
@@ -952,8 +944,8 @@ To rotate one managed password or token, delete only that exact Secret and run
 the next Helm/GitOps reconciliation. Deleting the OAuth Secret rotates both the
 browser client and cookie secrets. A Dex password rotation also reconciles the
 hash-only aggregate and restarts the affected authentication Pods. Older
-`authentication.embeddedDex.admin`, credential-generation fields,
-`secrets.defaultAdmin`, and `secrets.backendApiTokens` values are removed. Revoke
+`authentication.embeddedDex.admin`, credential-generation fields, and
+`secrets.backendApiTokens` values are removed. Revoke
 any legacy database-backed default-admin token after validating its replacement.
 
 ## Secrets

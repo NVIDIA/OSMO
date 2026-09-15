@@ -250,7 +250,6 @@ data:
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
-              - x-osmo-identity-source
               - x-osmo-workflow-id
               - x-osmo-allowed-pools
               # Client-supplied x-forwarded-host is not trusted. The
@@ -777,7 +776,7 @@ data:
                         {{- if $provider.embedded }}
                         local embedded_roles = nil
                         {{- range $identityID, $identity := $.Values.authentication.bootstrap.identities }}
-                        {{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
+                        {{- if and $identity.enabled (dig "enabled" false ($identity.dex | default dict)) }}
                         if (jwt.sub == {{ include "osmo.bootstrap.dexSubject" $identityID | quote }}) then
                           embedded_roles = {
                             {{- range $identity.roles }}
@@ -789,7 +788,6 @@ data:
                         {{- end }}
                         if (embedded_roles ~= nil) then
                           roles = embedded_roles
-                          request_handle:headers():replace('x-osmo-identity-source', 'embedded-dex')
                         end
                         {{- end }}
                         if (roles ~= nil and type(roles) == 'table') then

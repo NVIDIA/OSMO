@@ -1,4 +1,4 @@
-"""Legacy default-admin bootstrap uses ConfigMap-owned role definitions."""
+"""Default-admin bootstrap uses ConfigMap-owned role definitions."""
 
 import types
 import unittest
@@ -6,28 +6,16 @@ from unittest import mock
 
 from src.lib.utils import osmo_errors
 from src.service.core import service
-from src.service.core.workflow import objects
 
 
 class DefaultAdminConfigMapTestCase(unittest.TestCase):
-    """Verify legacy service-chart bootstrap remains runtime-compatible."""
+    """Verify default-admin bootstrap uses only ConfigMap role authority."""
 
     def _config(self):
         return types.SimpleNamespace(
             default_admin_username='admin@example.com',
             default_admin_password='x' * 43,
         )
-
-    def test_legacy_runtime_options_are_accepted(self):
-        config = objects.WorkflowServiceConfig(
-            postgres_password='password',
-            backend_token_directory='/backend-tokens',
-            default_admin_username='admin@example.com',
-            default_admin_password='x' * 43,
-        )
-
-        self.assertEqual(config.backend_token_directory, '/backend-tokens')
-        self.assertEqual(config.default_admin_username, 'admin@example.com')
 
     @mock.patch.object(service.auth_objects.AccessToken, 'insert_into_db')
     @mock.patch.object(service.connectors, 'upsert_user')

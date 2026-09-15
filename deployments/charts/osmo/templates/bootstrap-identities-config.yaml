@@ -12,7 +12,7 @@
 {{- end -}}
 {{- $_ := set $tokens $tokenName (dict "key" $key) -}}
 {{- end -}}
-{{- $_ := set $identities $identityID (dict "kind" $identity.kind "username" $identity.username "roles" $identity.roles "tokens" $tokens) -}}
+{{- $_ := set $identities $identityID (dict "username" $identity.username "roles" $identity.roles "tokens" $tokens) -}}
 {{- end -}}
 {{- end -}}
 {{- if $identities }}

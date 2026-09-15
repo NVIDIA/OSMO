@@ -27,9 +27,11 @@ This guide describes how authentication and authorization work in OSMO: how user
 
    Control-plane releases of the unified ``osmo`` chart always use OIDC:
    embedded Dex by default or an explicit external provider. Embedded Dex is
-   routed at ``<externalUrl>/dex`` and its fixed administrator subject is bound
-   to ``osmo-admin``. The no-IdP/default-access-token flow below applies to
-   older deployment paths; see :doc:`migrating_to_embedded_dex`.
+   routed at ``<externalUrl>/dex``. Each configured local identity receives the
+   roles declared in ``authentication.bootstrap.identities``; the default
+   ``admin`` identity receives ``osmo-admin``. The no-IdP/default-access-token
+   flow below applies to other deployment paths; see
+   :doc:`migrating_to_embedded_dex`.
 
 Architecture components
 ========================

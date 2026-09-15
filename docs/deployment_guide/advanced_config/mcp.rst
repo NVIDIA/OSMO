@@ -53,8 +53,8 @@ Shared Prerequisites
 
 Before enabling MCP:
 
-* Control-plane authentication and authorization are mandatory; do not add
-  legacy gateway enable/disable values to the chart configuration.
+* Control-plane authentication and authorization are mandatory; the gateway
+  authentication components cannot be disabled.
 * Configure a ``gateway.envoy.jwt.providers`` entry that validates the bearer
   token used for downstream ``/api`` requests and resolves its identity and
   roles to the intended OSMO user. The chart adds the MCP resource URL to the

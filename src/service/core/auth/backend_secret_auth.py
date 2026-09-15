@@ -335,17 +335,15 @@ class BootstrapSecretAuthenticator:
                 not isinstance(identity_id, str)
                 or not _CREDENTIAL_NAME_PATTERN.fullmatch(identity_id)
                 or not isinstance(identity_config, dict)
-                or set(identity_config) != {'kind', 'username', 'roles', 'tokens'}
+                or set(identity_config) != {'username', 'roles', 'tokens'}
             ):
                 raise BackendTokenConfigurationError(
                     f'Invalid bootstrap identity {identity_id}')
-            kind = identity_config['kind']
             username = identity_config['username']
             roles = identity_config['roles']
             tokens = identity_config['tokens']
             if (
-                kind not in ('user', 'backend')
-                or not isinstance(username, str)
+                not isinstance(username, str)
                 or not re.fullmatch(
                     r'^[a-zA-Z0-9](?:[a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$',
                     username)
@@ -356,7 +354,6 @@ class BootstrapSecretAuthenticator:
                 or len(set(roles)) != len(roles)
                 or not isinstance(tokens, dict)
                 or not tokens
-                or (kind == 'backend' and roles != [BACKEND_ROLE])
             ):
                 raise BackendTokenConfigurationError(
                     f'Invalid bootstrap identity {identity_id}')

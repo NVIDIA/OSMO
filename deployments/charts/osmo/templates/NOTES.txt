@@ -16,7 +16,7 @@ Production deployments should use `authentication.provider: externalOidc`.
 
 Configured local users:
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities }}
-{{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
+{{- if and $identity.enabled (dig "enabled" false ($identity.dex | default dict)) }}
 
   Username: {{ $identity.username }}
   Email: {{ $identity.dex.email }}

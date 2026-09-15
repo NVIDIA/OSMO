@@ -258,21 +258,32 @@ async def top_level_exception_handler(request: fastapi.Request, error: Exception
 
 
 def setup_default_admin(postgres: connectors.PostgresConnector,
-                        config: objects.WorkflowServiceConfig) -> None:
-    """Reconcile the legacy service chart's default administrator token."""
+                        config: objects.WorkflowServiceConfig):
+    """
+    Set up the default admin user if configured.
+
+    Creates a user with the osmo-admin role and an access_token with the
+    configured password. The access_token is stored hashed like other access_token keys.
+
+    This is idempotent - if the user already exists, it will update the access_token.
+    """
     if not config.default_admin_username or not config.default_admin_password:
         return
 
     admin_username = config.default_admin_username
     admin_password = config.default_admin_password
     token_name = 'default-admin-token'
+
     if len(admin_password) != task_lib.REFRESH_TOKEN_STR_LENGTH:
         raise osmo_errors.OSMOUserError(
-            'Default admin password must be '
-            f'{task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
+            f'Default admin password must be {task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
 
     logging.info('Setting up default admin user: %s', admin_username)
+
+    # Create or update the user
     connectors.upsert_user(postgres, admin_username)
+
+    # Assign the osmo-admin role if not already assigned
     now = common.current_time()
     assignment = postgres.assign_user_role(
         admin_username, 'osmo-admin', 'System', now)
@@ -281,41 +292,45 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
             'Default admin requires the osmo-admin role in the mounted '
             'ConfigMap configuration.')
 
-    existing_token = postgres.execute_fetch_command(
-        '''
+    # Check if token already exists and compare hashed values
+    check_token_cmd = '''
         SELECT access_token FROM access_token
         WHERE user_name = %s AND token_name = %s;
-        ''',
-        (admin_username, token_name),
-        True,
-    )
+    '''
+    existing_token = postgres.execute_fetch_command(
+        check_token_cmd, (admin_username, token_name), True)
+
     new_hashed_token = auth.hash_access_token(admin_password)
+
     if existing_token:
+        # Compare the hashed values - only update if different
         existing_hashed_token = bytes(existing_token[0]['access_token'])
         if existing_hashed_token == new_hashed_token:
             logging.info(
-                'Default admin user %s already has the configured access token',
+                'Default admin user %s already configured with matching access_token',
                 admin_username)
             return
-        auth_objects.AccessToken.delete_from_db(
-            postgres, token_name, admin_username)
 
-    expires_at = (
-        datetime.datetime.now() + datetime.timedelta(days=3650)
-    ).strftime('%Y-%m-%d')
+        # Password has changed, delete the old token
+        logging.info('Default admin access_token password changed, updating token')
+        auth_objects.AccessToken.delete_from_db(postgres, token_name, admin_username)
+
+    # Create the access_token with far future expiration (10 years)
+    # Use 10 years from now as the expiration date
+    expires_at = (datetime.datetime.now() + datetime.timedelta(days=3650)).strftime('%Y-%m-%d')
+
     auth_objects.AccessToken.insert_into_db(
         database=postgres,
         user_name=admin_username,
         token_name=token_name,
-        access_token=admin_password,
+        access_token=admin_password,  # This gets hashed inside insert_into_db
         expires_at=expires_at,
-        description='Default admin access token created during service initialization',
+        description='Default admin access_token created during service initialization',
         roles=['osmo-admin'],
-        assigned_by='System',
+        assigned_by='System'
     )
-    logging.info(
-        'Default admin user %s configured successfully with an access token',
-        admin_username)
+
+    logging.info('Default admin user %s configured successfully with access_token', admin_username)
 
 
 def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceConfig):

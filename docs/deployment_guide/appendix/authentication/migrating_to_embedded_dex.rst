@@ -52,6 +52,12 @@ The default ``authentication.bootstrap.identities.admin`` entry signs in with
 supplies the visible OSMO identity. The gateway assigns declared roles only to
 a token verified against embedded Dex with that entry's immutable ``sub``; a
 matching username from another JWT provider does not receive the grant. The
+authorization sidecar continues to use its existing external-role
+synchronization path. Therefore, every role assigned to a Dex-enabled identity
+must define ``external_roles`` as a one-item list containing that same role
+name; for example, ``osmo-admin`` requires
+``external_roles: [osmo-admin]``. The chart validates this exact mapping, and
+the default roles already satisfy it. The
 configured username must use OSMO's letters, digits, underscores, periods,
 ``@``, and hyphens syntax and begin and end with a letter or digit. Changing a
 username renames the OSMO identity and may require existing browser and CLI
@@ -60,10 +66,10 @@ previous identity retain that recorded owner; the chart does not rewrite
 application data during an identity rename.
 
 The identity map merges entries by key. Add entries to create more local users,
-managed user tokens, or independent backend identities without replacing the
-default entries. Set an entry's ``enabled`` field to ``false`` to disable a
-default. A backend identity must have exactly the ``osmo-backend`` role and
-cannot use Dex.
+managed user tokens, or independent compute token identities without replacing
+the default entries. Set an entry's ``enabled`` field to ``false`` to disable a
+default. Compute-plane authentication must reference a token identity whose
+only role is ``osmo-backend``.
 
 The pre-install/pre-upgrade bootstrap Job creates or reconciles retained
 password, token, and OAuth credential Secrets; the separate post-install/
@@ -93,7 +99,6 @@ Remove the following values from all profiles and environment overlays:
 * ``authentication.embeddedDex.adminSecretName``
 * ``authentication.embeddedDex.oauthSecretName``
 * embedded-Dex credential generation fields
-* ``secrets.defaultAdmin``
 * ``secrets.backendApiTokens``
 
 The chart rejects them. Their removal is intentional: an authenticated control

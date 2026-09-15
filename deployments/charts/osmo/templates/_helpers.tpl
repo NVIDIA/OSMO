@@ -325,7 +325,7 @@ oauth2:
   skipApprovalScreen: true
 staticPasswords:
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities }}
-{{- if and $identity.enabled (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) }}
+{{- if and $identity.enabled (dig "enabled" false ($identity.dex | default dict)) }}
 - email: {{ $identity.dex.email | quote }}
   hashFromEnv: {{ include "osmo.bootstrap.dexHashEnvironmentName" $identityID }}
   username: {{ $identity.username | quote }}

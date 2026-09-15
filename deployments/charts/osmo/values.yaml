@@ -198,9 +198,10 @@ logging:
   logFormat: text
 
 # Public OSMO URL used in generated service configuration and redirects.
-# Set an externally reachable HTTP or HTTPS origin without a path, for example
-# `https://osmo.example.com` or the development-only `http://127.0.0.1:8080`.
-externalUrl: ''
+# The loopback default matches the development quickstart's Kind port mapping.
+# Set an externally reachable HTTP or HTTPS origin without a path for every
+# non-quickstart installation, for example `https://osmo.example.com`.
+externalUrl: http://127.0.0.1
 
 # Control-plane authentication is mandatory. Embedded Dex is the default;
 # externalOidc keeps integration with an operator-managed identity provider.
@@ -219,7 +220,6 @@ authentication:
     identities:
       admin:
         enabled: true
-        kind: user
         username: admin
         roles:
         - osmo-admin
@@ -232,7 +232,6 @@ authentication:
               name: osmo-admin-token
       backend-operator-default:
         enabled: true
-        kind: backend
         username: backend-operator-default
         roles:
         - osmo-backend

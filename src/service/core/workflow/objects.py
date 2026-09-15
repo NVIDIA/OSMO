@@ -108,35 +108,42 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         })
     backend_token_directory: str | None = pydantic.Field(
         default=None,
-        description=(
-            'Legacy directory containing Kubernetes Secret projections used '
-            'to authenticate backend operators.'),
+        description='Directory containing Kubernetes Secret projections used to authenticate '
+                    'backend operators.',
         json_schema_extra={
             'command_line': 'backend_token_directory',
             'env': 'OSMO_BACKEND_TOKEN_DIRECTORY'
         })
     default_admin_username: str | None = pydantic.Field(
         default=None,
-        description='Legacy default administrator username.',
+        description='The username for the default admin user to create on startup. '
+                    'If set, default_admin_password must also be set.',
         json_schema_extra={
             'command_line': 'default_admin_username',
             'env': 'OSMO_DEFAULT_ADMIN_USERNAME'
         })
     default_admin_password: str | None = pydantic.Field(
         default=None,
-        description='Legacy default administrator access token.',
+        description='The password (access token value) for the default admin user. '
+                    'Must be set if default_admin_username is set.',
         json_schema_extra={
             'command_line': 'default_admin_password',
             'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
         })
-
-    @pydantic.model_validator(mode='after')
-    def validate_default_admin(self) -> 'WorkflowServiceConfig':
-        if self.default_admin_username and not self.default_admin_password:
+    @pydantic.model_validator(mode='before')
+    @classmethod
+    def validate_default_admin(cls, values):
+        """
+        Validate that if default_admin_username is set, default_admin_password must also be set
+        """
+        if not isinstance(values, dict):
+            return values
+        username = values.get('default_admin_username')
+        password = values.get('default_admin_password')
+        if username and not password:
             raise ValueError(
-                'default_admin_password must be set when '
-                'default_admin_username is specified')
-        return self
+                'default_admin_password must be set when default_admin_username is specified')
+        return values
 
 
 class WorkflowServiceContext(pydantic.BaseModel):

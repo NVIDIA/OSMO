@@ -6,7 +6,7 @@
 {{- $managedTokens := list -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
 {{- if $identity.enabled -}}
-{{- if and $embeddedDex (eq $identity.kind "user") (dig "enabled" false ($identity.dex | default dict)) -}}
+{{- if and $embeddedDex (dig "enabled" false ($identity.dex | default dict)) -}}
 {{- $passwords = append $passwords (dict "identityID" $identityID "secretName" (include "osmo.bootstrap.dexPasswordSecretName" $identityID) "hashEnvironment" (include "osmo.bootstrap.dexHashEnvironmentName" $identityID)) -}}
 {{- end -}}
 {{- range $tokenName, $token := $identity.tokens -}}

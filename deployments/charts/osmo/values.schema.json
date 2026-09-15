@@ -163,7 +163,6 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
-        "kind": { "type": "string", "enum": ["user", "backend"] },
         "username": { "type": "string", "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$" },
         "roles": {
           "type": "array",
@@ -185,7 +184,7 @@
           "additionalProperties": { "$ref": "#/definitions/bootstrapToken" }
         }
       },
-      "required": ["enabled", "kind", "username", "roles", "tokens"]
+      "required": ["enabled", "username", "roles", "tokens"]
     },
     "bootstrapToken": {
       "type": "object",

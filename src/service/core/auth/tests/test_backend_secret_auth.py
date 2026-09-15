@@ -47,13 +47,11 @@ class BackendSecretAuthenticatorTest(unittest.TestCase):
         config_file.write_text(json.dumps({
             'identities': {
                 'admin': {
-                    'kind': 'user',
                     'username': 'admin',
                     'roles': ['osmo-admin', 'osmo-user'],
                     'tokens': {'cli': {'key': 'token'}},
                 },
                 'backend-east': {
-                    'kind': 'backend',
                     'username': 'backend-east',
                     'roles': ['osmo-backend'],
                     'tokens': {'primary': {'key': 'token'}},
