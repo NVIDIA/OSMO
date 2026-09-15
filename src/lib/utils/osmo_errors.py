@@ -126,14 +126,10 @@ class OSMODataStorageError(OSMOError):
     error_code: str = 'DATA_STORAGE'
 
 
-# Error codes that identify a workflow submission failure to API clients.
-SUBMISSION_ERROR_CODES: frozenset[str] = frozenset(
-    [member.value for member in SubmissionErrorCode] + [OSMOSubmissionError.error_code])
-
 # Maps the error_code an API response carries to the exception a client raises for it.
-# Submission codes deliberately collapse onto OSMOSubmissionError so callers catch one type.
+# SubmissionErrorCode members collapse onto OSMOSubmissionError so callers catch one type.
 ERROR_CODE_CLASSES: dict[str, type[OSMOError]] = {
-    **{error_code: OSMOSubmissionError for error_code in SUBMISSION_ERROR_CODES},
+    **{member.value: OSMOSubmissionError for member in SubmissionErrorCode},
     OSMOCredentialError.error_code: OSMOCredentialError,
     **{error_class.error_code: error_class
        for error_class in (OSMORegistryError, OSMOImageNotFoundError,

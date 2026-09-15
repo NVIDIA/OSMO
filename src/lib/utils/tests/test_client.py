@@ -191,7 +191,7 @@ class HandleResponseClientErrorTests(unittest.TestCase):
         self.assertEqual(cm.exception.workflow_id, 'wf-1')
 
     def test_4xx_without_a_message_key_falls_back_to_the_response_body(self):
-        response = FakeResponse(status_code=400, text='{"error_code": "SUBMISSION"}')
+        response = FakeResponse(status_code=400, text='{"error_code": "USAGE"}')
 
         with self.assertRaises(osmo_errors.OSMOSubmissionError) as cm:
             client.handle_response(response)
@@ -205,6 +205,20 @@ class HandleResponseClientErrorTests(unittest.TestCase):
             client.handle_response(response)
 
         self.assertIn('400', cm.exception.message)
+
+    def test_4xx_submission_code_keeps_its_existing_user_error_mapping(self):
+        """Unmapped codes stay OSMOUserError; only the workflow ID handling changed."""
+        response = FakeResponse(
+            status_code=400,
+            text=json.dumps({'message': 'quota exceeded', 'error_code': 'SUBMISSION',
+                             'workflow_id': 'wf-9'}))
+
+        with self.assertRaises(osmo_errors.OSMOUserError) as cm:
+            client.handle_response(response)
+
+        self.assertNotIsInstance(cm.exception, osmo_errors.OSMOSubmissionError)
+        self.assertEqual(cm.exception.message, 'quota exceeded')
+        self.assertEqual(cm.exception.workflow_id, 'wf-9')
 
     def test_4xx_preserves_the_workflow_id_for_an_unrecognized_error_code(self):
         response = FakeResponse(
