@@ -18,7 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 
 from typing import Literal
 
-from fastmcp import Context
 import pydantic
 
 from src.service.mcp import access_scope
@@ -32,7 +31,7 @@ class HealthResult(pydantic.BaseModel):
     status: Literal['healthy']
 
 
-async def osmo_health(context: Context) -> HealthResult:
+async def osmo_health() -> HealthResult:
     """Verify that the active caller can reach and authenticate to OSMO."""
-    await access_scope.request_access_scope(context)
+    await access_scope.request_access_scope()
     return HealthResult(status='healthy')

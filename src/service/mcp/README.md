@@ -147,9 +147,10 @@ Keep each new tool a narrow adapter:
    input. Validate every legitimate argument and encode path segments safely.
 3. Reuse or extract a lightweight external API contract. Do not pull Core,
    database, Kubernetes, or CLI client dependencies into the MCP image.
-4. Use `tool_requests` to obtain `AppContext` from the active HTTP request and
-   credentials from `request_context`. The shared relay passes both explicitly
-   to `GatewayClient`; the injected FastMCP `Context` is not an identity source.
+4. Use `tool_requests` to resolve application state and verified credentials
+   from the active HTTP request. Handler and helper signatures need no FastMCP
+   `Context` unless they actually use its functionality. The shared relay passes
+   request-local credentials explicitly to `GatewayClient`.
 5. Set a tool-specific response ceiling. Validate complete JSON responses;
    expose long text only through the shared truncation contract. Preserve only
    centrally scrubbed, allowlisted details from actionable client errors.

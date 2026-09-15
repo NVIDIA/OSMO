@@ -37,195 +37,33 @@ from src.service.mcp import (
 )
 
 
-_ExpectedSpec = tuple[Callable[..., object], str, str, str]
-
-_EXPECTED_SPECS: tuple[_ExpectedSpec, ...] = (
-    (
-        health.osmo_health,
-        'osmo_health',
-        'Check OSMO health',
-        'Verify caller-bound Gateway authentication and OSMO API access. '
-        'This is separate from the MCP process health endpoints.',
-    ),
-    (
-        profile.osmo_get_profile,
-        'osmo_get_profile',
-        'Get OSMO profile',
-        'Get the active user\'s OSMO profile settings, roles, accessible '
-        'pools, and non-secret token identity metadata.',
-    ),
-    (
-        profile.osmo_set_profile,
-        'osmo_set_profile',
-        'Update OSMO profile',
-        'Update the active user\'s default pool or notification settings. '
-        'This overwrites saved profile state and is not automatically retried.',
-    ),
-    (
-        pools.osmo_search_pools,
-        'osmo_search_pools',
-        'Search OSMO pools',
-        'Search compute pools accessible to the active user. Results retain '
-        'node-set sharing information, GPU quota usage, and bounded output.',
-    ),
-    (
-        resources.osmo_list_resources,
-        'osmo_list_resources',
-        'List OSMO resources',
-        'List node capacity, usage, and available resources for selected '
-        'pools and platforms with bounded output.',
-    ),
-    (
-        resources.osmo_get_resource,
-        'osmo_get_resource',
-        'Get OSMO resource',
-        'Get one node\'s resource quantities and task configuration for a '
-        'selected pool/platform assignment.',
-    ),
-    (
-        workflows.osmo_list_workflows,
-        'osmo_list_workflows',
-        'List OSMO workflows',
-        'List the active user\'s workflows across accessible pools, newest '
-        'first, with optional label selectors and absent-label keys.',
-    ),
-    (
-        workflows.osmo_list_tasks,
-        'osmo_list_tasks',
-        'List OSMO tasks',
-        'List tasks on explicitly named nodes across the caller\'s '
-        'accessible pools, including task status, workflow, and owner. '
-        'Defaults to the active user\'s tasks; set all_users=true to '
-        'include tasks owned by other users.',
-    ),
-    (
-        workflows.osmo_get_workflow,
-        'osmo_get_workflow',
-        'Get OSMO workflow',
-        'Get one workflow\'s status, labels, policy warnings, and optional '
-        'task-group metadata; set skip_groups=true for a compact result.',
-    ),
-    (
-        workflows.osmo_get_workflow_logs,
-        'osmo_get_workflow_logs',
-        'Get OSMO workflow logs',
-        'Get bounded workflow or task logs; set last_n_lines for an explicit '
-        'tail and select error logs explicitly.',
-    ),
-    (
-        workflows.osmo_get_workflow_events,
-        'osmo_get_workflow_events',
-        'Get OSMO workflow events',
-        'Get bounded scheduling and lifecycle events; use the logs tool for output.',
-    ),
-    (
-        workflows.osmo_get_workflow_spec,
-        'osmo_get_workflow_spec',
-        'Get OSMO workflow spec',
-        'Get the bounded, server-redacted resolved or template workflow YAML.',
-    ),
-    (
-        workflow_actions.osmo_submit_workflow,
-        'osmo_submit_workflow',
-        'Submit an OSMO workflow',
-        'Submit raw workflow YAML with optional non-secret label overrides. '
-        'This consumes real compute and is not automatically retried.',
-    ),
-    (
-        workflow_actions.osmo_validate_workflow,
-        'osmo_validate_workflow',
-        'Validate an OSMO workflow',
-        'Validate workflow YAML and optional non-secret label overrides with '
-        'OSMO Core. A failed validation may create a FAILED_SUBMISSION record.',
-    ),
-    (
-        workflow_actions.osmo_restart_workflow,
-        'osmo_restart_workflow',
-        'Restart an OSMO workflow',
-        'Restart one failed workflow as a new run. This consumes real '
-        'compute and requires source-workflow read access.',
-    ),
-    (
-        workflow_actions.osmo_cancel_workflow,
-        'osmo_cancel_workflow',
-        'Cancel an OSMO workflow',
-        'Request cancellation of one workflow; force cancellation is '
-        'destructive and not reversible.',
-    ),
-    (
-        apps.osmo_list_apps,
-        'osmo_list_apps',
-        'List OSMO apps',
-        'List a bounded page of OSMO apps newest first. By default, '
-        'results are scoped to apps associated with the active user.',
-    ),
-    (
-        apps.osmo_get_app,
-        'osmo_get_app',
-        'Get OSMO app',
-        'Get stable metadata and newest-first version information for '
-        'one OSMO app.',
-    ),
-    (
-        apps.osmo_get_app_spec,
-        'osmo_get_app_spec',
-        'Get OSMO app spec',
-        'Get the bounded plain-text workflow spec for one OSMO app. '
-        'When version is omitted, resolve the newest READY version from '
-        'bounded version history.',
-    ),
-    (
-        app_actions.osmo_create_app,
-        'osmo_create_app',
-        'Create OSMO app',
-        'Create an app from bounded inline workflow YAML and schedule '
-        'version 1 for upload. The non-secret description is sent as a '
-        'query parameter and may appear in Gateway logs.',
-    ),
-    (
-        app_actions.osmo_update_app,
-        'osmo_update_app',
-        'Update OSMO app',
-        'Always create and schedule upload of a new app version from bounded '
-        'inline workflow YAML; unlike the CLI editor flow, this tool does not '
-        'skip unchanged content.',
-    ),
-    (
-        app_actions.osmo_delete_app,
-        'osmo_delete_app',
-        'Delete OSMO app',
-        'Schedule deletion of one version or all non-deleted versions. '
-        'Specify exactly one of version or all_versions=true.',
-    ),
-    (
-        app_actions.osmo_rename_app,
-        'osmo_rename_app',
-        'Rename OSMO app',
-        'Synchronously rename one active-user-owned app. This changes the '
-        'app identifier and is not automatically retried.',
-    ),
-    (
-        app_submission.osmo_submit_app,
-        'osmo_submit_app',
-        'Submit OSMO app',
-        'Resolve and pin a READY app version, then submit it with optional '
-        'non-secret label overrides. This consumes real compute and is not '
-        'automatically retried.',
-    ),
-    (
-        credentials.osmo_list_credentials,
-        'osmo_list_credentials',
-        'List OSMO credentials',
-        'List only the active user\'s credential names and types. '
-        'Profiles and credential payloads are never returned.',
-    ),
-    (
-        credential_actions.osmo_delete_credential,
-        'osmo_delete_credential',
-        'Delete OSMO credential',
-        'Delete one active-user credential without returning its payload '
-        'or legacy profile value.',
-    ),
+_EXPECTED_BINDINGS: tuple[tuple[str, Callable[..., object]], ...] = (
+    ('osmo_health', health.osmo_health),
+    ('osmo_get_profile', profile.osmo_get_profile),
+    ('osmo_set_profile', profile.osmo_set_profile),
+    ('osmo_search_pools', pools.osmo_search_pools),
+    ('osmo_list_resources', resources.osmo_list_resources),
+    ('osmo_get_resource', resources.osmo_get_resource),
+    ('osmo_list_workflows', workflows.osmo_list_workflows),
+    ('osmo_list_tasks', workflows.osmo_list_tasks),
+    ('osmo_get_workflow', workflows.osmo_get_workflow),
+    ('osmo_get_workflow_logs', workflows.osmo_get_workflow_logs),
+    ('osmo_get_workflow_events', workflows.osmo_get_workflow_events),
+    ('osmo_get_workflow_spec', workflows.osmo_get_workflow_spec),
+    ('osmo_submit_workflow', workflow_actions.osmo_submit_workflow),
+    ('osmo_validate_workflow', workflow_actions.osmo_validate_workflow),
+    ('osmo_restart_workflow', workflow_actions.osmo_restart_workflow),
+    ('osmo_cancel_workflow', workflow_actions.osmo_cancel_workflow),
+    ('osmo_list_apps', apps.osmo_list_apps),
+    ('osmo_get_app', apps.osmo_get_app),
+    ('osmo_get_app_spec', apps.osmo_get_app_spec),
+    ('osmo_create_app', app_actions.osmo_create_app),
+    ('osmo_update_app', app_actions.osmo_update_app),
+    ('osmo_delete_app', app_actions.osmo_delete_app),
+    ('osmo_rename_app', app_actions.osmo_rename_app),
+    ('osmo_submit_app', app_submission.osmo_submit_app),
+    ('osmo_list_credentials', credentials.osmo_list_credentials),
+    ('osmo_delete_credential', credential_actions.osmo_delete_credential),
 )
 
 _EXPECTED_REQUIRED_FIELDS = {
@@ -362,20 +200,10 @@ _OPEN_WORLD_TOOL_NAMES: frozenset[str] = frozenset()
 class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
     """Lock the ordered, agent-facing external MCP tool contract."""
 
-    def test_registry_has_exact_metadata_and_direct_unique_functions(self) -> None:
+    def test_registry_has_stable_names_and_direct_unique_functions(self) -> None:
         self.assertEqual(
-            len(tool_registry.TOOL_SPECS),
-            len(_EXPECTED_SPECS),
-        )
-        self.assertEqual(
-            [
-                (spec.name, spec.title, spec.description)
-                for spec in tool_registry.TOOL_SPECS
-            ],
-            [
-                (name, title, description)
-                for _, name, title, description in _EXPECTED_SPECS
-            ],
+            [spec.name for spec in tool_registry.TOOL_SPECS],
+            [name for name, _ in _EXPECTED_BINDINGS],
         )
 
         registered_functions = [
@@ -383,14 +211,16 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(
             len({id(function) for function in registered_functions}),
-            len(_EXPECTED_SPECS),
+            len(_EXPECTED_BINDINGS),
         )
-        for spec, (function, _, _, _) in zip(
+        for spec, (_, function) in zip(
             tool_registry.TOOL_SPECS,
-            _EXPECTED_SPECS,
+            _EXPECTED_BINDINGS,
             strict=True,
         ):
             self.assertIs(spec.function, function)
+            self.assertTrue(spec.title.strip())
+            self.assertTrue(spec.description.strip())
 
     def test_registration_preserves_metadata_and_annotations(self) -> None:
         mcp_server = mock.Mock()
@@ -399,17 +229,18 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             mcp_server.tool.call_count,
-            len(_EXPECTED_SPECS),
+            len(_EXPECTED_BINDINGS),
         )
-        for call, (function, name, title, description) in zip(
+        for call, spec in zip(
             mcp_server.tool.call_args_list,
-            _EXPECTED_SPECS,
+            tool_registry.TOOL_SPECS,
             strict=True,
         ):
-            self.assertIs(call.args[0], function)
+            name = spec.name
+            self.assertIs(call.args[0], spec.function)
             self.assertEqual(call.kwargs['name'], name)
-            self.assertEqual(call.kwargs['title'], title)
-            self.assertEqual(call.kwargs['description'], description)
+            self.assertEqual(call.kwargs['title'], spec.title)
+            self.assertEqual(call.kwargs['description'], spec.description)
             annotations = call.kwargs['annotations']
             is_write = name in _WRITE_TOOL_NAMES
             is_destructive = name in _DESTRUCTIVE_TOOL_NAMES
@@ -433,7 +264,7 @@ class ToolCatalogContractTest(unittest.IsolatedAsyncioTestCase):
         tools = await mcp_server.list_tools()
         self.assertEqual(
             [tool.name for tool in tools],
-            [name for _, name, _, _ in _EXPECTED_SPECS],
+            [name for name, _ in _EXPECTED_BINDINGS],
         )
         for tool in tools:
             self.assertIsNotNone(tool.annotations)

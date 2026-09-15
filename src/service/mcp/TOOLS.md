@@ -23,6 +23,10 @@ tool is included only when it can be implemented as a bounded, fixed mapping to
 an existing external REST API while preserving the caller's OSMO identity and
 RBAC.
 
+`tool_registry.py` owns the client-facing titles and descriptions. This document
+owns the API mappings, CLI relationships, and operational caveats; catalog tests
+independently lock public names, function bindings, schemas, and annotations.
+
 ## Read-only operations
 
 | Capability | Tools | Contract | OSMO APIs |
@@ -75,16 +79,57 @@ byte-for-byte equality with the CLI's presentation or raw API JSON is not a
 valid compatibility contract. Overlapping fields and Core request semantics
 must still agree.
 
-The inventory distinguishes shared Core mutation requests with executable
-evidence, semantic projections of the same state, documented intentional
-differences, and tools with no CLI equivalent. A shared request does not imply
-identical auxiliary reads or presentation.
+The table below owns the CLI command mapping. "Projection" means a bounded
+view of the same state, "Difference" identifies an intentional behavior change,
+and "Shared request" means the final Core mutation agrees, not that auxiliary
+reads or presentation are identical. Command names are references, not proof of
+executed coverage; consult the CLI reference for complete arguments.
+
+| MCP tool | CLI command | Relationship |
+| --- | --- | --- |
+| `osmo_health` | None | No equivalent |
+| `osmo_get_profile` | `osmo profile list` | Projection |
+| `osmo_set_profile` | `osmo profile set` | Projection |
+| `osmo_search_pools` | `osmo pool list` | Projection |
+| `osmo_list_resources` | `osmo resource list` | Projection |
+| `osmo_get_resource` | `osmo resource info` | Projection |
+| `osmo_list_workflows` | `osmo workflow list` | Difference |
+| `osmo_list_tasks` | `osmo task list` | Projection |
+| `osmo_get_workflow` | `osmo workflow query` | Projection |
+| `osmo_get_workflow_logs` | `osmo workflow logs` | Projection |
+| `osmo_get_workflow_events` | `osmo workflow events` | Projection |
+| `osmo_get_workflow_spec` | `osmo workflow spec` | Projection |
+| `osmo_submit_workflow` | `osmo workflow submit` | Difference |
+| `osmo_validate_workflow` | `osmo workflow validate` | Difference |
+| `osmo_restart_workflow` | `osmo workflow restart` | Shared request |
+| `osmo_cancel_workflow` | `osmo workflow cancel` | Difference |
+| `osmo_list_apps` | `osmo app list` | Projection |
+| `osmo_get_app` | `osmo app info` | Projection |
+| `osmo_get_app_spec` | `osmo app spec` | Projection |
+| `osmo_create_app` | `osmo app create` | Difference |
+| `osmo_update_app` | `osmo app update` | Difference |
+| `osmo_delete_app` | `osmo app delete` | Projection |
+| `osmo_rename_app` | `osmo app rename` | Projection |
+| `osmo_submit_app` | `osmo app submit` | Difference |
+| `osmo_list_credentials` | `osmo credential list` | Projection |
+| `osmo_delete_credential` | `osmo credential delete` | Projection |
+
+The CLI has no caller-bound health command. Resource detail requires explicit
+pool/platform selection when a node has multiple accessible assignments; the
+CLI selects the first assignment. Workflow lists retain the optional legacy
+`tags` filter for MCP compatibility, while the 6.4 CLI removes it; both keep
+label selectors. The workflow and app sections below explain inline YAML,
+cancellation messages, version creation, and READY-version pinning differences.
+Restart's shared final request is covered by
+`test_workflow.WorkflowRestartTest.test_uses_source_workflow_pool_when_pool_is_omitted`
+and `test_workflow_actions.test_restart_preflights_source_and_uses_its_pool`.
 
 The CLI and MCP share dependency-light helpers for resource quantity
 normalization, credential request envelopes, and workflow template detection.
-`//src/service/mcp/tests:test_cli_parity` requires every registered tool to
-declare its CLI relationship in a parity inventory and locks selected shared
-behaviors with frozen fixtures. `//test/smoke:mcp-checks` additionally compares
+`//src/service/mcp/tests:test_cli_parity` checks that every registered tool has
+exactly one classification and locks selected shared behaviors with frozen
+fixtures. CLI rationale lives here, not in a second test-owned prose inventory.
+`//test/smoke:mcp-checks` additionally compares
 stable profile and credential metadata through a deployed CLI and MCP using
 the same caller. Mutable capacity counters and state-changing workflow, app,
 and credential operations remain covered by deterministic route/payload tests

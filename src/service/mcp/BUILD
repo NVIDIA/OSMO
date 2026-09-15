@@ -45,282 +45,84 @@ osmo_py_library(
 )
 
 osmo_py_library(
-    name = "request_context",
-    srcs = ["request_context.py"],
+    name = "tool_contracts",
+    srcs = [
+        "app_action_models.py",
+        "app_models.py",
+        "credential_action_models.py",
+        "pool_models.py",
+        "resource_models.py",
+        "tool_errors.py",
+        "tool_models.py",
+        "tool_validation.py",
+        "workflow_action_models.py",
+        "workflow_models.py",
+    ],
     deps = [
         ":fastmcp_runtime",
-        requirement("starlette"),
+        requirement("pydantic"),
+        "//src/lib/utils:workflow_labels",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "transport",
+    srcs = [
+        "gateway.py",
+        "request_context.py",
+        "telemetry.py",
+    ],
+    deps = [
+        ":fastmcp_runtime",
+        requirement("httpx"),
         "//src/lib/utils:login",
     ],
     visibility = ["//visibility:public"],
 )
 
 osmo_py_library(
-    name = "auth",
-    srcs = ["auth.py"],
-    deps = [
-        requirement("authlib"),
-        requirement("cryptography"),
-        ":fastmcp_runtime",
-        requirement("griffelib"),
-        requirement("httpx"),
-        requirement("joserfc"),
-        requirement("jsonref"),
-        requirement("mcp"),
-        requirement("packaging"),
-        requirement("py-key-value-aio"),
-        requirement("pydantic"),
-        requirement("python-multipart"),
-        requirement("redis"),
-        requirement("starlette"),
-        requirement("uncalled-for"),
+    name = "tool_support",
+    srcs = [
+        "access_scope.py",
+        "tool_requests.py",
     ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "request_body",
-    srcs = ["request_body.py"],
-    deps = [
-        requirement("starlette"),
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "gateway",
-    srcs = ["gateway.py"],
-    deps = [
-        requirement("httpx"),
-        ":request_context",
-        ":telemetry",
-        "//src/lib/utils:login",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "telemetry",
-    srcs = ["telemetry.py"],
-    deps = [
-        ":request_context",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "tool_errors",
-    srcs = ["tool_errors.py"],
-    deps = [
-        ":fastmcp_runtime",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "tool_models",
-    srcs = ["tool_models.py"],
-    deps = [
-        requirement("pydantic"),
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "tool_validation",
-    srcs = ["tool_validation.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_errors",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "tool_requests",
-    srcs = ["tool_requests.py"],
     deps = [
         ":fastmcp_runtime",
         requirement("pydantic"),
         requirement("starlette"),
-        ":gateway",
-        ":request_context",
-        ":tool_errors",
+        ":tool_contracts",
+        ":transport",
         "//src/lib/api:profile",
     ],
     visibility = ["//visibility:public"],
 )
 
 osmo_py_library(
-    name = "access_scope",
-    srcs = ["access_scope.py"],
+    name = "tools",
+    srcs = [
+        "app_actions.py",
+        "app_submission.py",
+        "apps.py",
+        "credential_actions.py",
+        "credentials.py",
+        "health.py",
+        "pools.py",
+        "profile.py",
+        "resources.py",
+        "tool_registry.py",
+        "workflow_actions.py",
+        "workflow_submission.py",
+        "workflows.py",
+    ],
     deps = [
         ":fastmcp_runtime",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "app_models",
-    srcs = ["app_models.py"],
-    deps = [
+        requirement("mcp"),
         requirement("pydantic"),
-        ":tool_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "app_action_models",
-    srcs = ["app_action_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":app_models",
-        ":tool_models",
-        ":workflow_action_models",
-        ":workflow_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "pool_models",
-    srcs = ["pool_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "resource_models",
-    srcs = ["resource_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "workflow_models",
-    srcs = ["workflow_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_errors",
-        ":tool_models",
-        "//src/lib/utils:workflow_labels",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "workflow_action_models",
-    srcs = ["workflow_action_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_models",
-        ":workflow_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "credential_action_models",
-    srcs = ["credential_action_models.py"],
-    deps = [
-        requirement("pydantic"),
-        ":tool_models",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "profile_tools",
-    srcs = ["profile.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":access_scope",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "health_tools",
-    srcs = ["health.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":access_scope",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "pool_tools",
-    srcs = ["pools.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":access_scope",
-        ":pool_models",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "resource_tools",
-    srcs = ["resources.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":access_scope",
-        ":resource_models",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
+        ":tool_contracts",
+        ":tool_support",
+        ":transport",
         "//src/lib/utils:resource_quantities",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "workflow_tools",
-    srcs = ["workflows.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":access_scope",
-        ":gateway",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-        ":workflow_models",
-        "//src/lib/utils:workflow_labels",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "workflow_submission",
-    srcs = ["workflow_submission.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":access_scope",
-        ":gateway",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-        ":workflow_action_models",
-        ":workflow_models",
         "//src/lib/utils:workflow_labels",
         "//src/lib/utils:workflow",
     ],
@@ -328,142 +130,22 @@ osmo_py_library(
 )
 
 osmo_py_library(
-    name = "workflow_action_tools",
-    srcs = ["workflow_actions.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":gateway",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-        ":workflow_action_models",
-        ":workflow_models",
-        ":workflow_submission",
-        ":workflow_tools",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "app_tools",
-    srcs = ["apps.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":app_models",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "app_action_tools",
-    srcs = ["app_actions.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":app_action_models",
-        ":app_models",
-        ":app_tools",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "app_submission_tools",
-    srcs = ["app_submission.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":app_action_models",
-        ":app_models",
-        ":app_tools",
-        ":tool_requests",
-        ":tool_validation",
-        ":workflow_action_models",
-        ":workflow_models",
-        ":workflow_submission",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "credential_tools",
-    srcs = ["credentials.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":tool_errors",
-        ":tool_requests",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "credential_action_tools",
-    srcs = ["credential_actions.py"],
-    deps = [
-        ":fastmcp_runtime",
-        ":credential_action_models",
-        ":tool_errors",
-        ":tool_requests",
-        ":tool_validation",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "tool_registry",
-    srcs = ["tool_registry.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("mcp"),
-        ":app_action_tools",
-        ":app_submission_tools",
-        ":app_tools",
-        ":credential_action_tools",
-        ":credential_tools",
-        ":health_tools",
-        ":pool_tools",
-        ":profile_tools",
-        ":resource_tools",
-        ":workflow_action_tools",
-        ":workflow_tools",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
-    name = "protocol",
-    srcs = ["protocol.py"],
-    deps = [
-        ":fastmcp_runtime",
-        requirement("pydantic"),
-        ":request_context",
-        ":telemetry",
-        ":tool_errors",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-osmo_py_library(
     name = "mcp_service_lib",
-    srcs = ["server.py"],
+    srcs = [
+        "auth.py",
+        "protocol.py",
+        "request_body.py",
+        "server.py",
+    ],
     deps = [
-        requirement("httpx"),
         ":fastmcp_runtime",
+        requirement("httpx"),
         requirement("pydantic"),
         requirement("starlette"),
         requirement("uvicorn"),
-        ":auth",
-        ":gateway",
-        ":protocol",
-        ":request_body",
-        ":request_context",
-        ":tool_registry",
+        ":tool_contracts",
+        ":tools",
+        ":transport",
         "//src/lib/utils:logging",
         "//src/utils:ssl_config",
         "//src/utils:static_config",

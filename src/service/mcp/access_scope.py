@@ -18,8 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
 
-from fastmcp import Context
-
 from src.service.mcp import tool_requests, tool_validation
 
 
@@ -65,6 +63,6 @@ def from_profile(profile: tool_requests.ActiveProfile) -> AccessScope:
     )
 
 
-async def request_access_scope(context: Context) -> AccessScope:
+async def request_access_scope() -> AccessScope:
     """Read the active profile once and derive its ordered pool scope."""
-    return from_profile(await tool_requests.request_active_profile(context))
+    return from_profile(await tool_requests.request_active_profile())

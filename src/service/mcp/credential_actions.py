@@ -18,8 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 
 import re
 
-from fastmcp import Context
-
 from src.service.mcp import tool_errors, tool_requests, tool_validation
 from src.service.mcp.credential_action_models import (
     CREDENTIAL_NAME_PATTERN,
@@ -36,13 +34,11 @@ _CREDENTIAL_NAME = re.compile(CREDENTIAL_NAME_PATTERN)
 
 
 async def osmo_delete_credential(
-    context: Context,
     name: CredentialNameInput,
 ) -> DeleteCredentialResult:
     """Delete one OSMO credential and return only non-secret metadata."""
     validated_name, encoded_name = _validate_credential_name(name)
     response = await tool_requests.request_json_mutation(
-        context,
         method='DELETE',
         path=f'{_CREDENTIALS_PATH}/{encoded_name}',
         operation='delete an OSMO credential',

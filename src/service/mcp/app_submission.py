@@ -16,8 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
-
 from src.service.mcp import (
     apps,
     tool_requests,
@@ -40,7 +38,6 @@ from src.service.mcp.workflow_models import (
 
 
 async def osmo_submit_app(
-    context: Context,
     name: AppName,
     pool: PoolName | None = None,
     version: AppVersionNumber | None = None,
@@ -74,17 +71,14 @@ async def osmo_submit_app(
     )
     validated_priority = workflow_submission.validate_priority(priority)
     pool_name = await workflow_submission.resolve_pool(
-        context,
         validated_pool,
     )
     resolved = await apps.resolve_ready_app_version(
-        context,
         name=name,
         version=validated_version,
         operation='resolve an OSMO app submission version',
     )
     workflow_spec = await tool_requests.request_text(
-        context,
         path=f'/api/app/user/{resolved.encoded_name}/spec',
         operation='get an OSMO app spec for submission',
         max_response_bytes=MAX_APP_SPEC_BYTES,
@@ -96,7 +90,6 @@ async def osmo_submit_app(
         set_string_variables=validated_set_string_variables,
     )
     upstream = await workflow_submission.request_submission(
-        context,
         pool=pool_name,
         priority=validated_priority,
         payload=payload,

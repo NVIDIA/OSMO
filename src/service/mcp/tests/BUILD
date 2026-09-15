@@ -27,7 +27,6 @@ osmo_py_test(
         requirement("httpx"),
         requirement("py-key-value-aio"),
         requirement("pydantic"),
-        "//src/service/mcp:auth",
         "//src/service/mcp:mcp_service_lib",
     ],
 )
@@ -38,11 +37,9 @@ osmo_py_library(
     deps = [
         requirement("httpx"),
         requirement("starlette"),
-        "//src/service/mcp:gateway",
+        "//src/service/mcp:transport",
         "//src/service/mcp:mcp_service_lib",
-        "//src/service/mcp:protocol",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:tool_registry",
+        "//src/service/mcp:tools",
     ],
 )
 
@@ -77,19 +74,8 @@ osmo_py_test(
     name = "test_catalog",
     srcs = ["test_catalog.py"],
     deps = [
-        "//src/service/mcp:app_action_tools",
-        "//src/service/mcp:app_submission_tools",
-        "//src/service/mcp:app_tools",
-        "//src/service/mcp:credential_action_tools",
-        "//src/service/mcp:credential_tools",
-        "//src/service/mcp:health_tools",
-        "//src/service/mcp:pool_tools",
-        "//src/service/mcp:profile_tools",
-        "//src/service/mcp:protocol",
-        "//src/service/mcp:resource_tools",
-        "//src/service/mcp:tool_registry",
-        "//src/service/mcp:workflow_action_tools",
-        "//src/service/mcp:workflow_tools",
+        "//src/service/mcp:tools",
+        "//src/service/mcp:mcp_service_lib",
     ],
 )
 
@@ -101,15 +87,8 @@ osmo_py_test(
         "//src/lib/utils:resource_quantities",
         "//src/lib/utils:workflow_labels",
         "//src/lib/utils:workflow",
-        "//src/service/mcp:app_action_models",
-        "//src/service/mcp:app_submission_tools",
-        "//src/service/mcp:resource_tools",
-        "//src/service/mcp:tool_registry",
-        "//src/service/mcp:workflow_action_models",
-        "//src/service/mcp:workflow_action_tools",
-        "//src/service/mcp:workflow_models",
-        "//src/service/mcp:workflow_submission",
-        "//src/service/mcp:workflow_tools",
+        "//src/service/mcp:tool_contracts",
+        "//src/service/mcp:tools",
     ],
 )
 
@@ -130,8 +109,8 @@ osmo_py_test(
         requirement("httpx"),
         requirement("mcp"),
         ":protocol_harness",
-        "//src/service/mcp:credential_action_models",
-        "//src/service/mcp:credential_action_tools",
+        "//src/service/mcp:tool_contracts",
+        "//src/service/mcp:tools",
     ],
 )
 
@@ -140,8 +119,7 @@ osmo_py_test(
     srcs = ["test_gateway.py"],
     deps = [
         requirement("httpx"),
-        "//src/service/mcp:gateway",
-        "//src/service/mcp:request_context",
+        "//src/service/mcp:transport",
     ],
 )
 
@@ -153,9 +131,9 @@ osmo_py_test(
         requirement("httpx"),
         requirement("mcp"),
         ":protocol_harness",
-        "//src/service/mcp:pool_tools",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:tool_requests",
+        "//src/service/mcp:tools",
+        "//src/service/mcp:transport",
+        "//src/service/mcp:tool_support",
     ],
 )
 
@@ -169,9 +147,8 @@ osmo_py_test(
         requirement("mcp"),
         requirement("pydantic"),
         "//src/service/mcp:mcp_service_lib",
-        "//src/service/mcp:protocol",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:tool_errors",
+        "//src/service/mcp:transport",
+        "//src/service/mcp:tool_contracts",
     ],
 )
 
@@ -195,9 +172,9 @@ osmo_py_test(
         requirement("mcp"),
         ":protocol_harness",
         "//src/lib/utils:resource_quantities",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:resource_tools",
-        "//src/service/mcp:tool_requests",
+        "//src/service/mcp:transport",
+        "//src/service/mcp:tools",
+        "//src/service/mcp:tool_support",
     ],
 )
 
@@ -207,7 +184,7 @@ osmo_py_test(
     deps = [
         "//src/service/mcp:fastmcp_runtime",
         requirement("starlette"),
-        "//src/service/mcp:request_context",
+        "//src/service/mcp:transport",
     ],
 )
 
@@ -221,11 +198,9 @@ osmo_py_test(
         requirement("mcp"),
         requirement("pydantic"),
         requirement("starlette"),
-        "//src/service/mcp:gateway",
-        "//src/service/mcp:request_body",
-        "//src/service/mcp:request_context",
+        "//src/service/mcp:transport",
         "//src/service/mcp:mcp_service_lib",
-        "//src/service/mcp:tool_registry",
+        "//src/service/mcp:tools",
     ],
 )
 
@@ -236,11 +211,9 @@ osmo_py_test(
         "//src/service/mcp:fastmcp_runtime",
         requirement("mcp"),
         "//src/lib/utils:osmo_errors",
-        "//src/service/mcp:gateway",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:tool_errors",
-        "//src/service/mcp:tool_requests",
-        "//src/service/mcp:tool_validation",
+        "//src/service/mcp:transport",
+        "//src/service/mcp:tool_contracts",
+        "//src/service/mcp:tool_support",
     ],
 )
 
@@ -248,8 +221,7 @@ osmo_py_test(
     name = "test_telemetry",
     srcs = ["test_telemetry.py"],
     deps = [
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:telemetry",
+        "//src/service/mcp:transport",
     ],
 )
 
@@ -261,8 +233,8 @@ osmo_py_test(
         requirement("httpx"),
         requirement("mcp"),
         ":protocol_harness",
-        "//src/service/mcp:request_context",
-        "//src/service/mcp:workflow_tools",
+        "//src/service/mcp:transport",
+        "//src/service/mcp:tools",
     ],
 )
 
@@ -274,6 +246,6 @@ osmo_py_test(
         requirement("httpx"),
         requirement("mcp"),
         ":protocol_harness",
-        "//src/service/mcp:workflow_action_tools",
+        "//src/service/mcp:tools",
     ],
 )

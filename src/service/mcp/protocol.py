@@ -72,13 +72,7 @@ class OSMOFastMCP(FastMCP):
             credentials = request_context.get_request_credentials()
             request_id = credentials.request_id
             arguments = arguments or {}
-            tools_by_name = {
-                tool.name: tool
-                for tool in await super().list_tools(
-                    run_middleware=False,
-                )
-            }
-            tool = tools_by_name.get(name)
+            tool = await super().get_tool(name, version=version)
             if tool is None:
                 outcome = 'public_error'
                 raise tool_errors.PublicToolError('Unknown MCP tool.')
