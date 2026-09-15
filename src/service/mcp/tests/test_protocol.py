@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Callable
 import json
+import logging
 from typing import Annotated
 import unittest
 from unittest import mock
@@ -48,7 +49,7 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
         function: Callable[..., object],
         arguments: dict[str, object] | None = None,
         *,
-        requested_name: str = 'boundary_test_tool',
+        requested_name: object = 'boundary_test_tool',
     ) -> httpx.Response:
         mcp_server = protocol.OSMOFastMCP(
             name='OSMO public exception boundary test',
@@ -265,8 +266,120 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(captured.output), 1)
         record = captured.output[0]
-        self.assertIn('tool=context_test_tool', record)
+        # Authentication context is checked before the requested name is trusted.
+        self.assertIn('tool=unknown', record)
         self.assertIn('outcome=context_error', record)
+
+    async def test_framework_logs_do_not_expose_validation_or_exception_details(
+        self,
+    ) -> None:
+        async def typed_tool(
+            value: Annotated[int, pydantic.Field(strict=True)],
+        ) -> int:
+            return value
+
+        async def unexpected_failure() -> None:
+            raise RuntimeError('synthetic-private-exception-detail')
+
+        cases: tuple[
+            tuple[Callable[..., object], dict[str, object], str], ...
+        ] = (
+            (
+                typed_tool,
+                {'value': 'synthetic-private-validation-input'},
+                'validation_error',
+            ),
+            (unexpected_failure, {}, 'unexpected_error'),
+        )
+        for function, arguments, outcome in cases:
+            with self.subTest(outcome=outcome):
+                with (
+                    self.assertLogs(level='DEBUG') as service_logs,
+                    self.assertLogs('fastmcp', level='DEBUG') as framework_logs,
+                ):
+                    response = await self._call_tool(function, arguments)
+                    logging.getLogger('fastmcp').info(
+                        'framework lifecycle diagnostic remains available'
+                    )
+
+                self.assertTrue(response.json()['result']['isError'])
+                combined_logs = '\n'.join(
+                    service_logs.output + framework_logs.output
+                )
+                for secret in (
+                    'synthetic-private-validation-input',
+                    'synthetic-private-exception-detail',
+                ):
+                    self.assertNotIn(secret, combined_logs)
+                    self.assertNotIn(secret, response.text)
+                self.assertIn(f'outcome={outcome}', combined_logs)
+                self.assertIn('tool=boundary_test_tool', combined_logs)
+                self.assertIn(
+                    'framework lifecycle diagnostic remains available',
+                    combined_logs,
+                )
+                self.assertIn('StreamableHTTP session manager started', combined_logs)
+                self.assertIn(
+                    'StreamableHTTP session manager shutting down', combined_logs,
+                )
+
+    async def test_framework_handler_failure_cannot_change_tool_outcome(self) -> None:
+        async def typed_tool(
+            value: Annotated[int, pydantic.Field(strict=True)],
+        ) -> int:
+            return value
+
+        framework_logger = logging.getLogger('src.service.mcp.framework')
+        self.addCleanup(framework_logger.setLevel, framework_logger.level)
+        framework_logger.setLevel(logging.DEBUG)
+        log_handler = logging.Handler()
+        with (
+            mock.patch.object(
+                log_handler,
+                'emit',
+                side_effect=RuntimeError('synthetic-framework-handler-detail'),
+            ) as emit,
+            mock.patch.object(framework_logger, 'handlers', [log_handler]),
+        ):
+            for value, is_error in ((42, False), ('invalid', True)):
+                with self.subTest(is_error=is_error):
+                    response = await self._call_tool(typed_tool, {'value': value})
+                    self.assertEqual(response.json()['result']['isError'], is_error)
+                    self.assertNotIn('synthetic-framework-handler-detail', response.text)
+                    if is_error:
+                        self.assertIn('MCP tool validation failed.', response.text)
+
+        self.assertGreater(emit.call_count, 0)
+
+    async def test_unknown_name_is_not_exposed_in_framework_logs(self) -> None:
+        async def unused_tool() -> None:
+            self.fail('unknown tool must not execute')
+
+        unknown_name = 'synthetic-private-unknown-tool'
+        with self.assertLogs(level='DEBUG') as captured:
+            response = await self._call_tool(unused_tool, requested_name=unknown_name)
+
+        self.assertTrue(response.json()['result']['isError'])
+        combined_logs = '\n'.join(captured.output)
+        self.assertNotIn(unknown_name, combined_logs)
+        self.assertIn('tool=unknown', combined_logs)
+
+    async def test_malformed_envelope_is_not_exposed_in_sdk_root_logs(self) -> None:
+        async def unused_tool() -> None:
+            self.fail('malformed requests must not execute a tool')
+
+        secret = 'synthetic-private-envelope-input'
+        with self.assertLogs(level='DEBUG') as captured:
+            response = await self._call_tool(unused_tool, requested_name=[secret])
+
+        self.assertEqual(response.json()['error']['code'], -32602)
+        self.assertNotIn(secret, response.text)
+        self.assertNotIn(secret, '\n'.join(captured.output))
+        self.assertTrue(any(
+            record.levelno == logging.WARNING
+            and 'component=session' in record.getMessage()
+            for record in captured.records
+        ))
 
     async def test_telemetry_failure_cannot_replace_public_result(self) -> None:
         async def expected_failure() -> None:
@@ -287,3 +400,7 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
         result_text = json.dumps(result)
         self.assertIn('The requested object is not available.', result_text)
         self.assertNotIn(telemetry_secret, result_text)
+
+
+if __name__ == '__main__':
+    unittest.main()

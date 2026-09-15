@@ -202,44 +202,28 @@ long-lived environments.
 
 ## MCP
 
-MCP uses an in-process OIDC proxy. Enable Gateway JWT authentication and
-authorization, then provide the public resource URL, OIDC discovery URL,
-client ID and an existing client Secret:
+Enable MCP on a control-plane release with a public HTTPS Gateway,
+identity-provider JWT validation, and semantic authorization. MCP uses the
+`mcp` image and mandatory in-process OIDC authentication. The development
+quickstart leaves it disabled.
+Use the standard component image fields to select a compatible published image.
 
-```yaml
-services:
-  mcp:
-    enabled: true
-    resourceUrl: https://osmo.example.com/mcp
-    oidcProxy:
-      oidc:
-        configUrl: https://issuer.example.com/.well-known/openid-configuration
-        clientId: example-mcp-client
-      existingSecret:
-        name: mcp-oidc
-```
+Follow the [MCP deployment guide](../../../docs/deployment_guide/advanced_config/mcp.rst)
+for the shared `services.mcp` overlay, application registration, client-secret
+setup, discovery routes, verification, and operations.
 
-The Secret's default key is `client-secret`. MCP inherits the effective
-external or embedded Valkey connection and password Secret; set
-`existingSecret.redisPasswordKey` only for a combined OIDC/Valkey Secret.
-For a custom file mount, leave `existingSecret.name` empty and configure
-`oidc.clientSecretFile`, `services.mcp.extraVolumeMounts` and
-`services.mcp.pod.extraVolumes`. Never put credential contents in values.
-Multiple replicas must share the same OIDC Secret, Valkey DB and key prefix.
+This chart uses its existing dependency and credential conventions:
 
-Register the upstream callback as `https://osmo.example.com/mcp/auth/callback`
-and the resource scope as `https://osmo.example.com/mcp/access_as_user`.
-Use a JWT provider matching the upstream access-token issuer. Set
-`oidc.accessTokenIssuer` when that issuer differs from discovery.
-Pin a compatible published MCP image using the standard component image fields.
-
-After deployment, connect an OAuth-capable client to `/mcp` and complete browser
-login. Verify `osmo_health`, `osmo_get_profile`, denied access for a restricted
-user, and refresh after token expiry. Discovery is public at the exact paths
-`/.well-known/oauth-authorization-server/mcp` and
-`/.well-known/oauth-protected-resource/mcp`. OAuth routes allow only their
-supported methods; unknown `/mcp/` paths, including health, return 404.
-Tool calls still pass through normal Gateway API authorization.
+- Enable `planes.control.enabled`, `gateway.envoy.enabled`, and
+  `gateway.authz.enabled`. Configure the upstream identity provider under
+  `gateway.envoy.jwt.providers` or `gateway.envoy.jwt.additionalProviders`.
+- Redis connection settings follow `embeddedDependencies.valkey` or
+  `externalDependencies.valkey`; the password is mounted from
+  `secrets.valkey`. MCP does not currently inherit external Valkey custom CA
+  mounts; its TLS connections use the image's system trust store.
+- Use `services.mcp.oidcProxy.existingSecret` for the OIDC client secret.
+  Other injected files use `services.mcp.extraVolumeMounts` with
+  `services.mcp.pod.extraVolumes`.
 
 ## Single-plane external dependencies
 

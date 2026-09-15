@@ -161,7 +161,15 @@ osmo_py_test(
 
 osmo_py_test(
     name = "test_protocol",
-    srcs = ["test_protocol.py"],
+    srcs = [
+        "test_protocol.py",
+        "unittest_main.py",
+    ],
+    main = "unittest_main.py",
+    args = [
+        "--module",
+        "src.service.mcp.tests.test_protocol",
+    ],
     deps = [
         ":protocol_harness",
         "//src/service/mcp:fastmcp_runtime",
