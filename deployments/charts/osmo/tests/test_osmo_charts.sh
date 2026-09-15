@@ -1017,6 +1017,17 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
         "table.insert(roles, 'osmo-admin')"
 
+    helm install external-auth-http "$charts_copy/osmo" \
+        --dry-run=client \
+        --namespace osmo \
+        -f "$CHARTS_ROOT/osmo/tests/default-external-url-values.yaml" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string externalUrl=http://osmo.example.com \
+        >"$TEST_DIRECTORY/external-auth-http.yaml"
+    require_contains "$TEST_DIRECTORY/external-auth-http.yaml" \
+        "WARNING: HTTP is for trusted development networks only."
+
     helm_template external-custom-roles-claim "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

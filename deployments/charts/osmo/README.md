@@ -343,9 +343,9 @@ Service; put an operator-managed TLS edge in front of it and set `externalUrl`
 to that public URL. OAuth2 Proxy authenticates requests inside the release,
 Envoy strips client-supplied OSMO identity headers, and the OSMO authorization
 service enforces role policies. NetworkPolicies prevent in-cluster clients from
-bypassing Envoy to reach control-plane Services. See [Authentication providers
-and credential lifecycle](#authentication-providers-and-credential-lifecycle)
-to select `externalOidc` instead.
+bypassing Envoy to reach control-plane Services. See
+[Bootstrap identities](#bootstrap-identities) and
+[OAuth credentials](#oauth-credentials) to select `externalOidc` instead.
 Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
 creating the policy objects does not prove that the cluster enforces them.
 
@@ -353,13 +353,11 @@ Install OSMO with the production profile and the environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
-kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
-  --from-literal=client_secret='<oidc-client-secret>' \
-  --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
-# Edit self-contained-environment-values.yaml for the target environment.
+# Edit self-contained-environment-values.yaml for the target environment and,
+# for production, configure externalOidc and its existing Secret references.
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \

@@ -223,7 +223,8 @@ class EmbeddedDexKind(SmokeFixture):
                 status = error.code
                 response_body = error.read().decode("utf-8", errors="replace")
                 error.close()
-            if status != 401 or time.monotonic() >= authorization_deadline:
+            if (status not in (401, 502, 503, 504) or
+                    time.monotonic() >= authorization_deadline):
                 break
             time.sleep(1)
         self.assertNotIn(

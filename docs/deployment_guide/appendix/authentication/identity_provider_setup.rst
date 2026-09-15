@@ -47,7 +47,7 @@ history or process arguments:
    printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
      "$OSMO_OIDC_SECRET_DIR/client_secret"
    unset OSMO_BROWSER_CLIENT_SECRET
-   openssl rand -base64 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
+   openssl rand 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
    kubectl --namespace osmo create secret generic osmo-external-oidc \
      --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
      --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
