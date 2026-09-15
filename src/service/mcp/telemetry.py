@@ -83,23 +83,33 @@ _SDK_SESSION_LOG_FILTER = _SDKSessionLogFilter()
 
 
 def _log_framework_event(record: logging.LogRecord, component: str) -> None:
+    message = 'MCP framework event component=%s operation=%s'
+    arguments: tuple[object, ...] = (component, record.funcName)
     if (
         isinstance(record.msg, str)
         and record.msg in _FRAMEWORK_LIFECYCLE_MESSAGES
         and not record.args
         and record.exc_info is None
     ):
-        _log_best_effort(_FRAMEWORK_LOGGER, record.levelno, record.msg)
-    else:
-        # funcName is Python source metadata, not the requested tool name.
-        # Re-emission excludes the original args, traceback, and extras.
-        _log_best_effort(
-            _FRAMEWORK_LOGGER,
-            record.levelno,
-            'MCP framework event component=%s operation=%s',
-            component,
-            record.funcName,
-        )
+        message = record.msg
+        arguments = ()
+
+    # Copy only static source fields; exclude payloads, tracebacks, and extras.
+    safe_record = logging.LogRecord(
+        name=_FRAMEWORK_LOGGER.name,
+        level=record.levelno,
+        pathname=record.pathname,
+        lineno=record.lineno,
+        msg=message,
+        args=arguments,
+        exc_info=None,
+        func=record.funcName,
+    )
+    try:
+        # Preserve the source logger's level decision without another caller lookup.
+        _FRAMEWORK_LOGGER.handle(safe_record)
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
 
 
 def configure_framework_logging() -> None:
