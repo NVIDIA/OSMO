@@ -17,6 +17,12 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 exports_files([
+    "scripts/deploy-osmo-gcp.sh",
+    "scripts/gcp/values.jq",
+    "scripts/single-plane-gcp.yaml",
+    "terraform/gcp/example/main.tf",
+    "terraform/gcp/example/outputs.tf",
+    "terraform/gcp/example/variables.tf",
     "scripts/common.sh",
     "scripts/deploy-osmo-single-plane.sh",
     "scripts/deploy-osmo-minimal.sh",
