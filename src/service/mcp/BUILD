@@ -139,8 +139,11 @@ osmo_py_library(
     ],
     deps = [
         ":fastmcp_runtime",
+        requirement("cryptography"),
         requirement("httpx"),
+        requirement("py-key-value-aio"),
         requirement("pydantic"),
+        requirement("redis"),
         requirement("starlette"),
         requirement("uvicorn"),
         ":tool_contracts",
