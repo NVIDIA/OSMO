@@ -121,7 +121,7 @@ def resolve_env(args: argparse.Namespace) -> Dict[str, str]:
     auth_username = args.auth_username or env.auth.username
     auth_token = args.auth_token
     if not auth_token and auth_method == "token":
-        auth_token = resolve_token(env)
+        auth_token = os.environ.get("OSMO_ACCESS_TOKEN", "") or resolve_token(env)
         if not auth_token:
             _config_error(
                 f"--env {args.env!r} auth.token_env={env.auth.token_env} is not set.",
@@ -250,7 +250,7 @@ def build_bazel_command(
         "bazel", "test", *targets,
         f"--test_env=OETF_URL={env["url"]}",
         f"--test_env=OETF_AUTH_METHOD={env["auth_method"]}",
-        f"--test_env=OETF_AUTH_TOKEN={env["auth_token"]}",
+        "--test_env=OETF_AUTH_TOKEN",
         f"--test_env=OETF_AUTH_USERNAME={env["auth_username"]}",
         f"--test_env=OETF_POOL={env["pool"]}",
         f"--test_env=OETF_LOCAL_OSMO={env["local_osmo"]}",
@@ -842,7 +842,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     cmd = build_bazel_command(args, env, bep_path)
 
     print("+ " + " ".join(_redact(arg, env) for arg in cmd), file=sys.stderr)
-    proc = subprocess.run(cmd, cwd=_workspace_root(), check=False)
+    test_environment = os.environ.copy()
+    test_environment["OETF_AUTH_TOKEN"] = env["auth_token"]
+    proc = subprocess.run(
+        cmd, cwd=_workspace_root(), check=False, env=test_environment,
+    )
     bazel_exit = proc.returncode
 
     results = parse_bep_test_results(bep_path)

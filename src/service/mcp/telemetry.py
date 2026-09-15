@@ -22,25 +22,6 @@ from src.service.mcp import request_context
 
 
 _LOGGER = logging.getLogger(__name__)
-_FRAMEWORK_LOGGER = logging.getLogger('src.service.mcp.framework')
-# These pinned framework sources log request payloads, rejected arguments, or
-# exception tracebacks before the OSMO tool boundary can sanitize them. Their
-# authentication loggers have a separate lifecycle and are not changed here.
-_FRAMEWORK_COMPONENTS = {
-    'fastmcp.server.server': 'server',
-    'fastmcp.server.mixins.mcp_operations': 'dispatch',
-    'fastmcp.server.low_level': 'initialization',
-    'fastmcp.server.http': 'http',
-    'fastmcp.tools.base': 'tool_result',
-    'fastmcp.tools.function_tool': 'tool_function',
-    'mcp.server.lowlevel.server': 'protocol',
-    'mcp.server.streamable_http': 'transport',
-    'mcp.server.streamable_http_manager': 'session_manager',
-}
-_FRAMEWORK_LIFECYCLE_MESSAGES = frozenset({
-    'StreamableHTTP session manager started',
-    'StreamableHTTP session manager shutting down',
-})
 _STATIC_ROUTES = frozenset({
     '/api/profile/settings',
     '/api/pool_quota',
@@ -56,83 +37,6 @@ _WORKFLOW_SUFFIXES = frozenset({
     'spec',
     'cancel',
 })
-
-
-class _FrameworkLogHandler(logging.Handler):
-    """Project framework diagnostics before any raw record reaches a sink."""
-
-    def __init__(self, component: str) -> None:
-        super().__init__()
-        self._component = component
-
-    def emit(self, record: logging.LogRecord) -> None:
-        _log_framework_event(record, self._component)
-
-
-class _SDKSessionLogFilter(logging.Filter):
-    """Project the pinned SDK session's direct root-logger diagnostics."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if not record.pathname.endswith('/mcp/shared/session.py'):
-            return True
-        _log_framework_event(record, 'session')
-        return False
-
-
-_SDK_SESSION_LOG_FILTER = _SDKSessionLogFilter()
-
-
-def _log_framework_event(record: logging.LogRecord, component: str) -> None:
-    message = 'MCP framework event component=%s operation=%s'
-    arguments: tuple[object, ...] = (component, record.funcName)
-    if (
-        isinstance(record.msg, str)
-        and record.msg in _FRAMEWORK_LIFECYCLE_MESSAGES
-        and not record.args
-        and record.exc_info is None
-    ):
-        message = record.msg
-        arguments = ()
-
-    # Copy only static source fields; exclude payloads, tracebacks, and extras.
-    safe_record = logging.LogRecord(
-        name=_FRAMEWORK_LOGGER.name,
-        level=record.levelno,
-        pathname=record.pathname,
-        lineno=record.lineno,
-        msg=message,
-        args=arguments,
-        exc_info=None,
-        func=record.funcName,
-    )
-    try:
-        # Preserve the source logger's level decision without another caller lookup.
-        _FRAMEWORK_LOGGER.handle(safe_record)
-    except Exception:  # pylint: disable=broad-exception-caught
-        pass
-
-
-def configure_framework_logging() -> None:
-    """Install the MCP process's payload-free dispatch and transport logging.
-
-    Configure the source loggers because FastMCP has its own non-propagating
-    handlers, and protocol payloads may be logged before a tool context exists.
-    Preserve severity and code operation at every configured logging level.
-    """
-    for name, component in _FRAMEWORK_COMPONENTS.items():
-        logger = logging.getLogger(name)
-        if not (
-            len(logger.handlers) == 1
-            and isinstance(logger.handlers[0], _FrameworkLogHandler)
-        ):
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-            logger.addHandler(_FrameworkLogHandler(component))
-        logger.propagate = False
-    # mcp.shared.session logs rejected envelopes directly on the root logger.
-    # Child loggers propagate to root handlers without re-running root filters,
-    # so the safe framework logger above does not recurse through this filter.
-    logging.getLogger().addFilter(_SDK_SESSION_LOG_FILTER)
 
 
 def _log_best_effort(

@@ -92,6 +92,20 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'progress_iter_frequency',
             'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
         })
+    bootstrap_identity_config_file: str | None = pydantic.Field(
+        default=None,
+        description='JSON configuration for Secret-backed bootstrap identities.',
+        json_schema_extra={
+            'command_line': 'bootstrap_identity_config_file',
+            'env': 'OSMO_BOOTSTRAP_IDENTITY_CONFIG_FILE'
+        })
+    bootstrap_token_directory: str | None = pydantic.Field(
+        default=None,
+        description='Directory containing bootstrap identity Secret projections.',
+        json_schema_extra={
+            'command_line': 'bootstrap_token_directory',
+            'env': 'OSMO_BOOTSTRAP_TOKEN_DIRECTORY'
+        })
     backend_token_directory: str | None = pydantic.Field(
         default=None,
         description='Directory containing Kubernetes Secret projections used to authenticate '

@@ -97,13 +97,9 @@ The relay boundary has these invariants:
   or bearer values. A separate final tool outcome is emitted only after MCP
   result validation, so a malformed HTTP 200 is never classified as a
   successful tool result.
-- Dispatch, protocol/session, and transport diagnostics retain severity, a fixed
-  component, and a source-operation name. Their raw messages, arguments,
-  exception tracebacks, and extra fields are discarded; session lifecycle
-  messages remain available.
-  This policy does not cover authentication loggers. Canonical tool and
-  upstream telemetry stays separate, and logging failures cannot change a
-  tool's outcome.
+- Tool and upstream telemetry is best-effort: a failed service logging handler
+  cannot replace the API response or change the tool's outcome. Framework
+  logging keeps its default behavior.
 - Only explicitly classified, bounded public errors can reach a client.
   Validation failures use fixed messages and unexpected exceptions fail closed
   to a generic error without reflecting exception text.
@@ -113,9 +109,10 @@ inside the bearer-token handling boundary. None may log the authorization
 value. The only intentional persistence is FastMCP's encrypted upstream-token
 state in Redis.
 
-The Kubernetes `/health`, `/health/live`, and `/health/ready` endpoints
-report process health. The separate `osmo_health` tool probes caller-bound
-Gateway authentication and OSMO profile access.
+The Kubernetes `/health` and `/health/live` endpoints report process health.
+The `/health/ready` endpoint also checks Redis connectivity with a two-second
+timeout. The separate `osmo_health` tool probes caller-bound Gateway
+authentication and OSMO profile access.
 
 ## Code organization
 
@@ -182,11 +179,10 @@ Gateway origin; OAuth routing; the `/mcp` filter boundary; secret
 mounts; ingress isolation; and expected configuration failures.
 Each chart suite checks its own routing policy and configuration conventions.
 
-When upgrading FastMCP or the MCP SDK, review their dispatch, transport, and
-session diagnostic sources. Rerun the MCP suite, including `test_protocol`
-for malformed-envelope, validation-error, and exception leak checks, and
-`test_gateway` and `test_telemetry` for safe outcome logging. The logging
-policy is tied to the pinned framework sources.
+When upgrading FastMCP or the MCP SDK, rerun the MCP suite, including
+`test_protocol` for validation and public-error boundaries, and `test_gateway`
+and `test_telemetry` for best-effort service logging. Framework logging is
+not intercepted or sanitized by this service.
 
 ## Deployment validation
 

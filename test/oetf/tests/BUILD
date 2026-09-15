@@ -154,5 +154,14 @@ osmo_py_test(
     tags = ["manual"],
 )
 
+osmo_py_test(
+    name = "test_deploy_and_run",
+    srcs = ["test_deploy_and_run.py"],
+    deps = [
+        "//test/oetf:deploy_and_run_main_lib",
+        "//test/oetf:models",
+    ],
+)
+
 # test_dev_adapter stays internal — dev_adapter.py is not shipped in the public
 # OETF distribution; the internal overlay package owns its tests.

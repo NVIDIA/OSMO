@@ -35,7 +35,6 @@ class OSMOFastMCP(FastMCP):
     """FastMCP server with fail-closed, non-reflective tool validation."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        telemetry.configure_framework_logging()
         # MCP SDK schema validation reflects rejected input values in its error
         # text. Let FunctionTool validate inside call_tool so this boundary can
         # replace all validation detail with a fixed public message.

@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import logging
 import unittest
+from unittest import mock
 
 from src.service.mcp import request_context, telemetry
 
@@ -25,41 +26,27 @@ from src.service.mcp import request_context, telemetry
 class TelemetryTest(unittest.TestCase):
     """Keep upstream telemetry useful without logging resource identifiers."""
 
-    def test_framework_logs_preserve_source_without_payloads(self) -> None:
-        telemetry.configure_framework_logging()
-        source_logger = logging.getLogger('fastmcp.server.mixins.mcp_operations')
-        self.addCleanup(source_logger.setLevel, source_logger.level)
-        source_logger.setLevel(logging.DEBUG)
-        secret = 'synthetic-private-framework-detail'
+    def test_log_tool_outcome_ignores_handler_failure(self) -> None:
+        log_handler = logging.Handler()
+        telemetry_logger = logging.getLogger('src.service.mcp.telemetry')
+        self.addCleanup(telemetry_logger.setLevel, telemetry_logger.level)
+        telemetry_logger.setLevel(logging.INFO)
+        with (
+            mock.patch.object(
+                log_handler,
+                'emit',
+                side_effect=RuntimeError('synthetic-log-handler-failure'),
+            ) as emit,
+            mock.patch.object(telemetry_logger, 'handlers', [log_handler]),
+        ):
+            telemetry.log_tool_outcome(
+                tool_name='osmo_get_profile',
+                outcome='success',
+                duration_ms=3.25,
+                request_id='request-456',
+            )
 
-        for level in (logging.DEBUG, logging.WARNING):
-            with self.subTest(level=level):
-                with self.assertLogs(level='DEBUG') as captured:
-                    # The sink accepts DEBUG even though the root logger is INFO.
-                    logging.getLogger().setLevel(logging.INFO)
-                    source_logger.log(
-                        level,
-                        'Private framework message: %s',
-                        secret,
-                        exc_info=RuntimeError(secret),
-                        stack_info=True,
-                        extra={'private_detail': secret},
-                    )
-
-                self.assertEqual(len(captured.records), 1)
-                record = captured.records[0]
-                self.assertEqual(record.name, 'src.service.mcp.framework')
-                self.assertEqual(record.levelno, level)
-                self.assertEqual(record.pathname, __file__)
-                self.assertEqual(
-                    record.funcName,
-                    'test_framework_logs_preserve_source_without_payloads',
-                )
-                self.assertIn('component=dispatch', record.getMessage())
-                self.assertIsNone(record.exc_info)
-                self.assertIsNone(record.stack_info)
-                self.assertNotIn('private_detail', vars(record))
-                self.assertNotIn(secret, str(vars(record)))
+        emit.assert_called_once()
 
     def test_route_templates_remove_dynamic_identifiers(self) -> None:
         cases = {

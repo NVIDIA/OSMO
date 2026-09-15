@@ -27,6 +27,11 @@ This guide describes how to deploy `Keycloak <https://www.keycloak.org/>`_ and c
 
    Keycloak is one option for an IdP. OSMO can also connect directly to other providers such as Microsoft Entra ID, Google, or AWS IAM Identity Center without Keycloak. See :doc:`authentication/identity_provider_setup` for direct IdP configuration.
 
+   For the unified ``osmo`` chart, configure Keycloak under
+   ``authentication.externalOidc`` and set
+   ``embeddedDependencies.dex.enabled: false``. Embedded Dex remains the
+   default when an external provider is not selected.
+
 When to use Keycloak
 ====================
 
@@ -286,10 +291,17 @@ Create the OAuth2 Proxy secret using the client secret from :ref:`keycloak_post_
 
 .. code-block:: bash
 
-   $ kubectl create secret generic oauth2-proxy-secrets \
-     --from-literal=client_secret=<keycloak-client-secret> \
-     --from-literal=cookie_secret=$(openssl rand -base64 32) \
-     --namespace osmo
+   $ umask 077
+   $ OSMO_KEYCLOAK_SECRET_DIR=$(mktemp -d)
+   $ trap 'rm -rf -- "$OSMO_KEYCLOAK_SECRET_DIR"' EXIT
+   $ read -rsp 'Keycloak client secret: ' OSMO_KEYCLOAK_CLIENT_SECRET
+   $ printf '%s' "$OSMO_KEYCLOAK_CLIENT_SECRET" > \
+       "$OSMO_KEYCLOAK_SECRET_DIR/client_secret"
+   $ unset OSMO_KEYCLOAK_CLIENT_SECRET
+   $ openssl rand -base64 32 > "$OSMO_KEYCLOAK_SECRET_DIR/cookie_secret"
+   $ kubectl --namespace osmo create secret generic oauth2-proxy-secrets \
+       --from-file=client_secret="$OSMO_KEYCLOAK_SECRET_DIR/client_secret" \
+       --from-file=cookie_secret="$OSMO_KEYCLOAK_SECRET_DIR/cookie_secret"
 
 OSMO Helm values for Keycloak
 ------------------------------
