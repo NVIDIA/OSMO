@@ -565,7 +565,7 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                 [sys.executable, str(script), str(values_path)],
                 check=False, capture_output=True, text=True)
             partial = subprocess.run(
-                [sys.executable, str(script), '--allow-unmapped',
+                [sys.executable, str(script), '--allow-partial',
                  str(values_path)],
                 check=False, capture_output=True, text=True)
 

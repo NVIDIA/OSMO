@@ -656,7 +656,7 @@ def _parser() -> argparse.ArgumentParser:
             'Helm.'),
         epilog=(
             'By default, unsupported or ambiguous input suppresses YAML and '
-            'exits 2. Use --allow-unmapped to emit the safe partial output. '
+            'exits 2. Use --allow-partial to emit the safe partial output. '
             'Diagnostics never include secret values.'),
     )
     parser.add_argument('values', nargs='+', type=pathlib.Path,
@@ -672,7 +672,7 @@ def _parser() -> argparse.ArgumentParser:
         help=('existing Helm release name; required when the legacy backend '
               'test runner is enabled and global.name is unset'))
     parser.add_argument(
-        '--allow-unmapped', action='store_true',
+        '--allow-partial', action='store_true',
         help='emit safe partial output when manual follow-up is required')
     return parser
 
@@ -693,8 +693,8 @@ def main() -> int:
               file=sys.stderr)
         for issue in result.issues:
             print(f'- {issue.path}: {issue.message}', file=sys.stderr)
-        if not arguments.allow_unmapped:
-            print('no YAML emitted; rerun with --allow-unmapped to inspect the '
+        if not arguments.allow_partial:
+            print('no YAML emitted; rerun with --allow-partial to inspect the '
                   'safe partial conversion', file=sys.stderr)
             return 2
     rendered = yaml.safe_dump(result.values, sort_keys=False)

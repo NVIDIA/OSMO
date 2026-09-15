@@ -329,14 +329,14 @@ class ComputeValuesConvertTest(unittest.TestCase):
         self.assertIn('unsupported.credential', completed.stderr)
         self.assertNotIn(secret_value, completed.stderr)
 
-    def test_allow_unmapped_emits_partial_conversion(self) -> None:
+    def test_allow_partial_emits_partial_conversion(self) -> None:
         completed = self.run_converter([{
             'global': {
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
             },
             'unsupported': {'setting': True},
-        }], '--allow-unmapped')
+        }], '--allow-partial')
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn('unsupported.setting', completed.stderr)

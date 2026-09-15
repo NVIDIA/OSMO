@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 Convert legacy deployments/charts/service values to unified-chart values.
 
 The converter is deliberately strict. It emits no YAML when a setting cannot
-be translated without operator input, unless --allow-unmapped is supplied.
+be translated without operator input, unless --allow-partial is supplied.
 Diagnostics never include values, which makes the report suitable for CI logs.
 """
 
@@ -991,7 +991,7 @@ def _parser() -> argparse.ArgumentParser:
             'values. Multiple inputs are merged left-to-right like Helm.'),
         epilog=(
             'By default, any unsupported or ambiguous input suppresses YAML '
-            'output and exits 2. Use --allow-unmapped to emit the safe partial '
+            'output and exits 2. Use --allow-partial to emit the safe partial '
             'conversion; diagnostics are always written to stderr and never '
             'include secret values.'),
     )
@@ -1000,7 +1000,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument('-o', '--output', type=pathlib.Path,
                         help='write converted YAML here instead of stdout')
     parser.add_argument(
-        '--allow-unmapped', action='store_true',
+        '--allow-partial', action='store_true',
         help='emit safe partial output even when manual follow-up is required')
     return parser
 
@@ -1020,8 +1020,8 @@ def main() -> int:
               file=sys.stderr)
         for issue in result.issues:
             print(f'- {issue.path}: {issue.message}', file=sys.stderr)
-        if not arguments.allow_unmapped:
-            print('no YAML emitted; rerun with --allow-unmapped to inspect the '
+        if not arguments.allow_partial:
+            print('no YAML emitted; rerun with --allow-partial to inspect the '
                   'safe partial conversion', file=sys.stderr)
             return 2
     rendered = yaml.safe_dump(result.values, sort_keys=False)
