@@ -5715,6 +5715,7 @@ EOF
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
+        --set-string configuration.snapshot.service.service_base_url=http://internal-gateway.osmo.svc:8080 \
         >"$TEST_DIRECTORY/complete-snapshot.yaml"
 
     helm_template unified-export "$charts_copy/osmo" \
@@ -5726,6 +5727,8 @@ EOF
     resource_document "$TEST_DIRECTORY/complete-snapshot.yaml" ConfigMap \
         complete-snapshot-osmo-api-config \
         >"$TEST_DIRECTORY/complete-snapshot-config.yaml"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "service_base_url: http://internal-gateway.osmo.svc:8080"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
         "secretName: independent-data-storage"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \

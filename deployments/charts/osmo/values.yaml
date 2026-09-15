@@ -1798,6 +1798,9 @@ configuration:
   # The config exporter writes all nine managed sections here so empty maps
   # and deleted default entries remain exact after Helm values merging.
   snapshot: null
+  # Workflow containers use service_base_url for logs, token refresh and CLI
+  # access. It defaults to externalUrl; override it with a cluster-reachable
+  # gateway URL when the public origin is only reachable from a workstation.
   service: {}
   workflow:
     max_num_tasks: 100

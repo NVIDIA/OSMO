@@ -17,6 +17,9 @@ is a converged development flow. Its default gateway uses embedded Dex and remai
 a ClusterIP; smoke tests authenticate with the configured administrator token.
 The default public origin is `http://127.0.0.1:9000` for local port-forwarding.
 Set `externalUrl` in chart values to the reachable origin for remote browser login.
+Workflow containers use a separate in-cluster gateway endpoint for logs and token
+refresh; override `configuration.service.service_base_url` if they need a different
+reachable gateway address.
 
 ## Quick start
 

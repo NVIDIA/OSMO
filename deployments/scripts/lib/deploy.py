@@ -847,6 +847,21 @@ def install(options, environment, directory, chart, user_values):
     override_file = directory / 'install-values.json'
     override_file.write_text(json.dumps(requested))
     effective = inspect_values(directory, [default_file, override_file])
+    # The public browser origin may be a workstation's port-forward. Workflow
+    # containers need the gateway's cluster DNS address for logs and token refresh.
+    configuration = effective['configuration']
+    snapshot = configuration.get('snapshot')
+    runtime_configuration = snapshot if snapshot is not None else configuration
+    if not runtime_configuration.get('service', {}).get('service_base_url'):
+        gateway = f'{effective["fullnameOverride"]}-gateway.{options.namespace}.svc'
+        runtime_values = {'service': {'service_base_url':
+            f'http://{gateway}:{effective["gateway"]["envoy"]["service"]["port"]}'}}
+        if snapshot is not None:
+            runtime_values = {'snapshot': runtime_values}
+        runtime_values = {'configuration': runtime_values}
+        requested = merge(requested, runtime_values)
+        effective = merge(effective, runtime_values)
+        override_file.write_text(json.dumps(requested))
     reject_legacy(requested)
     if not effective['planes']['control']['enabled'] or not effective['planes']['compute']['enabled']:
         raise ValueError('This installer is converged; use Helm directly for split-plane profiles')

@@ -46,6 +46,12 @@ case "$1" in
         if [[ "${BROKEN:-}" == missing-jwt ]]; then echo 'allow_missing: {}'; fi
         echo "init: nvcr.io/nvstaging/osmo/init-container:$runtime_tag"
         echo "client: nvcr.io/nvstaging/osmo/client:$runtime_tag"
+        if [[ "${BROKEN:-}" != workflow-endpoint ]]; then
+            echo 'service_base_url: http://osmo-gateway.osmo.svc:80'
+        fi
+        if [[ "${BROKEN:-}" != browser-origin ]]; then
+            echo 'http://127.0.0.1:9000/dex'
+        fi
         cat <<'RENDERED'
 namespace: osmo
 name: osmo-gateway
@@ -67,7 +73,7 @@ MOCK
 chmod +x "$temporary/bin/helm"
 bash "$repo/ci/deployment-test/check-head-chart-contract.sh"
 grep -q 'chart_version=0.1.0' "$GITHUB_OUTPUT"
-for broken in runtime identity mounts authz identity-bypass missing-jwt; do
+for broken in runtime identity mounts authz identity-bypass missing-jwt workflow-endpoint browser-origin; do
     if BROKEN="$broken" bash "$repo/ci/deployment-test/check-head-chart-contract.sh" > "$temporary/failure.log" 2>&1; then
         echo "Broken $broken chart contract passed" >&2; exit 1
     fi

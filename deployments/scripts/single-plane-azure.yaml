@@ -54,6 +54,8 @@ secrets:
   objectStorage:
     existingSecret: ''
 configuration:
+  service:
+    service_base_url: http://osmo-gateway.osmo.svc:80
   podTemplates:
     azure_workload_identity:
       metadata:

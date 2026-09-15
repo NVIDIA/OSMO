@@ -220,6 +220,26 @@ class DeploymentTest(unittest.TestCase):
         self.assertGreater(token_read, max(i for i, call in enumerate(cluster.calls)
                                          if call[:2] == ('helm', 'upgrade')))
 
+    def test_workflow_endpoint_uses_gateway_namespace_port_and_preserves_overrides(self):
+        for snapshot in [False, True]:
+            for explicit in ['', 'https://workflow.example.com']:
+                with self.subTest(snapshot=snapshot, explicit=explicit):
+                    service = {'service_base_url': explicit} if explicit else {}
+                    configuration = {'service': service}
+                    if snapshot:
+                        configuration = {'snapshot': configuration}
+                    overrides = {'fullnameOverride': 'site', 'externalUrl': 'http://127.0.0.1:9100',
+                                 'gateway': {'envoy': {'service': {'port': 8081}}},
+                                 'compute': {'workloadNamespace': {'name': 'tasks', 'create': True}},
+                                 'configuration': configuration}
+                    _, calls = self.run_install(FakeCluster(), overrides=overrides,
+                                                options=self.options('--namespace', 'control'))
+                    effective = calls.args[2]
+                    self.assertEqual(effective['externalUrl'], 'http://127.0.0.1:9100')
+                    runtime = effective['configuration']['snapshot'] if snapshot else effective['configuration']
+                    self.assertEqual(runtime['service']['service_base_url'],
+                                     explicit or 'http://site-gateway.control.svc:8081')
+
     def test_verification_token_handles_custom_reference_and_missing_data(self):
         values = {'authentication': {'bootstrap': {'identities': {'admin': {
             'enabled': True, 'tokens': {'primary': {'existingSecret': {
@@ -585,6 +605,7 @@ class DeploymentTest(unittest.TestCase):
             rendered = result.stdout
             for expected in ['identity-bootstrap', 'secretName: osmo-default-admin',
                              '/etc/osmo/bootstrap-tokens/backend-operator-default/single-plane',
+                             'service_base_url: http://osmo-gateway.osmo.svc:80',
                              'http://127.0.0.1:9000/dex']:
                 self.assertIn(expected, rendered)
             for forbidden in ['pg-secret', 'cache-secret', 'access-secret']:
