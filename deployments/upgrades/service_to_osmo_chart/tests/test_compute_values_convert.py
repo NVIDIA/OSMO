@@ -205,6 +205,7 @@ class ComputeValuesConvertTest(unittest.TestCase):
     def test_cli_preserves_legacy_defaults(self) -> None:
         legacy = {
             'global': {
+                'backendNamespace': 'workflows',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
                 'backendTestNamespace': 'backend-tests',
@@ -251,6 +252,7 @@ class ComputeValuesConvertTest(unittest.TestCase):
     def test_cli_merges_partial_logging_with_legacy_defaults(self) -> None:
         completed = self.run_converter([{
             'global': {
+                'backendNamespace': 'workflows',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
                 'backendTestNamespace': 'backend-tests',
@@ -268,10 +270,43 @@ class ComputeValuesConvertTest(unittest.TestCase):
             'logFormat': 'json',
         })
 
+    def test_cli_merges_partial_resources_with_legacy_defaults(self) -> None:
+        completed = self.run_converter([{
+            'global': {
+                'backendNamespace': 'workflows',
+                'loginMethod': 'token',
+                'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
+            },
+            'services': {
+                'backendListener': {
+                    'resources': {'requests': {'cpu': '2'}},
+                },
+                'backendWorker': {
+                    'resources': {'requests': {'memory': '2Gi'}},
+                },
+            },
+        }])
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        converted = yaml.safe_load(completed.stdout)
+        self.assertEqual(
+            converted['services']['backendListener']['resources'], {
+                'requests': {'cpu': '2', 'memory': '2Gi'},
+                'limits': {'memory': '2Gi'},
+            })
+        self.assertEqual(
+            converted['services']['backendWorker']['resources'], {
+                'requests': {'cpu': '1', 'memory': '2Gi'},
+                'limits': {'memory': '1Gi'},
+            })
+
     def test_cli_uses_explicit_global_name_as_fullname_override(self) -> None:
         completed = self.run_converter([{
             'global': {
                 'name': 'stable-backend-name',
+                'backendNamespace': 'workflows',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
                 'backendTestNamespace': 'backend-tests',
@@ -299,6 +334,7 @@ class ComputeValuesConvertTest(unittest.TestCase):
         values = {
             'global': {
                 'agentNamespace': 'backend-agents',
+                'backendNamespace': 'workflows',
                 'loginMethod': 'token',
                 'accountTokenSecret': 'backend-token',
                 'backendTestNamespace': 'backend-tests',
@@ -313,6 +349,19 @@ class ComputeValuesConvertTest(unittest.TestCase):
         self.assertEqual(rejected.returncode, 2)
         self.assertIn('global.agentNamespace', rejected.stderr)
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
+
+    def test_cli_requires_explicit_workload_namespace(self) -> None:
+        completed = self.run_converter([{
+            'global': {
+                'loginMethod': 'token',
+                'accountTokenSecret': 'backend-token',
+                'backendTestNamespace': 'backend-tests',
+                'includeNamespaceUsage': 'workflows,backend-tests',
+            },
+        }])
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn('global.backendNamespace', completed.stderr)
 
     def test_cli_reports_unmapped_paths_without_values(self) -> None:
         secret_value = 'do-not-print-this-value'
@@ -353,6 +402,7 @@ class ComputeValuesConvertTest(unittest.TestCase):
                     'loginMethod': 'token',
                     'accountTokenSecret': 'backend-token',
                     'backendName': 'base-name',
+                    'backendNamespace': 'workflows',
                     'nodeSelector': {'pool': 'base', 'arch': 'amd64'},
                     'backendTestNamespace': 'backend-tests',
                     'includeNamespaceUsage': 'workflows,backend-tests',

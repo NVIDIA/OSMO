@@ -362,7 +362,15 @@ class _Converter:
 
     def _convert_component(self, component: str) -> None:
         root = f'services.{component}'
-        direct_fields = ['enabled', 'replicas', 'resources']
+        resources = _pop(self.source, f'{root}.resources')
+        if resources is not MISSING:
+            _set(
+                self.output,
+                f'{root}.resources',
+                _deep_merge(
+                    self.output['services'][component]['resources'],
+                    resources))
+        direct_fields = ['enabled', 'replicas']
         if component == 'backendListener':
             direct_fields.append('enableNodeLabelUpdate')
         if component == 'backendWorker':
@@ -614,6 +622,10 @@ class _Converter:
                 '--release-name',
                 'required to preserve the legacy backend test-runner '
                 'ServiceAccount name when global.name is unset')
+        if not self.output['compute']['workloadNamespace'].get('name'):
+            self.issue(
+                'global.backendNamespace',
+                'required to preserve the existing workflow namespace')
         if (self.output['services']['backendTestRunner'].get('enabled', True)
                 and not self.output['compute'].get('backendTestNamespace')):
             self.issue(

@@ -416,12 +416,12 @@ class _Converter:
             'services.localstackS3',
             'LocalStack settings cannot be translated to RustFS losslessly')
 
-        if postgres_enabled is False and not _get(
+        if postgres_enabled is not True and not _get(
                 self.output, 'secrets.postgresql.existingSecret'):
             self.issue('secrets.postgresql.existingSecret',
                        'required for external PostgreSQL; the legacy values '
                        'do not identify a compatible Kubernetes Secret')
-        if valkey_enabled is False and not _get(
+        if valkey_enabled is not True and not _get(
                 self.output, 'secrets.valkey.existingSecret'):
             self.issue('secrets.valkey.existingSecret',
                        'required for external Valkey; the legacy values do '
@@ -539,7 +539,7 @@ class _Converter:
         endpoints = [credential.get('endpoint', '')
                      for credential in credentials.values()]
         schemes = {str(endpoint).split('://', 1)[0]
-                   for endpoint in endpoints if '://' in str(endpoint)}
+                   for endpoint in endpoints if endpoint}
         if schemes and not schemes <= {'s3', 'azure', 'swift'}:
             scheme_list = ', '.join(sorted(schemes))
             self.issue('externalDependencies.objectStorage.locations',
@@ -935,8 +935,11 @@ class _Converter:
                                    alb.pop('groupName', 'osmo'))
             annotations.setdefault('alb.ingress.kubernetes.io/group.order',
                                    str(alb.pop('groupOrder', '10')))
-            annotations.setdefault('alb.ingress.kubernetes.io/certificate-arn',
-                                   alb.pop('sslCertArn', ''))
+            certificate_arn = alb.pop('sslCertArn', '')
+            if certificate_arn:
+                annotations.setdefault(
+                    'alb.ingress.kubernetes.io/certificate-arn',
+                    certificate_arn)
             _set(self.output, 'ingress.annotations', annotations)
         for path in _leaf_paths(alb, 'gateway.envoy.ingress.albAnnotations'):
             self.issue(path, 'no unified-chart mapping')

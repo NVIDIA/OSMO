@@ -115,6 +115,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: dependency-private-cas
+  namespace: <control-plane release namespace>
 type: Opaque
 stringData:
   postgresql-ca.crt: |
@@ -167,6 +168,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: workflow-storage-credentials
+  namespace: <control-plane release namespace>
 type: Opaque
 stringData:
   credential.json: |
@@ -224,6 +226,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: oauth-credentials
+  namespace: <control-plane release namespace>
 type: Opaque
 stringData:
   client_secret: <existing OAuth client secret>
@@ -533,6 +536,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: existing-backend-token
+  namespace: <agent namespace>
 type: Opaque
 stringData:
   token: <existing 43- or 64-character URL-safe token>
@@ -541,6 +545,17 @@ stringData:
 
 The compute agents mount the selected key at
 `/opt/osmo/secrets/token.txt`.
+
+When converting a password-authenticated release, add the token reference to
+the migration input before running the converter. Provisioning the Secret alone
+does not change the legacy authentication settings:
+
+```yaml
+global:
+  loginMethod: token
+  accountTokenSecret: existing-backend-token
+  accountTokenSecretKey: token
+```
 
 ### 2. Run the compute-plane converter
 
@@ -559,7 +574,9 @@ The legacy chart can render agents into `global.agentNamespace` while the Helm
 release lives elsewhere. The unified chart renders agents into the Helm release
 namespace. Set `--release-namespace` to the legacy agent namespace and deploy
 the unified release there. `global.backendNamespace` remains the workflow
-namespace and maps to `compute.workloadNamespace.name`.
+namespace and maps to `compute.workloadNamespace.name`; make it explicit in the
+migration input so the unified chart does not fall back to the release
+namespace.
 
 Make `global.includeNamespaceUsage` explicit in the migration input. If the
 backend test runner remains enabled, also set `global.backendTestNamespace`;
@@ -624,7 +641,9 @@ enabled:
 These are the names produced by the legacy chart's default component names. If
 the legacy values override a component name, delete that same-named Deployment
 instead. The unified chart recreates the enabled Deployments; a full release
-replacement is also valid, and downtime is expected.
+replacement is also valid, and downtime is expected. Full release replacement
+means replacing chart-managed resources, not deleting externally managed data,
+credentials, or their namespaces.
 
 The legacy `osmo-service` Deployment is replaced by `osmo-api`, so it does not
 have a same-name selector conflict. The compute listener and worker names also

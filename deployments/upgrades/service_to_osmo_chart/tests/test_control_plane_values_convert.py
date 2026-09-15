@@ -227,6 +227,21 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         self.assertFalse(
             result.values['gateway']['envoy']['autoscaling']['enabled'])
 
+    def test_omits_empty_alb_certificate_annotation(self):
+        result = control_plane_values_convert.convert_values({
+            'gateway': {
+                'envoy': {
+                    'ingress': {
+                        'albAnnotations': {'enabled': True},
+                    },
+                },
+            },
+        })
+
+        self.assertNotIn(
+            'alb.ingress.kubernetes.io/certificate-arn',
+            result.values['ingress']['annotations'])
+
     def test_preserves_existing_service_auth_identity(self):
         result = control_plane_values_convert.convert_values({})
 
@@ -247,6 +262,13 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         })
 
         self.assertFalse(result.values['secrets']['valkey']['generate'])
+
+    def test_requires_external_dependency_secrets_when_toggles_omitted(self):
+        result = control_plane_values_convert.convert_values({})
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn('secrets.postgresql.existingSecret', issue_paths)
+        self.assertIn('secrets.valkey.existingSecret', issue_paths)
 
     def test_rejects_legacy_in_chart_postgresql(self):
         result = control_plane_values_convert.convert_values({
@@ -376,15 +398,11 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         })
 
         issue_paths = {issue.path for issue in result.issues}
-        self.assertNotIn(
-            'configuration.workflow.workflow_data.credential.endpoint',
-            issue_paths)
-        self.assertNotIn(
-            'configuration.workflow.workflow_log.credential.endpoint',
-            issue_paths)
-        self.assertNotIn(
-            'configuration.workflow.workflow_app.credential.endpoint',
-            issue_paths)
+        self.assertFalse(any(path.startswith((
+            'configuration.workflow.',
+            'externalDependencies.objectStorage',
+            'secrets.objectStorage',
+        )) for path in issue_paths), result.issues)
         self.assertEqual(
             result.values['externalDependencies']['objectStorage'],
             {'authentication': {'type': 'static'}})
@@ -443,7 +461,10 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         })
 
         issue_paths = {issue.path for issue in result.issues}
-        self.assertNotIn('services.migration', issue_paths)
+        self.assertFalse(any(
+            path == 'services.migration'
+            or path.startswith('services.migration.')
+            for path in issue_paths), result.issues)
         self.assertEqual(result.values['databaseMigration'], {
             'enabled': True,
             'targetSchema': 'public_v6_4_0',
@@ -471,6 +492,11 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
             'services': {'migration': {'enabled': False}},
         })
 
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertFalse(any(
+            path == 'services.migration'
+            or path.startswith('services.migration.')
+            for path in issue_paths), result.issues)
         self.assertFalse(result.values['databaseMigration']['enabled'])
 
     def test_reports_unsupported_database_migration_extensions(self):
@@ -549,6 +575,23 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                 'configs': {
                     'workflow': {
                         name: {'credential': {'endpoint': f'ftp://{name}'}}
+                        for name in (
+                            'workflow_data', 'workflow_log', 'workflow_app')
+                    },
+                },
+            },
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn('externalDependencies.objectStorage.locations',
+                      issue_paths)
+
+    def test_reports_storage_endpoint_without_scheme(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {
+                'configs': {
+                    'workflow': {
+                        name: {'credential': {'endpoint': f'bucket/{name}'}}
                         for name in (
                             'workflow_data', 'workflow_log', 'workflow_app')
                     },
