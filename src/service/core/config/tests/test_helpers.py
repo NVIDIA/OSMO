@@ -184,16 +184,6 @@ class TestUpdateBackendQueuesFromConfigmap(unittest.TestCase):
 
         self.assertEqual(job_class.call_args.kwargs['cleanup_specs'], current_specs)
 
-    # SUSPECTED BUG: src/service/core/config/helpers.py:update_backend_queues_from_configmap -
-    # the deduplication key built at lines 78-83 uses resource_type, labels and custom_api but
-    # omits generic_api. The KAI factory (src/utils/job/kb_objects.py:474-486) returns cleanup
-    # specs that differ ONLY by generic_api (Queue vs Topology) with identical resource_type
-    # (None), labels and custom_api (None). When a scheduler-type switch triggers the dedup
-    # branch, those two distinct resource kinds collapse into a single spec, so one of the CRD
-    # kinds is never cleaned up and is orphaned in the backend cluster. The surrounding comment
-    # says the dedup exists "to avoid processing the same resource type twice", but Queue and
-    # Topology are not the same resource type. generic_api must be part of the key.
-    @unittest.skip('source bug - see SUSPECTED BUG comment above')
     def test_switching_schedulers_keeps_specs_that_only_differ_by_generic_api(self):
         current_specs = [_cleanup_spec(kind='Queue'), _cleanup_spec(kind='Topology')]
         factories = [_factory(current_specs), _factory([_cleanup_spec(kind='Queue')])]
