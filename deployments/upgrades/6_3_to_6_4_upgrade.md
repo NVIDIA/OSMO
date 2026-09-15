@@ -80,9 +80,10 @@ do not need to be reformatted solely for this chart migration.
 
 Manual action is required only when a diagnostic says the legacy values do not
 identify a usable Secret, when credentials are supplied inline or through an
-injected file, when private CA trust was supplied through a custom mount, or for
-the database-backed service-auth identity described below. Externally managed
-Secrets may remain externally owned.
+injected file, when converting per-location object-storage Secrets, when private
+CA trust was supplied through a custom mount, or for the database-backed
+service-auth identity described below. Externally managed Secrets may remain
+externally owned.
 
 If the PostgreSQL or Valkey password was inline or the legacy values omitted
 its Secret reference, create or identify a single-key Secret and set its name
@@ -148,18 +149,18 @@ application component that connects to that dependency.
 
 #### Object-storage Secrets
 
-The converter maps each legacy object-storage `secretName` to a typed
-per-location Secret reference. No Secret change is needed when all three
-referenced Secrets already contain their own `endpoint` and credential fields.
+The service loads each per-location credential from one file selected by
+`secretName` and `secretKey`; it does not merge separate Secret data keys. The
+converter maps each legacy object-storage `secretName` and selects
+`credential.json`. Add that data key to each referenced Secret unless it already
+contains the complete credential document. Existing legacy keys may remain.
 
 The converter reports `services.configs.secretRefs` because it cannot determine
 which arbitrary mounts contain storage credentials. Remove entries used only
 for storage after configuring the typed references. Move non-storage
 application configuration mounts to `configuration.secretRefs`.
 
-If credentials were inline or injected as files, move them into Kubernetes
-Secrets. A blank `key` mounts every data item as its own file under
-`/etc/osmo/secrets/<secret-name>/<data-key>`:
+The document must contain the endpoint and credentials for that location:
 
 ```yaml
 apiVersion: v1
@@ -168,9 +169,12 @@ metadata:
   name: workflow-storage-credentials
 type: Opaque
 stringData:
-  endpoint: swift://<account>/<workflow-container>/<prefix>
-  access_key_id: <existing access key identifier>
-  access_key: <existing secret access key>
+  credential.json: |
+    {
+      "endpoint": "swift://<account>/<workflow-container>/<prefix>",
+      "access_key_id": "<existing access key identifier>",
+      "access_key": "<existing secret access key>"
+    }
 ```
 
 ```yaml
@@ -193,19 +197,18 @@ secrets:
     credentialSecretRefs:
       workflows:
         name: workflow-storage-credentials
-        key: ""
+        key: credential.json
       logs:
         name: log-storage-credentials
-        key: ""
+        key: credential.json
       apps:
         name: application-storage-credentials
-        key: ""
+        key: credential.json
 ```
 
-This Secret-only endpoint form requires every referenced Secret to provide its
-own `endpoint`. Alternatively, set each `key` to a YAML credential document.
 Configure all three per-location references, and do not combine them with the
-shared `existingSecret` form.
+shared `existingSecret` form. If an existing combined document uses another
+data-key name, override `key` for that location.
 
 Static credential documents use `access_key_id` and `access_key`; optional
 fields include `endpoint`, `region`, `override_url`, and `addressing_style`.

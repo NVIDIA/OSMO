@@ -342,9 +342,12 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         self.assertEqual(
             result.values['secrets']['objectStorage']['credentialSecretRefs'],
             {
-                'workflows': {'name': 'workflow-data', 'key': ''},
-                'logs': {'name': 'workflow-logs', 'key': ''},
-                'apps': {'name': 'workflow-apps', 'key': ''},
+                'workflows': {
+                    'name': 'workflow-data', 'key': 'credential.json'},
+                'logs': {
+                    'name': 'workflow-logs', 'key': 'credential.json'},
+                'apps': {
+                    'name': 'workflow-apps', 'key': 'credential.json'},
             })
         self.assertEqual(
             result.values['configuration']['workflow']['workflow_data'],
@@ -388,9 +391,12 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
         self.assertEqual(
             result.values['secrets']['objectStorage']['credentialSecretRefs'],
             {
-                'workflows': {'name': 'workflow-data', 'key': ''},
-                'logs': {'name': 'workflow-logs', 'key': ''},
-                'apps': {'name': 'workflow-apps', 'key': ''},
+                'workflows': {
+                    'name': 'workflow-data', 'key': 'credential.json'},
+                'logs': {
+                    'name': 'workflow-logs', 'key': 'credential.json'},
+                'apps': {
+                    'name': 'workflow-apps', 'key': 'credential.json'},
             })
 
     def test_rejects_incomplete_secret_only_storage_endpoints(self):

@@ -504,7 +504,7 @@ class _Converter:
                 _set(
                     self.output,
                     f'secrets.objectStorage.credentialSecretRefs.{new_name}',
-                    {'name': secret_name, 'key': ''})
+                    {'name': secret_name, 'key': 'credential.json'})
             supported_credential_keys = {
                 'endpoint', 'secretName', 'region', 'override_url',
             }
