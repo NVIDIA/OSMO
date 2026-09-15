@@ -144,6 +144,33 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(captured.output), 1)
                 self.assertIn('tool=unknown outcome=public_error', captured.output[0])
 
+    async def test_skipping_middleware_keeps_the_credential_guard(self) -> None:
+        async def unused_tool(value: str) -> None:
+            del value
+            self.fail('credential-bearing arguments must not reach the tool')
+
+        mcp_server = protocol.OSMOFastMCP(name='direct dispatch boundary test')
+        mcp_server.tool(unused_tool, name='boundary_test_tool')
+        credentials = request_context.RequestCredentials(
+            authorization_header=f'Bearer {_BEARER_SECRET}',
+            request_id='boundary-request-123',
+        )
+        with (
+            request_context.bind_credentials(credentials),
+            self.assertLogs('src.service.mcp.telemetry', level='INFO') as captured,
+        ):
+            with self.assertRaisesRegex(
+                tool_errors.PublicToolError, r'^MCP tool arguments are invalid\.$',
+            ):
+                await mcp_server.call_tool(
+                    'boundary_test_tool', {'value': _BEARER_SECRET},
+                    run_middleware=False,
+                )
+
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('outcome=validation_error', captured.output[0])
+        self.assertNotIn(_BEARER_SECRET, captured.output[0])
+
     async def test_extra_arguments_are_rejected_before_tool_execution(self) -> None:
         async def unused_tool() -> None:
             self.fail('invalid arguments must not execute a tool')

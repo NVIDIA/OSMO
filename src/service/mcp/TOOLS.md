@@ -23,9 +23,23 @@ tool is included only when it can be implemented as a bounded, fixed mapping to
 an existing external REST API while preserving the caller's OSMO identity and
 RBAC.
 
-`tool_registry.py` owns the client-facing titles and descriptions. This document
-owns the API mappings, CLI relationships, and operational caveats; catalog tests
-independently lock public names, function bindings, schemas, and annotations.
+`tool_registry.py` owns the client-facing titles, descriptions, and annotations;
+the [generated tool reference](docs/TOOL_REFERENCE.md) renders that metadata.
+This document owns the API mappings, CLI relationships, and operational caveats;
+catalog tests independently lock public names, function bindings, schemas, and
+annotations.
+
+After changing registry metadata, regenerate and check the reference from the
+public checkout:
+
+```bash
+bazel run //src/service/mcp/docs:generate_tool_reference -- \
+  --output "$PWD/src/service/mcp/docs/TOOL_REFERENCE.md"
+bazel test //src/service/mcp/docs:test_tool_reference
+```
+
+The generator's `--check` option verifies an output without writing. This tooling
+does not enter the MCP image dependency closure.
 
 ## Read-only operations
 
