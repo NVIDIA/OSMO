@@ -288,32 +288,11 @@ identities that would introduce behavior absent from the legacy release.
 
 ### 3. Complete the control-plane values
 
-Add a final override for information that cannot be recovered from the legacy
-input. Confirm the actual external hosts, ports, database names, usernames,
-object-storage locations, and TLS policy:
-
-```yaml
-embeddedDependencies:
-  dex:
-    enabled: false
-  postgresql:
-    enabled: false
-  valkey:
-    enabled: false
-  objectStorage:
-    enabled: false
-
-externalDependencies:
-  postgresql:
-    host: <PostgreSQL host>
-    port: 5432
-    database: <database name>
-    username: <database user>
-  valkey:
-    host: <Valkey host>
-    port: 6379
-    database: 0
-```
+The converter disables every embedded dependency and maps explicit legacy
+PostgreSQL and Redis or Valkey connection values. Review the converted hosts,
+ports, database names, usernames, and TLS policy. Add a final override only for
+values identified by converter diagnostics or values that were absent from the
+legacy inputs and must differ from the unified chart defaults.
 
 Do not add fallback object-storage endpoints when all three per-location
 Secrets contain their endpoints. Leave all location and S3 fields empty as in
