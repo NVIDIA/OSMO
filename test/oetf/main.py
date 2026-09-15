@@ -239,9 +239,10 @@ def build_bazel_command(
     args: argparse.Namespace, env: Dict[str, str], bep_path: str,
 ) -> List[str]:
     test_args: List[str] = []
+    query_args = _query_module_overrides(args.bazel_arg)
 
     if args.name:
-        target, qualified_name = resolve_name_target(args.name)
+        target, qualified_name = resolve_name_target(args.name, query_args=query_args)
         targets = [target]
         if qualified_name:
             # Combined target — unittest needs a test selector argv.
@@ -255,7 +256,7 @@ def build_bazel_command(
             default=TARGET_PATTERN,
         )
         targets = _resolve_targets_via_query(
-            args.tags, env["exclude_tags"], patterns,
+            args.tags, env["exclude_tags"], patterns, query_args=query_args,
         )
         if not targets:
             sys.exit(
@@ -297,10 +298,27 @@ def build_bazel_command(
     return cmd
 
 
+def _query_module_overrides(bazel_args: List[str]) -> List[str]:
+    """Keep target discovery on the test's module graph, without test-only flags."""
+    overrides: List[str] = []
+    arguments = iter(bazel_args)
+    for argument in arguments:
+        if argument == "--override_module":
+            value = next(arguments, None)
+            if value is None or value.startswith("--"):
+                sys.exit("ERROR: --override_module requires a module=path value.")
+            overrides.extend([argument, value])
+        elif argument.startswith("--override_module="):
+            overrides.append(argument)
+    return overrides
+
+
 def _resolve_targets_via_query(
     tags_arg: str,
     exclude_tags_arg: str = "",
     patterns: List[str] | None = None,
+    *,
+    query_args: List[str] | None = None,
 ) -> List[str]:
     """Return the list of OETF test targets to run, resolved via bazel query.
 
@@ -342,7 +360,7 @@ def _resolve_targets_via_query(
                 f'except attr(tags, "({exclude_regex})", {tests_union})'
             )
     output = subprocess.check_output(
-        ["bazel", "query", expr, "--output=label"],
+        ["bazel", "query", expr, "--output=label", *(query_args or [])],
         text=True,
         cwd=_workspace_root(),
     )
@@ -359,7 +377,9 @@ def _resolve_tag_filter(tags_arg: str) -> str:
 # --- --name target resolution ---------------------------------------------
 
 
-def resolve_name_target(name: str) -> Tuple[str, Optional[str]]:
+def resolve_name_target(
+    name: str, *, query_args: List[str] | None = None,
+) -> Tuple[str, Optional[str]]:
     """Find the Bazel target that owns the given test method.
 
     `name` is accepted as either `test_foo`, `foo`, `TestClass.test_foo`, or
@@ -390,7 +410,7 @@ def resolve_name_target(name: str) -> Tuple[str, Optional[str]]:
             package, file_stem = _package_and_stem(py_file, workspace)
             slug = method.removeprefix("test_").replace("_", "-")
             split_target = f"//{package}:{slug}"
-            if _bazel_target_exists(split_target):
+            if _bazel_target_exists(split_target, query_args=query_args):
                 return split_target, None
             combined_target = f"//{package}:{file_stem}"
             return combined_target, f"{class_name}.{method}"
@@ -399,10 +419,10 @@ def resolve_name_target(name: str) -> Tuple[str, Optional[str]]:
     )
 
 
-def _bazel_target_exists(label: str) -> bool:
+def _bazel_target_exists(label: str, *, query_args: List[str] | None = None) -> bool:
     """Return True if `bazel query <label>` resolves to an existing target."""
     result = subprocess.run(
-        ["bazel", "query", label, "--output=label"],
+        ["bazel", "query", label, "--output=label", *(query_args or [])],
         cwd=_workspace_root(),
         capture_output=True, text=True, check=False,
     )

@@ -51,7 +51,8 @@ Both Bazel invocations must use the public candidate. To test an unmerged
 public worktree without changing the internal submodule pointer, add
 `--override_module=osmo_workspace=/path/to/public` to the outer `bazel run`
 options and pass `--bazel-arg=--override_module=osmo_workspace=/path/to/public`
-to OETF for the inner test invocation.
+to OETF for the inner test invocation. OETF also forwards module overrides to
+target-discovery queries; test-only flags remain on the test invocation.
 
 `OETF_MCP_SESSION_DIR` is the alternative to the path flag. The runner forwards
 the resolved directory, not token values. Authenticated tests fail if the

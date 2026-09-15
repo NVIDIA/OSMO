@@ -184,6 +184,70 @@ class BuildBazelCommandTest(unittest.TestCase):
             "url": "https://kind.example",
         }
 
+    def test_discovery_and_test_share_only_module_overrides(self):
+        candidate = "osmo_workspace=/public candidate"
+        target = "@osmo_workspace//test/smoke:mcp-checks"
+        for overrides in ([f"--override_module={candidate}"], ["--override_module", candidate]):
+            with self.subTest(overrides=overrides):
+                args = self._args("staging")
+                args.target_pattern = [target]
+                args.bazel_arg = [
+                    "--test_arg=McpChecks.test_public_discovery_surface", *overrides,
+                    "--test_output=all", "--override_module=other=/other candidate",
+                ]
+                with mock.patch.object(oetf_main.subprocess, "check_output",
+                                       return_value=target + "\n") as query:
+                    command = oetf_main.build_bazel_command(args, self._env(), "/tmp/bep.json")
+                query.assert_called_once()
+                query_command = query.call_args.args[0]
+                self.assertEqual(query_command[:2], ["bazel", "query"])
+                self.assertIn(target, query_command[2])
+                self.assertEqual(query_command[3:], [
+                    "--output=label", *overrides, "--override_module=other=/other candidate",
+                ])
+                self.assertIn(target, command)
+                self.assertEqual(command[-len(args.bazel_arg):], args.bazel_arg)
+
+    def test_named_target_and_test_share_only_module_overrides(self):
+        candidate = "osmo_workspace=/public candidate"
+        target = "//test/smoke:probe"
+        for overrides in ([f"--override_module={candidate}"], ["--override_module", candidate]):
+            with self.subTest(overrides=overrides):
+                args = self._args("staging")
+                args.name = "CandidateChecks.test_probe"
+                args.bazel_arg = ["--test_output=all", *overrides]
+                with (
+                    mock.patch.object(oetf_main, "_workspace_root", return_value="/internal"),
+                    mock.patch.object(oetf_main.Path, "is_dir", return_value=True),
+                    mock.patch.object(oetf_main.Path, "rglob", return_value=[
+                        oetf_main.Path("/internal/test/smoke/probe.py"),
+                    ]),
+                    mock.patch.object(oetf_main.Path, "read_text", return_value=(
+                        "class CandidateChecks(unittest.TestCase):\n"
+                        "    def test_probe(self): pass\n"
+                    )),
+                    mock.patch.object(oetf_main.subprocess, "run", return_value=SimpleNamespace(
+                        returncode=0, stdout=target + "\n",
+                    )) as query,
+                ):
+                    command = oetf_main.build_bazel_command(args, self._env(), "/tmp/bep.json")
+                query.assert_called_once_with(
+                    ["bazel", "query", target, "--output=label", *overrides],
+                    cwd="/internal", capture_output=True, text=True, check=False,
+                )
+                self.assertIn(target, command)
+                self.assertEqual(command[-len(args.bazel_arg):], args.bazel_arg)
+
+    def test_missing_module_override_value_fails_before_query(self):
+        for arguments in (["--override_module"], ["--override_module", "--test_output=all"]):
+            with self.subTest(arguments=arguments):
+                args = self._args("staging")
+                args.bazel_arg = arguments
+                with mock.patch.object(oetf_main.subprocess, "check_output") as query:
+                    with self.assertRaisesRegex(SystemExit, "requires a module=path value"):
+                        oetf_main.build_bazel_command(args, self._env(), "/tmp/bep.json")
+                query.assert_not_called()
+
     @mock.patch.object(
         oetf_main,
         "_resolve_targets_via_query",
