@@ -103,6 +103,15 @@
 {{- if eq $embeddedAuth.browserClientId $embeddedAuth.cliClientId -}}
 {{- fail "embedded Dex browserClientId and cliClientId must be different" -}}
 {{- end -}}
+{{- if eq (include "osmo.mcp.embeddedDex" .) "true" -}}
+{{- if or (not (trim $embeddedAuth.mcpClientId)) (eq $embeddedAuth.mcpClientId $embeddedAuth.browserClientId) (eq $embeddedAuth.mcpClientId $embeddedAuth.cliClientId) -}}
+{{- fail "embedded Dex mcpClientId must be non-empty and different from browserClientId and cliClientId" -}}
+{{- end -}}
+{{- $oidcProxy := .Values.services.mcp.oidcProxy -}}
+{{- if or $oidcProxy.oidc.clientId $oidcProxy.oidc.clientSecretFile $oidcProxy.oidc.accessTokenIssuer $oidcProxy.existingSecret.name $oidcProxy.existingSecret.redisPasswordKey (ne $oidcProxy.existingSecret.clientSecretKey "client-secret") -}}
+{{- fail "embedded Dex MCP client settings are chart-managed; set oidc.configUrl to configure an external MCP provider" -}}
+{{- end -}}
+{{- end -}}
 {{- if or (ne .Values.dex.fullnameOverride "osmo-dex") .Values.dex.configSecret.create (ne .Values.dex.configSecret.name "osmo-dex-config") .Values.dex.serviceAccount.create (ne .Values.dex.serviceAccount.name "osmo-dex") .Values.dex.rbac.create .Values.dex.rbac.createClusterScoped -}}
 {{- fail "embedded Dex dependency names, configSecret, ServiceAccount, and RBAC settings are chart-managed" -}}
 {{- end -}}
@@ -144,7 +153,8 @@
 {{- fail "embedded Dex security-sensitive dependency values are chart-managed" -}}
 {{- end -}}
 {{- $expectedDexEnvVars := list
-      (dict "name" "OSMO_DEX_BROWSER_CLIENT_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-oauth" "key" "browser-client-secret"))) -}}
+      (dict "name" "OSMO_DEX_BROWSER_CLIENT_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-oauth" "key" "browser-client-secret")))
+      (dict "name" "OSMO_DEX_MCP_CLIENT_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" "osmo-embedded-dex-mcp" "key" "client-secret" "optional" true))) -}}
 {{- if not (deepEqual .Values.dex.envVars $expectedDexEnvVars) -}}
 {{- fail "embedded Dex environment Secret references are chart-managed" -}}
 {{- end -}}
@@ -235,6 +245,7 @@
 {{- $bootstrapBackendSecretNames := dict -}}
 {{- if eq .Values.authentication.provider "embeddedDex" -}}
 {{- $_ := set $bootstrapSecretNames "osmo-embedded-dex-oauth" true -}}
+{{- $_ := set $bootstrapSecretNames "osmo-embedded-dex-mcp" true -}}
 {{- $_ := set $bootstrapSecretNames "osmo-embedded-dex-password-hashes" true -}}
 {{- end -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}

@@ -49,7 +49,8 @@ The relay boundary has these invariants:
 
 - The outbound origin is deployment configuration, never tool input. The Helm
   chart derives it from the public `services.mcp.resourceUrl` by removing the
-  exact `/mcp` suffix.
+  exact `/mcp` suffix. Embedded Dex uses the in-cluster Gateway Service instead
+  when the Gateway listener uses HTTP.
 - Tools select a fixed HTTP method and `/api/...` path. Query names are fixed
   by each tool and values are encoded from bounded typed inputs. Unknown tool
   arguments, alternate URLs, embedded queries or fragments, redirects, and
@@ -131,6 +132,14 @@ Authentication lives in `auth.py`. It constructs FastMCP's built-in
 provider as the `auth` argument to the same `OSMOFastMCP` instance. FastMCP
 derives its signing key from the existing upstream OIDC client secret.
 OSMO does not implement OAuth endpoints or run a second auth service.
+
+The unified chart's embedded Dex quickstart selects the `embeddedDex` provider
+profile. Dex discovery advertises the public issuer and browser authorization
+endpoint; MCP uses in-cluster token and JWKS endpoints. FastMCP verifies Dex's
+signed ID token for the MCP client audience, and OSMO retains that verified
+ID token for Gateway authorization because Dex access tokens are opaque.
+The default external OIDC profile continues to verify delegated API access
+tokens with the resource audience and required scope.
 
 Do not import the CLI runtime. Extract only pure public helpers when behavior
 needs to match another OSMO surface.

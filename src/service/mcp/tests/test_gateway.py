@@ -92,6 +92,34 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                     create_context.assert_not_called()
                     self.assertIs(options['verify'], True)
 
+    async def test_embedded_http_transport_requires_explicit_opt_in(self) -> None:
+        with mock.patch.object(gateway.httpx, 'AsyncClient') as create_client:
+            with self.assertRaises(ValueError):
+                async with gateway.create_app_context(
+                    gateway_url='http://osmo-gateway', request_timeout_seconds=5,
+                ):
+                    self.fail('HTTP must remain disabled by default')
+            create_client.assert_not_called()
+            async with gateway.create_app_context(
+                gateway_url='http://osmo-gateway', request_timeout_seconds=5, allow_http=True,
+            ):
+                pass
+            self.assertEqual(create_client.call_args.kwargs['base_url'], 'http://osmo-gateway')
+            self.assertIs(create_client.call_args.kwargs['follow_redirects'], False)
+            self.assertIs(create_client.call_args.kwargs['trust_env'], False)
+
+    def test_embedded_http_transport_keeps_origin_validation(self) -> None:
+        for url in (
+            'http://user:password@osmo-gateway',
+            'http://osmo-gateway/api',
+            'http://osmo-gateway?destination=other',
+            'http://osmo-gateway#fragment',
+            'http://osmo-gateway:invalid',
+            'http://osmo-gateway\\example',
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                gateway.validate_gateway_origin(url, allow_http=True)
+
     async def test_missing_gateway_ca_fails_closed(self) -> None:
         with self.assertRaises(FileNotFoundError):
             async with gateway.create_app_context(

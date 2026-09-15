@@ -610,6 +610,16 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(response.content), 16 * 1024)
         self.assertNotIn('result-size-secret', response.text)
 
+    def test_embedded_dex_allows_the_in_cluster_http_gateway(self) -> None:
+        config = protocol_harness.service_config(
+            oidc_provider='embeddedDex',
+            gateway_url='http://osmo-gateway:80',
+            resource_url='http://127.0.0.1:30080/mcp',
+            oidc_config_url='http://osmo-dex:5556/dex/.well-known/openid-configuration',
+            oidc_access_token_issuer=None,
+        )
+        self.assertEqual(str(config.gateway_url), 'http://osmo-gateway/')
+
     def test_runtime_config_requires_https_gateway_origin(self) -> None:
         config = protocol_harness.service_config(
             gateway_url='https://gateway.test:8443',
@@ -675,6 +685,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 'request_timeout_seconds': 7,
                 'transport': None,
                 'gateway_ca_file': '/ca/gateway.pem',
+                'allow_http': False,
             })
             lifecycle_events.append('entered')
             try:
@@ -700,6 +711,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         fallback for non-loopback hosts, which would otherwise reject consent.
         """
         config = protocol_harness.service_config(
+            resource_url='https://public.example/mcp',
             allowed_origins=['http://localhost:6274'],
         )
         with mock.patch.object(server, 'create_application') as create:
@@ -707,7 +719,7 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
                 config, auth_provider=protocol_harness.any_token_verifier())
         self.assertEqual(
             create.call_args.args[1],
-            ['https://gateway.test', 'http://localhost:6274'],
+            ['https://public.example', 'http://localhost:6274'],
         )
 
     def test_allowed_origins_drops_blank_entries(self) -> None:

@@ -2,6 +2,7 @@
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 {{- $embeddedDex := eq .Values.authentication.provider "embeddedDex" -}}
+{{- $mcpEmbeddedDex := eq (include "osmo.mcp.embeddedDex" .) "true" -}}
 {{- $passwords := list -}}
 {{- $managedTokens := list -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
@@ -58,6 +59,9 @@ rules:
   {{- if $embeddedDex }}
   - {{ $oauthSecretName | quote }}
   - {{ $hashSecretName | quote }}
+  {{- if $mcpEmbeddedDex }}
+  - "osmo-embedded-dex-mcp"
+  {{- end }}
   {{- end }}
   verbs: ["get", "update"]
 {{- if $embeddedDex }}
@@ -147,11 +151,19 @@ spec:
         {{- if $embeddedDex }}
         - --oauth-secret-name
         - {{ $oauthSecretName | quote }}
+        {{- if $mcpEmbeddedDex }}
+        - --mcp-secret-name
+        - osmo-embedded-dex-mcp
+        {{- end }}
         - --dex-hash-secret-name
         - {{ $hashSecretName | quote }}
         {{- if $phase.includeConfigIdentity }}
         - --dex-pod-selector
         - {{ printf "app.kubernetes.io/name=dex,app.kubernetes.io/instance=%s" $.Release.Name | quote }}
+        {{- if $mcpEmbeddedDex }}
+        - --mcp-pod-selector
+        - {{ printf "app.kubernetes.io/name=%s,app.kubernetes.io/instance=%s,app.kubernetes.io/component=mcp" (include "osmo.name" $) $.Release.Name | quote }}
+        {{- end }}
         - --oauth-pod-selector
         - {{ printf "app.kubernetes.io/name=%s,app.kubernetes.io/instance=%s,app.kubernetes.io/component=gateway-oauth2-proxy" (include "osmo.name" $) $.Release.Name | quote }}
         - --restart-timeout-seconds

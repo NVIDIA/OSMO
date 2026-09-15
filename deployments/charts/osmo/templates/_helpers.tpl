@@ -341,6 +341,13 @@ staticClients:
 - id: {{ .Values.authentication.embeddedDex.cliClientId | quote }}
   name: OSMO CLI
   public: true
+{{- if eq (include "osmo.mcp.embeddedDex" .) "true" }}
+- id: {{ .Values.authentication.embeddedDex.mcpClientId | quote }}
+  name: OSMO MCP
+  secretEnv: OSMO_DEX_MCP_CLIENT_SECRET
+  redirectURIs:
+  - {{ printf "%s/auth/callback" (include "osmo.mcp.resourceUrl" .) | quote }}
+{{- end }}
 {{- end -}}
 
 {{- define "osmo.bootstrap.dexPasswordSecretName" -}}
@@ -616,11 +623,25 @@ data:
 {{- end }}
 {{- end -}}
 
+{{- define "osmo.mcp.embeddedDex" -}}
+{{- and .Values.services.mcp.enabled (eq .Values.authentication.provider "embeddedDex") (not .Values.services.mcp.oidcProxy.oidc.configUrl) -}}
+{{- end -}}
+
 {{- define "osmo.mcp.resourceUrl" -}}
-{{- $resourceUrl := required "services.mcp.resourceUrl is required when MCP is enabled" .Values.services.mcp.resourceUrl -}}
+{{- $embeddedDex := eq (include "osmo.mcp.embeddedDex" .) "true" -}}
+{{- $resourceUrl := .Values.services.mcp.resourceUrl -}}
+{{- if and $embeddedDex (not $resourceUrl) -}}
+{{- $resourceUrl = printf "%s/mcp" (trimSuffix "/" .Values.externalUrl) -}}
+{{- end -}}
+{{- $resourceUrl = required "services.mcp.resourceUrl is required when MCP is enabled" $resourceUrl -}}
 {{- include "osmo.mcp.validateUrl" (dict "name" "services.mcp.resourceUrl" "url" $resourceUrl) -}}
-{{- if not (regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/mcp$" $resourceUrl) -}}
-{{- fail "services.mcp.resourceUrl must be a valid HTTPS origin followed by the exact /mcp path" -}}
+{{- $https := regexMatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/mcp$" $resourceUrl -}}
+{{- $loopback := and $embeddedDex (regexMatch "^http://(localhost|127\\.0\\.0\\.1)(:[0-9]{1,5})?/mcp$" $resourceUrl) -}}
+{{- if not (or $https $loopback) -}}
+{{- fail "services.mcp.resourceUrl must be a valid HTTPS origin followed by the exact /mcp path (HTTP loopback is supported with embedded Dex)" -}}
+{{- end -}}
+{{- if and $embeddedDex (ne $resourceUrl (printf "%s/mcp" (trimSuffix "/" .Values.externalUrl))) -}}
+{{- fail "embedded Dex MCP resourceUrl must match externalUrl followed by /mcp" -}}
 {{- end -}}
 {{- $resourceUrl -}}
 {{- end -}}

@@ -42,6 +42,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpMetadataPath := "/.well-known/oauth-protected-resource/mcp" }}
 {{- $mcpResourceUrl := "" }}
 {{- $mcpTokenIssuer := "" }}
+{{- $mcpTokenAudience := "" }}
 {{- $mcpMetadataUrl := "" }}
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
@@ -72,20 +73,14 @@ setting detects this rotation and triggers Envoy to reload.
 {{- fail "services.mcp.enabled requires at least one gateway Envoy JWT provider" }}
 {{- end }}
 {{- $mcpResourceUrl = include "osmo.mcp.resourceUrl" . }}
-{{- /*
-FastMCP publishes its own protected-resource and authorization-server metadata,
-so the gateway no longer needs the issuer and scope lists it used to synthesise
-those documents from. The relayed token's audience is the MCP resource URL, and
-it comes from the identity provider already configured for this deployment's own
-clients, so that audience is appended to the provider whose issuer matches
-rather than requiring a second, near-identical entry.
-
-The issuer is derivable: OpenID Connect Discovery defines the configuration URL
-as the issuer plus /.well-known/openid-configuration. accessTokenIssuer
-overrides it for a provider that issues access tokens elsewhere, as an
-application configured for v1-format tokens does.
-*/ -}}
+{{- /* Match the issuer of the verified token MCP relays to the Gateway. */ -}}
+{{- $mcpTokenAudience = $mcpResourceUrl }}
+{{- if eq (include "osmo.mcp.embeddedDex" .) "true" }}
+{{- $mcpTokenIssuer = include "osmo.authentication.issuer" . }}
+{{- $mcpTokenAudience = .Values.authentication.embeddedDex.mcpClientId }}
+{{- else }}
 {{- $mcpTokenIssuer = $mcp.oidcProxy.oidc.accessTokenIssuer | default (trimSuffix "/.well-known/openid-configuration" (required "services.mcp.oidcProxy.oidc.configUrl is required when MCP is enabled" $mcp.oidcProxy.oidc.configUrl)) }}
+{{- end }}
 {{- $mcpTokenIssuer = trimSuffix "/" $mcpTokenIssuer }}
 {{- $mcpIssuerProviders := 0 }}
 {{- range $provider := $jwtProviders }}
@@ -690,15 +685,12 @@ data:
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
                     audiences:
-                    {{- if hasKey $provider "audiences" }}
-                    {{- range $provider.audiences }}
+                    {{- $audiences := $provider.audiences | default (list $provider.audience) }}
+                    {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) }}
+                    {{- $audiences = uniq (append $audiences $mcpTokenAudience) }}
+                    {{- end }}
+                    {{- range $audiences }}
                     - {{ . }}
-                    {{- end }}
-                    {{- else }}
-                    - {{ $provider.audience }}
-                    {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
-                    - {{ $mcpResourceUrl }}
-                    {{- end }}
                     {{- end }}
                     forward: true
                     payload_in_metadata: verified_jwt_{{$i}}

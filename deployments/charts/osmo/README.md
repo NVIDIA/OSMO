@@ -125,6 +125,14 @@ kubectl --namespace osmo \
   port-forward service/osmo-gateway 8080:80
 ```
 
+For workflows in the same cluster, a loopback `externalUrl` also requires
+`--set-string configuration.service.service_base_url=http://osmo-gateway.osmo.svc.cluster.local:80`
+on the install or upgrade command. Adjust the Service name, namespace, and port
+for your release. This address must be reachable from workflow pods and also
+controls workflow URLs returned by the API and included in notifications. Use
+an address reachable from both clients and pods when those links are needed.
+Dex and MCP continue to use `externalUrl` for public authentication URLs.
+
 Use the same origin for the client:
 
 ```bash
@@ -162,6 +170,43 @@ osmo workflow query <workflow-id> --format-type json
 Repeat the query until the workflow status is `COMPLETED`.
 The workflow runs a small Alpine container, so completion validates CPU
 scheduling and backend status reporting.
+
+### Enable MCP
+
+With the default embedded Dex provider, enable the optional MCP endpoint on
+installation with `--set services.mcp.enabled=true`, or on an existing quickstart:
+
+```bash
+helm upgrade osmo deployments/charts/osmo \
+  --namespace osmo \
+  --reset-then-reuse-values \
+  --set services.mcp.enabled=true \
+  --wait \
+  --wait-for-jobs \
+  --timeout 20m
+```
+
+The upgrade flag merges your existing overrides with the new chart defaults.
+
+Connect a Streamable HTTP MCP client to `http://127.0.0.1/mcp` (or your configured
+`externalUrl` followed by `/mcp`). Approve the client and sign in with the same
+Dex account used for the UI. The chart registers a dedicated confidential Dex
+client, generates the retained `osmo-embedded-dex-mcp` Secret, and uses the
+release's Valkey for OAuth state. No separate identity-provider application or
+manual client-secret setup is needed. MCP stays disabled unless requested.
+
+For local HTTP, use `127.0.0.1` or `localhost`; other public origins
+require HTTPS. MCP uses in-cluster Dex and Gateway connections so the public
+loopback URL works from a local client. Dex ID tokens are checked for the MCP
+client audience and relayed through the Gateway's normal identity and role
+checks. MCP grants no additional API or pool permissions.
+
+The secret is retained across upgrades and uninstall. As with other generated
+credentials, deleting it and upgrading regenerates it; existing MCP sessions
+then require sign-in again. Set `services.mcp.oidcProxy.oidc.configUrl` and the
+other explicit MCP OIDC settings to use an external provider instead. See the
+[MCP deployment guide](../../../docs/deployment_guide/advanced_config/mcp.rst)
+for external OIDC and production configuration.
 
 ### Troubleshooting and cleanup
 

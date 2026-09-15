@@ -297,9 +297,10 @@ async def create_app_context(
     request_timeout_seconds: float,
     transport: httpx.AsyncBaseTransport | None = None,
     gateway_ca_file: str = '',
+    allow_http: bool = False,
 ) -> AsyncIterator[AppContext]:
     """Create one credential-free HTTP connection pool for the MCP process."""
-    validate_gateway_origin(gateway_url)
+    validate_gateway_origin(gateway_url, allow_http=allow_http)
     if (
         not math.isfinite(request_timeout_seconds)
         or request_timeout_seconds <= 0
@@ -324,21 +325,22 @@ async def create_app_context(
         )
 
 
-def validate_gateway_origin(gateway_url: str) -> None:
-    """Reject any Gateway base URL that is not one fixed HTTPS origin."""
+def validate_gateway_origin(gateway_url: str, *, allow_http: bool = False) -> None:
+    """Require one fixed origin; embedded deployments may use in-cluster HTTP."""
+    scheme_description = 'HTTP(S)' if allow_http else 'HTTPS'
     try:
         parsed_url = parse.urlsplit(gateway_url)
         _ = parsed_url.port
     except ValueError:
         raise ValueError(
-            'gateway_url must be a valid HTTPS origin.') from None
+            f'gateway_url must be a valid {scheme_description} origin.') from None
 
     if (
         any(ord(character) <= 0x20 or ord(character) == 0x7F
             for character in gateway_url)
         or '\\' in gateway_url
         or '%' in parsed_url.netloc
-        or parsed_url.scheme != 'https'
+        or parsed_url.scheme not in ({'https', 'http'} if allow_http else {'https'})
         or not parsed_url.hostname
         or parsed_url.username is not None
         or parsed_url.password is not None
@@ -347,7 +349,7 @@ def validate_gateway_origin(gateway_url: str) -> None:
         or parsed_url.fragment
     ):
         raise ValueError(
-            'gateway_url must be an HTTPS origin without credentials, '
+            f'gateway_url must be an {scheme_description} origin without credentials, '
             'path, query, or fragment.')
 
 

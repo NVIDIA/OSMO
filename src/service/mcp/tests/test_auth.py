@@ -17,6 +17,9 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import asyncio
+from collections.abc import AsyncIterator
+import contextlib
+import hashlib
 import tempfile
 import time
 from typing import Any
@@ -25,8 +28,10 @@ from unittest import mock
 
 from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
-from fastmcp.server.auth.providers.jwt import JWTVerifier
-from fastmcp.server.auth.oauth_proxy.models import UpstreamTokenSet
+from fastmcp.server.auth.providers.jwt import JWTVerifier, RSAKeyPair
+from fastmcp.server.auth.oauth_proxy.models import (
+    JTIMapping, RefreshTokenMetadata, UpstreamTokenSet,
+)
 import httpx
 from key_value.aio.stores.memory import MemoryStore
 import pydantic
@@ -90,6 +95,30 @@ class MCPAuthConfigTest(unittest.TestCase):
             'issuer_url', 'auth_scope', 'oidc_access_token_audience',
         ):
             self.assertNotIn(derived, auth.MCPAuthConfig.model_fields)
+
+    def test_embedded_dex_allows_only_loopback_public_http(self) -> None:
+        for origin in ('http://127.0.0.1:30080', 'http://localhost', 'http://[::1]'):
+            with self.subTest(origin=origin):
+                config = _dex_config(resource_url=f'{origin}/mcp')
+                self.assertEqual(config.auth_scope, 'openid')
+        for resource_url in (
+            'http://osmo.example/mcp',
+            'http://127.0.0.1.example/mcp',
+            'http://127.0.0.1@osmo.example/mcp',
+            'http://127.0.0.1/mcp?next=example',
+        ):
+            with self.subTest(resource_url=resource_url):
+                with self.assertRaises(pydantic.ValidationError):
+                    _dex_config(resource_url=resource_url)
+
+    def test_external_oidc_keeps_https_transport_requirement(self) -> None:
+        for field, value in (
+            ('resource_url', 'http://127.0.0.1/mcp'),
+            ('oidc_config_url', 'http://osmo-dex:5556/dex/.well-known/openid-configuration'),
+        ):
+            with self.subTest(field=field):
+                with self.assertRaises(pydantic.ValidationError):
+                    _config(**{field: value})
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
@@ -446,6 +475,267 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 await runtime.aclose()
             redis_client.aclose.assert_awaited_once()
 
+    async def test_embedded_dex_uses_internal_endpoints_and_public_identity(self) -> None:
+        async with _dex_runtime() as runtime:
+            provider = runtime.provider
+            verifier = provider._token_validator  # pylint: disable=protected-access
+            assert isinstance(verifier, JWTVerifier)
+            self.assertEqual(verifier.issuer, 'http://127.0.0.1:30080/dex')
+            self.assertEqual(verifier.audience, 'osmo-mcp')
+            self.assertEqual(verifier.jwks_uri, 'http://osmo-dex:5556/dex/keys')
+            self.assertEqual(verifier.required_scopes, [])
+            self.assertEqual(
+                provider._upstream_authorization_endpoint,  # pylint: disable=protected-access
+                'http://127.0.0.1:30080/dex/auth',
+            )
+            self.assertEqual(
+                provider._upstream_token_endpoint,  # pylint: disable=protected-access
+                'http://osmo-dex:5556/dex/token',
+            )
+            self.assertEqual(
+                provider._extra_authorize_params,  # pylint: disable=protected-access
+                {'scope': 'openid profile email offline_access'},
+            )
+            application = server.create_application(server.create_mcp_server(provider))
+            async with (
+                application.router.lifespan_context(application),
+                httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=application),
+                    base_url='http://127.0.0.1:30080',
+                ) as client,
+            ):
+                metadata = (await client.get(
+                    '/.well-known/oauth-authorization-server',
+                )).json()
+                resource = (await client.get(
+                    '/.well-known/oauth-protected-resource/mcp',
+                )).json()
+            self.assertEqual(metadata['issuer'], 'http://127.0.0.1:30080/mcp')
+            self.assertEqual(metadata['scopes_supported'], ['openid'])
+            self.assertEqual(
+                metadata['authorization_endpoint'], 'http://127.0.0.1:30080/mcp/authorize',
+            )
+            self.assertEqual(resource['resource'], 'http://127.0.0.1:30080/mcp')
+
+    async def test_embedded_dex_rejects_discovery_for_another_issuer(self) -> None:
+        configuration = _dex_discovery()
+        configuration.issuer = 'https://another.example/dex'
+        with self.assertRaisesRegex(ValueError, 'does not match its public issuer'):
+            async with _dex_runtime(configuration=configuration):
+                self.fail('incorrect issuer must fail startup')
+
+    async def test_embedded_dex_relays_only_valid_signed_id_tokens(self) -> None:
+        keys = RSAKeyPair.generate()
+        async with _dex_runtime() as runtime:
+            provider = runtime.provider
+            verifier = provider._token_validator  # pylint: disable=protected-access
+            with mock.patch.object(
+                verifier, '_get_verification_key',
+                new=mock.AsyncMock(return_value=keys.public_key),
+            ):
+                for name, options, expected in (
+                    ('valid', {}, True),
+                    ('wrong issuer', {'issuer': 'https://another.example/dex'}, False),
+                    ('wrong audience', {'audience': 'osmo-browser'}, False),
+                    ('expired', {'expires_in_seconds': -10}, False),
+                ):
+                    with self.subTest(name=name):
+                        claims: dict[str, Any] = {
+                            'issuer': 'http://127.0.0.1:30080/dex',
+                            'audience': 'osmo-mcp',
+                            'additional_claims': {'name': 'admin'},
+                            **options,
+                        }
+                        identity_token = keys.create_token(**claims)
+                        token_set = _dex_token_set(identity_token)
+                        bearer = await _store_dex_session(provider, token_set)
+                        access = await provider.load_access_token(bearer)
+                        if expected:
+                            self.assertIsNotNone(access)
+                            assert access is not None
+                            self.assertEqual(access.token, identity_token)
+                            assert access.claims is not None
+                            self.assertEqual(access.claims['name'], 'admin')
+                            self.assertEqual(access.scopes, [])
+                        else:
+                            self.assertIsNone(access)
+                # A valid Dex token is insufficient without the MCP resource
+                # token and its server-side session mapping.
+                self.assertIsNone(await provider.load_access_token(identity_token))
+                wrong_signature = RSAKeyPair.generate().create_token(
+                    issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
+                )
+                bearer = await _store_dex_session(provider, _dex_token_set(wrong_signature))
+                self.assertIsNone(await provider.load_access_token(bearer))
+                missing_identity = _dex_token_set(None)
+                bearer = await _store_dex_session(provider, missing_identity)
+                self.assertIsNone(await provider.load_access_token(bearer))
+
+    async def test_embedded_dex_authenticates_mcp_initialization(self) -> None:
+        keys = RSAKeyPair.generate()
+        identity_token = keys.create_token(
+            issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
+        )
+        async with _dex_runtime() as runtime:
+            provider = runtime.provider
+            bearer = await _store_dex_session(provider, _dex_token_set(identity_token))
+            application = server.create_application(server.create_mcp_server(provider))
+            with mock.patch.object(
+                provider._token_validator,  # pylint: disable=protected-access
+                '_get_verification_key',
+                new=mock.AsyncMock(return_value=keys.public_key),
+            ):
+                async with (
+                    application.router.lifespan_context(application),
+                    httpx.AsyncClient(
+                        transport=httpx.ASGITransport(app=application),
+                        base_url='http://127.0.0.1:30080',
+                    ) as client,
+                ):
+                    for token, expected_status in ((bearer, 200), (identity_token, 401)):
+                        response = await client.post(
+                            '/mcp',
+                            headers={
+                                'Authorization': f'Bearer {token}',
+                                'Accept': 'application/json, text/event-stream',
+                            },
+                            json={
+                                'jsonrpc': '2.0',
+                                'id': 1,
+                                'method': 'initialize',
+                                'params': {
+                                    'protocolVersion': '2025-11-25',
+                                    'capabilities': {},
+                                    'clientInfo': {'name': 'dex-test', 'version': '1'},
+                                },
+                            },
+                        )
+                        self.assertEqual(response.status_code, expected_status, response.text)
+
+    async def test_embedded_dex_refresh_relays_the_new_id_token(self) -> None:
+        keys = RSAKeyPair.generate()
+        async with _dex_runtime() as runtime:
+            provider = runtime.provider
+            refreshed_identity = keys.create_token(
+                issuer='http://127.0.0.1:30080/dex',
+                audience='osmo-mcp',
+                additional_claims={'name': 'admin'},
+            )
+            expired_identity = keys.create_token(
+                issuer='http://127.0.0.1:30080/dex',
+                audience='osmo-mcp',
+                expires_in_seconds=-10,
+            )
+            token_set = _dex_token_set(expired_identity)
+            token_set.scope = 'openid'
+            token_set.expires_at = time.time() - 1
+            token_set.refresh_token = 'dex-refresh-token'
+            token_set.refresh_token_expires_at = time.time() + 3600
+            bearer = await _store_dex_session(provider, token_set)
+            oauth_client = mock.AsyncMock()
+            oauth_client.refresh_token.return_value = {
+                'access_token': 'refreshed-opaque-dex-access-token',
+                'id_token': refreshed_identity,
+                'expires_in': 3600,
+                'scope': 'openid profile email offline_access',
+            }
+            oauth_context = mock.MagicMock()
+            oauth_context.__aenter__.return_value = oauth_client
+            with (
+                mock.patch.object(
+                    provider._token_validator,  # pylint: disable=protected-access
+                    '_get_verification_key',
+                    new=mock.AsyncMock(return_value=keys.public_key),
+                ),
+                mock.patch.object(
+                    provider, '_upstream_oauth_client', return_value=oauth_context,
+                ),
+            ):
+                access = await provider.load_access_token(bearer)
+            self.assertIsNotNone(access)
+            assert access is not None
+            self.assertEqual(access.token, refreshed_identity)
+            self.assertEqual(
+                oauth_client.refresh_token.call_args.kwargs['url'],
+                'http://osmo-dex:5556/dex/token',
+            )
+            self.assertEqual(
+                oauth_client.refresh_token.call_args.kwargs['scope'],
+                'openid profile email offline_access',
+            )
+
+    async def test_embedded_dex_explicit_refresh_preserves_identity_claims(self) -> None:
+        keys = RSAKeyPair.generate()
+        async with _dex_runtime() as runtime:
+            provider = runtime.provider
+            application = server.create_application(server.create_mcp_server(provider))
+
+            async def dex_refresh(**parameters: object) -> dict[str, object]:
+                granted_scopes = str(parameters.get('scope', '')).split()
+                # Dex includes identity claims only when their OIDC scopes
+                # remain in the refresh request, and omits scope in the response.
+                claims = {}
+                if 'profile' in granted_scopes:
+                    claims['name'] = 'admin'
+                if 'email' in granted_scopes:
+                    claims['email'] = 'admin@osmo.local'
+                return {
+                    'access_token': 'opaque-refreshed-dex-token',
+                    'id_token': keys.create_token(
+                        issuer='http://127.0.0.1:30080/dex',
+                        audience='osmo-mcp', additional_claims=claims,
+                    ),
+                    'expires_in': 3600,
+                }
+
+            oauth_client = mock.AsyncMock()
+            oauth_client.refresh_token.side_effect = dex_refresh
+            oauth_context = mock.MagicMock()
+            oauth_context.__aenter__.return_value = oauth_client
+            with (
+                mock.patch.object(
+                    provider._token_validator,  # pylint: disable=protected-access
+                    '_get_verification_key',
+                    new=mock.AsyncMock(return_value=keys.public_key),
+                ),
+                mock.patch.object(
+                    provider, '_upstream_oauth_client', return_value=oauth_context,
+                ),
+            ):
+                async with (
+                    application.router.lifespan_context(application),
+                    httpx.AsyncClient(
+                        transport=httpx.ASGITransport(app=application),
+                        base_url='http://127.0.0.1:30080',
+                    ) as client,
+                ):
+                    registered = await client.post('/register', json={
+                        'redirect_uris': ['http://127.0.0.1:33749/callback'],
+                        'grant_types': ['authorization_code', 'refresh_token'],
+                        'response_types': ['code'],
+                        'token_endpoint_auth_method': 'none',
+                    })
+                    self.assertEqual(registered.status_code, 201, registered.text)
+                    client_id = registered.json()['client_id']
+                    refresh_token = await _store_dex_refresh_session(provider, client_id)
+                    response = await client.post('/token', data={
+                        'grant_type': 'refresh_token',
+                        'refresh_token': refresh_token,
+                        'client_id': client_id,
+                    })
+                    self.assertEqual(response.status_code, 200, response.text)
+                    self.assertEqual(response.json()['scope'], 'openid')
+                    access = await provider.load_access_token(response.json()['access_token'])
+            self.assertIsNotNone(access)
+            assert access is not None and access.claims is not None
+            self.assertEqual(access.claims.get('name'), 'admin')
+            self.assertEqual(access.claims.get('email'), 'admin@osmo.local')
+            self.assertNotEqual(access.token, 'opaque-refreshed-dex-token')
+            self.assertEqual(
+                oauth_client.refresh_token.call_args.kwargs['scope'],
+                'openid profile email offline_access',
+            )
+
     def test_short_client_secret_fails_at_startup(self) -> None:
         """The derived keys are only as strong as the secret behind them."""
         with _secret_file('too-short') as client_secret_file:
@@ -491,6 +781,111 @@ def _config(**overrides: object) -> auth.MCPAuthConfig:
     }
     values.update(overrides)
     return auth.MCPAuthConfig(**values)
+
+
+def _dex_config(**overrides: object) -> auth.MCPAuthConfig:
+    return _config(**{
+        'oidc_provider': 'embeddedDex',
+        'resource_url': 'http://127.0.0.1:30080/mcp',
+        'oidc_config_url': 'http://osmo-dex:5556/dex/.well-known/openid-configuration',
+        'oidc_client_id': 'osmo-mcp',
+        'oidc_access_token_issuer': None,
+        **overrides,
+    })
+
+
+def _dex_discovery() -> OIDCConfiguration:
+    issuer = 'http://127.0.0.1:30080/dex'
+    return OIDCConfiguration(
+        issuer=issuer,
+        authorization_endpoint=f'{issuer}/auth',
+        token_endpoint=f'{issuer}/token',
+        jwks_uri=f'{issuer}/keys',
+        response_types_supported=['code'],
+        subject_types_supported=['public'],
+        id_token_signing_alg_values_supported=['RS256'],
+    )
+
+
+@contextlib.asynccontextmanager
+async def _dex_runtime(
+    *,
+    configuration: OIDCConfiguration | None = None,
+) -> AsyncIterator[auth.MCPAuthRuntime]:
+    with (
+        _secret_file(_TEST_CLIENT_SECRET) as secret_file,
+        mock.patch.object(auth.redis_asyncio.Redis, 'from_url', return_value=mock.AsyncMock()),
+        mock.patch.object(auth, 'RedisStore', return_value=MemoryStore()),
+        mock.patch.object(
+            auth, 'PrefixCollectionsWrapper', side_effect=lambda key_value, prefix: key_value,
+        ),
+        mock.patch.object(
+            auth, 'FernetEncryptionWrapper',
+            side_effect=lambda key_value, **kwargs: key_value,
+        ),
+        mock.patch.object(
+            OIDCProxy, 'get_oidc_configuration',
+            return_value=configuration or _dex_discovery(),
+        ),
+    ):
+        runtime = auth.create_auth_runtime(_dex_config(oidc_client_secret_file=secret_file))
+        runtime.provider.get_routes('/mcp')
+        try:
+            yield runtime
+        finally:
+            await runtime.aclose()
+
+
+def _dex_token_set(identity_token: str | None) -> UpstreamTokenSet:
+    return UpstreamTokenSet(
+        upstream_token_id='dex-session',
+        access_token='opaque-dex-access-token',
+        refresh_token=None,
+        refresh_token_expires_at=None,
+        expires_at=time.time() + 3600,
+        token_type='Bearer',
+        scope='openid profile email offline_access',
+        client_id='mcp-client',
+        created_at=time.time(),
+        raw_token_data={'id_token': identity_token} if identity_token else {},
+    )
+
+
+async def _store_dex_session(provider: OIDCProxy, token_set: UpstreamTokenSet) -> str:
+    await provider._upstream_token_store.put(  # pylint: disable=protected-access
+        key=token_set.upstream_token_id, value=token_set,
+    )
+    await provider._jti_mapping_store.put(  # pylint: disable=protected-access
+        key='dex-jti',
+        value=JTIMapping(
+            jti='dex-jti',
+            upstream_token_id=token_set.upstream_token_id,
+            created_at=time.time(),
+        ),
+    )
+    return provider.jwt_issuer.issue_access_token(
+        client_id=token_set.client_id, scopes=['openid'], jti='dex-jti',
+    )
+
+
+async def _store_dex_refresh_session(provider: OIDCProxy, client_id: str) -> str:
+    token_set = _dex_token_set(None)
+    token_set.client_id = client_id
+    token_set.scope = 'openid'
+    token_set.refresh_token = 'dex-refresh-token'
+    token_set.refresh_token_expires_at = time.time() + 3600
+    await _store_dex_session(provider, token_set)
+    refresh_token = provider.jwt_issuer.issue_refresh_token(
+        client_id=client_id, scopes=['openid'], jti='dex-jti', expires_in=3600,
+    )
+    await provider._refresh_token_store.put(  # pylint: disable=protected-access
+        key=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        value=RefreshTokenMetadata(
+            client_id=client_id, scopes=['openid'],
+            expires_at=int(time.time()) + 3600, created_at=time.time(),
+        ),
+    )
+    return refresh_token
 
 
 class _TemporaryFile:

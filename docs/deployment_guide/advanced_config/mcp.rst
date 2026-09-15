@@ -32,8 +32,54 @@ This guide covers setup and operations. Give users the MCP URL and refer them
 to :ref:`getting_started_mcp` for client setup. See
 :ref:`mcp_identity_permissions` for the API actions each tool requires.
 
-Prerequisites
-=============
+Embedded Dex Quickstart
+=======================
+
+The unified chart's default development deployment can enable MCP with one
+setting:
+
+.. code-block:: bash
+
+   helm upgrade --install osmo deployments/charts/osmo \
+     --namespace osmo --create-namespace \
+     --set services.mcp.enabled=true \
+     --wait --wait-for-jobs --timeout 20m
+
+Use the chart quickstart prerequisites. Add ``--reset-then-reuse-values`` when
+upgrading to merge existing overrides with the new chart defaults. Connect a
+Streamable HTTP MCP client to
+``http://127.0.0.1/mcp``, approve the client, and sign in with the same embedded
+Dex account used for the UI. A different ``externalUrl`` produces the matching
+``<externalUrl>/mcp`` endpoint. HTTP is supported only for local loopback
+origins; use HTTPS for any other public hostname.
+
+When ``authentication.provider`` is ``embeddedDex`` and MCP's
+``oidc.configUrl`` is unset, the chart registers ``osmo-mcp`` as a confidential
+Dex client and generates a retained ``osmo-embedded-dex-mcp`` Secret. The
+bootstrap job manages this credential; it is never stored in Helm values.
+The client ID is configurable through
+``authentication.embeddedDex.mcpClientId``. MCP uses the release's Valkey and
+in-cluster Dex and Gateway endpoints, so it does not call its public loopback
+address from inside the pod.
+
+Dex issues opaque access tokens. MCP verifies the signed ID token instead,
+checking its issuer and MCP client audience, then forwards that verified token
+to the Gateway. The Gateway applies the same OSMO identity, role, and pool
+permissions as other clients. The external provider's delegated API scope is
+not needed for embedded Dex. Authentication and client consent remain required.
+
+Generated credentials survive Helm upgrades and uninstall. Deleting the MCP
+credential Secret and reconciling the release creates a new secret and
+restarts its Dex and MCP consumers; users must sign in again. Embedded Dex
+stores sessions and signing keys in memory and is intended for development
+and evaluation only.
+
+To use a separately managed MCP identity provider, set
+``services.mcp.oidcProxy.oidc.configUrl`` and the remaining explicit settings
+below. This also works when browser and CLI login still use embedded Dex.
+
+External OIDC Prerequisites
+===========================
 
 Before enabling MCP:
 
@@ -44,8 +90,8 @@ Before enabling MCP:
   Gateway Envoy, OAuth2 Proxy, and authorization are mandatory and cannot be
   disabled. The default provider is embedded Dex; use
   ``authentication.provider: externalOidc`` and ``authentication.externalOidc``
-  for an operator-managed provider. The development quickstart does not
-  provision the public HTTPS endpoint or confidential application needed for MCP.
+  for an operator-managed provider. Supply the public HTTPS endpoint and
+  confidential application for external MCP OIDC.
 * Configure a matching identity-provider JWT entry under
   ``gateway.envoy.jwt.providers`` or ``gateway.envoy.jwt.additionalProviders``
   and role mappings for the upstream API token. The chart adds the MCP
@@ -76,8 +122,8 @@ do. The Gateway must validate the same token and resolve its OSMO identity and
 roles. The delegated scope permits MCP access; it grants no additional OSMO
 API or pool permissions.
 
-Microsoft Entra is the validated provider profile. Verify this token contract
-before using another OIDC provider.
+Microsoft Entra is the validated external provider profile. Verify this token
+contract before using another external OIDC provider.
 
 .. important::
 
@@ -158,8 +204,8 @@ must support this Gateway CA setting and Redis-backed readiness.
 
 Use ``services.mcp.oidcProxy.redis.dbNumber`` and ``keyPrefix`` to isolate
 proxy state from other Redis users. Replicas share the same storage and client
-secret, so ``services.mcp.replicas`` may exceed one. The chart references
-externally managed MCP credentials without creating them.
+secret, so ``services.mcp.replicas`` may exceed one. In external OIDC mode, the
+chart references externally managed MCP credentials without creating them.
 
 Native clients normally omit ``Origin``. If a compatible client sends a
 browser origin, permit it through ``services.mcp.allowedOrigins``. This
@@ -202,8 +248,10 @@ and returns an authorization code to the client's loopback URL. The client
 exchanges that code and its Proof Key for Code Exchange (PKCE) verifier at
 ``/mcp/token`` for a resource token.
 
-FastMCP requests the full delegated scope plus ``openid profile email
-offline_access`` upstream. The client discovers its required scope without
+For external OIDC, FastMCP requests the full delegated scope plus
+``openid profile email offline_access`` upstream. Embedded Dex uses only those
+standard OIDC scopes and advertises ``openid`` to MCP clients. The client
+discovers its required scope without
 manual configuration. ``offline_access`` allows session refresh without
 granting additional OSMO permissions. Proxy access tokens default to 600
 seconds; ``refreshTokenTtlSeconds`` is a fallback when the upstream provider
@@ -234,9 +282,11 @@ Gateway Envoy pods. Then inspect both discovery documents:
    $ curl --fail --silent --show-error \
        https://osmo.example.com/.well-known/oauth-authorization-server/mcp
 
-Check that the resource, issuer, and delegated scope use the configured MCP
-URL, ``client_id_metadata_document_supported`` is ``true``, and
-``registration_endpoint`` points to ``/mcp/register``. Complete a fresh login
+Check that the resource and issuer use the configured MCP URL,
+``client_id_metadata_document_supported`` is ``true``, and
+``registration_endpoint`` points to ``/mcp/register``. External OIDC advertises
+the delegated API scope; embedded Dex advertises ``openid``. Complete a fresh
+login
 and run the read-only verification in :ref:`getting_started_mcp`.
 Also confirm that a restricted user's tool call is denied when its API action
 or target pool is outside that user's permissions.
