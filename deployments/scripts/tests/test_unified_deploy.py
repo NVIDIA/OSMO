@@ -47,6 +47,8 @@ class FakeCluster:
                 'storageclass.kubernetes.io/is-default-class': 'true'}}}]})
         if tool == 'kubectl' and args[:3] == ('get', 'secret', 'osmo-default-admin'):
             return json.dumps({'data': {'password': base64.b64encode(b'retained-admin-token').decode()}}) if self.previous is not None and self.secrets else ''
+        if tool == 'kubectl' and args[:3] == ('get', 'secret', 'osmo-admin-token'):
+            return json.dumps({'data': {'token': base64.b64encode(b'chart-admin-token').decode()}}) if self.secrets else ''
         if tool == 'kubectl' and args[:2] == ('get', 'secret'):
             return json.dumps({'data': {'mek.yaml': 'retained', 'authentication-config.json': 'retained',
                                        'db-password': 'existing', 'redis-password': 'existing',
@@ -201,6 +203,50 @@ class DeploymentTest(unittest.TestCase):
             self.run_install(cluster, render_failure=True)
         self.assertFalse(cluster.manifests)
         self.assertFalse(any(call[:2] == ('helm', 'upgrade') for call in cluster.calls))
+
+    def test_quickstart_reads_chart_token_after_install_for_verification(self):
+        options = self.options()
+        options.skip_verify = False
+        cluster = FakeCluster()
+        with mock.patch.object(deploy, 'verify') as verify:
+            _, calls = self.run_install(cluster, options=options,
+                                        environment={'OSMO_API_PORT': '9100'})
+        self.assertEqual(calls.args[2]['externalUrl'], 'http://127.0.0.1:9100')
+        self.assertEqual(self.install_environment['OSMO_LOGIN_METHOD'], 'token')
+        self.assertEqual(self.admin_token, 'chart-admin-token')
+        verify.assert_called_once()
+        token_read = next(i for i, call in enumerate(cluster.calls)
+                          if call[:4] == ('kubectl', 'get', 'secret', 'osmo-admin-token'))
+        self.assertGreater(token_read, max(i for i, call in enumerate(cluster.calls)
+                                         if call[:2] == ('helm', 'upgrade')))
+
+    def test_verification_token_handles_custom_reference_and_missing_data(self):
+        values = {'authentication': {'bootstrap': {'identities': {'admin': {
+            'enabled': True, 'tokens': {'primary': {'existingSecret': {
+                'name': 'site-admin', 'key': 'access-token'}}}}}}}}
+        with tempfile.TemporaryDirectory() as temporary:
+            cluster = FakeCluster()
+            for document, succeeds in [({'data': {'access-token': base64.b64encode(b'site-token').decode()}}, True), ({}, False)]:
+                with self.subTest(document=document), mock.patch.object(cluster, 'run', return_value=json.dumps(document)):
+                    environment = {}
+                    if succeeds:
+                        deploy.verification_credentials(cluster, self.options(), values, environment, Path(temporary))
+                        token_file = Path(environment['OSMO_TOKEN_FILE'])
+                        self.assertEqual(token_file.read_text(), 'site-token')
+                        self.assertEqual(token_file.stat().st_mode & 0o777, 0o600)
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'no non-empty access-token'):
+                            deploy.verification_credentials(cluster, self.options(), values, environment, Path(temporary))
+
+    def test_removed_auth_values_fail_before_installing_or_replacing_credentials(self):
+        for key in ['defaultAdmin', 'backendApiTokens']:
+            with self.subTest(key=key):
+                previous = {'secrets': {key: {'existingSecret': 'retained-secret'}}}
+                cluster = FakeCluster(previous=previous)
+                with self.assertRaisesRegex(ValueError, 'Legacy chart values'):
+                    self.run_install(cluster)
+                self.assertFalse(cluster.manifests)
+                self.assertFalse(any(call[:2] == ('helm', 'upgrade') for call in cluster.calls))
 
     def test_initial_install_disables_bootstrap_after_success(self):
         cluster = FakeCluster()
@@ -485,8 +531,10 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(effective['externalDependencies']['postgresql']['tls']['caExistingSecret'], 'osmo-postgresql-ca')
         self.assertTrue(effective['externalDependencies']['valkey']['tls']['enabled'])
         self.assertEqual(effective['externalDependencies']['objectStorage']['locations']['workflows'], 's3://site/workflows')
-        self.assertTrue(all(not item['enabled'] for item in effective['embeddedDependencies'].values()))
-        self.assertEqual(effective['secrets']['backendApiTokens']['credentials'][0]['managedSecret']['name'], 'osmo-backend-token')
+        self.assertTrue(effective['embeddedDependencies']['dex']['enabled'])
+        self.assertTrue(all(not effective['embeddedDependencies'][key]['enabled']
+                            for key in ['postgresql', 'valkey', 'objectStorage']))
+        self.assertEqual(effective['authentication']['bootstrap']['identities']['backend-operator-default']['tokens']['single-plane']['managedSecret']['name'], 'osmo-backend-token')
         self.assertEqual(self.install_environment['OSMO_LOGIN_METHOD'], 'token')
         self.assertTrue(self.admin_token)
         self.assertNotIn(self.admin_token, json.dumps(values))
@@ -498,7 +546,7 @@ class DeploymentTest(unittest.TestCase):
     def test_single_plane_admin_token_is_retained_and_missing_upgrade_token_fails(self):
         options = self.options('--provider', 'aws', '--profile', 'single-plane')
         with tempfile.TemporaryDirectory() as temporary:
-            values = {'secrets': {'defaultAdmin': {'existingSecret': 'osmo-default-admin', 'generate': False, 'keys': {'password': 'password'}}},
+            values = {'authentication': {'bootstrap': {'identities': {'admin': {'tokens': {'primary': {'existingSecret': {'name': 'osmo-default-admin', 'key': 'password'}}}}}}},
                       'externalDependencies': {'postgresql': {'tls': {'enabled': False}}}}
             cluster = FakeCluster(previous={})
             environment = {}
@@ -509,6 +557,38 @@ class DeploymentTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Restore or provision administrator'):
                 deploy.single_plane_credentials(missing, options, values, {}, Path(temporary), True)
             self.assertFalse(missing.manifests)
+
+    def test_generated_aws_values_render_with_native_identity_templates(self):
+        environment = {'EKS_CLUSTER_NAME': 'site', 'POSTGRES_HOST': 'rds.example', 'POSTGRES_PASSWORD': 'pg-secret',
+                       'REDIS_HOST': 'cache.example', 'REDIS_PASSWORD': 'cache-secret',
+                       'STORAGE_BUCKET': 'site', 'STORAGE_ACCESS_KEY_ID': 'access-id',
+                       'STORAGE_ACCESS_KEY': 'access-secret'}
+        values, _ = self.run_install(FakeCluster(), environment=environment,
+                                    options=self.options('--provider', 'aws', '--profile', 'single-plane'))
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            # Render the actual root templates/schema without downloading subcharts.
+            chart = directory / 'osmo'
+            shutil.copytree(ROOT / 'deployments/charts/osmo', chart,
+                            ignore=shutil.ignore_patterns('charts', 'tmpcharts-*'))
+            (chart / 'Chart.yaml').write_text('apiVersion: v2\nname: osmo\nversion: 0.1.0\n')
+            overrides = directory / 'values.json'
+            # These inert defaults normally come from the Dex dependency.
+            rendered_values = deploy.merge(values[0], {'dex': {
+                'replicaCount': 1, 'https': {'enabled': False}, 'grpc': {'enabled': False},
+                'service': {'ports': {'http': {'port': 5556}}},
+                'autoscaling': {'enabled': False}, 'networkPolicy': {'enabled': False}}})
+            overrides.write_text(json.dumps(rendered_values))
+            result = subprocess.run(['helm', 'template', 'osmo', str(chart), '-n', 'osmo',
+                                     '-f', str(overrides)], capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rendered = result.stdout
+            for expected in ['identity-bootstrap', 'secretName: osmo-default-admin',
+                             '/etc/osmo/bootstrap-tokens/backend-operator-default/single-plane',
+                             'http://127.0.0.1:9000/dex']:
+                self.assertIn(expected, rendered)
+            for forbidden in ['pg-secret', 'cache-secret', 'access-secret']:
+                self.assertNotIn(forbidden, rendered)
 
     def test_single_plane_aws_persistent_inputs_and_state_context(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -575,8 +655,8 @@ class DeploymentTest(unittest.TestCase):
                              'clusterVersions[?defaultVersion].clusterVersion | [0]')
 
     def test_single_plane_custom_admin_key(self):
-        values = {'secrets': {'defaultAdmin': {'existingSecret': 'osmo-default-admin',
-                  'generate': False, 'keys': {'password': 'custom-token'}}},
+        values = {'authentication': {'bootstrap': {'identities': {'admin': {'tokens': {'primary': {
+                  'existingSecret': {'name': 'osmo-default-admin', 'key': 'custom-token'}}}}}}},
                   'externalDependencies': {'postgresql': {'tls': {'enabled': False}}}}
         options = self.options('--provider', 'aws', '--profile', 'single-plane')
         with tempfile.TemporaryDirectory() as temporary:

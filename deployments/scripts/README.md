@@ -13,9 +13,10 @@ arrays; Helm parses and merges values files.
 
 For production and split-plane deployments, use the
 [chart profiles](../charts/osmo/profiles/README.md) and Helm directly. This installer
-is a converged development flow. Its default gateway uses development authentication
-and remains a ClusterIP. Configure authentication and exposure through native chart
-values before making a deployment publicly accessible.
+is a converged development flow. Its default gateway uses embedded Dex and remains
+a ClusterIP; smoke tests authenticate with the configured administrator token.
+The default public origin is `http://127.0.0.1:9000` for local port-forwarding.
+Set `externalUrl` in chart values to the reachable origin for remote browser login.
 
 ## Quick start
 
@@ -71,6 +72,10 @@ generated connection/image settings, then caller files and sets. The old
 `global.*`, `services.configs`, `services.service` and related two-chart keys are
 rejected before provisioning. Per-chart service/operator flags are no longer accepted.
 The installer does not translate arbitrary old Helm values.
+Removed `secrets.defaultAdmin` and `secrets.backendApiTokens` values are also
+rejected, including values retained by an existing release. Migrate them to
+`authentication.bootstrap.identities` through Helm before using this installer
+to upgrade that release.
 
 `OSMO_IMAGE_REGISTRY` supplies a registry/repository prefix; `OSMO_IMAGE_TAG` applies
 to services and workflow runtime images. `OSMO_IMAGE_PULL_SECRET` and
@@ -81,8 +86,8 @@ Prefer credential files/environment variables over putting passwords in shell hi
 The local chart requires compatible OSMO images. When testing an unreleased chart,
 set `OSMO_IMAGE_REGISTRY` and `OSMO_IMAGE_TAG` to images built from the matching
 source revision. A published `latest` image can lag behind the chart; single-plane
-installation requires the service image to include `service-auth-bootstrap` and
-`mek-lifecycle`.
+installation requires the service image to include `identity-bootstrap`,
+`service-auth-bootstrap` and `mek-lifecycle`.
 
 For example, select the local chart from your `main` checkout explicitly:
 

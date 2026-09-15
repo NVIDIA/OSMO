@@ -168,7 +168,7 @@ kubectl create secret generic osmo-postgresql --namespace osmo \
 kubectl create secret generic osmo-valkey --namespace osmo \
     --from-file=redis-password="$SECRETS_DIR/redis-password" \
     --dry-run=client --output yaml | kubectl apply -f -
-# The chart calls this field password, but the service registers it as an access token.
+# Preserve the existing token's Secret/key when selecting the bootstrap identity.
 DEFAULT_ADMIN_SECRET="$(kubectl get secret osmo-default-admin --namespace osmo \
     --ignore-not-found --output name)"
 if [[ -z "$DEFAULT_ADMIN_SECRET" ]]; then
@@ -212,6 +212,7 @@ jq --null-input \
 
 # Install OSMO.
 # Register URL-based dependencies on fresh Helm installations as well.
+helm repo add osmo-dex https://charts.dexidp.io --force-update
 helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
 helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$CHART"

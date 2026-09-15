@@ -795,8 +795,9 @@ test_control_umbrella() {
     ' "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml")
     local mutated_chart="$TEST_DIRECTORY/osmo-config-mutated"
     cp -a "$charts_copy/osmo" "$mutated_chart"
-    sed -i 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
-        "$mutated_chart/templates/_helpers.tpl"
+    sed 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
+        "$mutated_chart/templates/_helpers.tpl" >"$TEST_DIRECTORY/mutated-helpers.tpl"
+    mv "$TEST_DIRECTORY/mutated-helpers.tpl" "$mutated_chart/templates/_helpers.tpl"
     helm_template embedded-auth-config-mutated "$mutated_chart" \
         --api-versions postgresql.cnpg.io/v1 \
         >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
@@ -1792,7 +1793,7 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/installer-single-plane-aws-api.yaml"
     require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "value: verify-full"
     require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-postgresql-ca"
-    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: osmo-default-admin"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-default-admin"
     require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: OSMO_REDIS_PASSWORD"
     require_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-gateway-authz
     require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Cluster osmo-pg

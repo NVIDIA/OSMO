@@ -214,14 +214,14 @@ jq -e '
   .externalDependencies.objectStorage.locations.apps == "azure://teststorage/osmo-workflows/apps"
 ' "$CAPTURED_VALUES" >/dev/null || fail "unexpected dynamic Helm values"
 
-assert_contains "$static_values" 'externalUrl: http://osmo-gateway'
+assert_contains "$static_values" 'externalUrl: http://127.0.0.1:9000'
 assert_contains "$static_values" 'type: sdkDefault'
 assert_contains "$static_values" 'serviceAccountName: osmo-workflow'
 assert_contains "$static_values" 'serviceAuth:'
 assert_contains "$static_values" 'managementMode: osmo'
 assert_contains "$static_values" 'bootstrap:'
 assert_contains "$static_values" '      enabled: true'
-assert_contains "$static_values" 'existingSecret: osmo-default-admin'
+assert_contains "$static_values" 'name: osmo-default-admin'
 assert_not_contains "$static_values" 'allowMissing: true'
 assert_not_contains "$static_values" 'roles: osmo-admin'
 assert_not_contains "$static_values" '${'
@@ -257,6 +257,7 @@ assert_ordered \
     'kubectl create serviceaccount osmo-workflow' \
     'kubectl annotate serviceaccount osmo-workflow' \
     'kubectl create secret generic osmo-backend-token' \
+    'helm repo add osmo-dex https://charts.dexidp.io --force-update' \
     'helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update' \
     'helm repo add osmo-rustfs https://charts.rustfs.com --force-update' \
     'helm dependency build' \

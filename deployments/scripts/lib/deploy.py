@@ -41,6 +41,8 @@ def merge(*documents):
 
 def reject_legacy(values):
     invalid = sorted(LEGACY_ROOTS.intersection(values))
+    invalid += [f'secrets.{key}' for key in ['defaultAdmin', 'backendApiTokens']
+                if key in values.get('secrets', {})]
     services = values.get('services', {})
     if isinstance(services, dict):
         invalid += [f'services.{key}' for key in sorted(LEGACY_SERVICES.intersection(services))]
@@ -337,10 +339,11 @@ def validate_single_plane_aws_context(directory: Path, environment: dict) -> Non
 def single_plane_credentials(cluster: Cluster, options: argparse.Namespace, values: dict,
                              environment: dict, directory: Path, upgrading: bool) -> None:
     """Prepare token login and the public RDS CA without putting credentials in Helm."""
-    reference = values['secrets']['defaultAdmin']
-    name = reference['existingSecret']
-    password_key = reference['keys']['password']
-    if not name or reference['generate']:
+    credential = values['authentication']['bootstrap']['identities']['admin']['tokens']['primary']
+    reference = credential.get('existingSecret') or {}
+    name = reference.get('name')
+    password_key = reference.get('key', 'token')
+    if not name or credential.get('managedSecret'):
         raise ValueError('AWS single-plane requires an existingSecret for its administrator token')
     document = json.loads(cluster.run('kubectl', 'get', 'secret', name, '-n', options.namespace,
                                      '--ignore-not-found', '-o', 'json', capture=True) or '{}')
@@ -690,6 +693,29 @@ def prerequisites(cluster, options, values, environment, directory):
                         '--version', '0.29.0', '-n', 'cnpg-system', '--create-namespace', '--wait', '--timeout', '10m')
 
 
+def verification_credentials(cluster, options, values, environment, directory):
+    """Read the configured bootstrap token after Helm has reconciled identities."""
+    if environment.get('OSMO_TOKEN_FILE'):
+        environment['OSMO_LOGIN_METHOD'] = 'token'
+        return
+    identity = values['authentication']['bootstrap']['identities'].get('admin', {})
+    credential = identity.get('tokens', {}).get('primary', {})
+    reference = credential.get('existingSecret') or credential.get('managedSecret') or {}
+    name = reference.get('name')
+    key = reference.get('key', 'token')
+    if not identity.get('enabled') or not name:
+        raise ValueError('Verification requires an enabled admin primary token or OSMO_TOKEN_FILE')
+    document = json.loads(cluster.run('kubectl', 'get', 'secret', name, '-n', options.namespace,
+                                     '-o', 'json', capture=True) or '{}')
+    token = base64.b64decode(document.get('data', {}).get(key, ''), validate=True).decode()
+    if not token.strip():
+        raise ValueError(f'Verification token Secret {name} has no non-empty {key} key')
+    token_file = directory / 'admin-token'
+    token_file.write_text(token)
+    token_file.chmod(0o600)
+    environment.update(OSMO_LOGIN_METHOD='token', OSMO_TOKEN_FILE=str(token_file))
+
+
 def verify(cluster, options, values, environment):
     if options.skip_verify or environment.get('SKIP_VERIFY') == '1':
         return
@@ -799,9 +825,11 @@ def install(options, environment, directory, chart, user_values):
         return
     previous = json.loads(cluster.run('helm', 'get', 'values', options.release, '-n', options.namespace,
                                       '-o', 'json', capture=True) or '{}') if current else {}
+    reject_legacy(previous or {})
     generated = connection_values(options, environment, merge(previous or {}, user_values))
     if not current:
-        generated = merge({'fullnameOverride': options.release, 'externalUrl': f'http://{options.release}-gateway',
+        generated = merge({'fullnameOverride': options.release,
+                           'externalUrl': environment.get('OSMO_URL') or 'http://127.0.0.1:' + environment.get('OSMO_API_PORT', '9000'),
                            'gateway': {'envoy': {'service': {'type': 'ClusterIP'}}}}, generated)
     profile = {}
     if options.profile == 'single-plane':
@@ -833,6 +861,7 @@ def install(options, environment, directory, chart, user_values):
             if not secret.get('data', {}).get(reference['key']):
                 raise ValueError(f'Restore retained {name} Secret before upgrading; automatic replacement is disabled')
     if chart.is_dir():
+        command(['helm', 'repo', 'add', 'osmo-dex', 'https://charts.dexidp.io', '--force-update'])
         command(['helm', 'repo', 'add', 'osmo-postgresql', 'https://cloudnative-pg.github.io/charts', '--force-update'])
         command(['helm', 'repo', 'add', 'osmo-rustfs', 'https://charts.rustfs.com', '--force-update'])
         command(['helm', 'dependency', 'build', chart])
@@ -859,6 +888,8 @@ def install(options, environment, directory, chart, user_values):
                     ['--set', f'secrets.{name}.bootstrap.enabled=false']]
         cluster.run('helm', 'upgrade', options.release, chart, '-n', options.namespace,
                     '--reuse-values', *settings, '--wait', '--wait-for-jobs', '--timeout', '25m')
+    if not options.skip_verify and environment.get('SKIP_VERIFY') != '1':
+        verification_credentials(cluster, options, effective, environment, directory)
     verify(cluster, options, effective, environment)
     print(f'OSMO release {options.namespace}/{options.release} is ready.')
     if options.provider == 'azure':

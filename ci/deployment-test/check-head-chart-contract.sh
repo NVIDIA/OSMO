@@ -21,6 +21,7 @@ values=(--namespace osmo -f "$chart/profiles/single-plane.yaml"
     -f "$repo/deployments/scripts/single-plane-azure.yaml" -f "$private/dynamic.json"
     --set secrets.masterEncryptionKey.bootstrap.enabled=true)
 # Register URL-based dependencies on fresh Helm installations as well.
+helm repo add osmo-dex https://charts.dexidp.io --force-update
 helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
 helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$chart"

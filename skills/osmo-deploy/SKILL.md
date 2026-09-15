@@ -29,7 +29,8 @@ The default installs the checkout's unified chart as release `osmo` in namespace
 KAI Scheduler, GPU Operator, and CloudNativePG remain prerequisites outside the
 chart. A usable default StorageClass or explicit per-dependency storage classes
 are required for embedded persistence. The development gateway uses ClusterIP
-and has authentication disabled; keep it on trusted networks.
+with embedded Dex authentication; verification reads the configured administrator
+token Secret. Set the chart's `externalUrl` to the browser-accessible origin.
 
 For production or split control/compute planes, use Helm directly with the
 [unified chart profiles and lifecycle instructions](../../deployments/charts/osmo/README.md).
