@@ -1305,10 +1305,56 @@ class TestRegistryAuthFailures(unittest.TestCase):
         not_found = FakeRegistryResponse(404, _manifest_unknown_body())
 
         with mock.patch.object(common.requests, 'head', return_value=not_found):
-            response = common.registry_auth(
+            attempt = common.registry_auth(
                 'https://registry-1.docker.io:443/v2/a/b/manifests/1')
 
-        self.assertIs(response, not_found)
+        self.assertIs(attempt.response, not_found)
+        self.assertFalse(attempt.challenged)
+
+    def test_server_error_with_a_challenge_does_not_start_a_token_exchange(self):
+        """An outage is not an auth problem; do not chase the challenge through a 5xx."""
+        outage = FakeRegistryResponse(503, headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+
+        with mock.patch.object(common.requests, 'head', return_value=outage), \
+             mock.patch.object(common.requests, 'get') as registry_get:
+            attempt = common.registry_auth(
+                'https://registry.example.com:443/v2/team/app/manifests/1')
+
+        self.assertIs(attempt.response, outage)
+        self.assertFalse(attempt.challenged)
+        registry_get.assert_not_called()
+
+    def test_token_service_failure_is_not_reported_as_a_manifest_failure(self):
+        """A broken token endpoint must not read as a missing image tag."""
+        challenged = FakeRegistryResponse(401, headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+        token_missing = FakeRegistryResponse(404, _manifest_unknown_body())
+
+        with mock.patch.object(common.requests, 'head', return_value=challenged), \
+             mock.patch.object(common.requests, 'get', return_value=token_missing):
+            with self.assertRaises(osmo_errors.OSMORegistryUnavailableError) as ctx:
+                common.registry_auth(
+                    'https://registry.example.com:443/v2/team/app/manifests/1')
+
+        self.assertIn('auth.example.com', ctx.exception.message)
+        self.assertIn('404', ctx.exception.message)
+
+    def test_rejected_credential_is_returned_so_the_caller_can_try_the_next(self):
+        challenged = FakeRegistryResponse(401, headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+        rejected = FakeRegistryResponse(401)
+
+        with mock.patch.object(common.requests, 'head', return_value=challenged), \
+             mock.patch.object(common.requests, 'get', return_value=rejected):
+            attempt = common.registry_auth(
+                'https://registry.example.com:443/v2/team/app/manifests/1', 'user', 'password')
+
+        self.assertIs(attempt.response, rejected)
+        self.assertTrue(attempt.challenged)
 
     def test_concealed_private_repository_404_authenticates_with_credentials(self):
         """A registry that hides private repositories answers 404 with an auth challenge."""
@@ -1321,11 +1367,12 @@ class TestRegistryAuthFailures(unittest.TestCase):
         with mock.patch.object(common.requests, 'head', return_value=concealed), \
              mock.patch.object(common.requests, 'get',
                                side_effect=[token_response, manifest]) as registry_get:
-            response = common.registry_auth(
+            attempt = common.registry_auth(
                 'https://registry.example.com:443/v2/team/app/manifests/1',
                 'user', 'password')
 
-        self.assertIs(response, manifest)
+        self.assertIs(attempt.response, manifest)
+        self.assertTrue(attempt.challenged)
         self.assertEqual(registry_get.call_count, 2)
         self.assertEqual(
             registry_get.call_args.kwargs['headers']['Authorization'], 'Bearer secret-token')

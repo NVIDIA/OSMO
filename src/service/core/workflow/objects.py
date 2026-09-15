@@ -740,9 +740,9 @@ class UserRegistryCredential(
         ):
             return
         registry_host = self.registry.split('/', 1)[0]
-        response = common.registry_auth(f'https://{registry_host}/v2/',
-                                        self.username, self.auth)
-        if response.status_code != 200:
+        attempt = common.registry_auth(f'https://{registry_host}/v2/',
+                                       self.username, self.auth)
+        if attempt.response.status_code != 200:
             raise osmo_errors.OSMOCredentialError('Registry authentication failed.')
 
 

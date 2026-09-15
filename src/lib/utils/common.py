@@ -307,9 +307,20 @@ class DockerImageInfo(NamedTuple):
         return f'https://{self.host}:{self.port}/v2/{self.name}/manifests/{self.reference}'
 
 
+class RegistryAttempt(NamedTuple):
+    """ One registry manifest attempt, and whether the registry offered a way to authenticate. """
+    response: Any
+    # True when the registry answered with a WWW-Authenticate challenge, which is the only case
+    # where supplying a credential can change the outcome.
+    challenged: bool
+
+
 def registry_auth(url: str, username: Optional[str] = None,
                   password: Optional[str] | None = None):
-    """ Using the instructions here https://docs.docker.com/registry/spec/auth/token/ """
+    """ Using the instructions here https://docs.docker.com/registry/spec/auth/token/
+
+    Returns a RegistryAttempt so the caller knows whether a credential could change the outcome.
+    """
 
     # Step 1: Attempt to begin a push/pull operation with the registry.
     try:
@@ -319,8 +330,11 @@ def registry_auth(url: str, username: Optional[str] = None,
         # on a 401. Registries that conceal private repositories answer 404 with the same
         # challenge, so run the token exchange whenever one is present and return anything else
         # unchanged for the caller to classify (missing manifest, rate limit, server error).
-        if response.status_code == 200 or 'www-authenticate' not in response.headers:
-            return response
+        # A registry that is down can still emit the challenge, so check that first: chasing it
+        # through an outage only adds requests and ends up reported as an auth failure.
+        if response.status_code == 200 or response.status_code >= 500 \
+                or 'www-authenticate' not in response.headers:
+            return RegistryAttempt(response, False)
 
         # Step 3: The registry client makes a request to the authorization service
         # for a Bearer token.
@@ -338,8 +352,15 @@ def registry_auth(url: str, username: Optional[str] = None,
         if username is not None and password is not None:
             auth = requests.auth.HTTPBasicAuth(username, password)
         auth_response = requests.get(realm, params=claims, auth=auth, timeout=TIMEOUT)
+        # A rejected credential is the caller's to handle, so it can try the next one. Any other
+        # token-service failure is about the token service, not the image, and must not be
+        # classified later as a missing manifest.
+        if auth_response.status_code in (401, 403):
+            return RegistryAttempt(auth_response, True)
         if auth_response.status_code != 200:
-            return auth_response
+            raise osmo_errors.OSMORegistryUnavailableError(
+                f'Registry token service {realm} returned HTTP {auth_response.status_code} '
+                f'for {url}.')
 
         token = None
         response_payload = auth_response.json()
@@ -363,7 +384,7 @@ def registry_auth(url: str, username: Optional[str] = None,
                                 timeout=TIMEOUT)
         # Step 6: The Registry authorizes the client by validating the Bearer token and the claim
         # set embedded within it.
-        return response
+        return RegistryAttempt(response, True)
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as err:
         raise osmo_errors.OSMORegistryUnavailableError(
             f'Registry connection error for {url}:\n {err}')
@@ -380,8 +401,13 @@ def registry_error_code(response) -> str:
     return ''
 
 
-def registry_failure_is_terminal(response) -> bool:
-    """ Returns whether a failing manifest response is one no credential can change. """
+def registry_failure_needs_backoff(response) -> bool:
+    """ Returns whether an authenticated failure calls for waiting rather than another credential.
+
+    Anonymous rate limits are excluded deliberately: a registry can refuse an anonymous pull on
+    quota while accepting the same pull once authenticated, so a 429 is only a reason to stop
+    after a credential has already been tried.
+    """
     return response.status_code == 429 or response.status_code >= 500
 
 
