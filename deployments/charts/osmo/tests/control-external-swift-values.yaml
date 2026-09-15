@@ -62,9 +62,6 @@ secrets:
       apps:
         name: workflow-app-credential
         key: ''
-  backendApiTokens:
-    enabled: false
-    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:
@@ -72,12 +69,6 @@ secrets:
       key: mek.yaml
     bootstrap:
       enabled: false
-  oauthClientSecret:
-    existingSecret: oauth-secrets
-  oauthCookieSecret:
-    generate: false
-    existingSecret: oauth-secrets
-
 services:
   api:
     image:
@@ -95,6 +86,4 @@ gateway:
         protocol: TCP
   oauth2Proxy:
     enabled: true
-    oidcIssuerUrl: https://identity.example.com
-    clientId: osmo
     redisDatabase: 3

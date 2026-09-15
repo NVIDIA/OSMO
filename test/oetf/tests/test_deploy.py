@@ -445,10 +445,14 @@ class TestKindAdapter(unittest.TestCase):
         rustfs_repo = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "repo", "add", "rustfs"))
+        dex_repo = next(
+            index for index, command in enumerate(cmds)
+            if command[:4] == ("helm", "repo", "add", "dex"))
         osmo_install = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "upgrade", "--install", "osmo"))
         self.assertLess(rustfs_repo, dependency_build)
+        self.assertLess(dex_repo, dependency_build)
         self.assertLess(dependency_build, osmo_install)
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
@@ -468,6 +472,11 @@ class TestKindAdapter(unittest.TestCase):
         self.assertIn(
             "services.agent.resources.requests.memory=1Gi",
             osmo_helm_args,
+        )
+        self.assertIn(
+            "externalUrl=http://quick-start.osmo",
+            osmo_helm_args,
+            "source-build KIND must configure the unified chart's public origin",
         )
         self.assertNotIn(
             "global.osmoImageTag=ci-123",

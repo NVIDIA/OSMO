@@ -125,6 +125,37 @@ osmo_py_library(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_library(
+    name = "identity_bootstrap_lib",
+    srcs = ["identity_bootstrap.py"],
+    deps = [
+        requirement("bcrypt"),
+        requirement("kubernetes"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_binary(
+    name = "identity_bootstrap_binary",
+    main = "identity_bootstrap.py",
+    srcs = ["identity_bootstrap.py"],
+    deps = [":identity_bootstrap_lib"],
+)
+
+osmo_python_wrapper(
+    name = "identity_bootstrap_wrapper",
+    bin_name = "identity-bootstrap",
+    main = None,
+    module = "src.utils.identity_bootstrap",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
+alias(
+    name = "identity_bootstrap_wrapper_public",
+    actual = ":identity_bootstrap_wrapper",
+    visibility = ["//visibility:public"],
+)
+
 osmo_py_binary(
     name = "internal_tls_bootstrap_binary",
     main = "internal_tls_bootstrap.py",

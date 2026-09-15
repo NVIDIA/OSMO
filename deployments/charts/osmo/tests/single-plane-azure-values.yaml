@@ -88,9 +88,16 @@ configuration:
         secretName: osmo-runtime-pull
         secretKey: .dockerconfigjson
 
+authentication:
+  bootstrap:
+    identities:
+      admin:
+        tokens:
+          cli:
+            existingSecret:
+              name: osmo-default-admin
+              key: password
+
 secrets:
-  defaultAdmin:
-    existingSecret: osmo-default-admin
-    username: admin
   objectStorage:
     existingSecret: ''

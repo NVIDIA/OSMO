@@ -23,6 +23,16 @@ embeddedDependencies:
   objectStorage:
     enabled: false
 
+authentication:
+  bootstrap:
+    identities:
+      backend-operator-default:
+        tokens:
+          primary:
+            managedSecret: null
+            existingSecret:
+              name: osmo-backend-token
+
 secrets:
   postgresql:
     existingSecret: osmo-postgresql
@@ -32,12 +42,6 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: osmo-object-storage
-  backendApiTokens:
-    enabled: true
-    credentials:
-    - name: default
-      existingSecret:
-        name: osmo-backend-token
   masterEncryptionKey:
     managementMode: osmo
     existingSecret:
@@ -198,16 +202,10 @@ gateway:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
-    defaultIdentity:
-      # Keep the provider-neutral profile fail-closed. A trusted development
-      # overlay can set these headers when it also allows requests without JWTs.
-      user: ''
-      roles: ''
-      allowedPools: ''
     jwt:
-      # Reject requests without a JWT. Sites can replace or extend the local
-      # OSMO provider below in their environment-specific authentication overlay.
-      allowMissing: false
+      # OSMO derives the embedded-Dex and OSMO-token providers. Sites selecting
+      # authentication.provider=externalOidc provide their complete OIDC
+      # contract in an environment-specific values file.
       providers:
       - issuer: osmo
         audience: osmo
@@ -224,10 +222,6 @@ gateway:
         memory: 512Mi
     pod:
       topologySpreadConstraints: []
-  oauth2Proxy:
-    enabled: false
-  authz:
-    enabled: false
   rateLimit:
     enabled: false
   tls:

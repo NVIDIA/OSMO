@@ -38,6 +38,8 @@ EXIT_SUCCESS = 0
 EXIT_TEST_FAILURE = 1
 EXIT_FRAMEWORK_ERROR = 2
 EXIT_INTERRUPTED = 130  # convention: 128 + SIGINT(2)
+ADMIN_TOKEN_SECRET = "osmo-admin-token"
+OSMO_NAMESPACE = "osmo"
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +73,9 @@ def _run_tests(args: argparse.Namespace, deployed_env: EnvironmentConfig) -> int
 
     The deployed env's URL overrides whatever the user passed via ``--url``
     because deploy_and_run only runs against the cluster it just brought up.
-    Auth is resolved by the child via ``--env`` (token from $OSMO_*_TOKEN
-    or username from env config); we only override auth fields for
-    dev-auth envs where the deploy may have minted a fresh user.
+    Auth is resolved by the child via ``--env``. Local-source Kind deploys use
+    the managed administrator token created by the chart; dev-auth environments
+    use the username from their environment config.
     """
     cmd = ["bazel", "run", "//test/oetf:run", "--", "--env", args.env]
     cmd.extend(forward_env_args(args))
@@ -81,14 +83,40 @@ def _run_tests(args: argparse.Namespace, deployed_env: EnvironmentConfig) -> int
     # Pin to the freshly-deployed cluster — deploy_and_run is single-cluster
     # by construction.
     cmd.extend(["--url", deployed_env.url])
-    if deployed_env.auth.strategy == "dev":
+    test_environment = os.environ.copy()
+    if args.build_local and deployed_env.type == "kind":
+        cluster_name = args.cluster_name or deployed_env.cluster_name or "osmo"
+        token_result = subprocess.run(
+            [
+                "kubectl", "--context", f"kind-{cluster_name}",
+                "get", "secret", ADMIN_TOKEN_SECRET,
+                "--namespace", OSMO_NAMESPACE,
+                "--output", 'go-template={{ index .data "token" | base64decode }}',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        token = token_result.stdout.strip()
+        if token_result.returncode != 0 or not token:
+            logger.error(
+                "Unable to read managed administrator token Secret %s: %s",
+                ADMIN_TOKEN_SECRET,
+                token_result.stderr[:500].strip(),
+            )
+            return EXIT_FRAMEWORK_ERROR
+        cmd.extend(["--auth-method", "token"])
+        test_environment["OSMO_ACCESS_TOKEN"] = token
+    elif deployed_env.auth.strategy == "dev":
         cmd.extend(["--auth-method", "dev"])
         cmd.extend(["--auth-username", deployed_env.auth.username])
     if args.verbose:
         cmd.extend(["--bazel-arg", "--test_output=all"])
     logger.debug("Running: %s", " ".join(cmd))
     workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY", os.getcwd())
-    result = subprocess.run(cmd, check=False, cwd=workspace)
+    result = subprocess.run(
+        cmd, check=False, cwd=workspace, env=test_environment,
+    )
     return result.returncode
 
 
