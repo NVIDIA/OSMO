@@ -454,7 +454,7 @@ class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
                            [('nvcr.io/nvstaging/osmo', {'username': 'user', 'auth': 'token'})])
 
         self.assertIn('Unable to authenticate for pulling image', ctx.exception.message)
-        self.assertEqual(ctx.exception.workflow_id, 'wf')
+        self.assertIsNone(ctx.exception.workflow_id)
 
     def test_validate_registry_reports_a_missing_tag_as_an_image_not_found_error(self):
         spec = self._spec('hijkzzz/molt:0.1')
@@ -466,7 +466,7 @@ class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
 
         self.assertIn('Could not resolve image tag hijkzzz/molt:0.1', ctx.exception.message)
         self.assertNotIn('Unable to authenticate', ctx.exception.message)
-        self.assertEqual(ctx.exception.workflow_id, 'wf')
+        self.assertIsNone(ctx.exception.workflow_id)
 
     def test_validate_registry_resolves_the_same_repository_by_digest(self):
         digest = 'sha256:' + 'f' * 64
@@ -541,11 +541,24 @@ class WorkflowSpecValidateRegistryFailureTest(unittest.TestCase):
         not_found = mock.Mock(status_code=404)
         not_found.json.return_value = {'errors': [{'code': 'MANIFEST_UNKNOWN'}]}
 
-        with self.assertRaises(osmo_errors.OSMOImageNotFoundError) as ctx:
-            self._validate(spec, registry_creds=_CREDS,
-                           responses=[not_found, mock.Mock(status_code=401)])
+        for responses in ([not_found, mock.Mock(status_code=401)],
+                          [mock.Mock(status_code=401), not_found, mock.Mock(status_code=401)]):
+            with self.subTest(statuses=[response.status_code for response in responses]):
+                with self.assertRaises(osmo_errors.OSMOImageNotFoundError) as ctx:
+                    self._validate(spec, registry_creds=_CREDS * (len(responses) - 1),
+                                   responses=responses)
 
-        self.assertIn('Could not resolve image tag', ctx.exception.message)
+                self.assertIn('Could not resolve image tag', ctx.exception.message)
+
+    def test_validate_registry_reports_later_rate_limits_and_outages(self):
+        spec = self._spec('hijkzzz/molt:0.1')
+        for status, error_class in ((429, osmo_errors.OSMORegistryRateLimitError),
+                                    (503, osmo_errors.OSMORegistryUnavailableError)):
+            with self.subTest(status=status):
+                with self.assertRaises(error_class):
+                    self._validate(spec, registry_creds=_CREDS,
+                                   responses=[mock.Mock(status_code=404),
+                                              mock.Mock(status_code=status)])
 
     def test_validate_registry_classifies_the_last_credential_response(self):
         """A credential that turns a 401 into a 404 reports the missing tag, not auth."""

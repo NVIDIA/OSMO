@@ -1356,6 +1356,20 @@ class TestRegistryAuthFailures(unittest.TestCase):
         self.assertIs(attempt.response, rejected)
         self.assertTrue(attempt.challenged)
 
+    def test_token_service_rate_limit_is_reported_as_a_rate_limit(self):
+        challenged = FakeRegistryResponse(401, headers={
+            'www-authenticate':
+                'Bearer realm="https://auth.example.com/token",service="registry"'})
+
+        with mock.patch.object(common.requests, 'head', return_value=challenged), \
+             mock.patch.object(common.requests, 'get', return_value=FakeRegistryResponse(429)):
+            with self.assertRaises(osmo_errors.OSMORegistryRateLimitError) as ctx:
+                common.registry_auth(
+                    'https://registry.example.com:443/v2/team/app/manifests/1')
+
+        self.assertIn('auth.example.com', ctx.exception.message)
+        self.assertIn('429', ctx.exception.message)
+
     def test_concealed_private_repository_404_authenticates_with_credentials(self):
         """A registry that hides private repositories answers 404 with an auth challenge."""
         concealed = FakeRegistryResponse(404, _manifest_unknown_body(), headers={

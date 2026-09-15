@@ -28,6 +28,7 @@ from typing import Any, IO
 from unittest import mock
 
 from fastapi import testclient
+import requests  # type: ignore
 
 from src.service.agent import helpers as agent_service_helpers
 from src.service.core import service
@@ -260,7 +261,31 @@ class WorkflowServiceTestCase(
         self.assertIn('Could not resolve image tag', payload['message'])
         self.assertIn('no-such-tag', payload['message'])
         self.assertNotIn('Unable to authenticate', payload['message'])
-        self.assertTrue(payload['workflow_id'])
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            postgres.PostgresConnector.get_instance(), payload['workflow_id'])
+        self.assertEqual(workflow_obj.workflow_name, 'missing_tag_workflow')
+        self.assertEqual(workflow_obj.status, workflow.WorkflowStatus.FAILED_SUBMISSION)
+        self.assertEqual(workflow_obj.failure_message, payload['message'])
+
+    def test_submit_registry_timeout_reports_the_saved_workflow_id(self):
+        self.create_backend('test_backend_timeout')
+        self.create_pool('test_pool_timeout', 'test_backend_timeout', 'test_platform_timeout')
+
+        with mock.patch('src.lib.utils.common.requests.head',
+                        side_effect=requests.exceptions.Timeout('registry timed out')):
+            response = self.submit_image(
+                'test_pool_timeout', 'test_platform_timeout',
+                'registry.example.com/team/app:1', 'timeout_workflow')
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertEqual(payload['error_code'], 'REGISTRY_UNAVAILABLE')
+        self.assertIn('registry timed out', payload['message'])
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            postgres.PostgresConnector.get_instance(), payload['workflow_id'])
+        self.assertEqual(workflow_obj.workflow_name, 'timeout_workflow')
+        self.assertEqual(workflow_obj.status, workflow.WorkflowStatus.FAILED_SUBMISSION)
+        self.assertEqual(workflow_obj.failure_message, payload['message'])
 
     def test_submit_workflow_resolves_the_same_repository_by_digest(self):
         pool_name = 'test_pool_digest'

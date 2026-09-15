@@ -357,6 +357,10 @@ def registry_auth(url: str, username: Optional[str] = None,
         # classified later as a missing manifest.
         if auth_response.status_code in (401, 403):
             return RegistryAttempt(auth_response, True)
+        if auth_response.status_code == 429:
+            raise osmo_errors.OSMORegistryRateLimitError(
+                f'Registry token service {realm} rate limited authentication '
+                f'for {url} (HTTP 429). Retry the submission later.')
         if auth_response.status_code != 200:
             raise osmo_errors.OSMORegistryUnavailableError(
                 f'Registry token service {realm} returned HTTP {auth_response.status_code} '

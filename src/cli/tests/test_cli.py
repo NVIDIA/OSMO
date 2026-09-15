@@ -162,6 +162,46 @@ class TestSubmissionErrorOutput(unittest.TestCase):
         self.assertIn('Error code: 1', output)
         self.assertEqual(exit_code, 1)
 
+    def test_registry_http_error_reaches_submit_output(self):
+        registry_message = (
+            'Could not resolve image tag hijkzzz/molt:0.1: registry-1.docker.io '
+            'returned 404 MANIFEST_UNKNOWN. Verify that the tag exists or submit '
+            'an immutable digest.')
+        response = mock.Mock(status_code=400, headers={}, text=json.dumps({
+            'message': registry_message, 'error_code': 'IMAGE_NOT_FOUND', 'workflow_id': 'wf-1'}))
+        login_manager = mock.Mock(url='https://osmo.example.com', user_agent='osmo-cli')
+        login_manager.login_storage.token_login = None
+        login_manager.login_storage.dev_login = None
+
+        with tempfile.TemporaryDirectory() as directory:
+            workflow_file = pathlib.Path(directory) / 'workflow.yaml'
+            workflow_file.write_text('version: 2\nworkflow:\n  name: wf\n', encoding='utf-8')
+            for format_type in ('text', 'json'):
+                with self.subTest(format_type=format_type):
+                    output = io.StringIO()
+                    with mock.patch.object(cli.sys, 'argv', [
+                            'osmo', 'workflow', 'submit', str(workflow_file),
+                            '--pool', 'pool-1', '--format-type', format_type]), \
+                         mock.patch.object(cli, 'configure_logging'), \
+                         mock.patch.object(cli.client, 'LoginManager', return_value=login_manager), \
+                         mock.patch.object(client.requests.Session, 'post',
+                                           return_value=response) as submit, \
+                         contextlib.redirect_stdout(output), \
+                         self.assertRaises(SystemExit) as raised:
+                        cli.main()
+
+                    self.assertEqual(raised.exception.code, 1)
+                    submit.assert_called_once()
+                    if format_type == 'json':
+                        payload = json.loads(output.getvalue())
+                        self.assertEqual(payload['code'], 400)
+                        message = payload['message']
+                    else:
+                        self.assertIn('Error code: 400', output.getvalue())
+                        message = output.getvalue()
+                    self.assertIn('Workflow wf-1 submit failed', message)
+                    self.assertIn(registry_message, message)
+
 
 class TestPortParse(unittest.TestCase):
     def test_port_parse(self):

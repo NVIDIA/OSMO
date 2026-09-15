@@ -638,6 +638,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         # an authentication challenge, and it has to still be serving. An anonymous rate limit is
         # worth authenticating through, since quotas are per-identity.
         response = anonymous
+        not_found_response = anonymous if anonymous.status_code == 404 else None
         if attempt.challenged and anonymous.status_code < 500:
             for _, registry_cred in connectors.PostgresConnector.get_instance()\
                     .get_matching_registry_creds(user, image_info):
@@ -647,14 +648,16 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                 if response.status_code == 200:
                     seen_registries[image_info.manifest_url] = response
                     return response
+                if response.status_code == 404:
+                    not_found_response = response
                 if common.registry_failure_needs_backoff(response):
                     break
 
         # A missing manifest is the registry's answer about the image itself, so keep it rather
         # than letting a later credential rejection report it as an authentication problem.
-        if anonymous.status_code == 404:
-            response = anonymous
-        raise common.registry_manifest_error(image_info, response, workflow_id=self.name)
+        if response.status_code in (401, 403) and not_found_response is not None:
+            response = not_found_response
+        raise common.registry_manifest_error(image_info, response)
 
     def validate_data(self, user: str, group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],

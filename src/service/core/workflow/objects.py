@@ -1187,6 +1187,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                     remaining_upstream_groups=remaining_upstream_groups,
                     downstream_groups=downstream_groups)
                 workflow_obj.insert_to_db()
+                if isinstance(err, osmo_errors.OSMOError):
+                    err.workflow_id = workflow_obj.workflow_id
                 uploaded_workflow_dict = {'version': 2,
                                         'workflow': rendered_spec.model_dump(exclude_defaults=True)}
                 self.send_workflow_spec_to_queue(workflow_obj.workflow_id,
