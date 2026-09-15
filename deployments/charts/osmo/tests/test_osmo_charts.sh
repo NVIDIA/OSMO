@@ -3818,6 +3818,16 @@ EOF
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
+
+    helm_template internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string configuration.service.service_base_url=http://osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-internal-workflow-url.yaml" ConfigMap \
+        osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
     require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
