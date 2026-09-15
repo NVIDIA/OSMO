@@ -335,6 +335,12 @@ class ToolSupportTest(unittest.TestCase):
                     )
 
 
+class RequestDependenciesTest(unittest.TestCase):
+    def test_context_free_helper_requires_an_active_http_request(self) -> None:
+        with self.assertRaisesRegex(ToolError, 'MCP runtime context is unavailable'):
+            tool_requests.get_app_context()
+
+
 class TruncatedTextRequestTest(unittest.IsolatedAsyncioTestCase):
     async def test_request_reserves_sentinel_and_returns_metadata(self) -> None:
         gateway_client = mock.AsyncMock(spec=gateway.GatewayClient)
@@ -363,7 +369,6 @@ class TruncatedTextRequestTest(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             result = await tool_requests.request_truncated_text(
-                mock.Mock(),
                 path='/api/workflow/test-1/logs',
                 operation='get workflow logs',
                 max_response_bytes=maximum_bytes,
@@ -420,7 +425,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             result = await tool_requests.request_json_mutation(
-                mock.Mock(),
                 path='/api/pool/pool-a/workflow',
                 operation='validate a workflow',
                 max_response_bytes=1024,
@@ -483,7 +487,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
                         gateway.GatewayResponse(200, body)
                     )
                     result = await tool_requests.request_json_mutation(
-                        mock.Mock(),
                         method=method,  # type: ignore[arg-type]
                         path='/api/profile/settings',
                         operation='update a setting',
@@ -537,7 +540,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
                         'write outcome is unknown',
                     ) as raised:
                         await tool_requests.request_json_mutation(
-                            mock.Mock(),
                             method='PATCH',
                             path='/api/app/user/app-a',
                             operation='update an app',
@@ -575,7 +577,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaisesRegex(ToolError, 'HTTP 422') as raised:
                 await tool_requests.request_json_mutation(
-                    mock.Mock(),
                     method='POST',
                     path='/api/profile/settings',
                     operation='update the active user profile',
@@ -634,7 +635,6 @@ class JsonMutationRequestTest(unittest.IsolatedAsyncioTestCase):
                         'write outcome is unknown',
                     ) as raised:
                         await tool_requests.request_json_mutation(
-                            mock.Mock(),
                             path='/api/pool/pool-a/workflow',
                             operation='validate a workflow',
                             max_response_bytes=1024,

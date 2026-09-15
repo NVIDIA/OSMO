@@ -16,8 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
-
 import src.lib.utils.workflow_labels as shared_labels
 from src.lib.utils import workflow as workflow_utils
 from src.service.mcp import (
@@ -62,13 +60,13 @@ def validate_pool_name(pool: str | None) -> str | None:
     return validated_pool
 
 
-async def resolve_pool(context: Context, pool: str | None) -> str:
+async def resolve_pool(pool: str | None) -> str:
     """Resolve an explicit pool or the caller's unambiguous profile default."""
     validated_pool = validate_pool_name(pool)
     if validated_pool is not None:
         return validated_pool
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     if scope.default_pool is not None:
         validated_default = validate_pool_name(scope.default_pool)
         if validated_default is not None:
@@ -220,7 +218,6 @@ def build_submission_payload(
 
 
 async def request_submission(
-    context: Context,
     *,
     pool: str,
     priority: WorkflowPriority,
@@ -242,7 +239,6 @@ async def request_submission(
         app_version=app_version,
     )
     response = await tool_requests.request_json_mutation(
-        context,
         path=f'/api/pool/{encoded_pool}/workflow',
         operation=operation,
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
