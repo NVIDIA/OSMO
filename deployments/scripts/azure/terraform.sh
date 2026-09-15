@@ -78,84 +78,6 @@ TF_GPU_VM_SIZE="${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
 # count wins. Override with TF_REGION_CANDIDATES="region1 region2 ...".
 TF_REGION_CANDIDATES="${TF_REGION_CANDIDATES:-eastus2 swedencentral westus3 southcentralus westeurope}"
 
-# Private cluster detection
-IS_PRIVATE_CLUSTER=false
-
-###############################################################################
-# Azure Helper Functions
-###############################################################################
-
-# Run kubectl command - handles both public and private clusters
-azure_run_kubectl() {
-    local cmd="$*"
-
-    if [[ "$IS_PRIVATE_CLUSTER" == true ]]; then
-        az aks command invoke \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --name "$AKS_CLUSTER_NAME" \
-            --command "kubectl $cmd" \
-            2>&1
-    else
-        kubectl $cmd
-    fi
-}
-
-# Check if cluster is private
-azure_check_cluster_type() {
-    log_info "Checking AKS cluster type..."
-
-    local private_fqdn=$(az aks show \
-        --resource-group "$RESOURCE_GROUP_NAME" \
-        --name "$AKS_CLUSTER_NAME" \
-        --query "privateFqdn" \
-        -o tsv 2>/dev/null)
-
-    if [[ -n "$private_fqdn" && "$private_fqdn" != "null" ]]; then
-        IS_PRIVATE_CLUSTER=true
-        log_info "Detected private AKS cluster - will use 'az aks command invoke'"
-        log_warning "Commands will be executed via Azure API (may be slower)"
-    else
-        IS_PRIVATE_CLUSTER=false
-        log_info "Detected public AKS cluster - will use direct kubectl/helm"
-    fi
-}
-
-# Grant RBAC permissions for the current user
-azure_grant_cluster_rbac() {
-    log_info "Granting cluster admin permissions..."
-
-    local user_id=$(az ad signed-in-user show --query id -o tsv 2>/dev/null)
-
-    if [[ -z "$user_id" ]]; then
-        log_warning "Could not get current user ID. Trying with service principal..."
-        user_id=$(az account show --query "user.name" -o tsv 2>/dev/null)
-    fi
-
-    local aks_id=$(az aks show \
-        --resource-group "$RESOURCE_GROUP_NAME" \
-        --name "$AKS_CLUSTER_NAME" \
-        --query id -o tsv)
-
-    log_info "Assigning 'Azure Kubernetes Service Cluster Admin' role..."
-    az role assignment create \
-        --assignee "$user_id" \
-        --role "Azure Kubernetes Service Cluster Admin" \
-        --scope "$aks_id" \
-        2>/dev/null || log_info "Role may already be assigned or assignment in progress"
-
-    log_info "Assigning 'Azure Kubernetes Service RBAC Cluster Admin' role..."
-    az role assignment create \
-        --assignee "$user_id" \
-        --role "Azure Kubernetes Service RBAC Cluster Admin" \
-        --scope "$aks_id" \
-        2>/dev/null || log_info "Role may already be assigned or assignment in progress"
-
-    log_info "Waiting for role assignments to propagate (30 seconds)..."
-    sleep 30
-
-    log_success "RBAC permissions granted"
-}
-
 ###############################################################################
 # Azure Configuration Functions
 ###############################################################################
@@ -576,7 +498,6 @@ export POSTGRES_USERNAME="$(terraform output -raw postgres_admin_username)"
 export REDIS_HOST="$(terraform output -raw redis_cache_hostname)"
 export REDIS_PORT="$(terraform output -raw redis_cache_ssl_port)"
 export REDIS_PASSWORD="$(terraform output -raw redis_cache_primary_access_key)"
-export IS_PRIVATE_CLUSTER="$IS_PRIVATE_CLUSTER"
 EOF
 
     # Also export to current shell
@@ -631,47 +552,16 @@ azure_verify_postgres_config() {
 azure_configure_kubectl() {
     log_info "Configuring kubectl for AKS cluster..."
 
-    # Check cluster type
-    azure_check_cluster_type
+    # The Azure single-plane profile provisions a public cluster. Its isolated
+    # kubeconfig uses the admin certificate to avoid Azure AD propagation races.
+    # Private AKS access for the generic installer is handled by lib/deploy.py.
+    az aks get-credentials \
+        --resource-group "$RESOURCE_GROUP_NAME" \
+        --name "$AKS_CLUSTER_NAME" \
+        --admin \
+        --overwrite-existing
 
-    if [[ "$IS_PRIVATE_CLUSTER" == true ]]; then
-        # Private clusters route through `az aks command invoke` which
-        # authenticates via the caller's Azure AD RBAC. Grant the role
-        # assignments and verify access via the API.
-        azure_grant_cluster_rbac
-        log_info "Private cluster detected - skipping local kubectl config"
-        log_info "Verifying cluster access via Azure API..."
-        azure_run_kubectl "get nodes"
-    else
-        # Public cluster — fetch the local cluster-admin certificate via --admin
-        # rather than Azure-AD-bound credentials. --admin uses the cluster's
-        # built-in admin cert (stored in the kubeconfig) and bypasses Azure AD
-        # RBAC entirely. This is the right choice for an automated deploy
-        # script because:
-        #   1. Azure AD role-assignment propagation is racy (30s–15min). The
-        #      prior code's 30s sleep + immediate `kubectl get nodes` would
-        #      sporadically fail on fresh clusters with "User does not have
-        #      access to the resource in Azure".
-        #   2. The deploy needs cluster-admin-equivalent power anyway (creates
-        #      namespaces, secrets, ConfigMaps, helm installs).
-        # For non-admin Azure AD access by human users *after* the deploy,
-        # run `az aks get-credentials` (without --admin) separately and grant
-        # role assignments out-of-band.
-        az aks get-credentials \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --name "$AKS_CLUSTER_NAME" \
-            --admin \
-            --overwrite-existing
-
-        kubectl get nodes
-    fi
+    kubectl get nodes
 
     log_success "kubectl configured successfully"
 }
-
-# Export functions for use by other scripts
-export -f azure_run_kubectl
-export -f azure_check_cluster_type
-export -f azure_configure_kubectl
-export -f azure_verify_postgres_config
-export -f azure_get_terraform_output

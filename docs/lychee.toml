@@ -48,6 +48,7 @@ exclude = [
     'console\.volcengine\.com',
     'console\.aws\.amazon\.com',
     'github\.com/settings/tokens',
+    '^https://org\.ngc\.nvidia\.com/setup/api-keys/?$', # Requires an authenticated NGC session
     'charts.bitnami.com/bitnami$',
     'helm.ngc.nvidia.com/nvidia/osmo$',
     'svc.cluster.local/$',

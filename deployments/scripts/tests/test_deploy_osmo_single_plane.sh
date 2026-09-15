@@ -237,6 +237,9 @@ done
 assert_not_contains "$command_log" 'storage_account_key'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-object-storage'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-service-auth'
+assert_contains "$command_log" 'az aks get-credentials --resource-group test-resource-group --name test-aks --admin --overwrite-existing'
+assert_not_contains "$command_log" 'az aks command invoke'
+assert_not_contains "$command_log" 'az role assignment create'
 
 jq -e '.auths | keys == ["registry.example.org"]' "$PULL_SECRET_INPUT" >/dev/null || fail "pull Secret included another registry"
 jq -e '.auths["registry.example.org"].auth == "docker-auth-sentinel"' "$PULL_SECRET_INPUT" >/dev/null || fail "registry credentials changed"
