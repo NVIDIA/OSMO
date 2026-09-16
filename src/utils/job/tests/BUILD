@@ -66,6 +66,7 @@ py_test(
         "test_workflow_helpers.py"
     ],
     deps = [
+        "//src/lib/utils:common",
         "//src/utils/connectors",
         "//src/utils/job",
     ]

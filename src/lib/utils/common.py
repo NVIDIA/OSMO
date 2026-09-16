@@ -307,21 +307,34 @@ class DockerImageInfo(NamedTuple):
         return f'https://{self.host}:{self.port}/v2/{self.name}/manifests/{self.reference}'
 
 
+class RegistryAttempt(NamedTuple):
+    """ One registry manifest attempt, and whether the registry offered a way to authenticate. """
+    response: Any
+    # True when the registry answered with a WWW-Authenticate challenge, which is the only case
+    # where supplying a credential can change the outcome.
+    challenged: bool
+
+
 def registry_auth(url: str, username: Optional[str] = None,
                   password: Optional[str] | None = None):
-    """ Using the instructions here https://docs.docker.com/registry/spec/auth/token/ """
+    """ Using the instructions here https://docs.docker.com/registry/spec/auth/token/
+
+    Returns a RegistryAttempt so the caller knows whether a credential could change the outcome.
+    """
 
     # Step 1: Attempt to begin a push/pull operation with the registry.
     try:
         response = requests.head(url, timeout=TIMEOUT)
 
-        # Step 2: If the registry requires authorization it will return a 401 Unauthorized HTTP
-        # response with information on how to authenticate.
-        if response.status_code == 200:
-            return response
-        if response.status_code != 401:
-            raise osmo_errors.OSMOCredentialError(
-                f'Registry authorization error for {url}:\n {response}')
+        # Step 2: A registry says how to authenticate with a WWW-Authenticate challenge, normally
+        # on a 401. Registries that conceal private repositories answer 404 with the same
+        # challenge, so run the token exchange whenever one is present and return anything else
+        # unchanged for the caller to classify (missing manifest, rate limit, server error).
+        # A registry that is down can still emit the challenge, so check that first: chasing it
+        # through an outage only adds requests and ends up reported as an auth failure.
+        if response.status_code == 200 or response.status_code >= 500 \
+                or 'www-authenticate' not in response.headers:
+            return RegistryAttempt(response, False)
 
         # Step 3: The registry client makes a request to the authorization service
         # for a Bearer token.
@@ -339,8 +352,19 @@ def registry_auth(url: str, username: Optional[str] = None,
         if username is not None and password is not None:
             auth = requests.auth.HTTPBasicAuth(username, password)
         auth_response = requests.get(realm, params=claims, auth=auth, timeout=TIMEOUT)
+        # A rejected credential is the caller's to handle, so it can try the next one. Any other
+        # token-service failure is about the token service, not the image, and must not be
+        # classified later as a missing manifest.
+        if auth_response.status_code in (401, 403):
+            return RegistryAttempt(auth_response, True)
+        if auth_response.status_code == 429:
+            raise osmo_errors.OSMORegistryRateLimitError(
+                f'Registry token service {realm} rate limited authentication '
+                f'for {url} (HTTP 429). Retry the submission later.')
         if auth_response.status_code != 200:
-            return auth_response
+            raise osmo_errors.OSMORegistryUnavailableError(
+                f'Registry token service {realm} returned HTTP {auth_response.status_code} '
+                f'for {url}.')
 
         token = None
         response_payload = auth_response.json()
@@ -364,9 +388,78 @@ def registry_auth(url: str, username: Optional[str] = None,
                                 timeout=TIMEOUT)
         # Step 6: The Registry authorizes the client by validating the Bearer token and the claim
         # set embedded within it.
-        return response
-    except requests.exceptions.ConnectionError as err:
-        raise osmo_errors.OSMOCredentialError(f'Registry connection error for {url}:\n {err}')
+        return RegistryAttempt(response, True)
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as err:
+        raise osmo_errors.OSMORegistryUnavailableError(
+            f'Registry connection error for {url}:\n {err}')
+
+
+def registry_error_code(response) -> str:
+    """ Returns the OCI error code from a registry error body, or an empty string. """
+    try:
+        errors = response.json().get('errors')
+    except (AttributeError, ValueError):
+        return ''
+    if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+        return str(errors[0].get('code', ''))
+    return ''
+
+
+def registry_failure_needs_backoff(response) -> bool:
+    """ Returns whether an authenticated failure calls for waiting rather than another credential.
+
+    Anonymous rate limits are excluded deliberately: a registry can refuse an anonymous pull on
+    quota while accepting the same pull once authenticated, so a 429 is only a reason to stop
+    after a credential has already been tried.
+    """
+    return response.status_code == 429 or response.status_code >= 500
+
+
+def registry_manifest_error(image_info: DockerImageInfo, response,
+                            workflow_id: Optional[str] = None) -> osmo_errors.OSMOError:
+    """ Classifies a non-200 manifest response into a specific, actionable error. """
+    status_code = response.status_code
+    registry = image_info.host
+    code = registry_error_code(response)
+    status = f'{status_code} {code}' if code else str(status_code)
+
+    if status_code == 404:
+        if image_info.digest:
+            message = (f'Could not resolve image digest {image_info.original}: '
+                       f'{registry} returned {status}. '
+                       'Verify that the digest exists in this repository.')
+        else:
+            message = (f'Could not resolve image tag {image_info.original}: '
+                       f'{registry} returned {status}. '
+                       'Verify that the tag exists or submit an immutable digest.')
+        return osmo_errors.OSMOImageNotFoundError(message, workflow_id=workflow_id)
+
+    if status_code == 429:
+        return osmo_errors.OSMORegistryRateLimitError(
+            f'Registry {registry} rate limited the manifest request for '
+            f'{image_info.original} (HTTP {status}). Retry the submission later.',
+            workflow_id=workflow_id)
+
+    if status_code >= 500:
+        return osmo_errors.OSMORegistryUnavailableError(
+            f'Registry {registry} is unavailable for image {image_info.original} '
+            f'(HTTP {status}).', workflow_id=workflow_id)
+
+    if status_code == 403:
+        return osmo_errors.OSMOCredentialError(
+            f'Not authorized to pull image {image_info.original}. The credential matching '
+            f'{image_registry_scope(image_info)} does not grant pull access (HTTP {status}).',
+            workflow_id=workflow_id)
+
+    if status_code == 401:
+        return osmo_errors.OSMOCredentialError(
+            f'Unable to authenticate for pulling image {image_info.original}. '
+            f'Please create a credential matching {image_registry_scope(image_info)} '
+            'or check if the image exists.', workflow_id=workflow_id)
+
+    return osmo_errors.OSMORegistryError(
+        f'Registry {registry} returned HTTP {status} for image {image_info.original}.',
+        workflow_id=workflow_id)
 
 
 def registry_parse(name: str) -> str:

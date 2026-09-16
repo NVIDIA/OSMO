@@ -55,9 +55,9 @@ Registry
             cloud applications (docker containers, helm charts, and models). It also provides **private
             registries** for teams to upload their own docker containers.
 
-            Please refer to `<https://org.ngc.nvidia.com/setup/api-keys>`__ to generate a personal
-            API Key. Ensure that while creating the key, in ``Services Included*`` drop down,
-            select ``Private Registry``.
+            Follow the `NGC API key instructions
+            <https://docs.nvidia.com/ngc/latest/ngc-user-guide.html#generating-a-personal-api-key>`__
+            to generate a personal API key. In ``Services Included*``, select ``Private Registry``.
 
             .. important::
 

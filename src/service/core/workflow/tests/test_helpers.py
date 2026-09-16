@@ -101,7 +101,7 @@ class TestUserRegistryCredential(unittest.TestCase):
 
         with mock.patch(
             'src.service.core.workflow.objects.common.registry_auth',
-            return_value=mock.Mock(status_code=200),
+            return_value=common.RegistryAttempt(mock.Mock(status_code=200), False),
         ) as registry_auth:
             credential.valid_cred(workflow_config)
 
