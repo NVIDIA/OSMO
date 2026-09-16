@@ -62,6 +62,8 @@ class SecretSpec:
 
 @dataclasses.dataclass(frozen=True)
 class Configuration:
+    """Non-secret inputs for one installation and its enabled bootstrap steps."""
+
     namespace: str
     release: str
     record: str
@@ -123,7 +125,8 @@ def initialization_mode(configuration: Configuration, inventory: dict[str, Any])
         raise BootstrapError(
             'No installation record and protected credentials are missing: '
             + ', '.join(missing)
-            + '. Restore retained credentials to adopt this release unchanged. For an intentionally '
+            + '. Restore retained credentials to adopt this release unchanged. '
+            'For an intentionally '
             'new installation, set bootstrap.initializationId to a unique non-secret ID; '
             'remove it after initialization. Adopt before changing credential declarations.'
         )

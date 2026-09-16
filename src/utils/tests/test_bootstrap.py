@@ -46,6 +46,8 @@ def secret(value: bytes = b'credential', uid: str = 'secret-uid') -> client.V1Se
 
 
 class CoordinatorTests(unittest.TestCase):
+    """Prove retained credentials and execution ownership survive retries safely."""
+
     def setUp(self) -> None:
         self.core = mock.Mock()
         self.apps = mock.Mock()
@@ -76,7 +78,7 @@ class CoordinatorTests(unittest.TestCase):
             data={'state.json': json.dumps(self.state)},
         )
 
-        def persist(*args, **kwargs):
+        def persist(*args, **_kwargs):
             self.core.read_namespaced_config_map.return_value = copy.deepcopy(args[2])
             return copy.deepcopy(args[2])
 
@@ -305,7 +307,7 @@ class CoordinatorTests(unittest.TestCase):
         self.state['intents'] = {'root': 'previous-pod'}
         self.set_state()
 
-        def replace(*args, **kwargs):
+        def replace(*_args, **_kwargs):
             self.core.read_namespaced_secret.return_value = secret(b'regenerated')
 
         with mock.patch.object(bootstrap.subprocess, 'run', side_effect=replace):

@@ -4,14 +4,17 @@
 """Semantic render regressions for the unified, ordinary bootstrap Job."""
 
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
+import tempfile
 import unittest
 
 import yaml
 
 
-CHART = Path(__file__).resolve().parents[1]
+CHART = Path(__file__).parents[1]
 NAMES = [
     'internal-tls-bootstrap',
     'identity-bootstrap',
@@ -26,6 +29,39 @@ FLAGS = [
     'secrets.masterEncryptionKey.bootstrap.enabled',
     'embeddedDependencies.objectStorage.enabled',
 ]
+
+
+def setUpModule() -> None:
+    """Build locked dependencies in a private chart, including on a clean checkout."""
+    global CHART
+    temporary = tempfile.TemporaryDirectory(prefix='osmo-bootstrap-render-')
+    unittest.addModuleCleanup(temporary.cleanup)
+    root = Path(temporary.name)
+    chart = root / 'osmo'
+    # Exclude downloaded archives so local runs exercise the same setup as CI.
+    shutil.copytree(CHART, chart, ignore=shutil.ignore_patterns('charts', '__pycache__'))
+    environment = {
+        **os.environ,
+        'HELM_REPOSITORY_CONFIG': str(root / 'repositories.yaml'),
+        'HELM_REPOSITORY_CACHE': str(root / 'repository-cache'),
+    }
+    dependencies = yaml.safe_load((chart / 'Chart.lock').read_text())['dependencies']
+    for dependency in dependencies:
+        if dependency['repository'].startswith('https://'):
+            subprocess.run(
+                ['helm', 'repo', 'add', dependency['name'], dependency['repository']],
+                check=True, env=environment, timeout=60,
+            )
+    subprocess.run(
+        ['helm', 'dependency', 'build', str(chart)],
+        check=True, env=environment, timeout=180,
+    )
+    subprocess.run(
+        ['bash', str(chart / 'tests/verify_dex_chart_archive.sh'),
+         str(chart / 'charts/dex-0.24.1.tgz')],
+        check=True, timeout=30,
+    )
+    CHART = chart
 
 
 def render(mask: int, extra: list[str] | None = None) -> list[dict]:

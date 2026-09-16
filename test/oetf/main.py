@@ -276,7 +276,8 @@ def build_bazel_command(
             cmd.append(f"--test_env=OETF_HELM_CHART_PATH={helm_chart_path}")
     if args.env == "bootstrap-kind":
         for name in ("OETF_BOOTSTRAP_IMAGE", "OETF_BOOTSTRAP_BASELINE_CHART",
-                     "OETF_BOOTSTRAP_BASELINE_IMAGE", "OETF_BOOTSTRAP_CLEANUP", "OETF_BOOTSTRAP_HELM",
+                     "OETF_BOOTSTRAP_BASELINE_IMAGE", "OETF_BOOTSTRAP_CLEANUP",
+                     "OETF_BOOTSTRAP_HELM",
                      "OETF_BOOTSTRAP_WORKFLOW_IMAGES"):
             if name in os.environ:
                 cmd.append(f"--test_env={name}")

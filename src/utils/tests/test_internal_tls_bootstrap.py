@@ -512,10 +512,12 @@ class InternalTlsBootstrapTest(unittest.TestCase):
         api = mock.Mock()
         api.read_namespaced_secret.side_effect = self.api.read_namespaced_secret
         api.read_namespaced_config_map.side_effect = kubernetes_exceptions.ApiException(status=404)
-        arguments: dict[str, Any] = dict(namespace='osmo', release_name='test', record_name='tls-record',
-                         ca_secret_name='ca', trust_secret_name='trust',
-                         leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
-                         rotation_id='rotation-1', phase='prepare')
+        arguments: dict[str, Any] = {
+            'namespace': 'osmo', 'release_name': 'test', 'record_name': 'tls-record',
+            'ca_secret_name': 'ca', 'trust_secret_name': 'trust',
+            'leaves': [internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+            'rotation_id': 'rotation-1', 'phase': 'prepare',
+        }
         self.api.secrets['trust'].data = old_trust
         with self.assertRaisesRegex(internal_tls_bootstrap.BootstrapError, 'trust bundle'):
             internal_tls_bootstrap.publish_rotation_snapshot(api, **arguments)
@@ -546,7 +548,8 @@ class InternalTlsBootstrapTest(unittest.TestCase):
         with self.assertRaisesRegex(internal_tls_bootstrap.BootstrapError, 'phase changed'):
             internal_tls_bootstrap.publish_rotation_snapshot(api, namespace='osmo',
                 release_name='test', record_name='tls-record', ca_secret_name='ca',
-                trust_secret_name='trust', leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+                trust_secret_name='trust',
+                leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
                 rotation_id='rotation-1', phase='prepare')
         api.create_namespaced_config_map.assert_not_called()
         api.replace_namespaced_config_map.assert_not_called()
@@ -578,7 +581,8 @@ class InternalTlsBootstrapTest(unittest.TestCase):
         with self.assertRaises(kubernetes_exceptions.ApiException) as error:
             internal_tls_bootstrap.publish_rotation_snapshot(api, namespace='osmo',
                 release_name='test', record_name='tls-record', ca_secret_name='ca',
-                trust_secret_name='trust', leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+                trust_secret_name='trust',
+                leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
                 rotation_id='rotation-1', phase='prepare')
         self.assertEqual(error.exception.status, 409)
         api.read_namespaced_config_map.assert_called_once()

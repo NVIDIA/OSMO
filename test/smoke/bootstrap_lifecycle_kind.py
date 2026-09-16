@@ -38,6 +38,8 @@ STEP_NAMES = [
 
 
 class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
+    """Exercise ordered OSMO bootstrap and independent Dex hooks on disposable KIND."""
+
     def setUp(self) -> None:
         super().setUp()
         self.values = yaml.safe_load(
@@ -64,7 +66,9 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             'pullPolicy': 'IfNotPresent',
         }
 
-    def assert_sequence(self, expected: list[str] = STEP_NAMES) -> dict:
+    def assert_sequence(self, expected: list[str] | None = None) -> dict:
+        if expected is None:
+            expected = STEP_NAMES
         job = self.bootstrap_job()
         assert job is not None
         self.assertEqual(len(self.jobs()), 1, 'Unexpected extra bootstrap or hook Job.')
@@ -412,6 +416,8 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             '-Atc',
             f'SELECT pg_advisory_lock({lock}); SELECT pg_sleep(240);',
         ]
+        # The finally block releases the database lock before terminating its client.
+        # pylint: disable-next=consider-using-with
         holder = subprocess.Popen(
             command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
@@ -453,7 +459,9 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                             '-d',
                             'osmo',
                             '-Atc',
-                            "SELECT count(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND query LIKE 'SELECT pg_try_advisory_lock(%';",
+                            'SELECT count(*) FROM pg_stat_activity '
+                            'WHERE pid <> pg_backend_pid() '
+                            "AND query LIKE 'SELECT pg_try_advisory_lock(%';",
                         ]
                     )
                     return int(result.stdout.strip()) > 0
@@ -482,7 +490,9 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                     '-d',
                     'osmo',
                     '-Atc',
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'SELECT pg_advisory_lock(%' AND pid <> pg_backend_pid();",
+                    'SELECT pg_terminate_backend(pid) FROM pg_stat_activity '
+                    "WHERE query LIKE 'SELECT pg_advisory_lock(%' "
+                    'AND pid <> pg_backend_pid();',
                 ]
             )
             holder.terminate()
@@ -680,8 +690,11 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                 )
                 unchanged = self.secret_identities(['osmo-internal-tls-ca'])
                 with self.installing(self.values) as process:
+                    def finished(current: subprocess.Popen = process) -> bool:
+                        return current.poll() is not None
+
                     self.wait_for(
-                        lambda: process.poll() is not None,
+                        finished,
                         'rotation rejects invalid predecessor',
                         timeout=90,
                     )

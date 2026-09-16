@@ -38,6 +38,8 @@ class ClusterFixture(OetfFixture):
         self.kubeconfig = Path(os.environ['KUBECONFIG']).resolve(strict=True)
         self.namespace = f'bootstrap-test-{uuid.uuid4().hex[:10]}'
         self.release = 'bootstrap'
+        # Keep the directory alive through tearDown and registered evidence cleanup.
+        # pylint: disable-next=consider-using-with
         self.directory = tempfile.TemporaryDirectory(prefix='osmo-bootstrap-test-')
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -304,12 +306,13 @@ class ClusterFixture(OetfFixture):
 
     def job_pod(self, job: dict[str, Any]) -> dict[str, Any] | None:
         """Select the latest terminal Pod only after every owned Pod is terminal."""
+        job_name = job['metadata']['name']
         pods = self.kube_json(
             [
                 'get',
                 'pods',
                 '-l',
-                f'batch.kubernetes.io/job-name={job["metadata"]["name"]}',
+                f'batch.kubernetes.io/job-name={job_name}',
             ]
         )['items']
         for pod in pods:

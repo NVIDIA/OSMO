@@ -24,6 +24,8 @@ class TagSelectionTest(unittest.TestCase):
 
     @mock.patch.object(oetf_main.subprocess, "check_output", return_value="//test:chosen\n")
     def test_include_and_exclude_tags_match_complete_elements(self, query):
+        # Exercise the query builder directly; no cluster is needed.
+        # pylint: disable-next=protected-access
         selected = oetf_main._resolve_targets_via_query("kind,auth", "bootstrap-kind")
         self.assertEqual(selected, ["//test:chosen"])
         expression = query.call_args.args[0][2]

@@ -892,7 +892,8 @@ def publish_rotation_snapshot(api: kubernetes_client.CoreV1Api, *, namespace: st
         previous = None
     if previous is not None:
         labels = previous.metadata.labels or {}
-        if labels.get(_MANAGED_BY_LABEL) != _MANAGED_BY or labels.get(_INSTANCE_LABEL) != release_name:
+        if (labels.get(_MANAGED_BY_LABEL) != _MANAGED_BY
+                or labels.get(_INSTANCE_LABEL) != release_name):
             raise BootstrapError('TLS snapshot record has unexpected ownership')
     ca_secret = _read_secret(api, namespace, ca_secret_name)
     actual_id, actual_phase = _rotation_state(ca_secret, release_name)

@@ -30,11 +30,11 @@ from jwcrypto.common import JWException  # type: ignore
 from kubernetes import client, config as kube_config  # type: ignore
 from kubernetes.client.exceptions import ApiException  # type: ignore
 
-from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 import psycopg2  # type: ignore
 import pydantic
 
 from src.lib.utils import osmo_errors
+from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 from src.utils import auth
 from src.utils.secret_manager import Encrypted, SecretManager
 

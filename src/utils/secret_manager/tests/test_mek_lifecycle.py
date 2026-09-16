@@ -275,22 +275,22 @@ class TestMekLifecycle(unittest.TestCase):
                 sleep.assert_not_called()
 
     def test_bootstrap_advisory_lock_is_nonblocking_and_deadline_bounded(self):
-        lifecycle = _lifecycle('bootstrap')
+        lifecycle = _lifecycle("bootstrap")
         lifecycle.deadline = time.monotonic() + 0.02
         connection = mock.MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value
         cursor.fetchone.return_value = (False,)
-        with self.assertRaisesRegex(osmo_errors.OSMOError, 'deadline'):
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "deadline"):
             lifecycle._acquire_database_lock(connection)
         cursor.execute.assert_called_with(
-            'SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+            "SELECT pg_try_advisory_lock(%s);", (0x4F534D4F4D454B,))
 
     def test_bootstrap_advisory_lock_retries_until_acquired(self):
-        lifecycle = _lifecycle('bootstrap')
+        lifecycle = _lifecycle("bootstrap")
         connection = mock.MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value
         cursor.fetchone.side_effect = [(False,), (True,)]
-        with mock.patch.object(lifecycle_module.time, 'sleep'):
+        with mock.patch.object(lifecycle_module.time, "sleep"):
             lifecycle._acquire_database_lock(connection)
         self.assertEqual(cursor.execute.call_count, 2)
 

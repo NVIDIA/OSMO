@@ -49,6 +49,23 @@ targets passed after merging. The installer test required explicit local
 environment did not locate the installed Terraform version. No installer source
 changes were needed. Cluster scenarios were not rerun for this test-only conflict.
 
+### CI follow-up for run `35148931910`
+
+The coverage job failed 18 targets: the semantic chart test assumed locally
+downloaded dependencies, and 17 Pylint targets reported style or test-fixture
+findings. Chart tests now copy the chart into a temporary directory, exclude
+existing dependency archives, configure private Helm repository paths, download
+the locked dependencies, and verify the upstream Dex archive before rendering.
+Pylint findings are corrected; narrow suppressions document intentional private
+helper tests and resources already managed by explicit fixture cleanup.
+
+All 18 failed targets passed locally. A subsequent `bazel coverage --config=ci`
+run with CI's Helm 3.16.2 passed all 25 selected targets: the 18 failed targets plus
+seven affected unit-test targets. The chart test uses an empty repository cache
+on every run. Logs: `/private/tmp/osmo-ci-fixes-targets-rerun.log` and
+`/private/tmp/osmo-ci-fixes-coverage.log`. This local run used macOS ARM64; the
+GitHub Linux coverage job remains the integration check.
+
 ## Historical candidates and environment
 
 Implementation starts at NVIDIA/OSMO `02c1fab45` on branch

@@ -26,12 +26,12 @@ from jwcrypto import jwk  # type: ignore
 from kubernetes import client, config as kubernetes_config  # type: ignore
 from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
 
-from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 import psycopg2  # type: ignore
 import pydantic
 import yaml
 
 from src.lib.utils import osmo_errors
+from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 from src.utils import connectors, static_config
 from src.utils.secret_manager.secret_manager import (
     MAX_KEYRING_BYTES,
@@ -581,7 +581,7 @@ class MekLifecycle:
                     password=self.config.postgres_password,
                     dbname=self.config.postgres_database_name,
                     connect_timeout=max(1, min(5, int(self.deadline - time.monotonic()))),
-                    options='-c statement_timeout=10000 -c lock_timeout=5000',
+                    options="-c statement_timeout=10000 -c lock_timeout=5000",
                 )
             except psycopg2.OperationalError:
                 time.sleep(min(2, max(0.1, self.deadline - time.monotonic())))
@@ -607,7 +607,7 @@ class MekLifecycle:
         while True:
             self._check_deadline()
             with connection.cursor() as cursor:
-                cursor.execute('SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+                cursor.execute("SELECT pg_try_advisory_lock(%s);", (0x4F534D4F4D454B,))
                 if cursor.fetchone()[0]:
                     return
             time.sleep(min(1, max(0, self.deadline - time.monotonic())))
@@ -656,7 +656,8 @@ class MekLifecycle:
             for state in (status.state, status.last_state):
                 if state is not None and state.terminated is not None \
                         and state.terminated.exit_code == 0:
-                    raise osmo_errors.OSMOError("Old MEK consumer bootstrap gate already completed.")
+                    raise osmo_errors.OSMOError(
+                        "Old MEK consumer bootstrap gate already completed.")
 
     def _bootstrap_consumer_cohort(self) -> Tuple[str, ...]:
         """Prove chart consumer application containers have never started."""

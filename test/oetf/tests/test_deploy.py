@@ -274,9 +274,14 @@ class TestKindAdapter(unittest.TestCase):
         for unified, timeout in ((True, "140m"), (False, "25m")):
             with self.subTest(unified=unified):
                 adapter, calls = self._adapter()
-                with unittest.mock.patch.object(adapter, "_retain_quick_start_chart", return_value="chart"):
+                with unittest.mock.patch.object(
+                    adapter, "_retain_quick_start_chart", return_value="chart"
+                ):
+                    # pylint: disable-next=protected-access
                     adapter._helm_install_chart("chart", unified=unified)
-                install = next(call for call in calls if call[:3] == ["helm", "upgrade", "--install"])
+                install = next(
+                    call for call in calls if call[:3] == ["helm", "upgrade", "--install"]
+                )
                 wait = next(call for call in calls if call[:2] == ["kubectl", "wait"])
                 self.assertEqual(install[install.index("--timeout") + 1], timeout)
                 self.assertIn(f"--timeout={timeout}", wait)
