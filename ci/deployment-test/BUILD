@@ -7,9 +7,7 @@ load("@osmo_workspace//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 exports_files([
-    "azure-overrides.yaml",
     "check-head-chart-contract.sh",
-    "fixtures/minio-storage-values.yaml",
 ])
 
 sh_test(
