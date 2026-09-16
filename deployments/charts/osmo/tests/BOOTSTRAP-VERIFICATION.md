@@ -39,6 +39,16 @@ approved the final OSMO-only scope with no blockers. Local receipts are
 Earlier V6–V8 results below describe historical candidates before restoring the
 Dex boundary; they are not final-scope reruns.
 
+### Merge with main `7e4af2f7c`
+
+The chart-test conflict preserves upstream's portable file edit and the fixed
+release name needed to compare OSMO Job identity across a Dex-only change. The
+full chart shell suite, bootstrap semantic matrix, and all four installer Bazel
+targets passed after merging. The installer test required explicit local
+`TFENV_CONFIG_DIR` and `TFENV_TERRAFORM_VERSION=1.9.8` because Bazel's test
+environment did not locate the installed Terraform version. No installer source
+changes were needed. Cluster scenarios were not rerun for this test-only conflict.
+
 ## Historical candidates and environment
 
 Implementation starts at NVIDIA/OSMO `02c1fab45` on branch

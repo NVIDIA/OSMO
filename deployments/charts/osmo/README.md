@@ -21,6 +21,15 @@ installations, but it is not a dependency of this chart.
 
 ## Quick start
 
+`externalUrl` is the browser and authentication origin. Workflow containers use
+the internal gateway by default in converged releases and `externalUrl` in
+control-only releases. To override this, set
+`configuration.service.service_base_url` to a gateway address reachable from
+the workload namespace, for example `http://osmo-gateway.osmo.svc:80`. For a
+complete configuration snapshot, set the same field under
+`configuration.snapshot.service`. Scripted converged installs set a
+namespace-qualified internal endpoint while preserving explicit overrides.
+
 The default values are a development-only path to trying the complete OSMO
 browser, CLI, API, CPU workflow, and GPU workflow experience in one converged
 release. They install:

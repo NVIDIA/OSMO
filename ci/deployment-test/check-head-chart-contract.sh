@@ -21,6 +21,7 @@ values=(--namespace osmo -f "$chart/profiles/single-plane.yaml"
     -f "$repo/deployments/scripts/single-plane-azure.yaml" -f "$private/dynamic.json"
     --set secrets.masterEncryptionKey.bootstrap.enabled=true)
 # Register URL-based dependencies on fresh Helm installations as well.
+helm repo add osmo-dex https://charts.dexidp.io --force-update
 helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
 helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$chart"
@@ -61,7 +62,8 @@ for contract in 'namespace: osmo' 'name: osmo-gateway' 'k8s_namespace: osmo' \
     'azure://contractstorage/workflows/apps' 'osmo-workflow' \
     'azure.workload.identity/use' 'azure.workload.identity/client-id' \
     '11111111-2222-3333-4444-555555555555' 'nvcr-pull' \
-    'name: envoy.filters.http.ext_authz' '--roles-file=/etc/osmo/configs/config.yaml'; do
+    'name: envoy.filters.http.ext_authz' '--roles-file=/etc/osmo/configs/config.yaml' \
+    'service_base_url: http://osmo-gateway.osmo.svc:80' 'http://127.0.0.1:9000/dex'; do
     require "$contract"
 done
 # Azure uses verified JWT identities and policy-derived pool permissions.

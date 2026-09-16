@@ -11,17 +11,14 @@ ci_azure_inputs
 mkdir -p "$RUN_DIR"
 private=$(mktemp -d)
 export KUBECONFIG="$private/kubeconfig"
+export OSMO_CONFIG_FILE_DIR="$private/cli-config" OSMO_LOG_FILE_DIR="$private/cli-logs"
+mkdir -p "$OSMO_CONFIG_FILE_DIR" "$OSMO_LOG_FILE_DIR"
 port_forward_pid=
-token_name="nightly-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
-token_created=false
 # Use the existing overlay hook; do not rewrite the runner's user configuration.
 export OETF_INTERNAL_YAML="$ci_dir/oetf-single-plane.yaml"
 cleanup() {
     local status=$?
     trap - EXIT
-    if [[ "$token_created" == true ]]; then
-        timeout 15s osmo token delete "$token_name" >/dev/null 2>&1 || true
-    fi
     if [[ -n "$port_forward_pid" ]]; then
         kill "$port_forward_pid" 2>/dev/null || true
         wait "$port_forward_pid" 2>/dev/null || true
@@ -51,17 +48,15 @@ kill -0 "$port_forward_pid" || { echo "Gateway port-forward exited during readin
 kubectl get secret osmo-default-admin --namespace osmo --output jsonpath='{.data.password}' \
     | base64 --decode > "$private/bootstrap-token"
 test -s "$private/bootstrap-token"
-printf '::add-mask::%s\n' "$(cat "$private/bootstrap-token")"
-osmo login http://127.0.0.1:9100 --method token --token-file "$private/bootstrap-token"
-osmo profile set pool default
-# Token expiry is a date at midnight UTC. Keep at least 24 hours even when a
-# manual run starts just before midnight; normal cleanup revokes it immediately.
-expiry=$(date -u -d '2 days' +%Y-%m-%d)
-osmo token set "$token_name" --roles osmo-admin --expires-at "$expiry" --format-type json > "$private/token.json"
-token_created=true
-OETF_TOKEN=$(jq -er '.token | select(type == "string" and length > 0)' "$private/token.json")
+OETF_TOKEN=$(cat "$private/bootstrap-token")
+[[ -n "${OETF_TOKEN//[[:space:]]/}" ]] || { echo 'Bootstrap token is empty' >&2; exit 1; }
 printf '::add-mask::%s\n' "$OETF_TOKEN"
 export OETF_TOKEN
+osmo login http://127.0.0.1:9100 --method token --token-file "$private/bootstrap-token"
+osmo profile set pool default
+# OETF accepts the same Secret-backed token used by the deployment smoke tests.
+# Its roles come from the bootstrap configuration, not the database assignments
+# required for minting personal access tokens. Cluster teardown removes it.
 
 set +e
 bazel run //test/oetf:run -- --env azure-single-plane --pool default \

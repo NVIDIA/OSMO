@@ -750,8 +750,9 @@ test_control_umbrella() {
 
     local mutated_chart="$TEST_DIRECTORY/osmo-config-mutated"
     cp -a "$charts_copy/osmo" "$mutated_chart"
-    sed -i 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
-        "$mutated_chart/templates/_helpers.tpl"
+    sed 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
+        "$mutated_chart/templates/_helpers.tpl" >"$TEST_DIRECTORY/mutated-helpers.tpl"
+    mv "$TEST_DIRECTORY/mutated-helpers.tpl" "$mutated_chart/templates/_helpers.tpl"
     helm_template embedded-auth-default "$mutated_chart" \
         --api-versions postgresql.cnpg.io/v1 \
         >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
@@ -1704,6 +1705,24 @@ test_control_umbrella() {
         "kind: Ingress"
     require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         "kind: HTTPRoute"
+
+    helm_template osmo "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-s3-values.yaml" \
+        -f "$CHARTS_ROOT/../scripts/single-plane-aws.yaml" \
+        >"$TEST_DIRECTORY/installer-single-plane-aws.yaml"
+    resource_document "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Deployment osmo-api \
+        >"$TEST_DIRECTORY/installer-single-plane-aws-api.yaml"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "value: verify-full"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-postgresql-ca"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-default-admin"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: OSMO_REDIS_PASSWORD"
+    require_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-gateway-authz
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Cluster osmo-pg
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-valkey
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-rustfs
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Secret osmo-object-storage
 
     helm_template single-plane-s3 "$charts_copy/osmo" \
         --namespace osmo \
@@ -5613,6 +5632,7 @@ EOF
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
+        --set-string configuration.snapshot.service.service_base_url=http://internal-gateway.osmo.svc:8080 \
         >"$TEST_DIRECTORY/complete-snapshot.yaml"
 
     helm_template unified-export "$charts_copy/osmo" \
@@ -5624,6 +5644,8 @@ EOF
     resource_document "$TEST_DIRECTORY/complete-snapshot.yaml" ConfigMap \
         complete-snapshot-osmo-api-config \
         >"$TEST_DIRECTORY/complete-snapshot-config.yaml"
+    require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "service_base_url: http://internal-gateway.osmo.svc:8080"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
         "secretName: independent-data-storage"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
