@@ -41,6 +41,14 @@ separate public client for device authorization. If the browser registration
 cannot also act as a public PKCE client, use the device authorization flow for
 CLI login.
 
+Choose a ``userClaim`` that is present in ID tokens from the browser, PKCE,
+and device flows. The CLI requests ``openid``, ``profile``, and
+``offline_access``, but not ``email``; use ``sub`` unless your provider always
+includes the selected claim in those tokens. The CLI uses an available
+localhost port for PKCE by default. If your provider requires an exact loopback
+redirect URI, register a fixed port and pass it to ``osmo login`` with
+``--callback-port``.
+
 .. note::
 
    In the unified ``osmo`` chart, select
@@ -302,9 +310,10 @@ AWS IAM Identity Center (AWS SSO)
      - ``https://identitycenter.<region>.amazonaws.com/ssoins-<instance-id>``
 
 Replace ``<region>`` and ``<instance-id>`` with your values. Set ``jwksHost``
-to ``oidc.<region>.amazonaws.com``. The user claim is commonly ``email`` or
-``sub``. Leave ``logoutEndpoint`` empty unless your configured provider exposes
-an OIDC logout endpoint.
+to ``oidc.<region>.amazonaws.com``. Use ``sub`` as the user claim unless your
+PKCE and device ID tokens are configured to include another stable claim.
+Leave ``logoutEndpoint`` empty unless your configured provider exposes an OIDC
+logout endpoint.
 
 Managing users and roles with an IdP
 =====================================
@@ -324,14 +333,16 @@ Verification
 - **Browser:** Open ``https://<your-domain>`` in a private window. You should be redirected to the IdP, then back to OSMO with a session.
 - **CLI PKCE:** Run ``osmo login https://<your-domain>``. For device
   authorization, add ``--method code``. Then run
-  ``osmo user get <user_id>`` to confirm the user has the expected roles.
+  ``osmo profile list`` to confirm the user has the expected identity and roles.
 
 Troubleshooting
 ===============
 
 - **Invalid token / 401:** Check issuer and audience in Envoy match the JWT. Ensure the IdP’s JWKS URI is reachable from the cluster and the signing key is present.
 - **Redirect fails:** Ensure the redirect URI in the IdP exactly matches (scheme, host, path, no trailing slash).
-- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via ``osmo user get <user_id>`` or IdP mapping). Verify the user claim (e.g. ``preferred_username``, ``email``) matches what OSMO expects.
+- **Missing ``x-osmo-user`` / 400:** Ensure ``userClaim`` names a claim present
+  in the ID token for the login flow in use.
+- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via ``osmo user get <user_id>`` or IdP mapping).
 
 .. seealso::
 
