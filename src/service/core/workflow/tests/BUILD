@@ -80,6 +80,18 @@ py_test(
 )
 
 py_test(
+    name = "test_objects_units",
+    srcs = ["test_objects_units.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+    size = "small",
+)
+
+py_test(
     name = "test_workflow_labels",
     srcs = ["test_workflow_labels.py"],
     deps = [
