@@ -157,7 +157,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn('message', cancel_schema['properties'])
 
-    async def test_submit_preserves_registry_error_codes(self) -> None:
+    async def test_submission_actions_preserve_registry_error_codes(self) -> None:
         captured_requests: list[httpx.Request] = []
         body = {
             'error_code': '',
@@ -167,31 +167,52 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         async def handler(request: httpx.Request) -> httpx.Response:
             captured_requests.append(request)
+            if request.method == 'GET':
+                return httpx.Response(200, json=_FAILED_WORKFLOW)
             return httpx.Response(400, json=body)
 
-        for error_code in (
-            'CREDENTIAL', 'REGISTRY', 'IMAGE_NOT_FOUND',
-            'REGISTRY_RATE_LIMIT', 'REGISTRY_UNAVAILABLE', 'UNKNOWN_ERROR',
-        ):
-            with self.subTest(error_code=error_code):
-                captured_requests.clear()
-                body['error_code'] = error_code
-                response = await _HARNESS.call_tool(
-                    handler,
-                    'osmo_submit_workflow',
-                    {'workflow_spec': _WORKFLOW_SPEC, 'pool': 'pool-a'},
-                )
+        actions: tuple[tuple[str, dict[str, object]], ...] = (
+            (
+                'osmo_submit_workflow',
+                {'workflow_spec': _WORKFLOW_SPEC, 'pool': 'pool-a'},
+            ),
+            (
+                'osmo_validate_workflow',
+                {'workflow_spec': _WORKFLOW_SPEC, 'pool': 'pool-a'},
+            ),
+            (
+                'osmo_restart_workflow',
+                {'workflow_id': 'source-workflow-1'},
+            ),
+        )
+        for tool_name, arguments in actions:
+            for error_code in (
+                'CREDENTIAL', 'REGISTRY', 'IMAGE_NOT_FOUND',
+                'REGISTRY_RATE_LIMIT', 'REGISTRY_UNAVAILABLE', 'UNKNOWN_ERROR',
+            ):
+                with self.subTest(tool_name=tool_name, error_code=error_code):
+                    captured_requests.clear()
+                    body['error_code'] = error_code
+                    response = await _HARNESS.call_tool(
+                        handler,
+                        tool_name,
+                        arguments,
+                    )
 
-                self.assertTrue(response.json()['result']['isError'])
-                self.assertIn('HTTP 400', response.text)
-                if error_code == 'UNKNOWN_ERROR':
-                    self.assertNotIn('error_code=', response.text)
-                else:
-                    self.assertIn(f'error_code={error_code}', response.text)
-                self.assertNotIn('private-registry-detail', response.text)
-                self.assertNotIn('private-workflow-1', response.text)
-                self.assertEqual(len(captured_requests), 1)
-                self.assertEqual(captured_requests[0].method, 'POST')
+                    self.assertTrue(response.json()['result']['isError'])
+                    self.assertIn('HTTP 400', response.text)
+                    if error_code == 'UNKNOWN_ERROR':
+                        self.assertNotIn('error_code=', response.text)
+                    else:
+                        self.assertIn(f'error_code={error_code}', response.text)
+                    self.assertNotIn('private-registry-detail', response.text)
+                    self.assertNotIn('private-workflow-1', response.text)
+                    self.assertEqual(
+                        [request.method for request in captured_requests],
+                        ['GET', 'POST']
+                        if tool_name == 'osmo_restart_workflow'
+                        else ['POST'],
+                    )
 
     async def test_submit_posts_exact_body_and_projects_result(self) -> None:
         captured_requests: list[httpx.Request] = []
@@ -892,7 +913,7 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(response.json()['result']['isError'])
         self.assertIn('HTTP 422', response.text)
-        self.assertNotIn('SUBMISSION', response.text)
+        self.assertIn('error_code=SUBMISSION', response.text)
         self.assertNotIn('private-workflow-1', response.text)
         self.assertNotIn(input_secret, response.text)
         self.assertEqual(calls, 1)

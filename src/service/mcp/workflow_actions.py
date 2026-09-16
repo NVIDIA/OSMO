@@ -146,6 +146,7 @@ async def osmo_validate_workflow(
             validation_only=True,
         ),
         payload=payload.model_dump(mode='json', exclude_none=True),
+        suppress_upstream_details=False,
     )
     upstream = tool_validation.validate_mutation_response(
         UpstreamValidationResult,
@@ -187,6 +188,7 @@ async def osmo_restart_workflow(
         ),
         operation='restart a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
+        suppress_upstream_details=False,
     )
     upstream = tool_validation.validate_mutation_response(
         UpstreamSubmitResult,
