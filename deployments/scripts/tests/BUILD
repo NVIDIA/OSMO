@@ -4,6 +4,23 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 sh_test(
+    name = "test_deploy_osmo_gcp",
+    size = "small",
+    srcs = ["test_deploy_osmo_gcp.sh"],
+    data = [
+        "//deployments:scripts/deploy-osmo-gcp.sh",
+        "//deployments:scripts/gcp/values.jq",
+        "//deployments:scripts/single-plane-gcp.yaml",
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/install-kai-scheduler.sh",
+        "//deployments:scripts/verify.sh",
+        "//deployments:terraform/gcp/example/main.tf",
+        "//deployments:terraform/gcp/example/outputs.tf",
+        "//deployments:terraform/gcp/example/variables.tf",
+    ],
+)
+
+sh_test(
     name = "test_azure_terraform_driver",
     size = "small",
     srcs = ["test_azure_terraform_driver.sh"],

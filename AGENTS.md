@@ -124,6 +124,12 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 
+The GCP development installer is `deployments/scripts/deploy-osmo-gcp.sh`, backed
+by `deployments/terraform/gcp/example/`. It installs the unified chart on GKE with
+Cloud SQL, Memorystore and GCS HMAC credentials. Its mocked deployment test is
+`//deployments/scripts/tests:test_deploy_osmo_gcp`; GCS chart validation is covered
+by `deployments/charts/osmo/tests/test_osmo_charts.sh`.
+
 ### Python Libraries (`lib/`)
 
 | Library | Key Classes | Purpose |
