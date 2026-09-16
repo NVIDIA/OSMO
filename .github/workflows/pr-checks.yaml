@@ -227,10 +227,18 @@ jobs:
         with:
           version: 'v3.16.2'
 
+      - name: Refresh container C++ toolchain
+        run: |
+          # The self-hosted output directory can retain compiler discovery from
+          # another image. Reprobe this container's built-in header paths.
+          /usr/bin/gcc-12 --version
+          bazel fetch --force --configure --repo_env=CC=/usr/bin/gcc-12
+
       - name: Run Tests with Coverage
         run: |
           bazel coverage --config=ci \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --repo_env=CC=/usr/bin/gcc-12 \
             --test_env=PATH \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
