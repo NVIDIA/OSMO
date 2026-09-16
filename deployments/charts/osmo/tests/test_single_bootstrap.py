@@ -411,8 +411,14 @@ class BootstrapInputValidationTest(unittest.TestCase):
         )
         deployment = next(item for item in yaml.safe_load_all(output)
                           if item and item['kind'] == 'Deployment')
-        self.assertTrue(any(volume.get('secret', {}).get('secretName') == 'existing-config'
-                            for volume in deployment['spec']['template']['spec']['volumes']))
+        pod = deployment['spec']['template']['spec']
+        config_volume = next(volume for volume in pod['volumes'] if volume['name'] == 'config')
+        self.assertEqual(config_volume['secret']['secretName'], 'existing-config')
+        dex = next(container for container in pod['containers'] if container['name'] == 'dex')
+        self.assertIn(
+            {'name': 'config', 'mountPath': '/etc/dex', 'readOnly': True},
+            dex.get('volumeMounts', []),
+        )
 
     def test_dex_disruption_budget_requires_one_field_and_preserves_zero(self) -> None:
         command = ['helm', 'template', 'dex', str(CHART.parent / 'dex-bootstrap'),
