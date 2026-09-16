@@ -39,7 +39,7 @@ on:
         default: '400'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
-        default: '60'
+        default: '75'
       model:
         description: 'LLM model name on NVIDIA gateway'
         default: 'aws/anthropic/bedrock-claude-opus-5'
@@ -69,7 +69,7 @@ permissions:
 
 concurrency:
   group: testbot
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   preflight:
@@ -119,7 +119,7 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.should_run == 'true'
     environment: nim-env
-    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '60') }}
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -224,197 +224,57 @@ jobs:
           DISABLE_PROMPT_CACHING: "1"
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      - name: Generate tests
+      # Recovery retains the working tree, starts fresh conversations, and
+      # reserves independent Codex review plus deterministic verification.
+      - name: Generate, review, and verify tests
+        id: pipeline
         run: |
-          # Validate workflow_dispatch input before splicing it into the
-          # shell command (defense in depth — the input is interpolated
-          # by GitHub Actions, not the shell, so quoting alone isn't enough).
-          if ! [[ "$MAX_TURNS" =~ ^[0-9]+$ ]]; then
-            echo "max_turns must be a non-negative integer, got: $MAX_TURNS" >&2
-            exit 2
-          fi
-
-          TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          # Include the rules inline rather than pointing at them.
-          PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
-
-          $(cat src/scripts/testbot/TESTBOT_RULES.md)
-
-          Coverage targets:
-          $TARGETS"
-          STREAM_LOG="$RUNNER_TEMP/claude-stream.jsonl"
-
-          # Stream every turn and tool use into a foldable group so the
-          # diagnostics summary stays visible by default; the verbose
-          # stream is one click away. We disable -e so the diagnostics
-          # block runs even when Claude exits non-zero.
+          # Agent text in an exception must not become a workflow command.
+          stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          echo "::stop-commands::$stop_token"
           set +e
-          echo "::group::Claude Code stream (click to expand turn-by-turn log)"
-          npx @anthropic-ai/claude-code@2.1.116 --print \
-            --model "$ANTHROPIC_MODEL" \
-            --output-format stream-json --verbose \
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(bazel coverage *),Bash(bazel query *),Bash(python *),Bash(python3 *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
-            --max-turns "$MAX_TURNS" \
-            "$PROMPT" | tee "$STREAM_LOG"
-          # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
-          # Claude failures as success.
-          status=${PIPESTATUS[0]}
-          echo "::endgroup::"
-
-          # Wrap untrusted Claude result text in ::stop-commands:: so it can't
-          # inject workflow commands (::warning::, ::add-mask::, etc.).
-          STOP_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
-          echo "::group::Claude Code diagnostics"
-          echo "::stop-commands::$STOP_TOKEN"
-          python3 - "$STREAM_LOG" "$status" <<'PY'
-          import json, sys
-          path, status = sys.argv[1], sys.argv[2]
-          # Result message is the final stream-json event; iterate in reverse
-          # and stop at the first match instead of parsing every assistant
-          # turn and tool-use line.
-          final = None
-          with open(path) as f:
-              for line in reversed(f.readlines()):
-                  line = line.strip()
-                  if not line:
-                      continue
-                  try:
-                      msg = json.loads(line)
-                  except json.JSONDecodeError:
-                      continue
-                  if msg.get("type") == "result":
-                      final = msg
-                      break
-          print(f"exit_status: {status}")
-          if final is None:
-              print("no final result message captured")
-              sys.exit(0)
-          for key in ("subtype", "is_error", "num_turns", "duration_ms",
-                      "duration_api_ms", "total_cost_usd"):
-              if key in final:
-                  print(f"{key}: {final[key]}")
-          result = final.get("result")
-          if isinstance(result, str) and result:
-              # Save the full generator summary so create_pr.py can
-              # embed it in the PR body — reviewers see the same
-              # "what I did / what's still uncovered / files changed"
-              # block the LLM produced, not just the workflow log.
-              import os
-              summary_path = os.path.join(
-                  os.environ["RUNNER_TEMP"], "generate_summary.md"
-              )
-              with open(summary_path, "w", encoding="utf-8") as out:
-                  out.write(result)
-              print("result:")
-              print(result[:2000])
-          PY
-          echo "::$STOP_TOKEN::"
-          echo "::endgroup::"
-          exit $status
+          PYTHONPATH=. python src/scripts/testbot/pipeline.py \
+            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
+            --artifacts "$RUNNER_TEMP/testbot" \
+            --max-turns "$MAX_TURNS"
+          status=$?
+          echo "::$stop_token::"
+          exit "$status"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-5' }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
           MAX_TURNS: ${{ inputs.max_turns || '400' }}
-          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
-          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
+          DISABLE_PROMPT_CACHING: "1"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      # Independently measure how many of the picker's listed uncovered
-      # lines were actually exercised by the new tests, then attach the
-      # report to the PR. The generator is expected to have already
-      # self-iterated against this same script (see TESTBOT_PROMPT.md);
-      # this step gives the human reviewer the same numbers and acts as
-      # the source of truth in case the LLM skipped the loop.
-      # Fail-soft: a non-zero exit here would block PR creation, so we
-      # log and continue — the PR body will note the missing report.
-      # always() so the verifier still runs when Generate fails (e.g.,
-      # max_turns hit, transient API error). Even partial test files
-      # produce a useful coverage number for the workflow log —
-      # diagnosing run/26536045087 was harder than it needed to be
-      # because this step was skipped. Create PR stays gated on
-      # success so half-written tests don't open a PR.
-      - name: Verify coverage
-        if: always() && inputs.dry_run != true
-        continue-on-error: true
-        run: |
-          set +e
-          # bazel coverage prints the LCOV path on success; the
-          # combined_report=lcov setting in .bazelrc routes it to
-          # bazel-out/_coverage/_coverage_report.dat.
-          #
-          # Do NOT use --config=ci here. That config sets
-          # DOCKER_HOST=tcp://docker:2375 and TESTCONTAINERS_HOST_OVERRIDE=docker
-          # for the self-hosted DinD environment that coverage.yaml uses,
-          # but testbot.yaml runs on ubuntu-latest with the runner's
-          # local docker socket. With --config=ci, testcontainers-based
-          # integration tests fail to reach the daemon and produce zero
-          # DA hits — that's how PR #1058 ended up with the verifier
-          # reporting 0/97 while Codecov's later pr-checks run (which
-          # has DinD wired up properly) confirmed 93/97 hit.
-          # Scope to test targets in the directories the picker
-          # actually chose. `bazel coverage //...` ran 211 tests on
-          # run/26871947281 and took 10 minutes; the LLM's earlier
-          # in-Generate coverage call (scoped to the same package)
-          # produced the same numbers in 48 seconds. Same-directory
-          # patterns work across languages:
-          #   Go     src/utils/roles/user_role_sync.go  →  //src/utils/roles/...
-          #          (same-package roles_test + roles_integration_test)
-          #   Python src/utils/job/jobs.py             →  //src/utils/job/...
-          #          (picks up the tests/ subdir convention)
-          #   TS     src/ui/.../foo.ts                 →  //src/ui/.../...
-          patterns=$(python3 -c '
-          import json, os, sys
-          path = os.path.join(os.environ["RUNNER_TEMP"], "targets_meta.json")
-          try:
-              meta = json.load(open(path))
-          except (OSError, json.JSONDecodeError):
-              # fail-open to //... so a stale/missing meta still produces
-              # a (slower) report rather than skipping coverage entirely
-              print("//...")
-              sys.exit(0)
-          dirs = sorted({
-              entry["file_path"].rsplit("/", 1)[0]
-              for entry in meta
-              if isinstance(entry, dict) and entry.get("file_path") and "/" in entry["file_path"]
-          })
-          print(" ".join(f"//{d}/..." for d in dirs) if dirs else "//...")
-          ')
-          echo "::group::bazel coverage $patterns"
-          bazel coverage $patterns 2>&1 | tail -50
-          coverage_status=${PIPESTATUS[0]}
-          echo "::endgroup::"
-          echo "bazel coverage exit_status: $coverage_status"
-
-          PYTHONPATH=. python src/scripts/testbot/verify_coverage.py \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            --lcov bazel-out/_coverage/_coverage_report.dat \
-            --json-output "$RUNNER_TEMP/coverage_report.json" \
-            --markdown-output "$RUNNER_TEMP/coverage_report.md"
-
-          echo "::group::Coverage report (markdown)"
-          cat "$RUNNER_TEMP/coverage_report.md" || true
-          echo "::endgroup::"
+      - name: Preserve testbot diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/testbot/
+            ${{ runner.temp }}/shortlist.json
+            ${{ runner.temp }}/targets_meta.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Create PR
-        if: inputs.dry_run != true
+        if: steps.pipeline.outcome == 'success' && inputs.dry_run != true
         run: |
-          # Pass --coverage-report when the verify step produced one;
-          # missing report is non-fatal so the PR still opens.
-          coverage_flag=""
-          if [[ -s "$RUNNER_TEMP/coverage_report.json" ]]; then
-            coverage_flag="--coverage-report $RUNNER_TEMP/coverage_report.json"
+          # No targets is a successful no-op. Every published change must
+          # exactly match the independently verified content manifest.
+          if [[ -f "$RUNNER_TEMP/testbot/skipped.json" ]]; then
+            exit 0
           fi
-          # --generate-summary is similarly fail-soft: when the file is
-          # missing (LLM produced no final result text), the PR body
-          # still renders without the section.
-          summary_flag=""
-          if [[ -s "$RUNNER_TEMP/generate_summary.md" ]]; then
-            summary_flag="--generate-summary $RUNNER_TEMP/generate_summary.md"
-          fi
-          PYTHONPATH=src/scripts python -m testbot.create_pr \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            $coverage_flag \
-            $summary_flag
+          PYTHONPATH=. python -m src.scripts.testbot.create_pr \
+            --targets-meta "$RUNNER_TEMP/testbot/targets_meta.json" \
+            --coverage-report "$RUNNER_TEMP/testbot/coverage_report.json" \
+            --generate-summary "$RUNNER_TEMP/testbot/generate_summary.md" \
+            --review-summary "$RUNNER_TEMP/testbot/review_summary.md" \
+            --verified-changes "$RUNNER_TEMP/testbot/verified_changes.json"
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
           # FORCE_CREATE_PR bypasses the create_pr.py script-level guard

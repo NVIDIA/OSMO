@@ -119,7 +119,7 @@ shame you for.
     To inspect the resulting JSON, first resolve the env var (the
     `Read` tool doesn't shell-expand):
     ```bash
-    echo $RUNNER_TEMP
+    python3 -c 'import os; print(os.environ["RUNNER_TEMP"])'
     ```
     then `Read <resolved>/coverage_self_check.json` with the absolute
     path. Each target has a `hit_fraction` (0.0–1.0) and a
@@ -179,3 +179,22 @@ shame you for.
   `uncovered_ranges` list to shrink the gap, and don't paste a fake
   `$RUNNER_TEMP/targets_meta.json`. The harness re-runs the verifier
   against the unmodified meta and posts the truth to the PR.
+
+## Recovery checkpoints
+
+The harness may restart you with a fresh conversation after a context limit,
+compaction failure, timeout, or transient process/API failure. Working-tree
+edits survive. Use the checkpoint path supplied by the harness: update it after
+substantive progress with changed files, completed behaviors, test commands and
+outcomes, suspected bugs, and the next action. Keep it under 2000 words and use
+file paths/function names instead of copying source. Writing this checkpoint
+outside the repository is an explicit exception to the test-files-only rule.
+
+On recovery, validate the checkpoint against the files and continue unfinished
+work. Complete useful behaviors before exploring additional source. Use scoped
+reads and avoid rereading large files wholesale. The original coverage targets
+remain the work queue; no fixed file or range batches are imposed.
+
+An independent reviewer will inspect your changes and may fix suspected source
+bugs. Preserve failing regression expectations and clear SUSPECTED BUG markers
+so the reviewer can reproduce and repair them.

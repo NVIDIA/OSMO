@@ -26,6 +26,7 @@ import urllib.request
 from typing import Any
 
 from src.scripts.testbot.guardrails import get_changed_test_files
+from src.scripts.testbot.verification import load_verified_changes
 from src.scripts.testbot.verify_coverage import (
     render_markdown,
     reports_from_json,
@@ -533,6 +534,15 @@ def main() -> None:
              "narrative (per-target breakdown, still-uncovered reasoning, "
              "files changed) alongside the harness's bare-numbers report.",
     )
+    parser.add_argument(
+        "--verified-changes", type=Path,
+        help="Content-bound manifest from the independent review/verification pipeline; "
+             "permits its verified production fixes alongside generated tests",
+    )
+    parser.add_argument(
+        "--review-summary", default="",
+        help="Independent review summary, including source fixes and resolved skipped tests",
+    )
     args = parser.parse_args()
 
     if has_unapproved_testbot_pr():
@@ -542,7 +552,8 @@ def main() -> None:
         )
         return
 
-    changed_files = get_changed_test_files()
+    changed_files = (load_verified_changes(args.verified_changes)
+                     if args.verified_changes else get_changed_test_files())
     if not changed_files:
         logger.info("No test files generated, nothing to commit.")
         return
@@ -612,15 +623,21 @@ def main() -> None:
     if generator_summary_section:
         generator_summary_section = "\n" + generator_summary_section
 
+    review_summary_section = _build_generator_summary_section(args.review_summary).replace(
+        "## Generator summary", "## Independent review", 1,
+    )
+    if review_summary_section:
+        review_summary_section = "\n" + review_summary_section
+
     pr_title = f"[testbot] Add tests for {files_summary}"
     pr_body = f"""## Summary
-AI-generated tests targeting file(s) with low coverage.
+AI-generated tests targeting file(s) with low coverage, with any reviewed source fixes described below.
 
 Issue - None
 
 ## Targets selected
 {files_list}
-{rationale_section}{generator_summary_section}{coverage_section}{bugs_section}
+{rationale_section}{generator_summary_section}{review_summary_section}{coverage_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes
