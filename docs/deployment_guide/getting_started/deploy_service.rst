@@ -281,9 +281,27 @@ Workload identity
 -----------------
 
 As an alternative, configure AWS IRSA, Azure Workload Identity, or GCP
-Workload Identity and grant the identities used by the API and worker access to
-all three locations. Select the provider SDK's default credential chain and do
-not configure an object-storage Secret:
+Workload Identity and grant the identities used by the API, worker, and
+workflow pods access to all three locations. For Azure Workload Identity, save
+the workflow ServiceAccount as ``workflow-service-account.yaml`` and create it
+before installing OSMO:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: osmo-workflow
+     namespace: osmo
+     annotations:
+       azure.workload.identity/client-id: <managed-identity-client-id>
+
+.. code-block:: bash
+
+   $ kubectl create --filename workflow-service-account.yaml
+
+Select the provider SDK's default credential chain, add the identity to each
+target pool's pod templates, and do not configure an object-storage Secret:
 
 .. code-block:: yaml
 
@@ -300,6 +318,21 @@ not configure an object-storage Secret:
      objectStorage:
        generate: false
        existingSecret: ''
+
+   configuration:
+     podTemplates:
+       azure_workload_identity:
+         metadata:
+           labels:
+             azure.workload.identity/use: "true"
+         spec:
+           serviceAccountName: osmo-workflow
+     pools:
+       default:
+         common_pod_template:
+         - default_ctrl
+         - default_user
+         - azure_workload_identity
 
    services:
      api:
@@ -320,8 +353,8 @@ not configure an object-storage Secret:
 
 The annotations and pod labels are provider-specific. Use the equivalent IRSA
 or GKE annotations for AWS or GCP. Federate the exact ServiceAccount subjects
-rendered by the release; with release name ``osmo`` they are ``osmo-api`` and
-``osmo-worker``.
+used by the release; with release name ``osmo`` they are ``osmo-api``,
+``osmo-worker``, and ``osmo-workflow``.
 
 Configure Other Secrets
 =======================
@@ -692,6 +725,9 @@ release:
    $ git clone https://github.com/NVIDIA/OSMO.git
    $ cd OSMO
    $ git checkout <release-tag>
+   $ helm repo add osmo-dex https://charts.dexidp.io --force-update
+   $ helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
+   $ helm repo add osmo-rustfs https://charts.rustfs.com --force-update
    $ helm dependency build deployments/charts/osmo
    $ helm show chart deployments/charts/osmo
 
