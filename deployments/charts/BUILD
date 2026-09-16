@@ -15,6 +15,18 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+load("@rules_python//python:defs.bzl", "py_test")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
+
+py_test(
+    name = "osmo_single_bootstrap_test",
+    srcs = ["osmo/tests/test_single_bootstrap.py"],
+    main = "osmo/tests/test_single_bootstrap.py",
+    data = [":osmo"],
+    deps = [requirement("pyyaml")],
+    tags = ["local"],
+)
+
 filegroup(
     name = "service",
     srcs = glob(["service/**"]),
@@ -29,7 +41,7 @@ filegroup(
 
 filegroup(
     name = "osmo",
-    srcs = glob(["osmo/**"]),
+    srcs = glob(["osmo/**", "dex-bootstrap/**"]),
     visibility = ["//visibility:public"],
 )
 

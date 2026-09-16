@@ -20,6 +20,7 @@ import argparse
 import base64
 import dataclasses
 import datetime
+import json
 import sys
 from typing import Iterable
 
@@ -31,6 +32,9 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from kubernetes import client as kubernetes_client  # type: ignore
 from kubernetes import config as kubernetes_config  # type: ignore
 from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
+
+from src.utils.bootstrap import (BoundedApiClient, SecretSpec, record_issuance_if_configured,
+                                 secret_identity)
 
 _MANAGED_BY = 'osmo-internal-tls-bootstrap'
 _MANAGED_BY_LABEL = 'app.kubernetes.io/managed-by'
@@ -96,6 +100,7 @@ def verify_rollout(
     allowed_annotations: set[str] | None,
     allowed_annotation_suffixes: set[str] | None = None,
     require_complete: bool = True,
+    snapshot_phase: str = '',
 ) -> None:
     """Prove every TLS consumer is on one complete, HPA-frozen rollout."""
     names = set(deployment_names)
@@ -157,6 +162,19 @@ def verify_rollout(
                 raise BootstrapError(
                     'Internal TLS CA rotation found no active consumer pods'
                 )
+            if snapshot_phase:
+                for pod in active_pods:
+                    gates = [container for container in pod.spec.init_containers or []
+                             if container.name == 'bootstrap-credentials']
+                    statuses = [item for item in pod.status.init_container_statuses or []
+                                if item.name == 'bootstrap-credentials']
+                    if (len(gates) != 1 or len(statuses) != 1 or
+                            not statuses[0].state.terminated or
+                            statuses[0].state.terminated.exit_code != 0 or
+                            not any(item.name == 'OSMO_BOOTSTRAP_TLS_PHASE' and
+                                    item.value == snapshot_phase for item in gates[0].env or [])):
+                        raise BootstrapError(
+                            'Internal TLS CA rotation requires verified consumer snapshot files')
             observed_annotations = {
                 (getattr(pod.metadata, 'annotations', None) or {}).get(
                     'checksum/internal-tls-ca-phase'
@@ -190,6 +208,10 @@ def _read_rotation_state(
     ca_secret_name: str,
 ) -> tuple[str, str]:
     secret = _read_secret(api, namespace, ca_secret_name)
+    return _rotation_state(secret, release_name)
+
+
+def _rotation_state(secret: kubernetes_client.V1Secret, release_name: str) -> tuple[str, str]:
     _require_owned(secret, release_name)
     try:
         rotation_id = (_decode_secret_data(secret, 'rotation-id') or b'').decode(
@@ -216,6 +238,7 @@ def verify_transition_rollout(
     deployment_names: Iterable[str],
     requested_rotation_id: str,
     requested_phase: str,
+    require_snapshot_gate: bool = False,
 ) -> None:
     """Gate a new phase strictly, but let an already-applied phase converge."""
     stored_rotation_id, stored_phase = _read_rotation_state(
@@ -261,6 +284,8 @@ def verify_transition_rollout(
         namespace=namespace,
         deployment_names=deployment_names,
         allowed_annotations={f'{stored_rotation_id}:{stored_phase}'},
+        snapshot_phase=(f'{stored_rotation_id}:{stored_phase}'
+                        if require_snapshot_gate and stored_phase != 'stable' else ''),
     )
 
 
@@ -334,6 +359,7 @@ def _create_secret(
     namespace: str,
     release_name: str,
     name: str,
+    values: dict[str, bytes] | None = None,
 ) -> kubernetes_client.V1Secret:
     secret = kubernetes_client.V1Secret(
         api_version='v1',
@@ -348,7 +374,9 @@ def _create_secret(
             annotations=dict(_RETENTION_ANNOTATIONS),
         ),
         type='Opaque',
+        data=_encode_secret_data(values) if values is not None else None,
     )
+    record_issuance_if_configured(name)
     try:
         return api.create_namespaced_secret(namespace=namespace, body=secret)
     except kubernetes_exceptions.ApiException as error:
@@ -398,6 +426,8 @@ def _prepare_secrets(
     release_name: str,
     secret_names: Iterable[str],
     fail_if_missing: bool,
+    ca_secret_name: str,
+    now: datetime.datetime,
 ) -> dict[str, kubernetes_client.V1Secret]:
     names = list(dict.fromkeys(secret_names))
     secrets = {
@@ -414,7 +444,11 @@ def _prepare_secrets(
             'restore the retained Secret'
         )
     for name in missing:
-        secrets[name] = _create_secret(api, namespace, release_name, name)
+        values = None
+        if name == ca_secret_name:
+            initial_ca = _generate_ca(now)
+            values = {'ca.crt': initial_ca.certificate, 'ca.key': initial_ca.private_key}
+        secrets[name] = _create_secret(api, namespace, release_name, name, values)
     return {
         name: _protect_secret(api, namespace, secret)
         for name, secret in secrets.items()
@@ -695,6 +729,8 @@ def reconcile(
             *(leaf_spec.secret_name for leaf_spec in leaf_specs),
         ],
         fail_if_missing=fail_if_missing,
+        ca_secret_name=ca_secret_name,
+        now=now,
     )
     ca_secret = secrets[ca_secret_name]
     current_certificate = _decode_secret_data(ca_secret, 'ca.crt')
@@ -843,6 +879,60 @@ def reconcile(
             )
 
 
+def publish_rotation_snapshot(api: kubernetes_client.CoreV1Api, *, namespace: str,
+                              release_name: str, record_name: str, ca_secret_name: str,
+                              trust_secret_name: str, leaves: list[LeafSpec],
+                              rotation_id: str, phase: str) -> None:
+    """Publish public identities only after the phase's complete file set validates."""
+    try:
+        previous = api.read_namespaced_config_map(record_name, namespace)
+    except kubernetes_exceptions.ApiException as error:
+        if error.status != 404:
+            raise
+        previous = None
+    if previous is not None:
+        labels = previous.metadata.labels or {}
+        if labels.get(_MANAGED_BY_LABEL) != _MANAGED_BY or labels.get(_INSTANCE_LABEL) != release_name:
+            raise BootstrapError('TLS snapshot record has unexpected ownership')
+    ca_secret = _read_secret(api, namespace, ca_secret_name)
+    actual_id, actual_phase = _rotation_state(ca_secret, release_name)
+    if (actual_id, actual_phase) != (rotation_id, phase):
+        raise BootstrapError('TLS phase changed before snapshot publication')
+    now = datetime.datetime.now(datetime.UTC)
+    ca = _load_ca(_decode_secret_data(ca_secret, 'ca.crt'),
+                  _decode_secret_data(ca_secret, 'ca.key'), now)
+    expected_trust = ca.certificate + (_decode_secret_data(ca_secret, 'pending-ca.crt') or
+                                      _decode_secret_data(ca_secret, 'previous-ca.crt') or b'')
+    trust = _read_secret(api, namespace, trust_secret_name)
+    _require_owned(trust, release_name)
+    if _decode_secret_data(trust, 'ca.crt') != expected_trust:
+        raise BootstrapError('TLS trust bundle has not reached the requested phase')
+    files = {trust_secret_name: secret_identity(trust, SecretSpec(
+        trust_secret_name, 'tls', _MANAGED_BY, ['ca.crt']), release_name)}
+    for leaf in leaves:
+        secret = _read_secret(api, namespace, leaf.secret_name)
+        _require_owned(secret, release_name)
+        if not _leaf_matches_contract(_decode_secret_data(secret, 'tls.crt'),
+                                      _decode_secret_data(secret, 'tls.key'),
+                                      ca, leaf.dns_name, namespace, now):
+            raise BootstrapError('TLS leaf files have not reached the requested phase')
+        files[leaf.secret_name] = secret_identity(secret, SecretSpec(
+            leaf.secret_name, 'tls', _MANAGED_BY, ['tls.crt', 'tls.key']), release_name)
+    current_ca = _read_secret(api, namespace, ca_secret_name)
+    if (current_ca.metadata.uid, current_ca.metadata.resource_version) != (
+            ca_secret.metadata.uid, ca_secret.metadata.resource_version):
+        raise BootstrapError('TLS phase changed during snapshot publication')
+    body = kubernetes_client.V1ConfigMap(metadata=kubernetes_client.V1ObjectMeta(
+        name=record_name, labels={_MANAGED_BY_LABEL: _MANAGED_BY, _INSTANCE_LABEL: release_name},
+        annotations=dict(_RETENTION_ANNOTATIONS)), data={'state.json': json.dumps({
+            'id': rotation_id, 'phase': phase, 'files': files}, sort_keys=True)})
+    if previous is None:
+        api.create_namespaced_config_map(namespace, body)
+        return
+    body.metadata.resource_version = previous.metadata.resource_version
+    api.replace_namespaced_config_map(record_name, namespace, body)
+
+
 def _parse_leaf(value: str) -> LeafSpec:
     secret_name, separator, dns_name = value.partition('=')
     if not separator or not secret_name or not dns_name:
@@ -865,13 +955,14 @@ def main() -> int:
         choices=('stable', 'prepare', 'activate', 'retire'),
         default='stable',
     )
+    parser.add_argument('--snapshot-record', default='')
     parser.add_argument('--fail-if-missing', action='store_true')
     parser.add_argument('--allow-initial-generation', action='store_true')
     arguments = parser.parse_args()
     try:
         kubernetes_config.load_incluster_config()
-        core_api = kubernetes_client.CoreV1Api()
-        apps_api = kubernetes_client.AppsV1Api()
+        core_api = kubernetes_client.CoreV1Api(BoundedApiClient())
+        apps_api = kubernetes_client.AppsV1Api(BoundedApiClient())
         fail_if_missing = arguments.fail_if_missing or (
             not arguments.allow_initial_generation
             and has_existing_consumer(
@@ -885,13 +976,14 @@ def main() -> int:
             verify_transition_rollout(
                 core_api,
                 apps_api,
-                kubernetes_client.AutoscalingV2Api(),
+                kubernetes_client.AutoscalingV2Api(BoundedApiClient()),
                 namespace=arguments.namespace,
                 release_name=arguments.release_name,
                 ca_secret_name=arguments.ca_secret,
                 deployment_names=arguments.consumer_deployment,
                 requested_rotation_id=arguments.ca_rotation_id,
                 requested_phase=arguments.ca_rotation_phase,
+                require_snapshot_gate=bool(arguments.snapshot_record),
             )
             rollout_verified = True
         reconcile(
@@ -908,6 +1000,12 @@ def main() -> int:
             now=datetime.datetime.now(datetime.UTC),
             rollout_verified=rollout_verified,
         )
+        if arguments.snapshot_record:
+            publish_rotation_snapshot(core_api, namespace=arguments.namespace,
+                release_name=arguments.release_name, record_name=arguments.snapshot_record,
+                ca_secret_name=arguments.ca_secret, trust_secret_name=arguments.trust_secret,
+                leaves=arguments.leaf, rotation_id=arguments.ca_rotation_id,
+                phase=arguments.ca_rotation_phase)
     except BootstrapError as error:
         print(f'ERROR {error}', file=sys.stderr)
         return 1

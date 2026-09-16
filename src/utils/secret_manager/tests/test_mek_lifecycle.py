@@ -4,6 +4,7 @@
 # pylint: disable=protected-access
 
 import base64
+import copy
 import json
 import time
 import types
@@ -111,8 +112,178 @@ def _pod(owner_references, deletion_timestamp=None):
     )
 
 
+def _bootstrap_cohort():
+    lifecycle = _lifecycle("bootstrap")
+    lifecycle.apps = mock.Mock()
+    lifecycle.core = mock.Mock()
+    lifecycle.apps.read_namespaced_deployment.return_value = _deployment()
+    current = _replica_set("api-current", "rs-current", 2)
+    old = _replica_set("api-old", "rs-old", 1)
+    lifecycle.apps.list_namespaced_replica_set.return_value = types.SimpleNamespace(
+        items=[old, current])
+    lifecycle.apps.read_namespaced_replica_set.return_value = old
+    pod = _pod([_owner("ReplicaSet", "api-old", "rs-old")], "now")
+    pod.status.phase = "Pending"
+    pod.status.container_statuses = []
+    pod.status.init_container_statuses = []
+    gate = types.SimpleNamespace(
+        name="bootstrap-credentials", image="osmo/service:previous",
+        env_from=None,
+        command=["/osmo/bootstrap-step"],
+        args=["--timeout", "300s", "--", "osmo-bootstrap", "--config",
+              "/bootstrap-config/config.json", "gate"],
+        env=[types.SimpleNamespace(
+            name="OSMO_BOOTSTRAP_FILES", value_from=None,
+            value=json.dumps([{"secret": "osmo-mek", "key": "mek.yaml", "optional": False}]))])
+    pod.spec.init_containers = [gate]
+    old.spec = types.SimpleNamespace(template=types.SimpleNamespace(
+        spec=types.SimpleNamespace(init_containers=[copy.deepcopy(gate)])))
+    lifecycle.core.list_namespaced_pod.return_value = types.SimpleNamespace(items=[pod])
+    return lifecycle, old, pod
+
+
 class TestMekLifecycle(unittest.TestCase):
     """Validate the Kubernetes-only lifecycle state machine."""
+
+    @mock.patch.dict(lifecycle_module.os.environ, {"OSMO_BOOTSTRAP_CONFIG": "/config.json"})
+    @mock.patch("src.utils.secret_manager.mek_lifecycle.time.sleep")
+    def test_bootstrap_accepts_stable_old_and_new_gated_cohorts(self, sleep):
+        lifecycle, _, old_pod = _bootstrap_cohort()
+        current_pod = _pod([_owner("ReplicaSet", "api-current", "rs-current")])
+        current_pod.status.phase = "Pending"
+        current_pod.status.container_statuses = []
+        current_pod.metadata.uid = "current-pod"
+        lifecycle.core.list_namespaced_pod.return_value = types.SimpleNamespace(
+            items=[old_pod, current_pod])
+        self.assertEqual(lifecycle._bootstrap_consumer_cohort(), ("current-pod", "pod-uid"))
+        lifecycle.core.list_namespaced_pod.reset_mock()
+        lifecycle._verify_bootstrap_quiescence()
+        self.assertEqual(lifecycle.core.list_namespaced_pod.call_count, 2)
+        lifecycle.apps.read_namespaced_replica_set.assert_called_with("api-old", "osmo")
+        sleep.assert_called_once_with(2)
+
+    @mock.patch.dict(lifecycle_module.os.environ, {"OSMO_BOOTSTRAP_CONFIG": "/config.json"})
+    @mock.patch("src.utils.secret_manager.mek_lifecycle.time.sleep")
+    def test_bootstrap_old_gated_cohort_remains_deadline_bounded(self, sleep):
+        lifecycle, _, _ = _bootstrap_cohort()
+        lifecycle.deadline = 0.5
+        with mock.patch("src.utils.secret_manager.mek_lifecycle.time.monotonic",
+                        side_effect=[0, 1]):
+            with self.assertRaisesRegex(osmo_errors.OSMOError, "deadline"):
+                lifecycle._verify_bootstrap_quiescence()
+        self.assertEqual(lifecycle.core.list_namespaced_pod.call_count, 1)
+        sleep.assert_called_once_with(2)
+
+    @mock.patch.dict(lifecycle_module.os.environ, {}, clear=True)
+    def test_standalone_bootstrap_rejects_old_cohort(self):
+        lifecycle, _, _ = _bootstrap_cohort()
+        with self.assertRaisesRegex(osmo_errors.OSMOError, "coordinated"):
+            lifecycle._bootstrap_consumer_cohort()
+
+    @mock.patch.dict(lifecycle_module.os.environ, {"OSMO_BOOTSTRAP_CONFIG": "/config.json"})
+    def test_old_cohort_requires_exact_blocked_mek_gate(self):
+        for invalid in ("missing-gate", "wrong-command", "wrong-args", "wrong-image",
+                        "malformed-json", "object-json", "nonmapping-json", "missing-env",
+                        "indirect-env", "duplicate-env", "wrong-secret", "wrong-key",
+                        "optional", "string-optional", "missing-mapping", "before-command",
+                        "indirect-environment",
+                        "completed", "previously-completed"):
+            with self.subTest(invalid=invalid):
+                lifecycle, _, pod = _bootstrap_cohort()
+                gate = pod.spec.init_containers[0]
+                mapping = {"secret": "osmo-mek", "key": "mek.yaml", "optional": False}
+                if invalid == "missing-gate":
+                    pod.spec.init_containers = []
+                elif invalid == "wrong-command":
+                    gate.command = ["/bin/true"]
+                elif invalid == "wrong-args":
+                    gate.args[-1] = "ready"
+                elif invalid == "wrong-image":
+                    gate.image = "untrusted/image"
+                elif invalid in ("malformed-json", "object-json", "nonmapping-json"):
+                    gate.env[0].value = {
+                        "malformed-json": "{", "object-json": "{}", "nonmapping-json": "[1]"
+                    }[invalid]
+                elif invalid == "missing-env":
+                    gate.env = []
+                elif invalid == "indirect-env":
+                    gate.env[0].value_from = object()
+                elif invalid == "duplicate-env":
+                    gate.env.append(copy.deepcopy(gate.env[0]))
+                elif invalid == "before-command":
+                    gate.env.append(types.SimpleNamespace(name="OSMO_BOOTSTRAP_BEFORE"))
+                elif invalid == "indirect-environment":
+                    gate.env_from = [object()]
+                elif invalid in ("completed", "previously-completed"):
+                    completed = types.SimpleNamespace(terminated=types.SimpleNamespace(exit_code=0))
+                    pending = types.SimpleNamespace(terminated=None)
+                    pod.status.init_container_statuses = [types.SimpleNamespace(
+                        name="bootstrap-credentials",
+                        state=completed if invalid == "completed" else pending,
+                        last_state=completed if invalid == "previously-completed" else pending)]
+                else:
+                    if invalid == "wrong-secret":
+                        mapping["secret"] = "other-mek"
+                    elif invalid == "wrong-key":
+                        mapping["key"] = "other.yaml"
+                    elif invalid == "optional":
+                        mapping["optional"] = True
+                    elif invalid == "string-optional":
+                        mapping["optional"] = "false"
+                    gate.env[0].value = json.dumps(
+                        [] if invalid == "missing-mapping" else [mapping])
+                with self.assertRaises(osmo_errors.OSMOError):
+                    lifecycle._bootstrap_consumer_cohort()
+
+    @mock.patch.dict(lifecycle_module.os.environ, {"OSMO_BOOTSTRAP_CONFIG": "/config.json"})
+    def test_old_gate_mapping_defaults_to_required(self):
+        lifecycle, _, pod = _bootstrap_cohort()
+        pod.spec.init_containers[0].env[0].value = json.dumps([
+            {"secret": "osmo-mek", "key": "mek.yaml"}])
+        self.assertEqual(lifecycle._bootstrap_consumer_cohort(), ("pod-uid",))
+
+    @mock.patch("src.utils.secret_manager.mek_lifecycle.time.sleep")
+    def test_bootstrap_old_cohort_never_retries_unsafe_pods(self, sleep):
+        for unsafe in ("foreign-deployment", "stale-deployment", "stale-replica-set",
+                       "running", "terminated", "restarted", "container-id"):
+            with self.subTest(unsafe=unsafe):
+                lifecycle, old, pod = _bootstrap_cohort()
+                if unsafe == "foreign-deployment":
+                    old.metadata.owner_references[0].name = "other"
+                elif unsafe == "stale-deployment":
+                    old.metadata.owner_references[0].uid = "previous-deployment"
+                elif unsafe == "stale-replica-set":
+                    pod.metadata.owner_references[0].uid = "previous-replica-set"
+                else:
+                    pod.status.container_statuses = [types.SimpleNamespace(
+                        state=types.SimpleNamespace(
+                            running=object() if unsafe == "running" else None,
+                            terminated=object() if unsafe == "terminated" else None),
+                        restart_count=1 if unsafe == "restarted" else 0,
+                        container_id="container" if unsafe == "container-id" else None)]
+                with self.assertRaises(osmo_errors.OSMOError):
+                    lifecycle._verify_bootstrap_quiescence()
+                sleep.assert_not_called()
+
+    def test_bootstrap_advisory_lock_is_nonblocking_and_deadline_bounded(self):
+        lifecycle = _lifecycle('bootstrap')
+        lifecycle.deadline = time.monotonic() + 0.02
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (False,)
+        with self.assertRaisesRegex(osmo_errors.OSMOError, 'deadline'):
+            lifecycle._acquire_database_lock(connection)
+        cursor.execute.assert_called_with(
+            'SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+
+    def test_bootstrap_advisory_lock_retries_until_acquired(self):
+        lifecycle = _lifecycle('bootstrap')
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchone.side_effect = [(False,), (True,)]
+        with mock.patch.object(lifecycle_module.time, 'sleep'):
+            lifecycle._acquire_database_lock(connection)
+        self.assertEqual(cursor.execute.call_count, 2)
 
     def test_secret_json_patch_uses_generated_client_compatible_signature(self):
         lifecycle = _lifecycle()

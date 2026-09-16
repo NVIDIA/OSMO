@@ -311,3 +311,14 @@ osmo_py_binary(
     tags = ["manual"],
     deps = [":deploy_and_run_main_lib"],
 )
+
+osmo_py_library(
+    name = "cluster_fixture",
+    srcs = ["cluster_fixture.py"],
+    deps = [":fixture_base", requirement("pyyaml")],
+)
+
+osmo_py_library(
+    name = "embedded_auth",
+    srcs = ["embedded_auth.py"],
+)

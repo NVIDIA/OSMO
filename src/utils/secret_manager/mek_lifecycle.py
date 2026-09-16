@@ -15,6 +15,7 @@ import datetime
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -24,6 +25,8 @@ from typing import Any, Dict, List, Literal, Mapping, Tuple
 from jwcrypto import jwk  # type: ignore
 from kubernetes import client, config as kubernetes_config  # type: ignore
 from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
+
+from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 import psycopg2  # type: ignore
 import pydantic
 import yaml
@@ -245,9 +248,9 @@ class MekLifecycle:
         self.lease_name = _lease_name(
             lifecycle_config.installation_id, lifecycle_config.secret_name)
         kubernetes_config.load_incluster_config()
-        self.core = client.CoreV1Api()
-        self.apps = client.AppsV1Api()
-        self.coordination = client.CoordinationV1Api()
+        self.core = client.CoreV1Api(BoundedApiClient())
+        self.apps = client.AppsV1Api(BoundedApiClient())
+        self.coordination = client.CoordinationV1Api(BoundedApiClient())
 
     def _check_deadline(self) -> None:
         if time.monotonic() >= self.deadline:
@@ -387,6 +390,7 @@ class MekLifecycle:
         self._check_deadline()
         self._assert_lease()
         release = self.config.installation_id.rsplit("/", 1)[-1]
+        record_issuance_if_configured(self.config.secret_name)
         return self.core.create_namespaced_secret(
             self.config.namespace,
             {
@@ -577,6 +581,7 @@ class MekLifecycle:
                     password=self.config.postgres_password,
                     dbname=self.config.postgres_database_name,
                     connect_timeout=max(1, min(5, int(self.deadline - time.monotonic()))),
+                    options='-c statement_timeout=10000 -c lock_timeout=5000',
                 )
             except psycopg2.OperationalError:
                 time.sleep(min(2, max(0.1, self.deadline - time.monotonic())))
@@ -596,6 +601,62 @@ class MekLifecycle:
                 if cursor.fetchone() is not None:
                     return False
         return True
+
+    def _acquire_database_lock(self, connection) -> None:
+        """Poll a nonblocking advisory lock within the operation's deadline."""
+        while True:
+            self._check_deadline()
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_try_advisory_lock(%s);', (0x4F534D4F4D454B,))
+                if cursor.fetchone()[0]:
+                    return
+            time.sleep(min(1, max(0, self.deadline - time.monotonic())))
+
+    def _verify_blocked_bootstrap_gate(self, pod, replica_set) -> None:
+        """An old cohort may stay only behind a gate requiring this absent MEK."""
+        if not os.environ.get("OSMO_BOOTSTRAP_CONFIG"):
+            raise osmo_errors.OSMOError("Old MEK consumers require coordinated bootstrap.")
+        gates = [container for container in pod.spec.init_containers or []
+                 if container.name == "bootstrap-credentials"]
+        expected = [container for container in replica_set.spec.template.spec.init_containers or []
+                    if container.name == "bootstrap-credentials"]
+        if len(gates) != 1 or len(expected) != 1:
+            raise osmo_errors.OSMOError("Old MEK consumer has no recognized bootstrap gate.")
+        gate = gates[0]
+        # Trust the image selected by this exact owned ReplicaSet, including an
+        # older image during upgrades; a Pod cannot substitute its own image.
+        if (
+            not gate.image or gate.image != expected[0].image
+            or gate.env_from
+            or gate.command != ["/osmo/bootstrap-step"]
+            or gate.args != ["--timeout", "300s", "--", "osmo-bootstrap", "--config",
+                             "/bootstrap-config/config.json", "gate"]
+            or any(item.name in ("OSMO_BOOTSTRAP_BEFORE", "OSMO_BOOTSTRAP_AFTER")
+                   for item in gate.env or [])
+        ):
+            raise osmo_errors.OSMOError("Old MEK consumer has an unrecognized gate command.")
+        environment = [item for item in gate.env or [] if item.name == "OSMO_BOOTSTRAP_FILES"]
+        if len(environment) != 1 or environment[0].value_from is not None:
+            raise osmo_errors.OSMOError("Old MEK consumer has no literal gate mappings.")
+        try:
+            mappings = json.loads(environment[0].value)
+        except (TypeError, ValueError):
+            raise osmo_errors.OSMOError("Old MEK consumer has invalid gate mappings.") from None
+        if (
+            not isinstance(mappings, list)
+            or not all(isinstance(item, dict) for item in mappings)
+            or not any(item.get("secret") == self.config.secret_name
+                       and item.get("key") == self.config.secret_key
+                       and item.get("optional", False) is False for item in mappings)
+        ):
+            raise osmo_errors.OSMOError("Old MEK consumer gate does not require this MEK.")
+        for status in pod.status.init_container_statuses or []:
+            if status.name != "bootstrap-credentials":
+                continue
+            for state in (status.state, status.last_state):
+                if state is not None and state.terminated is not None \
+                        and state.terminated.exit_code == 0:
+                    raise osmo_errors.OSMOError("Old MEK consumer bootstrap gate already completed.")
 
     def _bootstrap_consumer_cohort(self) -> Tuple[str, ...]:
         """Prove chart consumer application containers have never started."""
@@ -617,10 +678,10 @@ class MekLifecycle:
                     raise osmo_errors.OSMOError(
                         f"Selected bootstrap Pod {pod.metadata.name} has an unexpected owner.")
                 replica_set = current_replica_sets.get(owners[0].name)
+                old_cohort = replica_set is None
                 if replica_set is None:
-                    raise osmo_errors.OSMOError(
-                        f"Selected bootstrap Pod {pod.metadata.name} is not in the current "
-                        "ReplicaSet.")
+                    replica_set = self.apps.read_namespaced_replica_set(
+                        owners[0].name, self.config.namespace)
                 if owners[0].uid != replica_set.metadata.uid:
                     raise osmo_errors.OSMOError(
                         f"Selected bootstrap Pod {pod.metadata.name} has a stale owner.")
@@ -645,6 +706,8 @@ class MekLifecycle:
                 ):
                     raise osmo_errors.OSMOError(
                         f"MEK bootstrap consumer Pod {pod.metadata.name} has started a writer.")
+                if old_cohort:
+                    self._verify_blocked_bootstrap_gate(pod, replica_set)
                 observed.append(pod.metadata.uid)
         return tuple(sorted(observed))
 
@@ -654,6 +717,7 @@ class MekLifecycle:
             try:
                 first = self._bootstrap_consumer_cohort()
                 time.sleep(2)
+                self._check_deadline()
                 if first == self._bootstrap_consumer_cohort():
                     return
             except kubernetes_exceptions.ApiException as error:
@@ -699,8 +763,7 @@ class MekLifecycle:
         connection = self._connect_database_ready()
         try:
             logging.info("MEK bootstrap connected to PostgreSQL; acquiring its lock.")
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT pg_advisory_lock(%s);", (0x4F534D4F4D454B,))
+            self._acquire_database_lock(connection)
             logging.info("MEK bootstrap acquired the PostgreSQL lock.")
             if not self._database_is_fresh(connection):
                 raise osmo_errors.OSMOError(

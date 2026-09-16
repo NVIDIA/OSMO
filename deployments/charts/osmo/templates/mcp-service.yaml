@@ -1,3 +1,4 @@
+{{- define "osmo.raw.mcp-service" -}}
 {{- if .Values.planes.control.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
@@ -361,3 +362,6 @@ spec:
       protocol: TCP
 {{- end }}
 {{- end }}
+
+{{- end -}}
+{{- include "osmo.bootstrap.gatedResources" (dict "root" . "content" (include "osmo.raw.mcp-service" .)) -}}

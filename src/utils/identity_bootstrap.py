@@ -31,6 +31,8 @@ from kubernetes import client as kubernetes_client  # type: ignore
 from kubernetes import config as kubernetes_config  # type: ignore
 from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
 
+from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
+
 
 _MANAGED_BY = 'osmo-embedded-dex-bootstrap'
 _IDENTITY_MANAGED_BY = 'osmo-identity-bootstrap'
@@ -444,6 +446,7 @@ def _write_secret(
             api.replace_namespaced_secret(
                 name=name, namespace=namespace, body=secret)
         else:
+            record_issuance_if_configured(name)
             api.create_namespaced_secret(namespace=namespace, body=secret)
     except kubernetes_exceptions.ApiException as error:
         if error.status == 409 or (exists and error.status == 404):
@@ -852,7 +855,7 @@ def main() -> None:
             raise BootstrapError(
                 '--dex-hash-secret-name is required for a unified Dex config rollout')
         kubernetes_config.load_incluster_config()
-        api = kubernetes_client.CoreV1Api()
+        api = kubernetes_client.CoreV1Api(BoundedApiClient())
         if unified:
             result = reconcile_identities(
                 api,

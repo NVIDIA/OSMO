@@ -261,7 +261,7 @@ def build_bazel_command(
         "--test_summary=terse",
         f"--build_event_json_file={bep_path}",
     ]
-    if args.env == "kind":
+    if args.env in ("kind", "bootstrap-kind"):
         # Bazel gives tests an isolated HOME, so kubectl cannot otherwise see
         # the kubeconfig created by the KIND deployment step.
         kubeconfig = os.environ.get("KUBECONFIG")
@@ -274,6 +274,12 @@ def build_bazel_command(
         helm_chart_path = os.environ.get("OETF_HELM_CHART_PATH")
         if helm_chart_path:
             cmd.append(f"--test_env=OETF_HELM_CHART_PATH={helm_chart_path}")
+    if args.env == "bootstrap-kind":
+        for name in ("OETF_BOOTSTRAP_IMAGE", "OETF_BOOTSTRAP_BASELINE_CHART",
+                     "OETF_BOOTSTRAP_BASELINE_IMAGE", "OETF_BOOTSTRAP_CLEANUP", "OETF_BOOTSTRAP_HELM",
+                     "OETF_BOOTSTRAP_WORKFLOW_IMAGES"):
+            if name in os.environ:
+                cmd.append(f"--test_env={name}")
     cmd.extend(test_args)
     cmd.extend(args.bazel_arg)
     return cmd

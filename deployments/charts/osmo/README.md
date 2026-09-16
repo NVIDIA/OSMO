@@ -36,8 +36,8 @@ release. They install:
 
 Use Kubernetes 1.30 or newer with enough capacity for the resources described
 below. Raw Helm installs and upgrades using generated internal TLS require Helm
-3.19 or newer so a failed multi-resource bootstrap hook cleans up its earlier
-RBAC resources. The cluster must have a default dynamic StorageClass. Install
+3.19 or newer for the explicit CA rotation hooks. Ordinary bootstrap uses one
+regular Job with ordered init containers. The cluster must have a default dynamic StorageClass. Install
 Helm, `kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO.
 Select the development cluster context once; replace `kind-osmo` if your
 cluster has a different context. A GPU workflow also requires GPU-capable nodes
@@ -73,14 +73,15 @@ match the quickstart Kind port mapping:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
+  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   --wait \
   --wait-for-jobs \
-  --timeout 20m
+  --timeout 140m
 ```
 
-The first installation uses bootstrap Jobs to create the retained
+The first installation uses ordered bootstrap steps to create the retained
 `osmo-master-encryption-key` and `osmo-service-auth` Secrets without putting key
 material in Helm state. After that installation succeeds, remove both temporary
 Secret-creation permissions and retain the remaining release values:
@@ -92,7 +93,7 @@ helm upgrade osmo deployments/charts/osmo \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
   --set secrets.serviceAuth.bootstrap.enabled=false \
   --wait \
-  --timeout 20m
+  --timeout 140m
 ```
 
 Embedded Dex uses volatile memory storage and is intended for development and
@@ -334,6 +335,7 @@ Install the generic profile first and a site-specific overlay second:
 
 ```bash
 helm upgrade --install osmo deployments/charts/osmo \
+  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
   --values <site-values.yaml>
@@ -374,17 +376,18 @@ cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
 # Edit self-contained-environment-values.yaml for the target environment and,
 # for production, configure externalOidc and its existing Secret references.
 helm upgrade --install osmo deployments/charts/osmo \
+  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
   --values self-contained-environment-values.yaml \
   --wait \
   --wait-for-jobs \
-  --timeout 30m
+  --timeout 140m
 ```
 
 The first installation bootstraps the retained `osmo-master-encryption-key` and
 `osmo-service-auth` Secrets without rendering key material. As soon as it
-succeeds, disable both bootstrap Jobs in
+succeeds, disable both Secret-creation steps in
 `self-contained-environment-values.yaml` and apply the mandatory cleanup
 transaction:
 
@@ -404,7 +407,7 @@ helm upgrade osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
   --values self-contained-environment-values.yaml \
   --wait \
-  --timeout 30m
+  --timeout 140m
 ```
 
 The profile deploys these stateful services:
@@ -448,10 +451,10 @@ kubectl --namespace osmo get secret \
 
 The release creates the workflow, log, and app buckets and wires the RustFS
 endpoint and credential Secret into the control plane. It creates the retained
-backend-token Secret through its bootstrap hook and the retained
+backend-token Secret through its bootstrap step and the retained
 master-encryption-key Secret through the explicit lifecycle Job. The generated
 values never appear in Helm values, rendered manifests, logs, or Helm release
-state. The backend-token hook and object-storage bootstrap Job retain a `50m`
+state. The identity and object-storage init containers retain a `50m`
 CPU request but intentionally have no CPU limit so their short-lived CLI
 processes can use otherwise-idle CPU and finish quickly.
 
@@ -490,12 +493,13 @@ Install the chart after the operator is Ready:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
+  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
   --wait \
-  --timeout 25m
+  --timeout 140m
 ```
 
 The split-plane control profile uses production-oriented settings that create
@@ -600,12 +604,13 @@ install the chart by layering the environment values after the profile:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
+  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
   --wait \
-  --timeout 25m
+  --timeout 140m
 ```
 
 ### Database migrations
@@ -871,6 +876,116 @@ specific destinations.
 Pods. Only one release in a cluster should create them; other compute releases
 must set `create: false`.
 
+## One bootstrap Job
+
+A nonempty set of enabled bootstrap operations renders exactly one ordinary Job.
+The order is **TLS → identities → service auth → MEK → object-storage buckets**.
+Existing chart flags still decide which steps run. Disabled steps contribute no
+execution, scratch mounts, or step-specific permissions. With every step disabled,
+the chart renders no bootstrap Job. Explicit CA/MEK rotation and database migration
+remain separate lifecycle operations.
+
+The Job first claims a release-scoped Lease, validates the retained installation,
+and runs the enabled init containers. It publishes `credentialsReady` only after
+all enabled outputs validate. Consumer init containers then copy those exact bytes
+to shared in-memory volumes, including the rendered Dex configuration. A final
+container waits for the requested consumer rollouts and records completion. This
+allows `helm --wait --wait-for-jobs` without a startup cycle.
+
+### New installations and adoption
+
+For an intentionally new installation, provide a unique non-secret ID:
+
+```yaml
+bootstrap:
+  initializationId: my-new-osmo-installation
+```
+
+Remove the ID after successful initialization. The ID does not override a recorded
+credential identity, a live execution Lease, or the MEK fresh-database checks.
+Consumer application containers must not have started before initial issuance.
+External database users must also keep non-chart writers stopped during MEK creation.
+
+For an upgrade from the previous chart, leave the ID empty and keep the existing
+credential declarations for the first upgrade. Bootstrap validates and adopts the
+retained credentials without changing their bytes. Missing, invalid, or foreign
+credentials stop adoption. Add new identity declarations in a later upgrade.
+
+The runtime-owned `<fullname>-bootstrap-state` ConfigMap stores Secret UIDs and
+key fingerprints, step receipts, generation, and completion state; it contains no
+credential bytes. Helm never renders or resets it. Keep it with the retained
+Secrets. A replacement Secret UID is deliberately rejected, even if its bytes
+match; disaster recovery that recreates objects requires an explicitly reviewed
+repair of the installation record after restoring and validating the original
+credentials. Merely deleting the record is not a supported reset procedure.
+
+### Upgrading during a CA rotation
+
+If the previous chart is already in `prepare` or `activate`, first upgrade using
+that same rotation ID and phase. Wait for the replay and all consumer rollouts to
+finish before advancing. Existing Pods from the previous chart do not have the
+verified-file startup gate required by the next phase. Do not bypass this check.
+The rotation Job publishes a retained `<fullname>-tls-state` receipt containing
+only Secret UIDs and file hashes; consumer gates load those exact trust and leaf
+files. Same-phase hostname changes also trigger new consumer snapshots.
+
+### Retry and scheduling
+
+```yaml
+bootstrap:
+  attempt: retry-2
+  nodeSelector: {node-pool: control}
+  tolerations: []
+  affinity: {}
+  coordinatorActiveDeadlineSeconds: 300
+  storageActiveDeadlineSeconds: 600
+```
+
+Change `bootstrap.attempt` after correcting a failed dependency or configuration.
+The existing service-auth and MEK `bootstrap.attempt` values also trigger a retry
+when their steps are enabled. Attempts change the immutable Job name without
+changing the consumer credential generation. Unchanged reconciliation retains the
+same completed Job. There is no Job TTL. Capture diagnostics before retrying.
+Helm (including Flux's Helm controller) can retain a failed attempt's resources:
+it may prune from the last successful release inventory, which does not include
+that attempt. After the replacement succeeds, verify the old Job and its Pod are
+terminal, then delete that specific failed Job. Do not delete a live attempt or
+its Pod to bypass lease ownership. The chart declares one desired bootstrap Job;
+historical terminal failures can remain until this explicit cleanup.
+
+Each step preserves its image/resources and retry policy. A static supervisor
+bounds every attempt and kills/reaps its child processes before releasing execution
+ownership. The Job has `backoffLimit: 0` and a finite deadline covering all enabled
+attempts plus coordination and cleanup. Use a Helm timeout longer than that budget;
+`--timeout 140m` accommodates the default all-enabled budget. Helm can continue
+waiting for gated Deployments after a Job has failed. Diagnose the terminal Job
+condition and stopped Pod first; interrupt the Helm client before submitting an
+explicit retry. A Helm client timeout alone does not prove the Job stopped.
+
+A dependency failure before any credential write can be retried directly. A crash
+following an attempted Secret create is deliberately conservative: an existing
+valid output is reused, but a missing output with an issuance intent requires
+restoration or an explicitly reviewed recovery. A deleted/unreachable former Pod
+is not proof its processes stopped. After SIGKILL, OOM, or node loss, preserve the
+old Pod and Lease until terminal process state is established. A foreign Lease
+that remains held always requires explicit recovery, even if Kubernetes reports
+the old Pod as Failed or Succeeded; Pod phase alone cannot prove termination.
+Clear a stranded Lease only after establishing that its former owner cannot write.
+
+Common scheduling settings default to the API Pod policy. Compatible existing
+service-auth overrides are accepted; conflicting overrides require an explicit
+common setting. Per-container resource and image overrides remain effective. OSMO
+bootstrap images must contain `osmo-bootstrap` and their existing reconciliation
+command; the API image must also contain `/osmo/bootstrap-step`. Rebuild custom TLS
+bootstrap images against this version. The separate AWS CLI image uses the static
+supervisor copied into a shared tools volume and does not need Python.
+
+The embedded Dex dependency is the minimal local fork
+[`dex-bootstrap`](../dex-bootstrap/OSMO-PATCH.md), based on upstream 0.24.1. Its
+Deployment template is rendered through the parent chart so its actual config file
+participates in the same startup gate. Service and Deployment identities remain
+unchanged.
+
 ## Bootstrap identities
 
 `authentication.bootstrap.identities` is a map so values overlays add entries
@@ -953,10 +1068,11 @@ kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin 
 printf '\n'
 ```
 
-To rotate one managed password or token, delete only that exact Secret and run
-the next Helm/GitOps reconciliation. Deleting the OAuth Secret rotates both the
-browser client and cookie secrets. A Dex password rotation also reconciles the
-hash-only aggregate and restarts the affected authentication Pods. Older
+Managed credential loss fails closed after initialization or adoption. Deleting a
+Secret is no longer a rotation request. Use a new declarative token/identity
+reference for a replacement, validate it, and retire the old declaration. Retain
+the installation record with its credentials; see [One bootstrap Job](#one-bootstrap-job).
+Older
 `authentication.embeddedDex.admin`, credential-generation fields, and
 `secrets.backendApiTokens` values are removed. Revoke
 any legacy database-backed default-admin token after validating its replacement.
@@ -1026,8 +1142,8 @@ postgresql:
 Service auth contains the installation's JWT private key. The chart mounts the
 Secret referenced by `secrets.serviceAuth.existingSecret` into every consumer.
 Quickstart defaults and `self-contained.yaml` create it automatically with a
-Kubernetes-only bootstrap Job. The Job uses the configured OSMO API service
-image and has create-only access to Secrets; retries only preserve an existing
+Kubernetes-only step in the shared bootstrap Job. The step uses the configured OSMO API
+service image; its Secret permissions are get/create, and retries only preserve an existing
 Secret after validating its ownership, digest, and key pair.
 
 Single-plane, split-plane, and existing installations use
@@ -1047,7 +1163,7 @@ rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
 Quickstart and self-contained are install-only profiles. After bootstrap,
-disable `bootstrap.enabled` to remove its Job and RBAC. Use the migration below
+disable `secrets.serviceAuth.bootstrap.enabled` to remove that step and its Secret permissions. Use the migration below
 for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
@@ -1179,7 +1295,7 @@ to exist before the first installation; the bootstrap Job creates it without
 exposing key material to Helm.
 
 For a disposable install backed by a new database, enable `bootstrap`. Helm
-renders no MEK Secret data. A namespace-scoped create-only lifecycle Job waits
+renders no MEK Secret data. The MEK init container in the shared bootstrap Job waits
 for PostgreSQL, proves that the database has no users or UEKs, verifies that
 every chart consumer is blocked before its writer
 container starts, and atomically creates the full Secret. Key material never
@@ -1199,7 +1315,7 @@ helm upgrade osmo deployments/charts/osmo \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
   --wait \
-  --timeout 20m
+  --timeout 140m
 ```
 
 If bootstrap fails or its database credentials are corrected under Argo CD or
@@ -1289,7 +1405,7 @@ consumers.
 
 ### OAuth credentials
 
-In embedded-Dex mode, the identity bootstrap hooks create and retain the local
+In embedded-Dex mode, the identity bootstrap step creates and retains the local
 user, browser-client, and cookie credentials; see
 [Bootstrap identities](#bootstrap-identities). In
 external-OIDC mode, client and cookie credentials are operator-owned and may
@@ -1336,26 +1452,25 @@ blocks; Helm schema errors identify any remaining legacy fields.
 | Development | `gateway.tls.generated.enabled: true` |
 | Production | Set `generated.enabled: false`, `caSecret`, and every `upstreamCerts` Secret |
 
-Generated mode uses an individually rendered Helm
-`pre-install,pre-upgrade`/Argo CD `PreSync` bootstrap Job. The Job creates and
-populates retained CA, trust, and leaf Secrets before the consumer Deployments
-are applied. Certificate data is never rendered into Helm release state, and
-the generated Secrets carry Helm keep and Argo `Prune=false,Delete=false`
-metadata. Raw Helm use requires Helm 3.19 or newer for complete cleanup when a
-later hook fails. Back up these Secrets; uninstalling the release does not make
-the CA safe to replace.
+Generated mode uses the TLS init container in the ordinary bootstrap Job. Consumer
+Deployments can be applied concurrently: their startup gates copy verified
+credential bytes into the files the applications consume before starting them.
+Certificate data never enters Helm release state. The generated Secrets retain
+Helm keep and Argo `Prune=false,Delete=false` metadata. Back up the Secrets and
+the runtime-owned installation ConfigMap together.
 
 - Rotate leaves by changing `gateway.tls.generated.leafRotationNonce`.
 - For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
   `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
   Unfreeze HPAs only after `stable` completes.
-- On the first upgrade from process-local TLS, set
-  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` once, verify the
-  retained Secrets, then set it back to `false`. Never use this flag to replace
-  a missing retained CA; restore the original Secret instead.
-- If the bootstrap hook fails, correct the cause and rerun `helm upgrade` or
-  start another Argo CD sync. Hook cleanup recreates the stable Job name; merely
-  deleting an Argo hook does not start a new sync.
+- A new installation requires an explicit `bootstrap.initializationId`. A release
+  without an installation record is adopted only when all declared protected
+  credentials already exist and validate. Adopt before adding credential declarations.
+  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` alone does not
+  authorize replacing retained credentials.
+- After a failed ordinary Job, correct the cause and change `bootstrap.attempt`.
+  Capture failure evidence and clean up a retained terminal Job after replacement,
+  as described in [Retry and scheduling](#retry-and-scheduling).
 
 ## Exposure
 

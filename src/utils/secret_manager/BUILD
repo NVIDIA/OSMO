@@ -40,6 +40,7 @@ osmo_py_library(
     name = "mek_lifecycle_lib",
     srcs = ["mek_lifecycle.py"],
     deps = [
+        "//src/utils:bootstrap_lib",
         requirement("jwcrypto"),
         requirement("kubernetes"),
         requirement("psycopg2-binary"),

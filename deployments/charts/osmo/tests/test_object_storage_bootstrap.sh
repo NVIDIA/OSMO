@@ -125,7 +125,7 @@ fi
 
 run_bootstrap 2 3
 require_call_count "s3api list-buckets" 3
-require_call_count "s3api list-buckets --query Buckets[].Name --output text" 3
+require_call_count "s3api list-buckets --cli-connect-timeout 5 --cli-read-timeout 10 --query Buckets[].Name --output text" 3
 require_file_contains "$FAKE_AWS_STATE/aws-config" "addressing_style = path"
 require_call_count "s3api head-bucket" 0
 require_call_count "s3api create-bucket --bucket missing-logs" 1

@@ -1,0 +1,192 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $definition := include "osmo.bootstrap.definition" . | fromYaml -}}
+{{- $steps := $definition.steps -}}
+{{- if $steps -}}
+{{- $configuration := $definition.configuration -}}
+{{- $volumes := dict -}}
+{{- $rules := list -}}
+{{- $containers := list -}}
+{{- $deadline := add 105 (mul 3 .Values.bootstrap.coordinatorActiveDeadlineSeconds) -}}
+{{- range $step := $steps -}}
+{{- $deadline = add $deadline (mul (add 1 $step.backoffLimit) (add 45 $step.deadline)) -}}
+{{- range ($step.volumes | default "" | fromYamlArray) -}}
+{{- if .name -}}{{- $_ := set $volumes .name . -}}{{- end -}}
+{{- end -}}
+{{- with $step.rules -}}{{- $rules = concat $rules (. | fromYamlArray) -}}{{- end -}}
+{{- $container := first ($step.container | fromYamlArray) -}}
+{{- $command := concat $container.command ($container.args | default list) -}}
+{{- if ne $step.step "object-storage" -}}
+{{- if eq $step.step "internal-tls" -}}{{- $command = append $command "--allow-initial-generation" -}}{{- end -}}
+{{- $mounts := concat ($container.volumeMounts | default list) (list (dict "name" "bootstrap-config" "mountPath" "/bootstrap-config" "readOnly" true)) -}}
+{{- $_ := set $container "volumeMounts" $mounts -}}
+{{- $environment := dict -}}
+{{- range ($container.env | default list) -}}{{- $_ := set $environment .name . -}}{{- end -}}
+{{- range $key, $action := dict "OSMO_BOOTSTRAP_BEFORE" "prepare" "OSMO_BOOTSTRAP_AFTER" "finish" -}}
+{{- $_ := set $environment $key (dict "name" $key "value" (toJson (list "osmo-bootstrap" "--config" "/bootstrap-config/config.json" $action $step.step))) -}}
+{{- end -}}
+{{- range $name, $field := dict "OSMO_POD_NAME" "metadata.name" "OSMO_POD_UID" "metadata.uid" -}}
+{{- $_ := set $environment $name (dict "name" $name "valueFrom" (dict "fieldRef" (dict "fieldPath" $field))) -}}
+{{- end -}}
+{{- $_ := set $environment "OSMO_BOOTSTRAP_CONFIG" (dict "name" "OSMO_BOOTSTRAP_CONFIG" "value" "/bootstrap-config/config.json") -}}
+{{- $orderedEnvironment := list -}}
+{{- range (keys $environment | sortAlpha) -}}{{- $orderedEnvironment = append $orderedEnvironment (index $environment .) -}}{{- end -}}
+{{- $_ := set $container "env" $orderedEnvironment -}}
+{{- end -}}
+{{- if eq $step.step "object-storage" -}}
+{{- $_ := set $container "env" (concat $container.env (list (dict "name" "OSMO_POD_UID" "valueFrom" (dict "fieldRef" (dict "fieldPath" "metadata.uid"))))) -}}
+{{- $_ := set $container "volumeMounts" (append $container.volumeMounts (dict "name" "kubernetes-api" "mountPath" "/var/run/secrets/kubernetes.io/serviceaccount" "readOnly" true)) -}}
+{{- end -}}
+{{- $_ := set $container "env" (concat $container.env (include "osmo.bootstrap.leaseEnv" (dict "root" $ "mek" (eq $step.step "mek")) | fromYamlArray)) -}}
+{{- $_ := set $container "command" (list "/bootstrap-tools/bootstrap-step") -}}
+{{- $_ := set $container "args" (concat (list "--timeout" (printf "%ds" (int $step.deadline)) "--retries" (toString $step.backoffLimit) "--") $command) -}}
+{{- $_ := set $container "volumeMounts" (append $container.volumeMounts (dict "name" "bootstrap-tools" "mountPath" "/bootstrap-tools" "readOnly" true)) -}}
+{{- if and $.Values.secrets.serviceAuth.bootstrap.enabled (has $step.step (list "service-auth" "mek")) -}}
+{{- $mounts := list -}}
+{{- range $container.volumeMounts -}}{{- if ne .name "service-auth" -}}{{- $mounts = append $mounts . -}}{{- end -}}{{- end -}}
+{{- $mountPath := ternary "/bootstrap-auth" "/etc/osmo/service-auth" (eq $step.step "service-auth") -}}
+{{- $_ := set $container "volumeMounts" (append $mounts (dict "name" "service-auth" "mountPath" $mountPath "readOnly" (eq $step.step "mek"))) -}}
+{{- if eq $step.step "service-auth" -}}
+{{- $_ := set $container "env" (append $container.env (dict "name" "OSMO_BOOTSTRAP_SERVICE_AUTH" "value" (toJson (dict "secret" $.Values.secrets.serviceAuth.existingSecret.name "key" $.Values.secrets.serviceAuth.existingSecret.key "path" "/bootstrap-auth/authentication-config.json")))) -}}
+{{- end -}}
+{{- end -}}
+{{- $containers = append $containers $container -}}
+{{- end -}}
+{{- if .Values.secrets.serviceAuth.bootstrap.enabled -}}
+{{- $_ := set $volumes "service-auth" (dict "name" "service-auth" "emptyDir" (dict "medium" "Memory" "sizeLimit" "1Mi")) -}}
+{{- end -}}
+{{- $nodeSelector := include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.api) | fromYaml -}}
+{{- $tolerations := include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.api) | fromYamlArray -}}
+{{- $affinity := include "osmo.pod.affinity" (dict "root" . "component" .Values.services.api) | fromYaml -}}
+{{- if ne .Values.bootstrap.nodeSelector nil -}}
+{{- $nodeSelector = .Values.bootstrap.nodeSelector -}}
+{{- else if and .Values.secrets.serviceAuth.bootstrap.enabled .Values.secrets.serviceAuth.bootstrap.nodeSelector (not (deepEqual $nodeSelector .Values.secrets.serviceAuth.bootstrap.nodeSelector)) -}}
+{{- fail "bootstrap steps have different nodeSelector settings; set bootstrap.nodeSelector explicitly for the shared Pod" -}}
+{{- end -}}
+{{- if ne .Values.bootstrap.tolerations nil -}}
+{{- $tolerations = .Values.bootstrap.tolerations -}}
+{{- else if and .Values.secrets.serviceAuth.bootstrap.enabled .Values.secrets.serviceAuth.bootstrap.tolerations (not (deepEqual $tolerations .Values.secrets.serviceAuth.bootstrap.tolerations)) -}}
+{{- fail "bootstrap steps have different tolerations; set bootstrap.tolerations explicitly for the shared Pod" -}}
+{{- end -}}
+{{- if ne .Values.bootstrap.affinity nil -}}{{- $affinity = .Values.bootstrap.affinity -}}{{- end -}}
+{{- $install := dict "name" "install-supervisor" "image" (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) "imagePullPolicy" (include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api)) "command" (list "/osmo/bootstrap-step") "args" (list "--install" "/bootstrap-tools/bootstrap-step") "securityContext" (include "osmo.bootstrap.securityContext" . | fromYaml) "volumeMounts" (list (dict "name" "bootstrap-tools" "mountPath" "/bootstrap-tools")) -}}
+{{- $initializers := concat (list $install (include "osmo.bootstrap.coordinatorContainer" (dict "root" . "action" "begin") | fromYaml)) $containers (list (include "osmo.bootstrap.coordinatorContainer" (dict "root" . "action" "ready") | fromYaml)) -}}
+{{- $configVolume := dict "name" "bootstrap-config" "configMap" (dict "name" "BOOTSTRAP-CONFIG") -}}
+{{- $podVolumes := concat (list $configVolume (dict "name" "bootstrap-tools" "emptyDir" dict)) (include "osmo.bootstrap.apiVolume" . | fromYamlArray) -}}
+{{- range (keys $volumes | sortAlpha) -}}{{- $podVolumes = append $podVolumes (index $volumes .) -}}{{- end -}}
+{{- $pod := dict "restartPolicy" "Never" "automountServiceAccountToken" false "serviceAccountName" "BOOTSTRAP-SA" "securityContext" (dict "fsGroup" 1001 "seccompProfile" (dict "type" "RuntimeDefault")) "initContainers" $initializers "containers" (list (include "osmo.bootstrap.coordinatorContainer" (dict "root" . "action" "complete") | fromYaml)) "volumes" $podVolumes -}}
+{{- $pod = mergeOverwrite $pod (include "osmo.component.imagePullSecrets" . | fromYaml | default dict) -}}
+{{- with $nodeSelector -}}{{- $_ := set $pod "nodeSelector" . -}}{{- end -}}
+{{- with $tolerations -}}{{- $_ := set $pod "tolerations" . -}}{{- end -}}
+{{- with $affinity -}}{{- $_ := set $pod "affinity" . -}}{{- end -}}
+{{- $jobSpec := dict "backoffLimit" 0 "activeDeadlineSeconds" $deadline "template" (dict "metadata" (dict "labels" (include "osmo.component.standardLabels" (dict "root" . "component" "bootstrap") | fromYaml)) "spec" $pod) -}}
+{{- $stepAttempts := dict -}}
+{{- range $steps -}}{{- with .attempt -}}{{- end -}}{{- $_ := set $stepAttempts .step (.attempt | default "") -}}{{- end -}}
+{{- $identity := dict "spec" $jobSpec "configuration" $configuration "attempt" .Values.bootstrap.attempt "stepAttempts" $stepAttempts "labels" .Values.commonLabels -}}
+{{- $name := printf "%s-bootstrap-%s" (include "osmo.fullname" . | trunc 40 | trimSuffix "-") (toJson $identity | sha256sum | trunc 10) -}}
+{{- $configName := printf "%s-config" $name -}}
+{{- $_ := set $pod "serviceAccountName" $name -}}
+{{- $_ := set $configVolume.configMap "name" $configName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  config.json: {{ toJson $configuration | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+rules:
+{{- if $rules }}
+{{- toYaml $rules | nindent 0 }}
+{{- end }}
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [create]
+- apiGroups: [""]
+  resources: [configmaps]
+  resourceNames: [{{ $configuration.record | quote }}]
+  verbs: [get, update]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [create]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  resourceNames: [{{ $configuration.record | quote }}]
+  verbs: [get, patch]
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [get, list]
+- apiGroups: [apps]
+  resources: [replicasets]
+  verbs: [list]
+{{- if $configuration.consumers }}
+- apiGroups: [apps]
+  resources: [deployments]
+  resourceNames: {{ toJson $configuration.consumers }}
+  verbs: [get]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "bootstrap") | nindent 4 }}
+  {{- with (include "osmo.metadata.annotations" (dict "root" .)) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- toYaml $jobSpec | nindent 2 }}
+{{- end -}}

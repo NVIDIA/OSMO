@@ -72,6 +72,7 @@ osmo_py_binary(
     deps = [
         ":service_auth_bootstrap_lib",
         ":service_lib",
+        "//src/utils:bootstrap_lib",
         "//src/utils/secret_manager:mek_lifecycle_lib",
     ],
 )
@@ -87,6 +88,7 @@ osmo_py_library(
     name = "service_auth_bootstrap_lib",
     srcs = ["service_auth_bootstrap.py"],
     deps = [
+        "//src/utils:bootstrap_lib",
         requirement("jwcrypto"),
         requirement("kubernetes"),
         requirement("psycopg2-binary"),
@@ -133,6 +135,7 @@ filegroup(
         ":service_layer_packages",
         ":service_wrapper",
         ":mek_lifecycle_wrapper",
+        "//src/utils:bootstrap_wrapper_public",
         "//src/utils:identity_bootstrap_wrapper_public",
         "//src/utils:internal_tls_bootstrap_wrapper_public",
     ],
@@ -145,7 +148,7 @@ filegroup(
 oci_image(
     name = "service_image_x86_64",
     base = "//src:osmo_docker_distroless_image_amd64",
-    tars = [":service_image_layers"],
+    tars = [":service_image_layers", "//src/runtime/cmd/bootstrap_step:bootstrap_step_x86_64_pkg"],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
@@ -183,7 +186,7 @@ oci_push(
 oci_image(
     name = "service_image_arm64",
     base = "//src:osmo_docker_distroless_image_arm64",
-    tars = [":service_image_layers"],
+    tars = [":service_image_layers", "//src/runtime/cmd/bootstrap_step:bootstrap_step_arm64_pkg"],
     visibility = ["//visibility:public"],
     target_compatible_with = [
         "@platforms//cpu:arm64",

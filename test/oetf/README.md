@@ -1383,3 +1383,45 @@ allure --version   # should print 3.x
 Set `ALLURE_BIN=/path/to/allure` if not on PATH.
 
 The generated report uses Allure 3's awesome plugin: native dark-mode toggle (auto / light / dark, defaulting to system preference) lives in the header, and history accumulates as a single `history.jsonl` per source.
+
+## Single bootstrap Job lifecycle tests
+
+`bootstrap-kind` is an explicit destructive-test environment for a disposable,
+single-node KIND cluster named `osmo-bootstrap`. Each test creates its own
+`bootstrap-test-*` namespace. Supply a kubeconfig pointing to that cluster;
+CloudNativePG and a default StorageClass must already be available. The GitOps
+case additionally requires Flux source-controller and helm-controller in
+`flux-system`. The CPU workflow case requires KAI Scheduler.
+
+Build and load the candidate service image for the node architecture. Pin both
+candidate and baseline references by digest, and provide an unpacked baseline
+chart with its dependencies. The fixture freezes a chart copy for each case and
+checks the actual bootstrap supervisor image ID. It performs real Dex login and
+API authorization after successful lifecycle transitions.
+
+```sh
+export KUBECONFIG=/path/to/disposable-bootstrap.kubeconfig
+export OETF_BOOTSTRAP_IMAGE=osmo.local/service@sha256:YOUR_CANDIDATE_DIGEST
+export OETF_BOOTSTRAP_BASELINE_IMAGE=osmo.local/service@sha256:YOUR_BASELINE_DIGEST
+export OETF_BOOTSTRAP_BASELINE_CHART=/path/to/baseline/deployments/charts/osmo
+# Optional: select a specific Helm executable.
+export OETF_BOOTSTRAP_HELM=/path/to/helm
+bazel run //test/oetf:run -- --env bootstrap-kind --name test_bootstrap_fresh_install
+bazel run //test/oetf:run -- --env bootstrap-kind --name test_bootstrap_legacy_upgrade
+bazel run //test/oetf:run -- --env bootstrap-kind --name test_bootstrap_blocked_lock
+bazel run //test/oetf:run -- --env bootstrap-kind --name test_bootstrap_gitops_retry
+```
+
+For direct Bazel invocation select a method with
+`--test_arg=BootstrapLifecycleKind.test_bootstrap_fresh_install`; unittest does
+not use Bazel's `--test_filter`. Pass the environment variables with `--test_env`.
+`OETF_BOOTSTRAP_CLEANUP=false` preserves test namespaces for diagnosis. Tests
+attach Job, Pod, and Deployment evidence; credentials are compared in memory.
+Failure tests prove terminal Job and Pod state independently before canceling
+Helm's remaining wait and starting an explicit retry.
+
+The CPU workflow test reads `OETF_BOOTSTRAP_WORKFLOW_IMAGES`, a JSON object mapping
+`worker`, `router`, `agent`, `logger`, `delayedJobMonitor`, `backendListener`,
+`backendWorker`, `init`, and `client` to locally loaded immutable image references. It
+submits two dependent CPU tasks and checks that the second receives the first
+one's object-storage output.

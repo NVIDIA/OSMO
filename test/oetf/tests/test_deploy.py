@@ -225,10 +225,16 @@ class TestKindAdapter(unittest.TestCase):
                 ) as chart_file:
                     chart_file.write(
                         "apiVersion: v2\nname: quick-start\nversion: 0.0.0\n")
+                dex_fork = os.path.join(source_directory, "dex-bootstrap")
+                os.makedirs(dex_fork)
+                with open(os.path.join(dex_fork, "Chart.yaml"), "w", encoding="utf-8") as dependency:
+                    dependency.write("apiVersion: v2\nname: dex\nversion: 0.24.1-osmo.1\n")
                 retained = adapter._retain_quick_start_chart(  # pylint: disable=protected-access
                     chart)
 
             self.assertTrue(os.path.isfile(os.path.join(retained, "Chart.yaml")))
+            self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(retained),
+                                                       "dex-bootstrap", "Chart.yaml")))
             self.assertEqual(retained, os.environ.get("OETF_HELM_CHART_PATH"))
             adapter._cleanup_retained_quick_start_chart()  # pylint: disable=protected-access
             self.assertFalse(os.path.exists(retained))
@@ -465,6 +471,8 @@ class TestKindAdapter(unittest.TestCase):
             cmds,
         )
         osmo_helm_args = cmds[osmo_install]
+        self.assertFalse(any(value.startswith("bootstrap.initializationId=")
+                             for value in osmo_helm_args))
         self.assertIn(
             "imageTag=ci-123",
             osmo_helm_args,
@@ -492,6 +500,10 @@ class TestKindAdapter(unittest.TestCase):
             capture_stdouts=[""],  # `kind get clusters` returns empty: cluster missing
         )
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
+        installation = next(command for command in calls
+                            if command[:4] == ["helm", "upgrade", "--install", "osmo"])
+        self.assertTrue(any(value.startswith("bootstrap.initializationId=oetf-")
+                            for value in installation))
         rollout_calls = [c for c in calls if c[:3] == ["kubectl", "rollout", "restart"]]
         self.assertEqual(
             rollout_calls, [],

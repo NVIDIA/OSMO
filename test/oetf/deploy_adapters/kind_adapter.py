@@ -41,6 +41,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 import yaml
@@ -386,6 +387,8 @@ class KindAdapter:
         tempfile.TemporaryDirectory[str]
     ] = dataclasses.field(default=None, init=False, repr=False)
 
+    _new_cluster: bool = dataclasses.field(default=False, init=False, repr=False)
+
     # --- Lifecycle -------------------------------------------------------- #
 
     def deploy(self, params: DeployParams) -> EnvironmentConfig:
@@ -433,6 +436,7 @@ class KindAdapter:
         images are picked up by running pods).
         """
         cluster_existed = self._create_cluster_if_missing(cluster_name)
+        self._new_cluster = not cluster_existed
         self._install_kai_scheduler()
         if self.build_local:
             self._install_cnpg_operator()
@@ -865,6 +869,9 @@ class KindAdapter:
         )
         retained_chart = os.path.join(retained_directory.name, "quick-start")
         shutil.copytree(chart_ref, retained_chart)
+        dex_fork = os.path.join(os.path.dirname(chart_ref), "dex-bootstrap")
+        if os.path.isdir(dex_fork):
+            shutil.copytree(dex_fork, os.path.join(retained_directory.name, "dex-bootstrap"))
         self._retained_quick_start_directory = retained_directory
         os.environ[OETF_HELM_CHART_PATH] = retained_chart
         return retained_chart
@@ -894,7 +901,7 @@ class KindAdapter:
             "--namespace", OSMO_NAMESPACE, "--create-namespace",
             # First-run image pulls on CPU hosts can easily exceed 15 min;
             # subsequent runs re-use the docker image cache and are much faster.
-            "--timeout", "25m",
+            "--timeout", "140m" if unified else "25m",
         ]
         if not unified:
             args += [
@@ -908,6 +915,8 @@ class KindAdapter:
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]
+        if unified and self._new_cluster:
+            args += ["--set-string", f"bootstrap.initializationId=oetf-{uuid.uuid4().hex}"]
         if self.chart_version and not unified:
             args += ["--version", self.chart_version]
         if self.image_location:

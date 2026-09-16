@@ -1,3 +1,4 @@
+{{- define "osmo.raw.delayed-job-monitor" -}}
 {{- if .Values.planes.control.enabled }}
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
@@ -164,3 +165,6 @@ spec:
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
 {{- end }}
 {{- end }}
+
+{{- end -}}
+{{- include "osmo.bootstrap.gatedResources" (dict "root" . "content" (include "osmo.raw.delayed-job-monitor" .)) -}}

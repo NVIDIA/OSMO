@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# First lifecycle checkpoint: all bootstrap steps and a real API/OAuth gateway.
+# The cluster harness supplies an immutable candidate image reference.
+externalUrl: http://127.0.0.1:30080
+planes:
+  compute:
+    enabled: false
+bootstrap:
+  initializationId: bootstrap-kind-fresh
+services:
+  api:
+    replicas: 1
+    autoscaling:
+      enabled: false
+    image:
+      registry: osmo.local
+      repository: service
+      tag: latest-arm64
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  worker:
+    enabled: false
+  router:
+    enabled: false
+  agent:
+    enabled: false
+  logger:
+    enabled: false
+  delayedJobMonitor:
+    enabled: false
+  ui:
+    enabled: false
+gateway:
+  envoy:
+    service:
+      type: ClusterIP
+  tls:
+    enabled: true
+postgresql:
+  cluster:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+valkey:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

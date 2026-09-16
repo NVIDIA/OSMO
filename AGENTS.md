@@ -121,6 +121,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | Chart | Purpose |
 |-------|---------|
 | `osmo/` | Unified chart with directly owned control-plane, gateway, and compute-plane templates; supports control-only, compute-only, and converged profiles. Control-plane releases use embedded Dex by default (memory-only, no Dex CRDs/RBAC/PVCs) or an explicit external OIDC provider. |
+| `dex-bootstrap/` | Minimal Dex 0.24.1 fork exposing its Deployment template to the parent chart startup gate. |
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 
@@ -139,6 +140,7 @@ bash deployments/charts/service/tests/render-tests.sh
 | `utils/job/` | `Task`, `FrontendJob`, `K8sObjectFactory`, `PodGroupTopologyBuilder` | Workflow execution framework. Task → K8s spec generation. Gang scheduling via PodGroup. Topology constraints. Backend job definitions. |
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
+| `utils/bootstrap.py` | `Coordinator` | Retained installation receipts, execution ownership, adoption, and verified consumer credential snapshots for the unified bootstrap Job. |
 | `utils/identity_bootstrap.py` | `PasswordSpec`, `TokenSpec` | Reconciles retained embedded-Dex passwords, OAuth credentials, and Secret-backed OSMO bootstrap tokens. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
@@ -165,6 +167,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 | Binary | Purpose |
 |--------|---------|
+| `runtime/cmd/bootstrap_step/` | **bootstrap-step** — Static per-step watchdog, bounded retries, sequential preparation/completion commands, and process-tree cleanup. |
 | `runtime/cmd/ctrl/` | **osmo_ctrl** — Orchestrates workflow execution. WebSocket to workflow service. Unix socket to osmo_user. Manages data download/upload, barriers for multi-task sync, port forwarding. |
 | `runtime/cmd/user/` | **osmo_user** — Executes user commands with PTY. Streams stdout/stderr to ctrl. Handles checkpointing (periodic uploads). |
 | `runtime/cmd/rsync/` | **osmo_rsync** — Rsync daemon with bandwidth limiting. |

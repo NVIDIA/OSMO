@@ -29,6 +29,8 @@ from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
 from kubernetes import client, config as kube_config  # type: ignore
 from kubernetes.client.exceptions import ApiException  # type: ignore
+
+from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 import psycopg2  # type: ignore
 import pydantic
 
@@ -178,7 +180,7 @@ def _populate_or_verify_secret(
     legacy_auth: auth.AuthenticationConfig,
 ) -> None:
     kube_config.load_incluster_config()
-    core_api = client.CoreV1Api()
+    core_api = client.CoreV1Api(BoundedApiClient())
     existing = _read_secret(core_api, arguments.namespace, arguments.target_secret)
     if existing is None:
         raise osmo_errors.OSMOError(
@@ -303,6 +305,7 @@ def _create_bootstrap_secret(
         string_data={arguments.target_key: canonical_payload},
         type='Opaque',
     )
+    record_issuance_if_configured(arguments.target_secret)
     try:
         core_api.create_namespaced_secret(arguments.namespace, body)
     except ApiException as error:
@@ -321,7 +324,7 @@ def _create_bootstrap_secret(
 def _bootstrap_service_auth(arguments: argparse.Namespace) -> None:
     """Create a Kubernetes-only identity without overwriting existing state."""
     kube_config.load_incluster_config()
-    core_api = client.CoreV1Api()
+    core_api = client.CoreV1Api(BoundedApiClient())
     existing = _read_secret(core_api, arguments.namespace, arguments.target_secret)
     if existing is not None:
         _verify_bootstrap_retry(arguments, existing)
