@@ -26,9 +26,47 @@ import unittest
 from unittest import mock
 
 import src.cli.cli as cli
-from src.cli import main_parser, workflow
+from src.cli import data, main_parser, workflow
 from src.lib.rsync import rsync
 from src.lib.utils import client, osmo_errors, validation
+
+
+class TestDataTransferCommandFailures(unittest.TestCase):
+    def setUp(self):
+        self.args = argparse.Namespace(
+            remote_uri='s3://bucket/data',
+            local_path='/tmp/data',
+            benchmark_out=None,
+            processes=1,
+            threads=1,
+            log_level=mock.Mock(value='INFO'),
+            regex=None,
+            resume=False,
+        )
+        self.storage_client = mock.Mock()
+        self.failures = ['first.txt: connection reset', 'second.txt: incomplete read']
+
+    def test_download_command_raises_with_every_failed_file(self):
+        self.storage_client.download_objects.return_value = mock.Mock(failures=self.failures)
+
+        with mock.patch.object(
+                data.storage.Client, 'create', return_value=self.storage_client), \
+             self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+            data._run_download_command(mock.Mock(), self.args)
+
+        for failure in self.failures:
+            self.assertIn(failure, str(raised.exception))
+
+    def test_upload_command_raises_with_every_failed_file(self):
+        self.storage_client.upload_objects.return_value = mock.Mock(failures=self.failures)
+
+        with mock.patch.object(
+                data.storage.Client, 'create', return_value=self.storage_client), \
+             self.assertRaises(osmo_errors.OSMODataStorageError) as raised:
+            data._run_upload_command(mock.Mock(), self.args)
+
+        for failure in self.failures:
+            self.assertIn(failure, str(raised.exception))
 
 
 class TestInvalidLabelArgument(unittest.TestCase):
