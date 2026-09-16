@@ -126,6 +126,17 @@ osmo_py_test(
 )
 
 py_test(
+    name = "test_postgres_units",
+    srcs = ["test_postgres_units.py"],
+    deps = [
+        requirement("pydantic"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+py_test(
     name = "test_mek_reconciliation",
     srcs = ["test_mek_reconciliation.py"],
     deps = [
