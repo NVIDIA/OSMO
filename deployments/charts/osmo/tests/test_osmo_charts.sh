@@ -3856,13 +3856,13 @@ EOF
 existing-secret|--set-string secrets.objectStorage.existingSecret=unexpected
 generated-secret|--set secrets.objectStorage.generate=true --set-string secrets.objectStorage.existingSecret=
 EOF
-    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:latest"
+    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-runtime-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "init: nvcr.io/nvidia/osmo/init-container:latest"
+        "init: nvcr.io/nvidia/osmo/init-container:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "client: nvcr.io/nvidia/osmo/client:latest"
+        "client: nvcr.io/nvidia/osmo/client:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
@@ -6154,7 +6154,7 @@ MCP_ROUTES
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp:latest"
+        "image: nvcr.io/nvidia/osmo/mcp:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 12
 
@@ -6744,7 +6744,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "image: osmo-mirror.example.com/nvidia/osmo/service:latest"
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
