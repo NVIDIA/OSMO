@@ -154,7 +154,6 @@ host GPU through:
    nvkind cluster create --config-template=kind-osmo-cluster-config.yaml
    nvkind cluster print-gpus
    kubectl config use-context kind-osmo
-   kubectl --context kind-osmo get nodes --show-labels
 
 .. note::
 
@@ -234,7 +233,6 @@ the compute worker hosts submitted workflows.
 
    kind create cluster --config kind-osmo-cluster-config.yaml
    kubectl config use-context kind-osmo
-   kubectl --context kind-osmo get nodes --show-labels
 
 Install cluster dependencies
 ============================
@@ -257,7 +255,7 @@ cluster. Keep both operators on the control worker:
      --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
      --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
 
-   kubectl --context kind-osmo --namespace kai-scheduler wait \
+   kubectl --namespace kai-scheduler wait \
      --for='jsonpath={.status.conditions[?(@.type=="Available")].status}=True' \
      --timeout=5m config.kai.scheduler/kai-config
 
@@ -283,10 +281,10 @@ both the user-container requests and limits. No values overlay is required.
 The chart defaults are the development Quickstart. Build its dependencies and
 install it without a profile or values overlay. The command-line selectors keep
 OSMO services and embedded dependencies on the control worker and submitted
-workflows on the compute worker. The internal service URL lets workflow pods
-reach the gateway without changing the public loopback URL used for login.
-These overrides are specific to this cluster topology and are therefore not
-chart defaults:
+workflows on the compute worker. The chart uses the in-cluster gateway URL for
+workflow pods while retaining the public loopback URL for login. The scheduling
+overrides are specific to this cluster topology and are therefore not chart
+defaults:
 
 .. code-block:: bash
 
@@ -301,10 +299,7 @@ chart defaults:
      --set-string 'valkey.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'dex.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'rustfs.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string configuration.service.service_base_url=http://osmo-gateway \
      --set-string 'configuration.podTemplates.default_ctrl.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
-     --set-string 'configuration.podTemplates.default_user.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
-     --set-string 'configuration.podTemplates.default_gpu_user.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
      --wait \
      --wait-for-jobs \
      --timeout 20m
@@ -318,7 +313,7 @@ embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
 
 .. code-block:: bash
 
-   kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
+   kubectl --namespace osmo get secret osmo-embedded-dex-admin \
      --output jsonpath='{.data.password}' | base64 --decode
    printf '\n'
 
@@ -363,11 +358,11 @@ the GPU Operator:
 
 .. code-block:: bash
 
-   kubectl --context kind-osmo get nodes \
+   kubectl get nodes \
      -o custom-columns=NAME:.metadata.name,ALLOCATABLE_GPUS:.status.allocatable.nvidia\.com/gpu
-   kubectl --context kind-osmo --namespace gpu-operator get pods
-   kubectl --context kind-osmo --namespace osmo get events --sort-by=.lastTimestamp
-   kubectl --context kind-osmo --namespace osmo get pods
+   kubectl --namespace gpu-operator get pods
+   kubectl --namespace osmo get events --sort-by=.lastTimestamp
+   kubectl --namespace osmo get pods
 
 An allocatable GPU count of zero means the host NVIDIA driver, Container
 Toolkit, ``nvkind`` pass-through, or GPU Operator is not ready. Do not run

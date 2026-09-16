@@ -3819,6 +3819,15 @@ EOF
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
 
+    helm_template default-internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml" \
+        ConfigMap osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway:80"
+
     helm_template internal-workflow-url "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         --set-string configuration.service.service_base_url=http://osmo-gateway \
