@@ -125,7 +125,6 @@ An OSMO deployment consists of two main components:
 
   Split-plane Infrastructure <getting_started/infrastructure_setup>
   getting_started/create_storage/index
-  getting_started/secrets
   getting_started/deploy_service
 
 .. toctree::

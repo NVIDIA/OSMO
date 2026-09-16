@@ -33,8 +33,8 @@ This guide provides step-by-step instructions for deploying OSMO service compone
    chart README; the service-chart-specific values later in this page do not
    disable authentication in the unified chart.
 
-Unified chart secret setup
-===========================
+Choose a deployment chart
+==========================
 
 For new deployments, use the unified ``deployments/charts/osmo`` chart. Review
 :ref:`deployment_secrets` before creating any Secrets. Quickstart and
@@ -50,10 +50,10 @@ dependencies, follow the unified chart's
 Those profiles deliberately disable MEK and service-auth bootstrap; supply their
 existing credentials as described in :ref:`deployment_secrets`.
 
-The remaining steps on this page apply to the standalone ``osmo/service``
-chart. Its ``services.*`` values and manual secret setup are not the unified
-chart's bootstrap interface. Do not run those creation commands for credentials
-already managed by a unified release.
+The database and ``services.*`` values examples on this page apply to the
+standalone ``osmo/service`` chart. Step 2 covers secret setup for both charts.
+Use the instructions for your chart and profile; do not manually create
+credentials already managed by a unified release.
 
 Components Overview
 ====================
@@ -116,10 +116,8 @@ Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then 
 
    $ kubectl delete pod osmo-db-ops
 
-Step 2: Create standalone-chart namespace and secrets
-=====================================================
-
-Before creating secrets, register OSMO as an OAuth2/OIDC application in your identity provider and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific steps.
+Step 2: Configure namespace and secrets
+=======================================
 
 Create a namespace to deploy OSMO:
 
@@ -127,6 +125,203 @@ Create a namespace to deploy OSMO:
 
    $ kubectl create namespace osmo
 
+.. _deployment_secrets:
+
+Unified chart secret setup
+--------------------------
+
+The unified ``deployments/charts/osmo`` chart creates credentials for enabled
+managed components during installation. For a new Quickstart or self-contained
+installation, do not run the legacy ``kubectl create secret`` commands for the
+MEK, service signing identity, embedded Dex, or managed backend tokens. Configure
+Secret references and bootstrap settings in Helm values; bootstrap writes the
+credential bytes directly to Kubernetes.
+
+Automatic creation depends on the selected profile. The single-plane and
+split-plane profiles use external dependencies and disable some credential
+creation steps. An ``existingSecret`` reference alone does not always mean you
+must pre-create the Secret: for the MEK and service auth it is also the name of
+the output when OSMO bootstrap is enabled.
+
+Choose the credential owner
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 40 38
+
+   * - Credential
+     - Created automatically
+     - Supply an existing Secret when
+   * - Master encryption key (MEK)
+     - ``secrets.masterEncryptionKey.managementMode: osmo`` and
+       ``bootstrap.enabled: true``; enabled by Quickstart and self-contained
+     - Bootstrap is disabled, ownership is external, or database data is retained
+   * - Service signing identity
+     - ``secrets.serviceAuth.managementMode: osmo`` and
+       ``bootstrap.enabled: true``; enabled by Quickstart and self-contained
+     - Using the single-plane or split-plane defaults, or migrating an existing identity
+   * - Backend and user bootstrap tokens
+     - Each enabled ``authentication.bootstrap.identities`` entry with a
+       ``tokens.<name>.managedSecret`` reference
+     - The token uses ``existingSecret``; a remote compute cluster also needs a copy
+   * - Embedded Dex passwords and OAuth credentials
+     - Embedded Dex mode creates local passwords, browser-client and cookie
+       credentials, and the hash-only Dex input Secret
+     - Selecting external OIDC; its browser-client and cookie Secrets remain operator-owned
+   * - Embedded PostgreSQL
+     - CloudNativePG creates the application credential when
+       ``postgresql.cluster.initdb.secret.name`` is empty
+     - Using external PostgreSQL, or supplying an explicit embedded database credential
+   * - Embedded Valkey and RustFS
+     - Their enabled embedded components use ``secrets.valkey.generate: true``
+       and ``secrets.objectStorage.generate: true``
+     - Using external services or disabling credential generation
+   * - Internal TLS
+     - ``gateway.tls.enabled: true`` and ``gateway.tls.generated.enabled: true``
+       create retained CA, trust, and leaf Secrets
+     - Generated TLS is disabled and externally provisioned certificates are configured
+   * - External storage, registry, and public edge credentials
+     - Not generated by OSMO bootstrap
+     - Static storage credentials, private image pulls, or the public TLS edge require them
+
+CloudNativePG and the embedded dependency templates manage their own Secrets;
+these are separate from OSMO's credential bootstrap. External storage can use
+workload identity instead of a static Secret. See
+:ref:`configure_storage_access` and the unified chart's
+`external dependency configuration
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/osmo#secrets>`_.
+
+Fresh installation
+~~~~~~~~~~~~~~~~~~
+
+The Quickstart and self-contained profiles already enable MEK and service-auth
+bootstrap. These are the relevant values; do not put secret bytes in this file:
+
+.. code-block:: yaml
+
+   secrets:
+     masterEncryptionKey:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-master-encryption-key
+         key: mek.yaml
+       bootstrap:
+         enabled: true
+     serviceAuth:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-service-auth
+         key: authentication-config.json
+       bootstrap:
+         enabled: true
+
+MEK bootstrap requires a fresh database and stopped database writers. It checks
+that no users or user encryption keys exist and that chart consumers have not
+started writing. Do not enable it to replace the encryption key of an existing
+database. Restore that database's original MEK instead. Existing installations
+must also preserve or migrate their service signing identity; see the chart's
+`service-auth migration instructions
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/osmo#service-auth-identity>`_.
+
+Install using the selected deployment guide and wait for bootstrap completion.
+Inspect resource status without decoding credentials:
+
+.. code-block:: bash
+
+   kubectl --namespace osmo get jobs,pods
+   kubectl --namespace osmo get secrets
+   kubectl --namespace osmo get events --sort-by=.lastTimestamp
+
+.. _deployment_secrets_cleanup:
+
+After successful bootstrap
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Disable the two install-only credential creation steps in your saved values:
+
+.. code-block:: yaml
+
+   secrets:
+     masterEncryptionKey:
+       bootstrap:
+         enabled: false
+     serviceAuth:
+       bootstrap:
+         enabled: false
+
+Apply those values in a separate Helm upgrade using the same profile and
+environment overlay. For a Quickstart installed with command-line settings:
+
+.. code-block:: bash
+
+   helm upgrade osmo deployments/charts/osmo \
+     --namespace osmo \
+     --reuse-values \
+     --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+     --set secrets.serviceAuth.bootstrap.enabled=false \
+     --wait --wait-for-jobs --timeout 20m
+
+Keep the Secret references and ``managementMode`` unchanged. Disabling these
+steps removes their creation permissions; other enabled bootstrap operations
+can still require Secret access. Save the disabled flags in the values used for
+future upgrades. Back up retained Secrets with their database and storage data.
+Helm uninstall or rollback does not restore or rotate their contents.
+
+.. _sequenced_bootstrap:
+
+Charts containing PR #1414
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`PR #1414 <https://github.com/NVIDIA/OSMO/pull/1414>`_ consolidates ordinary
+bootstrap into one Job, in this order: TLS, identities, service auth, MEK, and
+object-storage buckets, followed by consumer readiness checks. It retains the
+per-step values above; disabled steps do not run. CA and MEK rotations and
+database migrations remain separate operations. Use this section only with a
+chart and matching images that include that change.
+
+For an intentionally new installation, add a unique, non-secret ID to the
+initial Helm install command:
+
+.. code-block:: bash
+
+   --set-string bootstrap.initializationId=my-new-osmo-installation
+
+Use ``--wait --wait-for-jobs --timeout 140m`` for install and upgrade commands;
+this accommodates the default all-enabled bootstrap deadline. After successful
+initialization, remove the ID from saved values. With ``--reuse-values``, clear
+it explicitly using ``--set-string bootstrap.initializationId=`` during the
+cleanup upgrade above, and use the longer timeout.
+
+For an upgrade from the earlier chart, leave the ID empty and retain the
+existing credential declarations for the first upgrade. Bootstrap validates
+and adopts those credentials. Add new identity declarations in a later upgrade.
+Do not set a new initialization ID to repair a missing retained Secret.
+
+Keep the runtime-owned ``<fullname>-bootstrap-state`` ConfigMap with the retained
+Secrets. Missing, changed, or foreign credential identities fail closed;
+deleting a Secret is not a rotation procedure. Follow the chart's
+`bootstrap recovery instructions
+<https://github.com/NVIDIA/OSMO/blob/548ccd9bfe7ca1dcfe0e69d9e5039a45b77ef8b3/deployments/charts/osmo/README.md#one-bootstrap-job>`_
+for credential replacement, adoption, and recovery.
+
+If a bootstrap attempt fails, capture the Job logs and events, correct the
+cause, then change ``bootstrap.attempt``. A Helm timeout does not prove the Job
+has stopped. Never delete an active Job, Pod, or Lease to bypass execution
+ownership. After a successful replacement, remove a retained failed Job only
+once its old execution is confirmed terminal. Recreating a Secret with the same
+bytes changes its UID and is not a supported way to bypass retained identity
+checks.
+
+Standalone service chart: create secrets
+------------------------------------------
+
+The commands below apply to the standalone ``osmo/service`` chart. Before
+creating its OAuth Secret, register OSMO as an OAuth2/OIDC application in your
+identity provider and obtain the client ID, client secret, and endpoints
+(token, authorize, JWKS, issuer). See
+:doc:`../appendix/authentication/identity_provider_setup` for provider-specific
+steps.
 
 Create secrets for the database and Redis:
 
