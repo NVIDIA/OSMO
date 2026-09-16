@@ -1,28 +1,72 @@
 # Testbot: AI-Powered Test Generation
 
-Testbot analyzes coverage gaps, generates tests using Claude Code, validates them, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
+Testbot analyzes coverage gaps, generates tests using Claude Code, recovers interrupted generation, reviews and repairs the changes with an independent Codex session, verifies the final diff, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
 
 ## Architecture
 
 ### Test Generation (`testbot.yaml`)
 
 ```text
-Codecov API ──┐
-              ├─► criticality_scorer.py ──► select_targets_agent.py ──► Claude Code CLI ──► guardrails ──► verify_coverage.py ──► create_pr.py
-git log ──────┤    (heuristic shortlist)       (LLM target picker)         |          ↑      (LCOV → JSON report)
-filesystem ───┘                                                            └──────────┘ (agent retries on test failures; self-checks coverage)
+Codecov + git history → criticality scorer → target picker
+  → Claude generation (bounded fresh-session recovery)
+  → test-only generator guardrails
+  → independent Codex review and repair (source fixes allowed)
+  → harness tests, style checks, and coverage
+  → verified content manifest → PR creation
 ```
 
-| Stage | Component | Description |
-|-------|-----------|-------------|
-| **Stage 1: Heuristic** | `criticality_scorer.py` | Combines Codecov coverage with static fan-in (Python AST + Go scan), 6-month git churn, and a path-tier classification to rank candidates by `criticality * coverage_gap`. Outputs a top-20 JSON shortlist. |
-| **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate and picks the 1-3 files where coverage would protect the highest-value OSMO behavior. The picker reasons about **value only** (blast radius, contract centrality, encoded policy) — feasibility/scaffolding is left to the generator. Can return zero picks if nothing meets the bar. |
-| **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures, and runs `verify_coverage.py` against `bazel-out/_coverage/_coverage_report.dat` to confirm the listed uncovered lines are actually hit. Iterates again on the still-uncovered ranges until ≥70% of the picker's listed lines are covered or the remainder is explained as unreachable. |
-| **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **Coverage verifier** | `verify_coverage.py` | Parses the LCOV report, computes per-range hits against the picker's listed uncovered ranges, emits a JSON sidecar + Markdown PR snippet. Used by both the generator (self-iteration) and the harness (independent verification before PR). |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale and the coverage-gain report (with ✅/⚠️/❔ markers per target), and sends a brief Slack review request when Slack credentials are configured |
+The target picker preserves the original coverage work queue. Generation stays
+in one session until it succeeds or fails; there are no fixed file/range batches.
+`pipeline.py` supervises both agents using `agent_runner.py`:
 
-Claude Code is sandboxed: it can only read files, edit test files, and run test/build commands (`bazel test`, `bazel coverage`, `bazel query`, `pnpm test`, and `python`/`python3` — the latter so the generator can invoke `verify_coverage.py` during its self-iteration loop). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
+- Generation uses Claude Code 2.1.116. Compaction failure interrupts the process
+  immediately. Timeouts, context limits, missing results, and operational errors
+  can restart in a fresh session, retaining working-tree edits and a concise
+  on-disk checkpoint. Authentication/configuration errors are not blindly retried.
+- Recovery is bounded to three attempts per stage. Generation shares a 400-turn
+  budget and 30-minute deadline across attempts. Each agent attempt has a
+  15-minute timeout. Review shares 20 minutes; independent verification shares
+  15 minutes, including any repair iterations. CLI flags can override stage
+  budgets. The workflow timeout defaults to 75 minutes and later scheduled runs
+  queue instead of canceling an active recovery/review.
+- A separate Codex 0.154.0 `exec` session uses
+  `azure/openai/gpt-6-astra` through the NVIDIA Responses API at
+  `https://inference-api.nvidia.com/v1`. `NVIDIA_API_KEY` supplies authentication;
+  the workflow uses the matching secret, falling back to `NVIDIA_NIM_KEY`.
+  The reviewer can improve tests, fix necessary source bugs, and enable skipped
+  regression tests. It must reproduce suspected bugs and verify the fix. It
+  cannot publish changes; GitHub credentials are provided only to the PR step.
+- A zero CLI exit code is insufficient: generation checks `is_error` and the
+  terminal reason, while review requires a completed turn, a valid structured
+  decision, `ready=true`, and no remaining work. A failed generation can be
+  salvaged by the reviewer, which must finish and independently verify the full
+  original work queue. Failed final checks feed the next fresh review session.
+- `verification.py` runs Bazel tests/style checks/coverage for selected and changed
+  packages; source fixes also include reverse-dependent tests. Changed test
+  files must be registered in BUILD. UI changes use `pnpm validate:coverage`.
+  Missing or stale coverage and failing checks block publication. Targets below
+  the 70% coverage goal require an explicit reviewer-assessed explanation in the
+  PR body. Source fixes can shift lines: unchanged lines are mapped to the
+  original coordinates, while replaced/deleted original lines conservatively
+  count as uncovered; the report calls out this limitation.
+- PR creation accepts production fixes only through the verified manifest and
+  rejects any file-content or baseline change after verification. Standalone
+  `create_pr.py` without that manifest keeps its existing test-only behavior.
+
+`TESTBOT_REVIEW_PROMPT.md` defines the independent review contract. Agents can
+read and edit the checkout, run checks, and maintain an external checkpoint;
+the harness owns retries, deadlines, original target metadata, final validation,
+and publication. Codex runs with workspace-write permissions and network access
+for build/test dependencies, without interactive approval prompts. Its Bazel
+and other build caches live under the run's `.build-cache` directory; that
+hidden cache is excluded from diagnostic artifact uploads. The API key
+is excluded from its tool subprocess environment and independent verification commands.
+
+Every run retains per-attempt prompts, JSONL streams, stderr, terminal outcomes,
+checkpoints, generated patches (including untracked files), verification logs,
+coverage reports, and the final review summary in a GitHub Actions artifact for
+14 days. This includes failures and dry runs. Dry runs execute review and final
+verification but skip PR creation.
 
 ### Review Response (`testbot-respond.yaml`)
 
@@ -44,16 +88,18 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test/
 | **Safety** | Repo-member-only access, crash recovery, push retry |
 | **Dedup** | Skips threads where the bot already replied and is awaiting human follow-up |
 
-### Security Boundary
+### Generation and publication boundary
 
-|  | Claude Code | Harness scripts |
-|---|---|---|
-| Read source files | Yes | — |
-| Write/edit test files | Yes | — |
-| Run `bazel test` / `pnpm test` | Yes | — |
-| Run `git` commands | **No** | `create_pr.py`, `respond.py` |
-| Run `gh` commands | **No** | `create_pr.py`, `respond.py` |
-| Filter non-test changes | — | `guardrails.py` |
+| Operation | Generator | Independent reviewer | Harness |
+|---|---|---|---|
+| Read source and tests | Yes | Yes | Yes |
+| Edit tests and test BUILD entries | Yes | Yes | — |
+| Fix production bugs | No | Yes, with regression coverage | — |
+| Run tests and measure coverage | Yes | Yes | Required final check |
+| Commit, push, create PR | No | No | Yes, after verification |
+| Preserve failures and enforce budgets | — | — | Yes |
+
+The separate `/testbot` response workflow retains its existing permissions.
 
 ## Triggering on GitHub
 
@@ -108,7 +154,7 @@ Then post a new `/testbot` comment with clearer instructions.
 | `max_targets` | `3` | Files to target per run |
 | `max_uncovered` | `500` | Uncovered lines cap per target (0 = no cap) |
 | `max_turns` | `400` | Claude Code agent turns |
-| `timeout_minutes` | `60` | Workflow timeout |
+| `timeout_minutes` | `75` | Workflow timeout |
 | `model` | `aws/anthropic/bedrock-claude-opus-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
@@ -194,6 +240,10 @@ can see *why* a file was chosen.
 
 ```text
 src/scripts/testbot/
+├── agent_runner.py            # CLI processes, failure detection, NVIDIA Codex configuration
+├── pipeline.py                # Bounded recovery and independent review orchestration
+├── verification.py            # Harness checks and verified-content manifest
+├── TESTBOT_REVIEW_PROMPT.md    # Independent review/repair contract
 ├── coverage_targets.py         # Codecov API client + filtering helpers
 ├── criticality_scorer.py       # Stage 1: heuristic shortlist (fan-in × churn × tier × coverage gap)
 ├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets

@@ -54,3 +54,10 @@ osmo_py_test(
         "//.github/workflows:workflows",
     ],
 )
+
+
+osmo_py_test(
+    name = "test_pipeline",
+    srcs = ["test_pipeline.py"],
+    deps = ["//src/scripts/testbot"],
+)
