@@ -62,6 +62,12 @@ helm upgrade --install osmo deployments/charts/osmo \
   --values single-plane-azure.yaml
 ```
 
+`split-plane-control.yaml` is the reusable HA control-plane base profile. It
+uses the chart application version for OSMO images, disables the compute plane
+and embedded stateful dependencies, and configures control-plane autoscaling,
+disruption budgets, and topology spreading. Layer site-specific dependency,
+identity-provider, public URL, and gateway values after it.
+
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also
 be installed before enabling the embedded PostgreSQL Cluster.

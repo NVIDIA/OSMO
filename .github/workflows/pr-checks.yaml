@@ -119,9 +119,14 @@ jobs:
               io_bazel_rules_go: src/runtime/go.mod
               bazel_gazelle: src/runtime/go.sum
 
+      - name: Set up Helm for deployment-script tests
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: 'v3.16.2'
+
       - name: Run Tests
         run: |
-          bazel test --test_output=errors -- //...
+          bazel test --test_env=PATH --test_output=errors -- //...
 
   ci-internal:
     timeout-minutes: 30
@@ -217,10 +222,24 @@ jobs:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
 
+      - name: Set up Helm for deployment-script tests
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: 'v3.16.2'
+
+      - name: Refresh container C++ toolchain
+        run: |
+          # The self-hosted output directory can retain compiler discovery from
+          # another image. Reprobe this container's built-in header paths.
+          /usr/bin/gcc-12 --version
+          bazel fetch --force --configure --repo_env=CC=/usr/bin/gcc-12
+
       - name: Run Tests with Coverage
         run: |
           bazel coverage --config=ci \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --repo_env=CC=/usr/bin/gcc-12 \
+            --test_env=PATH \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \

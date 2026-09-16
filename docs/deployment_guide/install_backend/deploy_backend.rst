@@ -101,7 +101,8 @@ Standalone service chart only
 
 For a new single-cluster development installation of ``osmo/service``, merge
 these values into the control-plane ``osmo_values.yaml`` before its initial
-install in :ref:`deploy_service`:
+install using the `standalone service chart instructions
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service>`_:
 
 .. code-block:: yaml
 
@@ -311,7 +312,7 @@ Verify:
 
 If the pool shows ``OFFLINE``, wait a few seconds for the backend heartbeat or re-check Step 4.
 
-If you chose a different backend name, update the default pool in ``osmo_values.yaml`` to point at it:
+If you chose a different backend name, update the default pool in ``osmo-values.yaml`` to point at it:
 
 .. code-block:: yaml
 

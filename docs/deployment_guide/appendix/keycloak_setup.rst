@@ -320,9 +320,10 @@ supply the full provider contract in
 Disable embedded Dex and the default local administrator as described there.
 
 The remaining values examples in this section are for the standalone service
-chart. When preparing those values (see :ref:`deploy_service_osmo_values`), use
-the Keycloak endpoints for the ``auth``, ``oauth2Proxy``, and ``jwt`` sections. For the full deployment
-procedure and all other Helm values, follow :doc:`../getting_started/deploy_service`.
+chart. When preparing those values, use the Keycloak endpoints for the
+``auth``, ``oauth2Proxy``, and ``jwt`` sections. For the full standalone deployment
+procedure and all other Helm values, follow the `standalone service chart
+instructions <https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service>`_.
 
 Below are the Keycloak-specific sections that differ from the generic IdP examples in the
 deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osmo.example.com``).
@@ -396,9 +397,10 @@ deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osm
 
    With Keycloak, two IdP JWT providers are configured — one for the ``osmo-device`` client (CLI) and one for the ``osmo-browser-flow`` client (Web UI) — because each client has its own audience. The third provider is for OSMO-issued JWTs (access tokens).
 
-The gateway handles authentication for all services (API, router, UI) — no separate auth configuration is needed in the UI values file. For the complete
-deployment procedure including all other configuration steps, see
-:doc:`../getting_started/deploy_service`.
+The gateway handles authentication for all services (API, router, UI), so no
+separate auth configuration is needed in the UI values file. For the complete
+standalone deployment procedure, see the `standalone service chart README
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service>`_.
 
 .. _keycloak_roles_group_management:
 
@@ -638,5 +640,6 @@ See Also
 - :doc:`authentication/roles_policies` for understanding OSMO roles and policies
 - :doc:`authentication/authentication_flow` for authentication flow details
 - :doc:`authentication/idp_role_mapping` for mapping IdP roles to OSMO roles
-- :doc:`../getting_started/deploy_service` for the full OSMO deployment guide
+- :doc:`../getting_started/deploy_service` for the unified OSMO deployment guide
+- `Standalone service chart README <https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service>`_ for the legacy values examples above
 - `Keycloak Documentation <https://www.keycloak.org/documentation>`_

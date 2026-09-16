@@ -99,14 +99,18 @@ Quick navigation
 - **Service accounts and access tokens for automation?** → :doc:`service_accounts`
 - **Backend operator bootstrap?** → :doc:`../../install_backend/deploy_backend`
 - **Using an IdP (e.g., Microsoft Entra ID, Google)?** → :doc:`identity_provider_setup`
-- **Using OSMO without an IdP (default admin)?** → :ref:`default_admin_setup` (below) and :doc:`../../getting_started/deploy_service`
+- **Evaluating OSMO without an external IdP?** → :ref:`deploy_minimal` with embedded Dex
+- **Using the standalone service chart default admin?** → :ref:`default_admin_setup` (below)
 
 .. _default_admin_setup:
 
 Default admin (no IdP)
 ======================
 
-When you do **not** use an identity provider, you need at least one user with admin rights to manage OSMO. The service can create this user for you at startup.
+The standalone ``osmo/service`` chart can create an administrator at startup
+without an identity provider. For deployment instructions, use the `standalone
+service chart README <https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service>`_.
+The unified chart uses embedded Dex for evaluation; see :ref:`deploy_minimal`.
 
 How it works
 ------------
@@ -169,7 +173,8 @@ send it as ``Authorization: Bearer <password>``. You can then create more users 
 
 .. seealso::
 
-   - :doc:`../../getting_started/deploy_service` for deploying the service with or without an IdP
+   - :doc:`../../getting_started/deploy_service` for unified chart deployment
+   - :ref:`deploy_minimal` for evaluation with embedded Dex
    - :doc:`authentication_flow` for request flow and token handling
    - :doc:`roles_policies` for role and policy reference
    - :doc:`identity_provider_setup` for direct IdP configuration
