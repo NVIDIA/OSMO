@@ -10,6 +10,9 @@ planes:
 fullnameOverride: ''
 externalUrl: ''
 
+# Pin production installs to the chart application version.
+imageTag: ''
+
 embeddedDependencies:
   postgresql:
     enabled: false

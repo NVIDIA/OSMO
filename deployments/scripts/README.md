@@ -1,486 +1,283 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# OSMO Deployment Scripts
+# OSMO deployment scripts
 
-End-to-end deployer for OSMO 6.3 across multiple Kubernetes flavors and storage backends. The single entry point is `deploy-osmo-minimal.sh`; everything else (Terraform, KAI install, GPU Operator, MinIO, storage credential wiring, smoke tests) is invoked as a phase.
+`deploy-osmo.sh` installs the unified `osmo` chart on Azure, AWS, or an
+existing Kubernetes cluster. Infrastructure provisioning stays in the provider
+drivers; Helm owns OSMO configuration, the compute backend, embedded dependencies,
+and application credential bootstrap. Python 3 orchestrates commands using argument
+arrays; Helm parses and merges values files.
 
-## Quick Start
+For production and split-plane deployments, use the
+[chart profiles](../charts/osmo/profiles/README.md) and Helm directly. This installer
+is a converged development flow. Its default gateway uses embedded Dex and remains
+a ClusterIP; smoke tests authenticate with the configured administrator token.
+The default public origin is `http://127.0.0.1:9000` for local port-forwarding.
+Set `externalUrl` in chart values to the reachable origin for remote browser login.
+Workflow containers use a separate in-cluster gateway endpoint for logs and token
+refresh; override `configuration.service.service_base_url` if they need a different
+reachable gateway address.
+
+## Quick start
+
+From this directory:
 
 ```bash
-# Azure: provision AKS + PG + Redis + Blob, then install OSMO
-./deploy-osmo-minimal.sh --provider azure
+# Existing development cluster, embedded PostgreSQL/Valkey/RustFS, CPU verification
+./deploy-osmo.sh --provider byo --no-gpu
 
-# AWS: provision EKS + RDS + ElastiCache + S3, then install OSMO
-./deploy-osmo-minimal.sh --provider aws
-
-# Single-node MicroK8s on a fresh Ubuntu box (auto-installs MicroK8s)
-./deploy-osmo-minimal.sh --provider microk8s --gpu
-
-# Bring-your-own cluster (kubectl already pointing at it)
-export POSTGRES_HOST=... POSTGRES_USERNAME=... POSTGRES_PASSWORD=...
-export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
-./deploy-osmo-minimal.sh --provider byo --storage-backend byo
+# Cloud infrastructure plus the unified chart (configure terraform.tfvars first)
+./deploy-osmo.sh --provider azure --non-interactive --no-gpu
+./deploy-osmo.sh --provider aws --non-interactive --no-gpu
 ```
 
-Re-running is idempotent (`helm upgrade --install` everywhere). Destroy with `--destroy`.
+Install Python 3, Helm, jq, kubectl, and the cloud CLI/Terraform when applicable.
+Use the chart's documented Helm/Kubernetes versions and provide a dynamic
+StorageClass or explicit per-dependency storage classes. The installer installs
+KAI, optional GPU Operator, and CloudNativePG when embedded PostgreSQL is selected.
+Host and MicroK8s bootstrap have been removed; connect an already provisioned
+cluster with `--provider byo`.
 
-## Azure single-plane umbrella deployment
+`verify.sh` checks CPU scheduling, an object-storage round trip, and GPU execution
+unless `--no-gpu` is supplied. A missing OSMO CLI is installed through the existing
+CLI installer. `OSMO_CLI_REF` pins that download and `OSMO_CLI_TARGET` selects its
+location; an already installed CLI is reused. Match the CLI to the selected images.
 
-`deploy-osmo-single-plane.sh` is a separate, linear Azure example for
-installing the control and compute planes together on AKS. Before running it,
-authenticate the Azure CLI and create the target resource group. Set
-`TF_RESOURCE_GROUP` to that resource group's name:
+## Options and values
+
+Run `./deploy-osmo.sh --help` for all options.
+
+| Option | Behavior |
+| --- | --- |
+| `--provider azure\|aws\|byo` | Select infrastructure; default `byo` |
+| `--namespace`, `--release` | Target namespace and release; both default `osmo` |
+| `--helm-values FILE` / `--values FILE` | Repeatable native unified-chart values |
+| `--helm-set KEY=VALUE` | Repeatable Helm overrides; use files for complex values |
+| `--chart-path PATH` | Use a local unified chart directory, including one in a separate `main` checkout |
+| `--chart-version VERSION` | Install a published **osmo** chart version; default is this checkout's chart |
+| `--skip-terraform` | Reuse cloud Terraform outputs; BYO never provisions a cluster |
+| `--skip-osmo` | Provision infrastructure only |
+| `--skip-prerequisites` | Caller manages KAI/GPU Operator/CNPG |
+| `--skip-verify` | Explicitly skip workflow verification |
+| `--gpu-node-pool` | Enable a cloud GPU pool; configure its size/type in Terraform inputs |
+| `--with-nfs-storage` | Azure NFS infrastructure; consumer supplies its StorageClass |
+| `--dry-run` | Validate override syntax/legacy keys and print intent; no cloud/Kubernetes operations |
+| `--destroy` | Cloud: destroy the selected Terraform infrastructure. BYO: uninstall the selected release |
+| `--destroy --skip-terraform` | Uninstall only the selected release on an existing cloud cluster |
+| `--list-chart-versions` | List published unified chart versions, including prereleases |
+| `--find-gpu-region SKU COUNT` | Azure quota discovery without installing OSMO |
+
+Values precedence is chart defaults, previously stored release values on upgrades,
+generated connection/image settings, then caller files and sets. The old
+`global.*`, `services.configs`, `services.service` and related two-chart keys are
+rejected before provisioning. Per-chart service/operator flags are no longer accepted.
+The installer does not translate arbitrary old Helm values.
+Removed `secrets.defaultAdmin` and `secrets.backendApiTokens` values are also
+rejected, including values retained by an existing release. Migrate them to
+`authentication.bootstrap.identities` through Helm before using this installer
+to upgrade that release.
+
+`OSMO_IMAGE_REGISTRY` supplies a registry/repository prefix; `OSMO_IMAGE_TAG` applies
+to services and workflow runtime images. `OSMO_IMAGE_PULL_SECRET` and
+`OSMO_IMAGE_PULL_CONFIG` reference a Docker config; only credentials for the selected
+registry are copied. `--ngc-api-key`/`NGC_API_KEY` remains available for nvcr.io.
+Prefer credential files/environment variables over putting passwords in shell history.
+
+The local chart requires compatible OSMO images. When testing an unreleased chart,
+set `OSMO_IMAGE_REGISTRY` and `OSMO_IMAGE_TAG` to images built from the matching
+source revision. A published `latest` image can lag behind the chart; single-plane
+installation requires the service image to include `identity-bootstrap`,
+`service-auth-bootstrap` and `mek-lifecycle`.
+
+For example, select the local chart from your `main` checkout explicitly:
+
+```bash
+./deploy-osmo-single-plane.sh --provider aws \
+  --chart-path /path/to/main-checkout/deployments/charts/osmo \
+  --aws-profile default --aws-region us-west-2 --cluster-name my-osmo-test --no-gpu
+```
+
+`--chart-path` is also supported by `deploy-osmo.sh`. It cannot be combined with
+an explicit `--chart-version`, and overrides `OSMO_CHART_VERSION` inherited from
+the environment. The single-plane profile comes from the selected local chart.
+This uses the checkout's files as they are; it does not switch branches, pull `main`,
+or build container images.
+
+For cloud provisioning, the existing `--subscription-id`, `--resource-group`,
+`--cluster-name`, `--region`, `--aws-region`, `--aws-profile`, `--k8s-version`,
+`--environment`, `--postgres-password`, and `--redis-password` options feed the
+provider drivers. `AZURE_TERRAFORM_DIR`/`AWS_TERRAFORM_DIR` select the working state
+and tfvars directory. Use a separate directory for each deployment. Existing tfvars
+are reused when credentials are not supplied; `--non-interactive` fails when required
+configuration is missing. `TF_GPU_COUNT`, `TF_GPU_VM_SIZE` (Azure), and
+`TF_GPU_INSTANCE_TYPE`/`TF_GPU_MAX_COUNT` (AWS) configure GPU capacity.
+
+## Storage and external databases
+
+`--storage-backend auto` selects Azure Blob for Azure, S3 for AWS, and embedded
+RustFS for new local deployments. An explicit `STORAGE_ENDPOINT` selects BYO storage
+on local clusters. Existing/caller unified storage values take precedence over auto
+selection. `--storage-backend embedded` explicitly selects chart-owned RustFS.
+
+External storage and database resources must exist before Helm installation.
+Cloud Terraform creates the managed database and selected storage resources. BYO
+PostgreSQL must already contain the requested database; this installer does not create
+an arbitrary external database.
+
+| Backend | Inputs |
+| --- | --- |
+| `s3` | `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_ACCESS_KEY`; cloud Terraform outputs can supply these |
+| `azure-blob` | `STORAGE_ACCOUNT`, `STORAGE_KEY`, optional `AZURE_CONTAINER_NAME` (default `osmo-workflows`) |
+| `byo` | `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_ACCESS_KEY` |
+
+Optional S3 settings: `STORAGE_REGION`, `STORAGE_OVERRIDE_URL`, and
+`STORAGE_ADDRESSING_STYLE` (`path`, `virtual`, `auto`). Locations default to
+`<endpoint>/workflows`, `/logs`, `/apps`; override with `STORAGE_WORKFLOWS_URL`,
+`STORAGE_LOGS_URL`, `STORAGE_APPS_URL` or native chart values to retain existing paths.
+One existing credential document is mounted for all three uses. Existing per-location
+Secrets remain supported through the chart's `secrets.objectStorage.credentialSecretRefs`.
+
+For an existing MinIO instance, select `byo` and supply its S3 bucket, HTTP(S) endpoint,
+credentials and path addressing. The old `minio` installer and `none` storage modes
+are retired; use embedded RustFS for new local storage or explicit external values.
+There is no automatic transfer or deletion of MinIO data/PVCs.
+
+`--auth-method workload-identity` maps to `sdkDefault`. Set
+`WORKLOAD_IDENTITY_CLIENT_ID` for Azure or `WORKLOAD_IDENTITY_ROLE_ARN` for AWS.
+Provision cloud IAM/RBAC/OIDC federation first. The installer annotates API and worker
+ServiceAccounts plus `<release>-workflow`; Azure also needs pod webhook labels.
+Federated trust must match the effective release/workflow namespaces and ServiceAccount
+names. With the defaults, federate `system:serviceaccount:osmo:osmo-api`,
+`system:serviceaccount:osmo:osmo-worker`, and
+`system:serviceaccount:osmo:osmo-workflow`. Custom service-account names or a
+separate workload namespace change those subjects. The separate Azure single-plane example below also provisions its cloud identity.
+
+External database variables are `POSTGRES_HOST`, `POSTGRES_PORT`,
+`POSTGRES_DB_NAME`, `POSTGRES_USERNAME`, `POSTGRES_PASSWORD`, `REDIS_HOST`,
+`REDIS_PORT`, and `REDIS_PASSWORD`. TLS is selected with `POSTGRES_TLS_ENABLED` and
+`REDIS_TLS_ENABLED`; cloud Redis defaults to TLS, including AWS on port 6379.
+Native unified values support existing Secrets and custom CA bundles. Generated
+passwords never enter Helm values; caller-provided Secret references are reused.
+
+## Existing releases and teardown
+
+The installer refuses legacy `service`/`backend-operator` releases in its target
+namespace or with the old default release names. Migrating existing releases requires
+explicit ownership, configuration, data and credential handling; changing an install
+command does not perform that migration. The standalone charts remain available.
+
+After successful initial installation, the installer disables MEK/service-auth
+bootstrap using the stored release values. Upgrades preserve values and require the
+retained credentials; they never mint replacement encryption/signing keys automatically.
+Use the chart's recovery/rotation procedures for missing credentials or interrupted bootstrap.
+
+Uninstall preserves namespaces and chart-retained Secrets/PVCs. Cloud `--destroy`
+destroys the selected Terraform infrastructure (including its data resources); use
+`--skip-terraform` when only uninstalling OSMO. No global namespace deletion, Docker
+pruning or process-name killing is performed.
+
+## Access and private AKS
+
+Cloud installs use temporary kubeconfigs. The installer prints scoped credential-refresh
+instructions for subsequent workstation access. Run a foreground gateway port-forward:
+
+```bash
+./port-forward.sh osmo 9000
+# Custom service/port: ./port-forward.sh osmo 9000 osmo-gateway 8081
+# Ctrl-C stops it. API and UI share http://127.0.0.1:9000.
+```
+
+Verification owns a temporary port-forward and cleans it up on exit. For a configured
+endpoint, set `OSMO_URL`. Authentication is selected with `OSMO_LOGIN_METHOD`,
+`OSMO_TOKEN_FILE` or `OSMO_PASSWORD_FILE` as supported by `verify.sh`.
+
+Private AKS installation uses `az aks command invoke`, checks each remote exit code,
+and uploads only packaged charts and explicitly referenced manifests/values. Helm
+repositories are resolved locally; credentials and Terraform state are not uploaded
+as part of the working tree. Explicit Secret manifests are private temporary files.
+Verification requires an `OSMO_URL` reachable from the caller or `--skip-verify`;
+local port-forwarding cannot reach an inaccessible private Kubernetes API.
+
+## AWS single-plane deployment
+
+`deploy-osmo-single-plane.sh --provider aws` uses the same shared orchestration as
+`deploy-osmo.sh`, layered with the chart's single-plane profile and AWS token-auth
+settings. It provisions EKS, RDS PostgreSQL, TLS ElastiCache, and a private S3 bucket
+with scoped static IAM credentials. The profile uses an administrator token and
+runs CPU/object-storage verification. A configured GPU node pool also installs
+GPU Operator and runs GPU verification; `--no-gpu` explicitly skips both.
+
+```bash
+# Supply through your secret-management environment; values are not Helm flags.
+export TF_POSTGRES_PASSWORD=<database-password>
+export TF_REDIS_PASSWORD=<cache-auth-token-at-least-16-characters>
+./deploy-osmo-single-plane.sh --provider aws \
+  --aws-profile my-profile --aws-region us-west-2 --cluster-name my-osmo \
+  --non-interactive
+
+# Optional GPU pool (TF_GPU_COUNT counts nodes, not GPUs per node)
+TF_GPU_COUNT=1 TF_GPU_INSTANCE_TYPE=g5.xlarge \
+  ./deploy-osmo-single-plane.sh --provider aws \
+  --aws-profile my-profile --aws-region us-west-2 --cluster-name my-osmo \
+  --gpu-node-pool
+```
+
+`TF_VAR_rds_password` and `TF_VAR_redis_auth_token` are also accepted on first
+creation. The selected AWS profile applies to Terraform and AWS CLI commands.
+On first creation, the installer records AWS's regional default EKS version in
+standard support; `--k8s-version` selects an explicit version. Existing versions
+are preserved on reruns; `TF_NODE_INSTANCE_TYPE` sets CPU nodes
+on initial creation. CPU nodes use AL2023 and GPU nodes use its NVIDIA AMI;
+GPU Operator reuses that AMI's host driver and toolkit. Other shared options include image overrides, unified Helm
+values, storage settings, `--skip-verify`, `--skip-terraform`, and `--destroy`.
+Choose a cluster name unique within the account: the Terraform example's S3/IAM
+resource names are global even when clusters are in different regions.
+
+Each account/region/cluster/environment gets a persistent directory under
+`deployments/terraform/aws/example/.osmo/`; its path is printed. Override with
+`OSMO_TERRAFORM_WORK_DIR`. The directory contains private `terraform.tfvars.json`,
+Terraform state, and a deployment-context record. Reruns preserve the stored
+credentials and inputs. Edit the persistent inputs for configuration changes;
+explicit `--gpu-node-pool` and `--k8s-version` update those settings. Context changes
+are refused before Terraform apply. Existing legacy Terraform state can still be
+used with `deploy-osmo.sh`; it is not automatically adopted into this state layout.
+
+Repeat the same profile, region, cluster name and environment for reuse or destroy.
+`--skip-terraform` uses existing outputs. `--destroy` destroys that infrastructure;
+`--destroy --skip-terraform` only uninstalls OSMO. Both require existing state.
+Terraform's bucket deletion protections remain in effect.
+
+RDS connections use `verify-full` with the official AWS RDS CA bundle downloaded
+from `truststore.pki.rds.amazonaws.com`; `POSTGRES_CA_FILE` supplies an offline
+bundle. ElastiCache uses TLS on port 6379. Credentials and the administrator token
+are referenced Secrets, and MEK/service-auth bootstrap is disabled after installation.
+The admin token is retained across upgrades; a missing retained token is an error.
+
+## Azure single-plane deployment
+
+`deploy-osmo-single-plane.sh` remains the focused Azure workload-identity example
+used by CI. Authenticate Azure CLI, create the target resource group and run:
 
 ```bash
 export TF_RESOURCE_GROUP=<resource-group>
 ./deploy-osmo-single-plane.sh
 ```
 
-To deploy private images, provide the full registry and repository prefix plus
-the shared image tag. If authentication is required, also provide the pull
-Secret name and a Docker config containing credentials for that registry:
-
-```bash
-export OSMO_IMAGE_REGISTRY=registry.example.org/some/path
-export OSMO_IMAGE_TAG=<tag>
-export OSMO_IMAGE_PULL_SECRET=private-registry-pull
-export OSMO_IMAGE_PULL_CONFIG="$HOME/.docker/config.json"
-./deploy-osmo-single-plane.sh
-```
-
-`OSMO_IMAGE_REGISTRY` defaults to `nvcr.io/nvidia/osmo`, the tag defaults to
-`latest`, and pull authentication is optional. The image prefix applies to all
-OSMO components and workflow runtime images; prerequisite charts retain their
-own image settings. When a Docker config contains multiple registries, the
-script copies only the credentials matching the registry host in
-`OSMO_IMAGE_REGISTRY`.
-
-The script defaults `TF_NODE_INSTANCE_TYPE` to `Standard_D8s_v3`, leaving
-enough allocatable CPU for the control plane and the representative workflow on
-the same AKS pool. Set that Terraform variable explicitly to choose another VM
-size with equivalent capacity.
-
-The script provisions AKS, PostgreSQL, Valkey, Blob storage, and a managed
-identity, then installs KAI Scheduler and OSMO. Shared Key authorization and
-public Blob access are disabled. AKS Workload Identity authenticates the API,
-worker, and workflow pods to Blob storage. The script also creates the required
-PostgreSQL, Valkey, backend, and administrator Secrets without printing their
-contents.
-
-The provider-neutral single-plane profile is layered with Azure connection and
-workload-identity values. The gateway remains a `ClusterIP` and requires OSMO
-access tokens; the script uses the retained administrator Secret to validate it
-through a temporary local port-forward. Validation submits a basic workflow and
-an object-storage round-trip workflow and confirms their specifications and
-logs can be retrieved.
-
-## Deployment Combinations
-
-Three orthogonal axes:
-
-1. **`--provider`** — who owns the cluster.
-2. **`--storage-backend`** — which object store OSMO writes workflow data, logs, and apps to.
-3. **`--auth-method`** — how OSMO services authenticate to that store: `static` (K8s Secret with credentials) or `workload-identity` (AKS Workload Identity / AWS IRSA — no static creds in cluster).
-
-Cells show which auth methods are valid for each `(provider, storage-backend)` pair:
-
-| ↓ Provider \ Storage → | `minio`      | `azure-blob`         | `s3`       | `byo`                |
-|------------------------|--------------|----------------------|------------|----------------------|
-| `azure` (AKS)          | static       | static, WI           | static     | static, WI           |
-| `aws` (EKS)            | static       | static               | static     | static, WI (IRSA)    |
-| `microk8s` (single-node) | static     | —                    | —          | static               |
-| `byo` (any K8s)        | static       | static, WI*          | static     | static, WI*          |
-
-\* `workload-identity` on `byo` requires the cluster's K8s API server to have the appropriate OIDC issuer + the cloud-side trust set up by the caller.
-
-Notes:
-- `s3` does **not** support `workload-identity` directly — use `--backend byo --auth-method workload-identity` with IRSA instead. `s3.sh` errors out with this guidance.
-- `microk8s` deliberately has no cloud-identity path — it's a single-node dev/eval flow.
-- Cross-cloud combinations (e.g. AKS pointing at S3) are valid for `static` auth.
-
-## Tested Configurations
-
-| Provider   | Storage / Auth         | Tested |
-|------------|------------------------|--------|
-| `azure`    | `azure-blob` / static  | ✅     |
-| `microk8s` | `minio` / static       | ✅     |
-| `byo`      | `minio` / static       | ✅     |
-| `aws`      | `s3` / static          | ✅     |
-| `azure`    | `azure-blob` / WI      | ⏳     |
-
-✅ = end-to-end green. ⏳ = code paths complete, full E2E pending.
-
-## Directory Structure
-
-```
-scripts/
-├── deploy-osmo-minimal.sh    # Main entry point — orchestrates all phases
-├── deploy-osmo-single-plane.sh # Azure single-plane deployment example
-├── deploy-k8s.sh             # K8s/Helm install logic (called by main)
-├── common.sh                 # Shared logging, OSMO CLI install, helm helpers
-├── install-kai-scheduler.sh  # KAI Scheduler (idempotent, CRD-detected)
-├── install-gpu-operator.sh   # NVIDIA GPU Operator (multi-signal auto-skip)
-├── install-minio.sh          # In-cluster MinIO (bitnami; auto-skips if addon/release present)
-├── configure-storage.sh      # 6.3 storage wiring: K8s Secrets + values fragment
-├── storage/                  # Per-backend storage logic (minio, azure-blob, s3, byo)
-├── port-forward.sh           # One-shot or watchdog kubectl port-forward
-├── verify.sh                 # End-to-end smoke tests (hello + object storage + GPU)
-├── azure/terraform.sh        # Azure Terraform driver
-├── aws/terraform.sh          # AWS Terraform driver
-├── microk8s/install.sh       # Single-node MicroK8s bootstrap
-└── README.md                 # This file
-```
-
-Sibling directories under `deployments/`:
-
-```
-../workflows/        # hello, object-storage, and GPU smoke-test workflows
-../values/           # static, hand-editable Helm values (see ../values/README.md)
-../terraform/        # Terraform modules for azure/ + aws/
-./values/            # auto-generated runtime values; .storage-values.yaml from configure-storage.sh
-```
-
-## Phases of `deploy-osmo-minimal.sh`
-
-When invoked, the entry-point runs these phases in order. Each is idempotent and safe to re-run.
-
-1. **Provider bootstrap** (skipped for `byo`)
-   - `azure` / `aws` → Terraform provisions cluster + DB + Redis (+ optional GPU pool, Blob/S3)
-   - `microk8s` → `microk8s/install.sh` installs snapd, microk8s, addons, optional `nvidia` addon
-2. **Cluster-agnostic dependency installs** (idempotent — auto-skip when present)
-   - `install-kai-scheduler.sh` (CRD-detected: `podgroups.scheduling.run.ai`)
-   - `install-gpu-operator.sh` (skipped under `--no-gpu`; multi-signal detection: addon, helm release, CR, DaemonSet)
-   - `install-minio.sh` (only when `--storage-backend minio`; skipped if addon/release present)
-3. **Storage credential wiring**
-   - `configure-storage.sh --backend X --auth-method Y` writes K8s Secrets (`osmo-workflow-{data,log,app}-cred`) and emits `values/.storage-values.yaml` for the helm install to merge
-4. **OSMO Helm install** (`deploy-k8s.sh`)
-   - Creates namespaces, MEK ConfigMap, NGC pull secret
-   - `helm upgrade --install` with chart + storage-values fragment + `--set global.osmoImageTag=$OSMO_IMAGE_TAG` + `--version $OSMO_CHART_VERSION` (when set)
-   - Optional user values files and simple `--set` overrides are layered last
-   - Idempotent Secret-backed backend credential provisioning
-   - Waits for pods Running 1/1
-5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml` and `verify-object-storage.yaml`, polls until COMPLETED, and dumps logs on failure. With GPU nodes, it also runs `verify-gpu.yaml`.
-6. **Watchdog port-forwards** (optional, default on for non-CI invocations) — `port-forward.sh --watchdog` for `osmo-service` (:9000) and `osmo-ui` (:3000).
-
-## Scripts Overview
-
-### `deploy-osmo-minimal.sh`
-
-Main entry point — see `--help` for the full flag list. Orchestrates all phases above.
-
-| Flag | Purpose |
-|------|---------|
-| `--provider {azure,aws,microk8s,byo}` | Required. Selects bootstrap path. |
-| `--storage-backend {auto,minio,azure-blob,s3,byo,none}` | Default `auto`: chooses based on provider (azure→azure-blob, aws→s3, microk8s→minio, byo→error). |
-| `--auth-method {static,workload-identity}` | Default `static`. See [Deployment Combinations](#deployment-combinations) for what's supported per backend. |
-| `--workload-identity-client-id ID` | Azure UAMI client ID (azure-blob + WI). |
-| `--workload-identity-role-arn ARN` | AWS IAM role ARN (byo + WI / IRSA). |
-| `--gpu-node-pool` | azure/aws: provision a GPU node pool via TF (requires the optional TF resources enabled). |
-| `--no-gpu` | Skip GPU Operator install + GPU smoke test. |
-| `--gpu` | microk8s only: enable the `nvidia` addon. Requires NVIDIA driver ≥ 525 on the host. |
-| `--skip-terraform` | azure/aws: skip the bootstrap phase (cluster already exists). |
-| `--skip-osmo` | Provision infrastructure only. |
-| `--destroy` | TF destroy (azure/aws) + cluster cleanup. |
-| `--ngc-api-key KEY` | Auth for `nvcr.io` images and `helm.ngc.nvidia.com` charts. Also `NGC_API_KEY` env var. |
-| `--helm-values FILE` | Repeatable values file layered into both the service and backend-operator Helm releases. |
-| `--service-helm-values FILE` | Repeatable values file layered only into the service Helm release. |
-| `--backend-operator-helm-values FILE` | Repeatable values file layered only into the backend-operator Helm release. |
-| `--helm-set KEY=VALUE` | Repeatable simple `--set` override for both Helm releases. Use a values file for nested or complex values. |
-| `--service-helm-set KEY=VALUE` | Repeatable simple `--set` override only for the service Helm release. |
-| `--backend-operator-helm-set KEY=VALUE` | Repeatable simple `--set` override only for the backend-operator Helm release. |
-| `--non-interactive` | Fail if required values are missing (CI mode). |
-| `--dry-run` | Print phases without making changes. |
-
-Full help: `./deploy-osmo-minimal.sh --help`.
-
-Extra values are applied after the built-in static, PodMonitor, GPU pool, storage values, and generated per-cluster overrides. That means an explicit caller value always wins, including image pull policy, resources, node selectors, tolerations, probes, image settings, database host, Redis host, and namespaces.
-
-For broad overrides, prefer a values file:
-
-```yaml
-# /tmp/osmo-overrides.yaml
-services:
-  ui:
-    imagePullPolicy: IfNotPresent
-  service:
-    imagePullPolicy: IfNotPresent
-
-gateway:
-  envoy:
-    imagePullPolicy: IfNotPresent
-
-backendTestRunner:
-  podTemplate:
-    image:
-      pullPolicy: IfNotPresent
-    initContainer:
-      imagePullPolicy: IfNotPresent
-```
-
-Then pass it to both OSMO charts:
-
-```bash
-./deploy-osmo-minimal.sh --provider azure --helm-values /tmp/osmo-overrides.yaml
-```
-
-### `deploy-k8s.sh`
-
-Called by the main script. Handles the OSMO Helm install, MEK ConfigMap, NGC
-pull Secret, and Secret-backed backend credential provisioning without calling
-the OSMO token API. Can also run standalone:
-
-```bash
-./deploy-k8s.sh --provider azure --outputs-file .azure_outputs.env --postgres-password 'YourPassword'
-```
-
-### Cluster-agnostic install helpers
-
-Each is idempotent and safe to invoke on a cluster where the target component already exists.
-
-| Script | Purpose | Auto-skip detection |
-|--------|---------|---------------------|
-| `install-kai-scheduler.sh` | KAI Scheduler v0.14.0 (gang scheduling) | CRD `podgroups.scheduling.run.ai` |
-| `install-gpu-operator.sh` | NVIDIA GPU Operator (drivers + container toolkit) | microk8s `nvidia` addon, helm release in any ns, `clusterpolicies.nvidia.com` CR (covers NVAIE), or `nvidia-device-plugin` DaemonSet |
-| `install-minio.sh` | Bitnami MinIO chart | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
-| `configure-storage.sh` | 6.3 storage wiring: K8s Secrets + helm values fragment for `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher → `storage/{minio,azure-blob,s3,byo}.sh`. | n/a — backend chosen via `--backend` |
-| `port-forward.sh` | One-shot or `--watchdog` PF, tagged `osmo-pf-watchdog:<svc>` for cleanup with `pkill -f 'osmo-pf-watchdog:'`. Watchdog readiness waits up to `OSMO_PF_HEALTH_TIMEOUT_SECONDS` (default 300). | Reuses live PF if context+namespace match |
-| `verify.sh` | Submits the hello and object-storage workflows plus `verify-gpu.yaml`; polls until terminal state and dumps logs on failure. `SKIP_GPU=1` skips the GPU test and `SKIP_OBJECT_STORAGE=1` skips the object-storage test. | n/a |
-
-### `microk8s/install.sh`
-
-Single-node MicroK8s bootstrap, used only by `--provider microk8s`. Installs snapd → microk8s 1.31/stable → kubectl/helm/helmfile → core addons (`dns`, `hostpath-storage`, `helm3`, `rbac`, `minio`) → optional `nvidia` addon → containerd Docker Hub creds patch (when `~/.docker/config.json` exists) → kubeconfig export. Run as root: `sudo ./microk8s/install.sh [--gpu]`. Idempotent.
-
-### `azure/terraform.sh`, `aws/terraform.sh`
-
-Provider-specific Terraform drivers. Provision cluster, DB, Redis, network, and (optionally) GPU node pool + cloud object storage. State lives under `../terraform/<provider>/`.
-
-## Examples
-
-### Interactive Azure deployment
-
-```bash
-./deploy-osmo-minimal.sh --provider azure
-```
-
-Prompts for subscription ID, resource group, PostgreSQL password, optionally cluster name / region / K8s version.
-
-### Non-interactive Azure deployment
-
-```bash
-./deploy-osmo-minimal.sh --provider azure \
-  --subscription-id "12345678-1234-1234-1234-123456789abc" \
-  --resource-group "my-resource-group" \
-  --postgres-password "SecurePass123!" \
-  --cluster-name "my-osmo-cluster" \
-  --region "East US 2" \
-  --non-interactive
-```
-
-### Skip TF, deploy OSMO only (cluster already up)
-
-```bash
-./deploy-osmo-minimal.sh --provider azure --skip-terraform
-```
-
-### Provision infrastructure only
-
-```bash
-./deploy-osmo-minimal.sh --provider azure --skip-osmo
-```
-
-### Destroy
-
-```bash
-./deploy-osmo-minimal.sh --provider azure --destroy
-```
-
-### AWS
-
-```bash
-./deploy-osmo-minimal.sh --provider aws \
-  --aws-region "us-west-2" \
-  --cluster-name "osmo-aws" \
-  --postgres-password "SecurePass123!" \
-  --redis-password "SecureRedisToken123!" \
-  --non-interactive
-```
-
-> Keep cluster names ≤ 12 characters to avoid AWS IAM role name length limits.
-
-### NGC private registry credentials
-
-Required for OSMO images and Helm charts under `nvcr.io` / `helm.ngc.nvidia.com`.
-
-```bash
-# Via flag
-./deploy-osmo-minimal.sh --provider aws --ngc-api-key "$NGC_API_KEY" ...
-
-# Via env var
-export NGC_API_KEY="..."
-./deploy-osmo-minimal.sh --provider aws ...
-```
-
-When set, the script:
-1. `helm repo add` with `--username='$oauthtoken' --password=$NGC_API_KEY`
-2. Creates `nvcr-secret` (docker-registry) in `osmo-minimal`, `osmo-operator`, `osmo-workflows`
-3. Sets all chart `imagePullSecrets` to reference `nvcr-secret`
-
-### Workload Identity (Azure UAMI)
-
-Pre-create the UAMI + federated credential, then:
-
-```bash
-./deploy-osmo-minimal.sh --provider azure \
-  --storage-backend azure-blob \
-  --auth-method workload-identity \
-  --workload-identity-client-id "<UAMI client ID>"
-```
-
-`configure-storage.sh` skips static-credential Secret creation and emits values that point OSMO services at the UAMI via the workload-identity webhook.
-
-### Workload Identity (AWS IRSA)
-
-Pre-create the IAM role with the OSMO service-account trust, then:
-
-```bash
-./deploy-osmo-minimal.sh --provider byo \
-  --storage-backend byo \
-  --auth-method workload-identity \
-  --workload-identity-role-arn "arn:aws:iam::123456789012:role/osmo-storage"
-```
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OSMO_IMAGE_REGISTRY` | OSMO Docker image registry | `nvcr.io/nvidia/osmo` |
-| `OSMO_IMAGE_TAG` | OSMO Docker image tag | `latest` |
-| `OSMO_CHART_VERSION` | Pin OSMO Helm chart version. **Required** for prerelease channels (chart RCs aren't tagged `latest`). | _(latest in repo)_ |
-| `OSMO_HELM_REPO_URL` | OSMO Helm chart repository URL. Override to use another chart repository. | `https://helm.ngc.nvidia.com/nvidia/osmo` |
-| `OSMO_HELM_REPO_NAME` | Local helm repo alias | `osmo` |
-| `BACKEND_TOKEN_SECRET_NAME` | Shared backend bootstrap Secret name | `osmo-operator-token` |
-| `OSMO_REACHABILITY_PATH` | Lightweight unauthenticated path used by `verify.sh` for the pre-login reachability probe | `/api/version` |
-| `OSMO_REACHABILITY_TIMEOUT_SECONDS` | Curl timeout for the `verify.sh` reachability probe | `5` |
-| `NGC_API_KEY` | NGC API key for `nvcr.io` images and chart pulls | — |
-| `AZURE_ENDPOINT_SUFFIX` | Azure Storage endpoint suffix (sovereign clouds) | `core.windows.net` |
-| `TF_SUBSCRIPTION_ID` | Azure subscription ID | — |
-| `TF_RESOURCE_GROUP` | Azure resource group | — |
-| `TF_POSTGRES_PASSWORD` | PostgreSQL password | — |
-| `TF_REDIS_PASSWORD` | Redis password / auth token | — |
-| `TF_CLUSTER_NAME` | Cluster name | `osmo-cluster` |
-| `TF_REGION` | Azure region | `East US 2` |
-| `TF_AWS_REGION` | AWS region | `us-west-2` |
-| `TF_AWS_PROFILE` | AWS CLI profile | `default` |
-| `STORAGE_ACCOUNT`, `STORAGE_KEY` | Azure Blob credentials (BYO storage when no Azure TF outputs available) | — |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | S3 credentials (static auth) | — |
-| `POSTGRES_HOST`, `POSTGRES_USERNAME`, `POSTGRES_PASSWORD`, `POSTGRES_DB_NAME`, `POSTGRES_PORT` | DB connection (BYO mode) | — |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis connection (BYO mode) | — |
-
-## Prerequisites
-
-### All providers
-- `kubectl`, `helm` (≥ 3.10), `jq`
-- `osmo` CLI — auto-installed by `common.sh:install_osmo_cli_if_missing()` when missing
-
-### `--provider azure`
-- `az` CLI authenticated (`az login`)
-- An existing Azure resource group (TF creates resources inside it)
-- `terraform` ≥ 1.9
-
-### `--provider aws`
-- `aws` CLI configured (`aws configure`)
-- `terraform` ≥ 1.9
-
-### `--provider microk8s`
-- Ubuntu 22.04+ host
-- `sudo` access (snap install needs root)
-
-### `--provider byo`
-- `kubectl` already pointing at the target cluster
-- DB + Redis reachable from cluster pods
-
-## Post-Deployment
-
-The watchdog port-forwards started by step 6 expose:
-
-```
-http://localhost:9000  → osmo-service (API)
-http://localhost:3000  → osmo-ui
-```
-
-```bash
-osmo login http://localhost:9000 --method=dev --username=testuser
-osmo workflow submit ../workflows/verify-hello.yaml
-osmo workflow list
-```
-
-To stop the watchdogs: `pkill -f 'osmo-pf-watchdog:'`. They're restarted by re-running `deploy-osmo-minimal.sh`, which also replaces stale watchdogs on the same local port.
-
-## Troubleshooting
-
-### Azure auth errors
-
-```bash
-az login
-az account set --subscription "your-subscription-id"
-```
-
-### Terraform state corruption
-
-```bash
-cd ../terraform/azure   # or ../terraform/aws
-rm -rf .terraform* terraform.tfstate*
-```
-
-### Pod failures
-
-```bash
-kubectl logs -n osmo-minimal -l app=osmo-service
-kubectl logs -n osmo-operator -l app.kubernetes.io/name=osmo-backend-worker
-```
-
-### Backend-operator stuck in CrashLoopBackOff with startup probe failures
-
-Affected: chart versions before PR #961. Either rebase to a chart that includes #961, or override the probe via values:
-
-```yaml
-startupProbe:
-  timeoutSeconds: 60       # default in #961 (was 15)
-  periodSeconds: 10
-  failureThreshold: 30
-```
-
-### Private AKS cluster (no public API endpoint)
-
-```bash
-az aks command invoke \
-  --resource-group "your-rg" \
-  --name "your-cluster" \
-  --command "kubectl get pods -n osmo-minimal"
-```
-
-### Helm install fails: "no chart matching constraint"
-
-Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSION` (chart RCs aren't tagged `latest`). Set both `OSMO_IMAGE_TAG` and `OSMO_CHART_VERSION` to the matching RC and point `OSMO_HELM_REPO_URL` at the staging repo.
-
-## Documentation
-
-- [OSMO Deployment Guide](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_minimal.html)
-- [Configure Data Storage](https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/configure_data_storage.html)
-- [Install KAI Scheduler](https://nvidia.github.io/OSMO/main/deployment_guide/byoc/install_dependencies.html)
+Azure remains the no-argument default (`--provider azure` is also accepted).
+It provisions public AKS, PostgreSQL, Valkey and private Blob storage with a managed
+identity; uses the unified single-plane profile with token authentication; and verifies
+CPU/storage workflows. `TF_NODE_INSTANCE_TYPE` defaults to `Standard_D8s_v3`.
+It accepts the `OSMO_IMAGE_REGISTRY`, `OSMO_IMAGE_TAG`, `OSMO_IMAGE_PULL_SECRET`
+and `OSMO_IMAGE_PULL_CONFIG` overrides described above. Its narrower profile does
+not provision GPU pools or NFS.
+
+`deploy-osmo-minimal.sh` has been removed. Use `deploy-osmo-single-plane.sh` for
+Azure/AWS single-plane deployments or `deploy-osmo.sh` for the configurable
+unified-chart quickstart.
+The old two-chart assembly, storage generators, MinIO installer and detached watchdog
+have been retired. Azure deployment/OETF/cleanup CI uses the
+[current workflow](../../ci/deployment-test/README.md); its old test wrapper and
+wrapper-level KIND/JSON/JUnit interface are retired.

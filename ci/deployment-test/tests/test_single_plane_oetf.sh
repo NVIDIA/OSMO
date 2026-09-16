@@ -8,11 +8,13 @@ temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
 mkdir "$temporary/bin"
 export COMMAND_LOG="$temporary/commands" PF_PID_FILE="$temporary/pf.pid"
+export PRIVATE_PATH_FILE="$temporary/private-path"
 export ARM_SUBSCRIPTION_ID=sub AZURE_RESOURCE_GROUP=rg GITHUB_RUN_ID=123 GITHUB_RUN_ATTEMPT=2
 export PATH="$temporary/bin:$PATH"
 cat > "$temporary/bin/az" <<'MOCK'
 #!/usr/bin/env bash
 [[ "$1 $2" == 'aks get-credentials' ]]
+dirname "$KUBECONFIG" > "$PRIVATE_PATH_FILE"
 MOCK
 cat > "$temporary/bin/kubectl" <<'MOCK'
 #!/usr/bin/env bash
@@ -21,6 +23,8 @@ if [[ "$*" == *port-forward* ]]; then
     [[ "${CASE:-}" != dead-forward ]] || exit 1
     exec sleep 300
 else
+    [[ "${CASE:-}" != empty-token ]] || exit 0
+    if [[ "${CASE:-}" == whitespace-token ]]; then printf '   ' | base64; exit 0; fi
     printf 'password-sentinel' | base64
 fi
 MOCK
@@ -28,11 +32,6 @@ cat > "$temporary/bin/curl" <<'MOCK'
 #!/usr/bin/env bash
 sleep 0.05
 exit 0
-MOCK
-cat > "$temporary/bin/date" <<'MOCK'
-#!/usr/bin/env bash
-[[ "$*" == '-u -d 2 days +%Y-%m-%d' ]] || exit 1
-printf '2099-01-01\n'
 MOCK
 cat > "$temporary/bin/osmo" <<'MOCK'
 #!/usr/bin/env bash
@@ -42,12 +41,14 @@ case "$1 $2" in
     'login http://127.0.0.1:9100')
         [[ "$3 $4 $5" == '--method token --token-file' ]]
         [[ "$#" == 6 && "$(cat "$6")" == password-sentinel ]]
+        private=$(cat "$PRIVATE_PATH_FILE")
+        [[ "$OSMO_CONFIG_FILE_DIR" == "$private/cli-config" ]]
+        [[ "$OSMO_LOG_FILE_DIR" == "$private/cli-logs" ]]
+        printf 'password-sentinel' > "$OSMO_CONFIG_FILE_DIR/login.yaml"
+        printf 'private-cli-log' > "$OSMO_LOG_FILE_DIR/osmo.log"
         [[ "${CASE:-}" != login-error ]] ;;
     'profile set') [[ "$*" == *'pool default'* ]] ;;
-    'token set')
-        if [[ "${CASE:-}" == empty-token ]]; then echo '{"token":""}'
-        else echo '{"token":"token-sentinel"}'; fi ;;
-    'token delete') exit 0 ;;
+    'token set'|'token delete') echo 'Bootstrap roles cannot mint personal tokens' >&2; exit 2 ;;
     *) exit 9 ;;
 esac
 MOCK
@@ -55,7 +56,7 @@ cat > "$temporary/bin/bazel" <<'MOCK'
 #!/usr/bin/env bash
 set -eu
 echo "bazel $*" >> "$COMMAND_LOG"
-[[ "$OETF_TOKEN" == token-sentinel ]]
+[[ "$OETF_TOKEN" == password-sentinel ]]
 [[ "$*" == *'--env azure-single-plane --pool default'* ]]
 [[ "$*" == *'--tags api,websocket,logger,task-env,negative'* ]]
 grep -q 'exclude_tags: \[auth, mcp\]' "$OETF_INTERNAL_YAML"
@@ -70,7 +71,7 @@ else
 fi
 MOCK
 chmod +x "$temporary/bin/"*
-for scenario in good login-error empty-token suite-error missing-results all-skipped empty-results dead-forward; do
+for scenario in good login-error empty-token whitespace-token suite-error missing-results all-skipped empty-results dead-forward; do
     : > "$COMMAND_LOG"
     set +e
     env RUN_DIR="$temporary/$scenario" CASE="$scenario" \
@@ -79,16 +80,18 @@ for scenario in good login-error empty-token suite-error missing-results all-ski
     set -e
     if [[ "$scenario" == good ]]; then
         [[ "$status" == 0 ]] || { cat "$temporary/$scenario.log"; exit 1; }
-        grep -q 'token set nightly-123-2 --roles osmo-admin --expires-at 2099-01-01 --format-type json' "$COMMAND_LOG"
-        grep -q 'token delete nightly-123-2' "$COMMAND_LOG"
-        if grep -q 'token-sentinel\|password-sentinel' "$temporary/$scenario/oetf.log"; then exit 1; fi
+        grep -q '^bazel' "$COMMAND_LOG"
+        grep -Fxq '::add-mask::password-sentinel' "$temporary/$scenario.log"
+        if grep -q 'password-sentinel' "$temporary/$scenario/oetf.log" "$temporary/$scenario/oetf-result.json"; then exit 1; fi
     else
         [[ "$status" != 0 ]] || { echo "Failure accepted: $scenario" >&2; exit 1; }
         if [[ "$scenario" == suite-error ]]; then [[ "$status" == 17 ]]; fi
-        if [[ "$scenario" == login-error || "$scenario" == empty-token || "$scenario" == dead-forward ]]; then
+        if [[ "$scenario" == login-error || "$scenario" == empty-token || "$scenario" == whitespace-token || "$scenario" == dead-forward ]]; then
             if grep -q '^bazel' "$COMMAND_LOG"; then exit 1; fi
         fi
     fi
+    if grep -q '^osmo token' "$COMMAND_LOG"; then echo 'Unexpected personal-token operation' >&2; exit 1; fi
+    [[ ! -e "$(cat "$PRIVATE_PATH_FILE")" ]] || { echo 'Private credentials were not removed' >&2; exit 1; }
     if [[ -s "$PF_PID_FILE" ]]; then
         sleep 0.1
         if kill -0 "$(cat "$PF_PID_FILE")" 2>/dev/null; then exit 1; fi

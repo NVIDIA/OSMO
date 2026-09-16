@@ -124,6 +124,15 @@ bash deployments/charts/service/tests/render-tests.sh
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 
+### Deployment Scripts (`deployments/scripts/`)
+
+`deploy-osmo.sh` delegates converged installation to `lib/deploy.py`. Provider
+shell drivers own Terraform/host provisioning; the unified chart owns OSMO
+resources and embedded dependencies. `deploy-osmo-single-plane.sh` supports the
+Azure authenticated example and an AWS single-plane profile through the shared
+orchestrator. MicroK8s host bootstrap and the minimal wrapper have been removed.
+Installer regression tests: `bazel test //deployments/scripts/tests:all`.
+
 ### Python Libraries (`lib/`)
 
 | Library | Key Classes | Purpose |

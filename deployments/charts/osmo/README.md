@@ -21,6 +21,15 @@ installations, but it is not a dependency of this chart.
 
 ## Quick start
 
+`externalUrl` is the browser and authentication origin. Workflow containers use
+the internal gateway by default in converged releases and `externalUrl` in
+control-only releases. To override this, set
+`configuration.service.service_base_url` to a gateway address reachable from
+the workload namespace, for example `http://osmo-gateway.osmo.svc:80`. For a
+complete configuration snapshot, set the same field under
+`configuration.snapshot.service`. Scripted converged installs set a
+namespace-qualified internal endpoint while preserving explicit overrides.
+
 The default values are a development-only path to trying the complete OSMO
 browser, CLI, API, CPU workflow, and GPU workflow experience in one converged
 release. They install:
@@ -124,14 +133,6 @@ browser and CLI clients use. For example, to use a port-forward, install with
 kubectl --namespace osmo \
   port-forward service/osmo-gateway 8080:80
 ```
-
-For workflows in the same cluster, a loopback `externalUrl` also requires
-`--set-string configuration.service.service_base_url=http://osmo-gateway.osmo.svc.cluster.local:80`
-on the install or upgrade command. Adjust the Service name, namespace, and port
-for your release. This address must be reachable from workflow pods and also
-controls workflow URLs returned by the API and included in notifications. Use
-an address reachable from both clients and pods when those links are needed.
-Dex and MCP continue to use `externalUrl` for public authentication URLs.
 
 Use the same origin for the client:
 

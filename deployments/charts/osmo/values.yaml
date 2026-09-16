@@ -1801,8 +1801,9 @@ configuration:
   # The config exporter writes all nine managed sections here so empty maps
   # and deleted default entries remain exact after Helm values merging.
   snapshot: null
-  # service_base_url defaults to externalUrl. Override it when workflow pods
-  # need another Gateway address; it also controls returned workflow URLs.
+  # Workflow containers use service_base_url for logs, token refresh and CLI
+  # access. It defaults to the internal gateway for converged releases and
+  # externalUrl for control-only releases. Overrides must be workload-reachable.
   service: {}
   workflow:
     max_num_tasks: 100

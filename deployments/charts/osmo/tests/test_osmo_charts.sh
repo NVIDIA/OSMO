@@ -795,8 +795,9 @@ test_control_umbrella() {
     ' "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml")
     local mutated_chart="$TEST_DIRECTORY/osmo-config-mutated"
     cp -a "$charts_copy/osmo" "$mutated_chart"
-    sed -i 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
-        "$mutated_chart/templates/_helpers.tpl"
+    sed 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
+        "$mutated_chart/templates/_helpers.tpl" >"$TEST_DIRECTORY/mutated-helpers.tpl"
+    mv "$TEST_DIRECTORY/mutated-helpers.tpl" "$mutated_chart/templates/_helpers.tpl"
     helm_template embedded-auth-config-mutated "$mutated_chart" \
         --api-versions postgresql.cnpg.io/v1 \
         >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
@@ -1782,6 +1783,24 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/generated-single-plane-azure.yaml" \
         "kind: HTTPRoute"
 
+    helm_template osmo "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/single-plane-s3-values.yaml" \
+        -f "$CHARTS_ROOT/../scripts/single-plane-aws.yaml" \
+        >"$TEST_DIRECTORY/installer-single-plane-aws.yaml"
+    resource_document "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Deployment osmo-api \
+        >"$TEST_DIRECTORY/installer-single-plane-aws-api.yaml"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "value: verify-full"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-postgresql-ca"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "secretName: osmo-default-admin"
+    require_contains "$TEST_DIRECTORY/installer-single-plane-aws-api.yaml" "name: OSMO_REDIS_PASSWORD"
+    require_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-gateway-authz
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Cluster osmo-pg
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-valkey
+    require_no_deployment "$TEST_DIRECTORY/installer-single-plane-aws.yaml" osmo-rustfs
+    require_no_resource "$TEST_DIRECTORY/installer-single-plane-aws.yaml" Secret osmo-object-storage
+
     helm_template single-plane-s3 "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
@@ -2033,7 +2052,7 @@ test_control_umbrella() {
     # Workflow callbacks may use a Gateway address distinct from public OAuth URLs.
     local callback_url expected_callback_url
     for callback_url in '' http://osmo-gateway.osmo.svc.cluster.local:80; do
-        expected_callback_url="${callback_url:-http://127.0.0.1}"
+        expected_callback_url="${callback_url:-http://osmo-gateway:80}"
         helm_template osmo "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
             --set services.mcp.enabled=true \
@@ -3594,6 +3613,35 @@ INVALID_DEX_MCP
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.serviceAuth.managementMode=osmo \
         --set secrets.serviceAuth.bootstrap.enabled=true \
+        --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+        --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=windows' \
+        --set-string 'secrets.serviceAuth.bootstrap.nodeSelector.kubernetes\.io/os=linux' \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml"
+    local service_auth_bootstrap_pod_defaults_name
+    service_auth_bootstrap_pod_defaults_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" Job \
+        "service-auth-bootstrap")
+    [[ "$service_auth_bootstrap_name" != \
+        "$service_auth_bootstrap_pod_defaults_name" ]] || \
+        fail "service auth bootstrap pod defaults did not change the Job name"
+    resource_document "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" \
+        Job "$service_auth_bootstrap_pod_defaults_name" \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: linux"
+    require_not_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: windows"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
         --set secrets.serviceAuth.bootstrap.activeDeadlineSeconds=899 \
         >"$TEST_DIRECTORY/service-auth-bootstrap-changed.yaml"
     local service_auth_bootstrap_changed_name
@@ -3897,16 +3945,35 @@ EOF
 existing-secret|--set-string secrets.objectStorage.existingSecret=unexpected
 generated-secret|--set secrets.objectStorage.generate=true --set-string secrets.objectStorage.existingSecret=
 EOF
-    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:latest"
+    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-runtime-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "init: nvcr.io/nvidia/osmo/init-container:latest"
+        "init: nvcr.io/nvidia/osmo/init-container:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "client: nvcr.io/nvidia/osmo/client:latest"
+        "client: nvcr.io/nvidia/osmo/client:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
+
+    helm_template default-internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml" \
+        ConfigMap osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway:80"
+
+    helm_template internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string configuration.service.service_base_url=http://osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-internal-workflow-url.yaml" ConfigMap \
+        osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
     require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
@@ -5786,7 +5853,7 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
         --set-string configuration.service.service_base_url=https://ignored.example.com \
-        --set-string configuration.snapshot.service.service_base_url=https://snapshot.example.com \
+        --set-string configuration.snapshot.service.service_base_url=http://internal-gateway.osmo.svc:8080 \
         >"$TEST_DIRECTORY/complete-snapshot.yaml"
 
     helm_template unified-export "$charts_copy/osmo" \
@@ -5799,7 +5866,7 @@ EOF
         complete-snapshot-osmo-api-config \
         >"$TEST_DIRECTORY/complete-snapshot-config.yaml"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
-        "service_base_url: https://snapshot.example.com"
+        "service_base_url: http://internal-gateway.osmo.svc:8080"
     require_not_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
         "ignored.example.com"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
@@ -6179,7 +6246,7 @@ MCP_ROUTES
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp:latest"
+        "image: nvcr.io/nvidia/osmo/mcp:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 12
 
@@ -6769,7 +6836,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "image: osmo-mirror.example.com/nvidia/osmo/service:latest"
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \

@@ -32,7 +32,8 @@ and deploys the unified ``osmo`` Helm chart.
    **Perfect for evaluation** – Test your workflows, explore the platform, and assess fit for your robotics development needs before cloud deployment of OSMO.
 
 .. warning::
-   Local deployment is **not** recommended for production use as it lacks authentication and has limited features.
+   Local deployment is **not** recommended for production use because it uses
+   development-only authentication and has limited features.
 
 Why Deploy Locally?
 ===================
@@ -98,9 +99,11 @@ NVIDIA Container Toolkit and confirm that they work with Docker. Install
 
 **Create Cluster Configuration**
 
-Create the following multi-node configuration. The compute worker receives the
-GPU from ``nvkind``. The other workers disable GPU Operator operands, and the
-service worker maps gateway NodePort ``30080`` to host port ``80``.
+Create the following multi-node configuration. Every node has exactly one OSMO
+role: the Kubernetes control-plane and control worker host platform services,
+and the compute worker hosts submitted workflows. The compute worker receives
+the GPU from ``nvkind``. The control worker maps gateway NodePort ``30080`` to
+host port ``80``.
 
 .. dropdown:: ``kind-osmo-cluster-config.yaml`` (GPU version)
   :color: info
@@ -113,41 +116,23 @@ service worker maps gateway NodePort ``30080`` to host port ``80``.
     name: osmo
     nodes:
       - role: control-plane
+        kubeadmConfigPatches:
+        - |
+          kind: InitConfiguration
+          nodeRegistration:
+            kubeletExtraArgs:
+              node-labels: "osmo.nvidia.com/node-pool=control-plane"
       - role: worker
         kubeadmConfigPatches:
         - |
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
-        extraMounts:
-          - hostPath: /tmp/localstack-s3
-            containerPath: /var/lib/localstack
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+              node-labels: "osmo.nvidia.com/node-pool=control-plane"
         extraPortMappings:
           - containerPort: 30080
             hostPort: 80
             protocol: TCP
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
       - role: worker
         extraMounts:
           - hostPath: /dev/null
@@ -157,7 +142,7 @@ service worker maps gateway NodePort ``30080`` to host port ``80``.
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=compute"
+              node-labels: "osmo.nvidia.com/node-pool=compute"
 
 **Create the Cluster**
 
@@ -200,6 +185,8 @@ Option B: CPU Workstations (with KIND)
 ---------------------------------------
 
 If your workstation does not have a GPU, create a standard CPU-only cluster.
+The Kubernetes control-plane and control worker host platform services, while
+the compute worker hosts submitted workflows.
 
 **Create Cluster Configuration**
 
@@ -214,30 +201,19 @@ If your workstation does not have a GPU, create a standard CPU-only cluster.
     name: osmo
     nodes:
       - role: control-plane
+        kubeadmConfigPatches:
+        - |
+          kind: InitConfiguration
+          nodeRegistration:
+            kubeletExtraArgs:
+              node-labels: "osmo.nvidia.com/node-pool=control-plane"
       - role: worker
         kubeadmConfigPatches:
         - |
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=kai-scheduler"
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=data"
-        extraMounts:
-          - hostPath: /tmp/localstack-s3
-            containerPath: /var/lib/localstack
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=service"
+              node-labels: "osmo.nvidia.com/node-pool=control-plane"
         extraPortMappings:
           - containerPort: 30080
             hostPort: 80
@@ -248,14 +224,7 @@ If your workstation does not have a GPU, create a standard CPU-only cluster.
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=service"
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
-              node-labels: "node_group=compute"
+              node-labels: "osmo.nvidia.com/node-pool=compute"
 
 **Create the Cluster**
 
@@ -269,7 +238,9 @@ Install cluster dependencies
 
 Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
-cluster:
+cluster. Keep both operators on the control worker. KAI v0.12.10 applies
+``global.nodeSelector`` to chart-managed pods and ``global.affinity`` to the
+components created by its operator, so both settings are required:
 
 .. code-block:: bash
 
@@ -277,10 +248,16 @@ cluster:
      oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
      --version v0.12.10 \
      --create-namespace -n kai-scheduler \
-     --set global.nodeSelector.node_group=kai-scheduler \
+     --set-string 'global.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=osmo.nvidia.com/node-pool' \
+     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In' \
+     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=control-plane' \
      --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
-     --wait
+     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
+
+   kubectl --namespace kai-scheduler wait \
+     --for=condition=Available=True \
+     --timeout=5m config.kai.scheduler/kai-config
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
@@ -288,6 +265,7 @@ cluster:
      --version 0.29.0 \
      --namespace cnpg-system \
      --create-namespace \
+     --set-string 'nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --wait \
      --timeout 10m
 
@@ -300,7 +278,12 @@ GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
 both the user-container requests and limits. No values overlay is required.
 
 The chart defaults are the development Quickstart. Build its dependencies and
-install it without a profile or values overlay:
+install it without a profile or values overlay. The command-line selectors keep
+OSMO services and embedded dependencies on the control worker and submitted
+workflows on the compute worker. The chart uses the in-cluster gateway URL for
+workflow pods while retaining the public loopback URL for login. The scheduling
+overrides are specific to this cluster topology and are therefore not chart
+defaults:
 
 .. code-block:: bash
 
@@ -308,6 +291,12 @@ install it without a profile or values overlay:
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --create-namespace \
+     --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'postgresql.cluster.affinity.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'valkey.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'dex.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'rustfs.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+     --set-string 'configuration.podTemplates.default_ctrl.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
      --wait \
      --wait-for-jobs \
      --timeout 20m
@@ -315,20 +304,32 @@ install it without a profile or values overlay:
 Log in and run a workflow
 =========================
 
-The cluster configuration maps the gateway to ``http://127.0.0.1``. Install the
-CLI if necessary, log in as the development administrator, select the default
-pool, and submit the canonical CPU verification workflow:
+The cluster configuration maps the gateway to ``http://127.0.0.1``. The default
+embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
+``admin``. Retrieve its generated initial password only in a private terminal:
+
+.. code-block:: bash
+
+   kubectl --namespace osmo get secret osmo-embedded-dex-admin \
+     --output jsonpath='{.data.password}' | base64 --decode
+   printf '\n'
+
+Do not paste the password into shell history, logs, or issue trackers. Install
+the CLI if necessary, sign in through the browser OIDC flow, and submit both
+canonical CPU verification workflows:
 
 .. code-block:: bash
 
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-   osmo login http://127.0.0.1 --method=dev --username=testuser
+   osmo login http://127.0.0.1
    osmo profile set pool default
    osmo workflow submit deployments/workflows/verify-hello.yaml
+   osmo workflow submit deployments/workflows/verify-object-storage.yaml
    osmo workflow query <workflow-id>
 
-Query the returned workflow ID until its status is ``COMPLETED``. The workflow
-uses the default ``cpu`` platform.
+Query each returned workflow ID until its status is ``COMPLETED``. Both use the
+default ``cpu`` platform; the object-storage workflow also verifies a round trip
+between two dependent tasks.
 
 .. admonition:: Success!
    :class: tip
@@ -371,12 +372,12 @@ RustFS PVC usually means the cluster lacks a working default ``StorageClass``.
 Capacity and limitations
 ========================
 
-This Quickstart runs one replica of each required OSMO service and uses generated
-development credentials, including the ``testuser`` identity with the
-``osmo-admin`` role. It disables TLS, authorization, rate limiting, backups,
-monitoring, PodDisruptionBudgets, and autoscaling. It also has no high
-availability guarantees. The exposed development administrator identity and
-NodePort are suitable only for a disposable local environment.
+This Quickstart runs one replica of each required OSMO service and uses the
+generated initial credential for the embedded Dex ``admin@osmo.local`` account,
+which appears in OSMO as ``admin`` with the ``osmo-admin`` role. It disables TLS,
+rate limiting, backups, monitoring, PodDisruptionBudgets, and autoscaling. It
+also has no high availability guarantees. The exposed development administrator
+identity and NodePort are suitable only for a disposable local environment.
 
 CloudNativePG, Valkey, and RustFS use persistent volumes supplied by the
 cluster's default StorageClass. Those local volumes, generated

@@ -69,7 +69,7 @@
       "assertions": [
         "The agent does not activate osmo-deploy.",
         "The agent routes to osmo-user or appropriate live workflow troubleshooting tooling.",
-        "The agent does not suggest deploy-osmo-minimal.sh, Helm installation, Terraform, or cluster bootstrap commands.",
+        "The agent does not suggest deploy-osmo-single-plane.sh, Helm installation, Terraform, or cluster bootstrap commands.",
         "The agent does not make deployment configuration changes."
       ],
       "expected_skill": null,

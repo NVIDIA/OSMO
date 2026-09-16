@@ -37,7 +37,7 @@ write_mock osmo '#!/bin/bash' 'set -euo pipefail' 'echo "osmo $*" >>"$COMMAND_LO
     '      *) exit 2 ;;' \
     '    esac' \
     '    ;;' \
-    '  "workflow query") echo '\''{"status":"COMPLETED"}'\'' ;;' \
+    '  "workflow query") printf '\''{"status":"%s"}\n'\'' "${WORKFLOW_STATUS:-COMPLETED}" ;;' \
     '  "workflow spec") echo "workflow: {}" ;;' \
     '  "workflow logs")' \
     '    [[ "${FAIL_WORKFLOW_LOGS:-false}" != true ]] || exit 3' \
@@ -62,11 +62,6 @@ export LOG_FAILURES_FILE="$test_directory/log-failures-remaining"
 printf '1\n' >"$LOG_FAILURES_FILE"
 
 verify_script="${TEST_SRCDIR}/_main/deployments/scripts/verify.sh"
-minimal_script="${TEST_SRCDIR}/_main/deployments/scripts/deploy-osmo-minimal.sh"
-grep -Fq '[[ "$STORAGE_BACKEND" == "none" ]] && skip_object_storage=1' "$minimal_script" || \
-    fail "minimal deployment does not skip object-storage verification when storage is disabled"
-grep -Fq 'SKIP_OBJECT_STORAGE="$skip_object_storage"' "$minimal_script" || \
-    fail "minimal deployment does not pass the object-storage verification setting"
 "$verify_script" >"$test_directory/output.log" 2>&1
 
 grep -Fq "osmo workflow submit $WORKFLOWS_DIR/verify-hello.yaml" "$command_log" || \
@@ -131,3 +126,32 @@ fi
 if grep -q '^osmo login' "$command_log"; then
     fail "token login without a token file reached the CLI"
 fi
+
+export OSMO_LOGIN_METHOD=dev
+for WORKFLOW_STATUS in FAILED FAILED_EXEC_TIMEOUT FAILED_SERVER_ERROR CANCELLED; do
+    export WORKFLOW_STATUS
+    : >"$command_log"
+    if "$verify_script" >"$test_directory/terminal-failure.log" 2>&1; then
+        fail "$WORKFLOW_STATUS unexpectedly succeeded"
+    fi
+    grep -Fq "verify-hello ended in $WORKFLOW_STATUS" "$test_directory/terminal-failure.log" || \
+        fail "$WORKFLOW_STATUS was not recognized as terminal"
+    [[ "$(grep -Fc 'osmo workflow query wf-hello' "$command_log")" == 1 ]] || \
+        fail "$WORKFLOW_STATUS did not stop polling immediately"
+    for diagnostic in events logs; do
+        grep -Fq "osmo workflow $diagnostic wf-hello" "$command_log" || \
+            fail "$WORKFLOW_STATUS omitted workflow $diagnostic"
+    done
+done
+
+: >"$command_log"
+export WORKFLOW_STATUS=RUNNING
+if "$verify_script" >"$test_directory/poll-timeout.log" 2>&1; then
+    fail "nonterminal workflow unexpectedly succeeded"
+fi
+grep -Fq 'did not reach a terminal state' "$test_directory/poll-timeout.log" || \
+    fail "poll timeout was not reported"
+for diagnostic in events logs; do
+    grep -Fq "osmo workflow $diagnostic wf-hello" "$command_log" || \
+        fail "poll timeout omitted workflow $diagnostic"
+done
