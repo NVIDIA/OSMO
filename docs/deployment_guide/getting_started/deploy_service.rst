@@ -17,24 +17,17 @@
 
 .. _deploy_service:
 
-============================
+==============
 Deploy Service
-============================
+==============
 
-This guide provides step-by-step instructions for deploying OSMO service components on a Kubernetes cluster.
-
-.. important::
-
-   New unified ``osmo`` chart control-plane releases are authenticated by
-   default with embedded Dex and require a client-reachable HTTP or HTTPS
-   ``externalUrl``. Select ``authentication.provider: externalOidc`` only when
-   supplying a complete external-provider contract. See
-   :doc:`../appendix/authentication/migrating_to_embedded_dex` and the unified
-   chart README; the service-chart-specific values later in this page do not
-   disable authentication in the unified chart.
+This guide provides step-by-step instructions for deploying OSMO service
+components on a Kubernetes cluster. It uses the unified ``osmo`` Helm chart in
+control-plane-only mode and externally managed PostgreSQL, Valkey, and object
+storage.
 
 Components Overview
-====================
+===================
 
 OSMO deployment consists of several main components:
 
@@ -58,626 +51,647 @@ OSMO deployment consists of several main components:
      - Client communication and status updates
    * - Delayed Job Monitor
      - Monitoring and managing delayed background jobs
+   * - Gateway
+     - Authentication, authorization, and routing into the control plane
 
 .. image:: service_components.svg
    :width: 80%
    :align: center
 
-Step 1: Configure PostgreSQL
-============================
+Prerequisites
+-------------
 
-Create a database for OSMO using the following command. Omit ``export OSMO_PGPASSWORD=...``
-and ``PGPASSWORD=$OSMO_PGPASSWORD`` if PostgreSQL was configured without a password.
-
-.. code-block:: bash
-
-  $ export OSMO_DB_HOST=<your-db-host>
-  $ export OSMO_PGPASSWORD=<your-postgres-password>
-  $ kubectl apply -f - <<EOF
-  apiVersion: v1
-  kind: Pod
-  metadata:
-    name: osmo-db-ops
-  spec:
-    containers:
-      - name: osmo-db-ops
-        image: alpine/psql:17.5
-        command: ["/bin/sh", "-c"]
-        args:
-          - "PGPASSWORD=$OSMO_PGPASSWORD psql -U postgres -h $OSMO_DB_HOST -p 5432 -d postgres -c 'CREATE DATABASE osmo;'"
-    restartPolicy: Never
-  EOF
-
-Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then delete the pod with:
-
-.. code-block:: bash
-
-   $ kubectl delete pod osmo-db-ops
-
-Step 2: Create namespace and secrets
-====================================
-
-Before creating secrets, register OSMO as an OAuth2/OIDC application in your identity provider and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific steps.
-
-Create a namespace to deploy OSMO:
+The cluster must run Kubernetes 1.28 or newer. Install Helm 3.19 or newer,
+``kubectl``, and Python 3, select the target cluster context, and confirm that
+the control plane can reach PostgreSQL, Valkey, object storage, and your
+identity provider. Create the deployment namespace before creating Secrets:
 
 .. code-block:: bash
 
    $ kubectl create namespace osmo
 
+Configure PostgreSQL Connection
+===============================
 
-Create secrets for the database and Redis:
+Create an empty PostgreSQL database for OSMO. The database user must be able to
+create and update objects in that database. Store the username and password in
+a Secret; the default keys are ``username`` and ``db-password``:
 
 .. code-block:: bash
 
-   $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo
-   $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
+   $ umask 077
+   $ OSMO_POSTGRES_SECRET_DIR=$(mktemp -d)
+   $ trap 'rm -rf -- "$OSMO_POSTGRES_SECRET_DIR"' EXIT
+   $ read -rp 'PostgreSQL username: ' OSMO_POSTGRES_USERNAME
+   $ read -rsp 'PostgreSQL password: ' OSMO_POSTGRES_PASSWORD; printf '\n'
+   $ printf '%s' "$OSMO_POSTGRES_USERNAME" > "$OSMO_POSTGRES_SECRET_DIR/username"
+   $ printf '%s' "$OSMO_POSTGRES_PASSWORD" > "$OSMO_POSTGRES_SECRET_DIR/db-password"
+   $ unset OSMO_POSTGRES_USERNAME OSMO_POSTGRES_PASSWORD
+   $ kubectl --namespace osmo create secret generic osmo-postgresql \
+       --from-file=username="$OSMO_POSTGRES_SECRET_DIR/username" \
+       --from-file=db-password="$OSMO_POSTGRES_SECRET_DIR/db-password"
+   $ rm -rf -- "$OSMO_POSTGRES_SECRET_DIR"; trap - EXIT
 
+Reference the endpoint and Secret in ``osmo-values.yaml``:
 
-Create the secret used by OAuth2 Proxy for the client secret and session cookie encryption. Use the client secret from your IdP application registration:
+If PostgreSQL uses a private CA, create the referenced trust Secret first:
+
+.. code-block:: bash
+
+   $ kubectl --namespace osmo create secret generic osmo-postgresql-ca \
+       --from-file=ca.crt=<path-to-postgresql-ca.pem>
+
+.. code-block:: yaml
+
+   externalDependencies:
+     postgresql:
+       host: postgresql.example.com
+       port: 5432
+       database: osmo
+       username: osmo
+       tls:
+         enabled: true
+         sslMode: verify-full
+         caExistingSecret: osmo-postgresql-ca
+         caKey: ca.crt
+
+   secrets:
+     postgresql:
+       existingSecret: osmo-postgresql
+       keys:
+         username: username
+         password: db-password
+
+Use ``sslMode: require`` and leave ``caExistingSecret`` empty only when the
+connection must be encrypted but no CA bundle is available. This does not
+authenticate the server; ``verify-full`` is preferred. For a server that does
+not use TLS, set ``tls.enabled: false``.
+
+Configure Valkey Connection
+===========================
+
+OSMO requires Valkey or Redis 7 or newer. Create a Secret whose default key is
+``redis-password``:
+
+.. code-block:: bash
+
+   $ umask 077
+   $ OSMO_VALKEY_SECRET_FILE=$(mktemp)
+   $ trap 'rm -f -- "$OSMO_VALKEY_SECRET_FILE"' EXIT
+   $ read -rsp 'Valkey password: ' OSMO_VALKEY_PASSWORD; printf '\n'
+   $ printf '%s' "$OSMO_VALKEY_PASSWORD" > "$OSMO_VALKEY_SECRET_FILE"
+   $ unset OSMO_VALKEY_PASSWORD
+   $ kubectl --namespace osmo create secret generic osmo-valkey \
+       --from-file=redis-password="$OSMO_VALKEY_SECRET_FILE"
+   $ rm -f -- "$OSMO_VALKEY_SECRET_FILE"; trap - EXIT
+
+Add the connection to ``osmo-values.yaml``:
+
+.. code-block:: yaml
+
+   externalDependencies:
+     valkey:
+       host: valkey.example.com
+       port: 6379
+       database: 0
+       tls:
+         enabled: true
+         # Set these only when Valkey uses a private CA.
+         caExistingSecret: ''
+         caKey: ca-bundle.crt
+
+   secrets:
+     valkey:
+       generate: false
+       existingSecret: osmo-valkey
+       keys:
+         password: redis-password
+
+When ``caExistingSecret`` is set, its selected key must contain the complete
+CA trust bundle. Leave it empty for a public CA. Set ``tls.enabled: false`` only
+for a trusted network endpoint that does not provide TLS.
+
+.. _configure_storage_access:
+.. _configure_data:
+
+Configure Storage Connection
+============================
+
+OSMO uses three locations for workflow state, logs, and application bundles.
+All locations must use the same scheme: ``s3://``, ``azure://``, or
+``swift://``.
+
+Static credentials
+------------------
+
+Create one YAML credential document. The following example is for S3 or an
+S3-compatible service:
+
+.. code-block:: bash
+
+   $ umask 077
+   $ OSMO_STORAGE_SECRET_FILE=$(mktemp)
+   $ trap 'rm -f -- "$OSMO_STORAGE_SECRET_FILE"' EXIT
+   $ read -rp 'Object-storage access key ID: ' OSMO_STORAGE_ACCESS_KEY_ID
+   $ read -rsp 'Object-storage secret access key: ' OSMO_STORAGE_ACCESS_KEY; printf '\n'
+   $ ACCESS_KEY_ID="$OSMO_STORAGE_ACCESS_KEY_ID" ACCESS_KEY="$OSMO_STORAGE_ACCESS_KEY" \
+       python3 -c 'import json, os; print(json.dumps({"access_key_id": os.environ["ACCESS_KEY_ID"], "access_key": os.environ["ACCESS_KEY"]}))' \
+       > "$OSMO_STORAGE_SECRET_FILE"
+   $ unset OSMO_STORAGE_ACCESS_KEY_ID OSMO_STORAGE_ACCESS_KEY ACCESS_KEY_ID ACCESS_KEY
+   $ kubectl --namespace osmo create secret generic osmo-object-storage \
+       --from-file=object-storage.yaml="$OSMO_STORAGE_SECRET_FILE"
+   $ rm -f -- "$OSMO_STORAGE_SECRET_FILE"; trap - EXIT
+
+Reference the Secret and locations in ``osmo-values.yaml``:
+
+.. code-block:: yaml
+
+   externalDependencies:
+     objectStorage:
+       authentication:
+         type: static
+       locations:
+         workflows: s3://osmo-workflows/workflows
+         logs: s3://osmo-logs/logs
+         apps: s3://osmo-apps/apps
+       s3:
+         region: us-east-1
+         # Leave empty for AWS S3.
+         overrideUrl: https://s3.example.com
+
+   secrets:
+     objectStorage:
+       generate: false
+       existingSecret: osmo-object-storage
+       keys:
+         credentials: object-storage.yaml
+
+The three locations may share a bucket or container. Grant only the read/write
+permissions needed for those prefixes. Do not put credentials in Helm values.
+
+Workload identity
+-----------------
+
+As an alternative, configure AWS IRSA, Azure Workload Identity, or GCP
+Workload Identity and grant the identities used by the API and worker access to
+all three locations. Select the provider SDK's default credential chain and do
+not configure an object-storage Secret:
+
+.. code-block:: yaml
+
+   externalDependencies:
+     objectStorage:
+       authentication:
+         type: sdkDefault
+       locations:
+         workflows: azure://<account>/<container>/workflows
+         logs: azure://<account>/<container>/logs
+         apps: azure://<account>/<container>/apps
+
+   secrets:
+     objectStorage:
+       generate: false
+       existingSecret: ''
+
+   services:
+     api:
+       serviceAccount:
+         annotations:
+           azure.workload.identity/client-id: <managed-identity-client-id>
+       pod:
+         labels:
+           azure.workload.identity/use: "true"
+     worker:
+       serviceAccount:
+         create: true
+         annotations:
+           azure.workload.identity/client-id: <managed-identity-client-id>
+       pod:
+         labels:
+           azure.workload.identity/use: "true"
+
+The annotations and pod labels are provider-specific. Use the equivalent IRSA
+or GKE annotations for AWS or GCP. Federate the exact ServiceAccount subjects
+rendered by the release; with release name ``osmo`` they are ``osmo-api`` and
+``osmo-worker``.
+
+Configure Other Secrets
+=======================
+
+MEK
+---
+
+The master encryption key (MEK) protects encrypted values stored in
+PostgreSQL. For a new database, the chart can create the retained
+``osmo-master-encryption-key`` Secret without placing key material in Helm
+state:
+
+.. code-block:: yaml
+
+   secrets:
+     masterEncryptionKey:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-master-encryption-key
+         key: mek.yaml
+       bootstrap:
+         enabled: true
+
+Back up that Secret after installation. Never replace it while retaining the
+database. After the first successful installation, set ``bootstrap.enabled``
+to ``false``.
+
+For a user-managed MEK, create a Secret whose selected key is ``mek.yaml``.
+The file must contain ``currentMek`` naming an entry in ``meks``; each entry is
+a base64-encoded symmetric JWK:
+
+.. code-block:: bash
+
+   $ umask 077
+   $ OSMO_MEK_FILE=$(mktemp)
+   $ trap 'rm -f -- "$OSMO_MEK_FILE"' EXIT
+   $ OSMO_RANDOM_KEY=$(openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+   $ OSMO_ENCODED_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' \
+       "$OSMO_RANDOM_KEY" | base64 | tr -d '\n')
+   $ printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$OSMO_ENCODED_JWK" > "$OSMO_MEK_FILE"
+   $ unset OSMO_RANDOM_KEY OSMO_ENCODED_JWK
+   $ kubectl --namespace osmo create secret generic osmo-master-encryption-key \
+       --from-file=mek.yaml="$OSMO_MEK_FILE"
+   $ rm -f -- "$OSMO_MEK_FILE"; trap - EXIT
+
+Set ``managementMode: external`` and ``bootstrap.enabled: false`` when the
+Secret is user-managed.
+
+Internal TLS
+------------
+
+``gateway.tls`` protects traffic from Envoy to the OSMO services; it does not
+configure public edge TLS. Chart-managed mode creates and retains an internal
+CA, trust bundle, and one leaf Secret per service:
+
+.. code-block:: yaml
+
+   gateway:
+     tls:
+       enabled: true
+       generated:
+         enabled: true
+
+Back up the retained TLS Secrets. Do not regenerate a missing CA for an
+existing installation; restore it.
+
+For user-managed TLS, create a CA Secret containing ``ca.crt`` and a
+``kubernetes.io/tls`` Secret containing ``tls.crt`` and ``tls.key`` for each
+enabled upstream. Each certificate's DNS subject alternative name must match
+the corresponding in-cluster Service host. Point OSMO at them as follows:
+
+.. code-block:: yaml
+
+   gateway:
+     tls:
+       enabled: true
+       generated:
+         enabled: false
+       caSecret: osmo-internal-ca
+       upstreamCerts:
+         api: osmo-api-tls
+         router: osmo-router-tls
+         agent: osmo-agent-tls
+         logger: osmo-logger-tls
+         # Required only when services.mcp.enabled is true.
+         mcp: ''
+
+Change ``gateway.tls.rolloutNonce`` after rotating user-managed TLS Secrets.
+
+Service auth
+------------
+
+Service auth is OSMO's stable JWT signing identity. The chart can create the
+retained ``osmo-service-auth`` Secret for a new installation:
+
+.. code-block:: yaml
+
+   secrets:
+     serviceAuth:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-service-auth
+         key: authentication-config.json
+       bootstrap:
+         enabled: true
+
+Back up the Secret, then set ``bootstrap.enabled`` to ``false`` after the first
+successful installation.
+
+For a user-managed identity, generate the file with the OSMO service image and
+create the Secret before installation:
+
+.. code-block:: bash
+
+   $ umask 077
+   $ OSMO_SERVICE_AUTH_DIR=$(mktemp -d)
+   $ trap 'rm -rf -- "$OSMO_SERVICE_AUTH_DIR"' EXIT
+   $ docker run --rm --user "$(id -u):$(id -g)" \
+       --entrypoint service-auth-bootstrap \
+       --volume "$OSMO_SERVICE_AUTH_DIR:/output" \
+       nvcr.io/nvidia/osmo/service:<image-tag> \
+       generate --output /output/authentication-config.json
+   $ kubectl --namespace osmo create secret generic osmo-service-auth \
+       --from-file=authentication-config.json="$OSMO_SERVICE_AUTH_DIR/authentication-config.json"
+   $ rm -rf -- "$OSMO_SERVICE_AUTH_DIR"; trap - EXIT
+
+The JSON document must contain ``active_key`` and a matching entry in ``keys``
+with valid ``public_key`` and ``private_key`` JWK values. Set
+``managementMode: external`` and ``bootstrap.enabled: false``. Change
+``rolloutNonce`` after an intentional update.
+
+.. _deploy_service_osmo_values:
+
+Prepare Values
+==============
+
+Combine the settings above in ``osmo-values.yaml``. This static-credential
+example uses embedded Dex and chart-bootstrapped MEK, service auth, and internal
+TLS. Replace every angle-bracket placeholder:
+
+.. code-block:: yaml
+
+   planes:
+     control:
+       enabled: true
+     compute:
+       enabled: false
+
+   imageTag: <image-tag>
+   externalUrl: https://osmo.example.com
+
+   embeddedDependencies:
+     dex:
+       enabled: true
+     postgresql:
+       enabled: false
+     valkey:
+       enabled: false
+     objectStorage:
+       enabled: false
+
+   externalDependencies:
+     postgresql:
+       host: <postgresql-host>
+       port: 5432
+       database: osmo
+       username: osmo
+       tls:
+         enabled: true
+         sslMode: verify-full
+         caExistingSecret: osmo-postgresql-ca
+         caKey: ca.crt
+     valkey:
+       host: <valkey-host>
+       port: 6379
+       database: 0
+       tls:
+         enabled: true
+     objectStorage:
+       authentication:
+         type: static
+       locations:
+         workflows: s3://<bucket>/workflows
+         logs: s3://<bucket>/logs
+         apps: s3://<bucket>/apps
+       s3:
+         region: <region>
+         overrideUrl: ''
+
+   secrets:
+     postgresql:
+       existingSecret: osmo-postgresql
+     valkey:
+       generate: false
+       existingSecret: osmo-valkey
+     objectStorage:
+       generate: false
+       existingSecret: osmo-object-storage
+     masterEncryptionKey:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-master-encryption-key
+         key: mek.yaml
+       bootstrap:
+         enabled: true
+     serviceAuth:
+       managementMode: osmo
+       existingSecret:
+         name: osmo-service-auth
+         key: authentication-config.json
+       bootstrap:
+         enabled: true
+
+   authentication:
+     provider: embeddedDex
+
+   gateway:
+     envoy:
+       service:
+         type: LoadBalancer
+     tls:
+       enabled: true
+       generated:
+         enabled: true
+
+Embedded Dex uses volatile memory storage and is suitable for development and
+evaluation only. Use an external identity provider for production.
+
+Configure an External IdP
+=========================
+
+Register browser and device/CLI clients with your OIDC provider. Create a
+Secret containing the browser client secret and a random 32-byte cookie secret:
 
 .. code-block:: bash
 
    $ umask 077
    $ OSMO_OIDC_SECRET_DIR=$(mktemp -d)
    $ trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
-   $ read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET
-   $ printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
-       "$OSMO_OIDC_SECRET_DIR/client_secret"
+   $ read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET; printf '\n'
+   $ printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > "$OSMO_OIDC_SECRET_DIR/client_secret"
    $ unset OSMO_BROWSER_CLIENT_SECRET
    $ openssl rand -base64 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
-   $ kubectl --namespace osmo create secret generic oauth2-proxy-secrets \
+   $ kubectl --namespace osmo create secret generic osmo-external-oidc \
        --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
        --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
-
-
-**Workflow storage credentials (skip if using workload identity)**
-
-OSMO needs to read/write two storage buckets for workflow logs and workflow data. If you plan to use cloud workload identity (AWS IRSA, Azure Workload Identity, GCP Workload Identity) — covered in :ref:`configure_storage_access` — skip this subsection and come back only if workload identity is not an option for your deployment.
-
-Create the workflow log credentials Secret:
-
-.. code-block:: bash
-
-   $ kubectl create secret generic osmo-workflow-log-cred --namespace osmo \
-       --from-literal=endpoint=s3://my-bucket/workflow-logs \
-       --from-literal=region=us-east-1 \
-       --from-literal=access_key_id=<your-access-key-id> \
-       --from-literal=access_key=<your-secret-access-key>
-
-Create the workflow data credentials Secret (you can use the same bucket or a different one):
-
-.. code-block:: bash
-
-   $ kubectl create secret generic osmo-workflow-data-cred --namespace osmo \
-       --from-literal=endpoint=s3://my-bucket/workflow-data \
-       --from-literal=region=us-east-1 \
-       --from-literal=access_key_id=<your-access-key-id> \
-       --from-literal=access_key=<your-secret-access-key>
-
-.. note::
-
-   For non-AWS S3-compatible services (MinIO, Ceph, LocalStack), add an
-   ``--from-literal=override_url=http://minio:9000`` flag. Leave it out for
-   standard AWS S3.
-
-
-Create the master encryption key (MEK) for database encryption:
-
-1. **Generate a new master encryption key and create its Secret**:
-
-   .. code-block:: bash
-
-      $ set -euo pipefail
-      $ MEK_FILE=$(mktemp)
-      $ chmod 600 "$MEK_FILE"
-      $ trap 'rm -f "$MEK_FILE"' EXIT
-      $ RANDOM_KEY=$(openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-      $ ENCODED_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' "$RANDOM_KEY" | base64 | tr -d '\n')
-      $ printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$ENCODED_JWK" > "$MEK_FILE"
-      $ kubectl create secret generic osmo-mek --namespace osmo \
-          --from-file=mek.yaml="$MEK_FILE"
-      $ rm -f "$MEK_FILE" && trap - EXIT
-      $ unset RANDOM_KEY ENCODED_JWK
-
-.. warning::
-   **Security Considerations**:
-
-   - Store the original JWK securely as you'll need it for backups and recovery
-   - Never commit the MEK to version control
-   - Restrict Kubernetes RBAC access to the Secret and back it up securely
-   - The MEK is used to encrypt sensitive data in the database
-
-   The create-only command fails if ``osmo-mek`` already exists. If the
-   database contains retained data, restore the original MEK Secret instead
-   of generating or applying a replacement.
-
-.. _configure_storage_access:
-.. _configure_data:
-
-Step 3: Configure Storage Access
-=================================
-
-OSMO needs credentials to access two buckets: ``workflow_log`` and ``workflow_data``. The **service** and **worker** pods read/write both buckets (uploading logs, checkpointing task specs, etc.). Pick one of the two approaches below.
-
-.. note::
-
-   ``workflow_log`` and ``workflow_data`` are OSMO-managed buckets for internal workflow logs, task specs, and intermediate outputs passed between task groups. They are distinct from **user data buckets** referenced in workflow task ``inputs`` / ``outputs`` (the S3/Swift/GCS paths users name in their specs). User data is accessed via per-workflow credentials by default; for teams that share a pool and want pool-wide cloud access without supplying credentials each time, see :ref:`workflow_pod_workload_identity` as a follow-up.
-
-Workload Identity (recommended on AWS, Azure, GCP)
----------------------------------------------------
-
-With workload identity, the service and worker pods assume a cloud IAM role via their Kubernetes ServiceAccount — no long-lived access keys or Kubernetes Secrets required.
-
-**1. Set up workload identity in your cloud and grant bucket access**
-
-Follow your cloud provider's guide to enable workload identity on your cluster, create a cloud identity (IAM role / managed identity / Google Service Account), and grant it read/write access to your workflow log and data buckets:
-
-- AWS (EKS): `IAM Roles for Service Accounts <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__
-- Azure (AKS): `Azure AD Workload Identity <https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview>`__
-- GCP (GKE): `Workload Identity <https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity>`__
-
-When setting up the federation/binding, the subject is the OSMO ServiceAccount the chart deploys by default: ``system:serviceaccount:osmo:osmo``.
-
-**2. Note what goes in your values file**
-
-The Helm chart deploys a ServiceAccount named ``osmo`` (configurable via ``global.serviceAccountName``). You do **not** need to create a new ServiceAccount — the chart annotates it for you via ``serviceAccount.annotations`` in ``osmo_values.yaml``.
-
-See the ``serviceAccount`` and ``services.configs.workflow`` sections of the sample in :ref:`Step 4 <deploy_service_osmo_values>`.
-
-Static credentials
-------------------
-
-Use the two Kubernetes Secrets you created in Step 2 (``osmo-workflow-log-cred`` and ``osmo-workflow-data-cred``). In the next step, reference them by ``secretName`` and list them under ``secretRefs`` so the chart mounts them. No ServiceAccount annotations are needed.
-
-In Step 4, follow the ``# static credentials`` comments inline in the ``osmo_values.yaml`` sample to flip the sample from workload identity to static credentials.
-
-For ongoing credential rotation, see :ref:`rotating_mounted_credentials`.
-
-
-.. _deploy_service_osmo_values:
-
-Step 4: Prepare values
-============================
-
-Create a values file for each OSMO component.
-
-.. seealso::
-
-   See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
-
-Create ``osmo_values.yaml`` for the OSMO service with the following sample.
-
-.. dropdown:: ``osmo_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 86, 153-154, 158-159, 165, 169, 183-185, 222-224
-
-    # Global configuration shared across all OSMO services
-    global:
-      osmoImageLocation: nvcr.io/nvidia/osmo
-      osmoImageTag: <version>                        # chart version
-      serviceAccountName: osmo
-
-      logs:
-        enabled: true
-        logLevel: DEBUG
-        k8sLogLevel: WARNING
-
-    # ServiceAccount the chart deploys. Uncomment ONE annotation below
-    # for your cloud provider.
-    #
-    # For static credentials: delete this whole serviceAccount block —
-    # the default ServiceAccount needs no cloud annotation. # (4)
-    serviceAccount:
-      create: true
-      annotations:
-        # Uncomment ONE line for your cloud provider:
-        # eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
-        # azure.workload.identity/client-id: <managed-identity-client-id>              # Azure (AKS Workload Identity)
-        # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com      # GCP (GKE Workload Identity)
-
-    # Individual service configurations
-    services:
-      # Configuration file service settings
-      configFile:
-        enabled: true
-
-      # PostgreSQL database configuration
-      postgres:
-        enabled: false
-        serviceName: <your-postgres-host>
-        port: 5432
-        db: <your-database-name>
-        user: postgres
-
-      # Redis cache configuration
-      redis:
-        enabled: false  # Set to false when using external Redis
-        serviceName: <your-redis-host>
-        port: 6379
-        tlsEnabled: true  # Set to false if your Redis does not require TLS
-
-      # Main API service configuration
-      service:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 3
-        hostname: <your-domain>
-        auth:
-          enabled: true
-          device_endpoint: <idp-device-auth-url>
-          device_client_id: <client-id>
-          browser_endpoint: <idp-authorize-url>
-          browser_client_id: <client-id>
-          token_endpoint: <idp-token-url>
-          logout_endpoint: <idp-logout-url>
-
-        # Resource allocation
-        resources:
-          requests:
-            cpu: "1"
-            memory: "1Gi"
-          limits:
-            memory: "1Gi"
-
-      # Router service configuration — deployed as part of this chart.
-      router:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 2
-        hostname: <your-domain>
-        # webserverEnabled: true  # (Optional): Enable for UI port forwarding
-        resources:
-          requests:
-            cpu: "500m"
-            memory: "512Mi"
-          limits:
-            memory: "512Mi"
-
-      # Default admin (no IdP): enable to create an admin user and access token at startup
-      defaultAdmin:
-        enabled: false  # Set true when not using an IdP
-        username: "admin"
-        passwordSecretName: default-admin-secret
-        passwordSecretKey: password
-
-      # Worker service configuration
-      worker:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 3
-        resources:
-          requests:
-            cpu: "500m"
-            memory: "400Mi"
-          limits:
-            memory: "800Mi"
-
-      # Logger service configuration
-      logger:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 3
-        resources:
-          requests:
-            cpu: "200m"
-            memory: "256Mi"
-          limits:
-            memory: "512Mi"
-
-      # Agent service configuration
-      agent:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 1
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-          limits:
-            memory: "256Mi"
-
-      # Delayed job monitor configuration
-      delayedJobMonitor:
-        replicas: 1
-        resources:
-          requests:
-            cpu: "200m"
-            memory: "512Mi"
-          limits:
-            memory: "512Mi"
-
-      # OSMO configs (storage credentials for the service and worker pods).
-      # Pods get cloud credentials via the annotated ServiceAccount above.
-      configs:
-        enabled: true
-        # Static credentials path: # (4)
-        # secretRefs:
-        #   - secretName: osmo-workflow-log-cred
-        #   - secretName: osmo-workflow-data-cred
-
-        workflow:
-          workflow_log:
-            credential:
-              endpoint: s3://my-bucket/workflow-logs
-              region: us-east-1
-              # secretName: osmo-workflow-log-cred         # static credentials (replaces endpoint + region) # (4)
-          workflow_data:
-            credential:
-              endpoint: s3://my-bucket/workflow-data
-              region: us-east-1
-              # secretName: osmo-workflow-data-cred        # static credentials (replaces endpoint + region) # (4)
-
-    # Gateway — deploys Envoy, OAuth2 Proxy, and Authz as separate services
-    gateway:
-      envoy:
-        hostname: <your-domain>
-
-        # IDP hostname for JWT JWKS fetching
-        idp:
-          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
-
-        # Internal JWKS cluster — points to osmo-service for OSMO-issued JWTs
-        internalJwks:
-          enabled: true
-          cluster: osmo-service-jwks
-          host: osmo-service
-          port: 80
-
-        # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
-        jwt:
-          user_header: x-osmo-user
-          providers:
-          # Example: Microsoft Entra ID. Add or replace with your IdP (see identity_provider_setup).
-          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0  # (1)
-            audience: <client-id>
-            jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
-            user_claim: preferred_username
-            cluster: idp
-          # OSMO-issued JWTs (e.g. for access-token-based access)
-          - issuer: osmo
-            audience: osmo
-            # https:// because the gateway -> upstream path is encrypted by
-            # default (gateway.tls.enabled). Use http:// only if you set
-            # gateway.tls.enabled: false.
-            jwks_uri: https://osmo-service/api/auth/keys
-            user_claim: unique_name
-            cluster: osmo-service-jwks
-
-      # Gateway -> upstream TLS. Enabled by default: each upstream service
-      # (osmo-service, osmo-router, osmo-agent, osmo-logger, and optional
-      # osmo-mcp) mints an ephemeral self-signed cert in-process at startup,
-      # uvicorn serves HTTPS on :8000, and Envoy connects with TLS but skips
-      # cert validation. UI stays HTTP behind NetworkPolicy.
-      #
-      # To use externally-provisioned certs (cert-manager, Vault CSI,
-      # sealed-secrets, manual — OSMO doesn't care), point upstreamCerts at
-      # existing kubernetes.io/tls Secrets. To make Envoy validate against a
-      # CA, set caSecret to an existing Secret containing ca.crt.
-      tls:
-        enabled: true
-        # upstreamCerts:
-        #   service: osmo-service-tls
-        #   router:  osmo-router-tls
-        #   agent:   osmo-agent-tls
-        #   logger:  osmo-logger-tls
-        #   mcp:     osmo-mcp-tls
-        # caSecret: osmo-gateway-ca
-
-      # OAuth2 Proxy configuration
-      # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
-      oauth2Proxy:
-        enabled: true
-        provider: oidc
-        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0  # (2)
-        clientId: <client-id>  # (3)
-        cookieDomain: .<your-domain>
-        scope: "openid email profile"
-        useKubernetesSecrets: true
-        secretName: oauth2-proxy-secrets
-        clientSecretKey: client_secret
-        cookieSecretKey: cookie_secret
-
-      # Upstream services that the gateway routes to
-      upstreams:
-        service:
-          host: osmo-service
-          port: 80
-        router:
-          host: osmo-router
-          port: 80
-        ui:
-          host: osmo-ui
-          port: 80
-
-  .. code-annotations::
-
-    1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
-    2. OIDC issuer URL from your IdP (same as the JWT issuer).
-    3. Client ID from your IdP application registration.
-    4. Static credentials path: see :ref:`Step 3 <configure_storage_access>`.
-
-Add the UI configuration to ``osmo_values.yaml`` with the following sample values:
-
-.. TODO: Update this link to point to the public registry when we switch to GitHub.
-
-.. dropdown:: ``osmo_values.yaml`` UI block
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 3, 5-6
-
-    services:
-      ui:
-        enabled: true
-        hostname: <your-domain>
-        apiHostname: osmo-gateway:80
-
-        resources:
-          requests:
-            cpu: "500m"
-            memory: "512Mi"
-          limits:
-            memory: "512Mi"
-
-.. important::
-   Replace all ``<your-*>`` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.
-
-.. note::
-   Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
-
-.. seealso::
-
-   To enable the optional MCP feature, see :ref:`mcp_deployment` under
-   Advanced Configuration.
+   $ rm -rf -- "$OSMO_OIDC_SECRET_DIR"; trap - EXIT
+
+Disable embedded Dex and replace the ``authentication`` block in
+``osmo-values.yaml``. Endpoint URLs are explicit so providers without complete
+OIDC discovery remain supported:
+
+.. code-block:: yaml
+
+   embeddedDependencies:
+     dex:
+       enabled: false
+
+   authentication:
+     provider: externalOidc
+     bootstrap:
+       identities:
+         admin:
+           enabled: false
+     externalOidc:
+       issuer: https://idp.example.com
+       browserClientId: <browser-client-id>
+       cliClientId: <device-client-id>
+       authorizationEndpoint: https://idp.example.com/authorize
+       tokenEndpoint: https://idp.example.com/token
+       deviceEndpoint: https://idp.example.com/device
+       jwksUri: https://idp.example.com/keys
+       jwksHost: idp.example.com
+       userClaim: sub
+       rolesClaim: roles
+       scopes: [openid, email, profile]
+       logoutEndpoint: https://idp.example.com/logout
+       browserClientSecret:
+         existingSecret: osmo-external-oidc
+         key: client_secret
+       cookieSecret:
+         existingSecret: osmo-external-oidc
+         key: cookie_secret
+
+See :doc:`../appendix/authentication/identity_provider_setup` for
+provider-specific application registration and
+:doc:`../appendix/authentication/idp_role_mapping` for role mapping.
 
 .. _deploy_service_deploy_components:
 
-Step 5: Deploy Components
-=========================
+Deploy Components
+=================
 
-Deploy **OSMO Service** (includes the API service, UI, router, agent, logger, worker, delayed job monitor, and gateway):
+Check out the OSMO release you plan to deploy and build the unified chart's
+dependencies. Run the remaining commands from the repository root. The
+``imageTag`` in ``osmo-values.yaml`` must identify images built for that
+release:
 
 .. code-block:: bash
 
-   # add the helm repository
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   $ helm repo update
+   $ git clone https://github.com/NVIDIA/OSMO.git
+   $ cd OSMO
+   $ git checkout <release-tag>
+   $ helm dependency build deployments/charts/osmo
+   $ helm show chart deployments/charts/osmo
 
-   # deploy the service — brings up the API service, UI, router, agent, logger,
-   # worker, delayed job monitor, and gateway under a single release
-   $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
+Render and lint the release before changing the cluster:
 
-Step 6: Verify Deployment
-=========================
+.. code-block:: bash
 
-1. Verify all pods are running:
+   $ helm lint deployments/charts/osmo --values osmo-values.yaml
+   $ helm template osmo deployments/charts/osmo \
+       --namespace osmo --values osmo-values.yaml > /tmp/osmo-rendered.yaml
 
-   .. code-block:: bash
+Install the control plane and wait for bootstrap and migration Jobs:
 
-    $ kubectl get pods -n osmo
-    NAME                            READY   STATUS    RESTARTS       AGE
-    osmo-agent-xxx                  2/2     Running   0              <age>
-    osmo-delayed-job-monitor-xxx    1/1     Running   0              <age>
-    osmo-logger-xxx                 2/2     Running   0              <age>
-    osmo-router-xxx                 2/2     Running   0              <age>
-    osmo-service-xxx                2/2     Running   0              <age>
-    osmo-ui-xxx                     2/2     Running   0              <age>
-    osmo-worker-xxx                 1/1     Running   0              <age>
+.. code-block:: bash
 
-2. Verify all services are running:
+   $ helm upgrade --install osmo deployments/charts/osmo \
+       --namespace osmo \
+       --values osmo-values.yaml \
+       --wait --wait-for-jobs --timeout 30m
 
-   .. code-block:: bash
+After a successful chart-managed MEK and service-auth bootstrap, change both
+``bootstrap.enabled`` values to ``false`` in ``osmo-values.yaml`` and apply a
+cleanup upgrade:
 
-    $ kubectl get services -n osmo
-      NAME                TYPE           CLUSTER-IP        EXTERNAL-IP   PORT(S)           AGE
-      osmo-agent          ClusterIP      xxx               <none>        80/TCP            <age>
-      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
-      osmo-logger         ClusterIP      xxx               <none>        80/TCP            <age>
-      osmo-router         ClusterIP      xxx               <none>        80/TCP            <age>
-      osmo-service        ClusterIP      xxx               <none>        80/TCP            <age>
-      osmo-ui             ClusterIP      xxx               <none>        80/TCP            <age>
+.. code-block:: bash
 
-3. Verify gateway service:
+   $ helm upgrade osmo deployments/charts/osmo \
+       --namespace osmo \
+       --values osmo-values.yaml \
+       --wait --timeout 30m
 
-   .. code-block:: bash
+Configure public DNS and edge TLS for ``externalUrl`` after the gateway's
+LoadBalancer address is assigned. ``gateway.tls`` does not terminate public
+TLS; use your load balancer, Ingress, or Gateway API implementation for that.
 
-    $ kubectl get services -n osmo | grep gateway
-      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
+Verify
+======
 
-4. Verify the ConfigMap loaded successfully:
+Check the release without reading Secret values:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-     $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+   $ helm status osmo --namespace osmo
+   $ kubectl --namespace osmo get pods,jobs,services
+   $ kubectl --namespace osmo get secret \
+       osmo-master-encryption-key osmo-service-auth
+   $ kubectl --namespace osmo wait --for=condition=Available deployment \
+       --selector=app.kubernetes.io/instance=osmo --timeout=10m
 
-   Healthy output shows no events, or a single ``Normal ConfigMapReloaded`` event after a recent change. If you see a ``Warning ConfigMapReloadFailed`` event, the service is still serving from its last good snapshot but the latest values were rejected — see Troubleshooting below.
+Verify the API through the same gateway used by clients. A port-forward avoids
+waiting for public DNS during initial validation:
 
-Step 7: Post-deployment Configuration
-=====================================
+.. code-block:: bash
 
-1. Configure DNS records to point to the ``osmo-gateway`` service's external IP or hostname. For example, create a CNAME record for ``osmo.example.com`` pointing to the LoadBalancer hostname shown in ``kubectl get svc osmo-gateway -n osmo``.
+   $ kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
 
-2. Test authentication flow
+In another terminal:
 
-3. Configure IdP role mapping to map your IdP groups to OSMO roles: :doc:`../appendix/authentication/idp_role_mapping`
+.. code-block:: bash
 
-4. Verify access to the UI at https://osmo.example.com through your domain
+   $ curl --fail http://127.0.0.1:8080/api/version
 
-.. _deploy_service_troubleshooting:
+Sign in through the UI or CLI, list pools and resources, and submit a small CPU
+workflow. Confirm that PostgreSQL contains the new workflow, Valkey remains
+reachable, and objects appear under the configured workflow, log, and app
+locations.
 
 Troubleshooting
 ===============
 
-1. Check pod status and logs:
-
-   .. code-block:: bash
-
-     kubectl get pods -n <namespace>
-
-     # check if all pods are running, if not, check the logs for more details
-     kubectl logs -f <pod-name> -n <namespace>
-
-2. Common issues and their resolutions:
-
-   * **Database connection failures**: Verify the database is running and accessible
-   * **Authentication configuration issues**: Verify the authentication configuration is correct
-   * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
-   * **Repeated** ``Jwks async fetching ... failed`` **in the gateway logs**: the OSMO-issued-JWT provider's ``jwks_uri`` scheme must match ``gateway.tls.enabled`` (``https://`` when on, ``http://`` when off). Verify with the Envoy admin endpoint: ``cluster.osmo-service-jwks.ssl.handshake`` should grow alongside ``upstream_cx_total``; if it stays at ``0``, the upstream was not restarted to pick up its TLS config.
-   * **Resource constraints**: Verify the resource limits are set correctly
-   * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
-   * **ConfigMap validation errors**: Pod in CrashLoopBackOff after a Helm upgrade — check ``kubectl describe configmap osmo-service-configs`` for the validation error
-
-ConfigMap validation failures
------------------------------
-
-When the service loads invalid values from the ``osmo-service-configs`` ConfigMap, the failure surfaces in one of two ways depending on when it is detected.
-
-Pod stuck in CrashLoopBackOff after Helm upgrade
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Symptom**: ``kubectl get pods`` shows the ``osmo-service`` pod's restart counter climbing and the status cycling between ``Running`` and ``CrashLoopBackOff``.
-
-**Diagnose**: the validation error is recorded both in the crashed pod's previous logs and as a Kubernetes Event attached to the ConfigMap.
+Start with release events and failed containers or Jobs:
 
 .. code-block:: bash
 
-   $ kubectl logs <pod> -c osmo-service --previous -n osmo | tail -20
-   ...
-   RuntimeError: ConfigMap load failed at startup (/etc/osmo/configs/config.yaml). Refusing to serve.
+   $ helm status osmo --namespace osmo
+   $ kubectl --namespace osmo get pods,jobs
+   $ kubectl --namespace osmo describe pod <pod-name>
+   $ kubectl --namespace osmo logs <pod-name> --all-containers --previous
+   $ kubectl --namespace osmo logs job/<job-name>
 
-   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
-   Events:
-     Type     Reason                 Age   From                           Message
-     ----     ------                 ----  ----                           -------
-     Warning  ConfigMapReloadFailed  30s   osmo-service-configmap-loader  ConfigMap validation failed, keeping previous config: <specific error>
+Common failures include:
 
-The exact error message points at the offending field — typically a Pydantic type error, a YAML parse error, or a section missing a required structure.
+* **Values validation fails before install**: run ``helm lint`` and check that
+  all external dependencies have endpoints and Secret references. Static
+  object storage requires a Secret; ``sdkDefault`` forbids one.
+* **A bootstrap executable is not found**: the chart and OSMO images are from
+  different releases. Check out the intended release and set ``imageTag`` to
+  its matching image tag; do not deploy an unpinned development chart with an
+  older ``latest`` image.
+* **PostgreSQL connection or migration fails**: verify DNS, network policy,
+  database ownership, the ``username`` and ``db-password`` keys, TLS mode, and
+  CA bundle. Do not enable ``databaseMigration`` for a new database merely to
+  retry connectivity.
+* **Valkey readiness fails**: confirm Valkey/Redis is version 7 or newer, the
+  selected database exists, ``redis-password`` is correct, and the TLS trust
+  bundle is complete.
+* **Object-storage operations fail**: confirm all three locations use one URI
+  scheme and that the API and worker identity or static credential can read and
+  write each prefix. For workload identity, inspect the rendered ServiceAccount
+  names and federation subjects.
+* **MEK bootstrap fails**: use it only with a new database. Correct the cause
+  and increment ``secrets.masterEncryptionKey.bootstrap.attempt`` to retry. Do
+  not generate a replacement for an installation with retained encrypted data.
+* **Service-auth bootstrap fails**: correct image pull or RBAC issues and
+  increment ``secrets.serviceAuth.bootstrap.attempt``. Do not replace the
+  retained signing identity during an ordinary upgrade.
+* **Internal TLS bootstrap fails**: with generated TLS, restore any missing
+  retained CA rather than enabling initial generation. With user-managed TLS,
+  verify ``ca.crt``, ``tls.crt``, ``tls.key``, and each Service DNS SAN.
+* **Authentication redirects or JWKS fetches fail**: verify ``externalUrl``,
+  issuer and endpoint URLs, ``jwksHost``, client IDs, Secret keys, and public
+  edge TLS. Embedded Dex must be disabled when ``provider: externalOidc``.
+* **Gateway has no public address**: inspect the ``osmo-gateway`` Service and
+  cloud load-balancer events, or keep the Service internal and configure
+  ``ingress`` or ``httproute`` instead.
 
-**Fix**: correct the Helm values and re-upgrade. The new pod loads the corrected values on its next restart attempt.
-
-**Why the service crashes rather than falling back to the database**: crashing preserves rolling-update protection — healthy replicas running the previous version keep serving while the bad-values pod stalls, and operators get an immediate, loud signal instead of a silent drift to database-backed configuration.
-
-New config values rejected after Helm upgrade
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Symptom**: ``helm upgrade`` succeeded and the ConfigMap was updated, but the new values do not seem to have taken effect and a ``ConfigMapReloadFailed`` event is attached to the ConfigMap. All osmo-service pods remain ``Running``.
-
-**Behavior**: when a live pod detects an invalid ConfigMap update, it keeps serving the previously loaded (valid) values from memory. There is no availability impact, but the new values will not apply until the ConfigMap is valid.
-
-**Diagnose**:
-
-.. code-block:: bash
-
-   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
-
-   # or, for the raw events:
-   $ kubectl get events \
-       --field-selector involvedObject.name=osmo-service-configs \
-       -n osmo
-
-**Fix**: correct the Helm values and re-upgrade. Pods pick up the corrected ConfigMap within a few seconds of the update and emit a single ``Normal ConfigMapReloaded`` event on recovery.
+For all chart values and lifecycle procedures, refer to the unified chart
+`README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/osmo/README.md>`_.
