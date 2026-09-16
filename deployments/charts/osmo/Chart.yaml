@@ -19,8 +19,8 @@ keywords:
 icon: https://media.githubusercontent.com/media/NVIDIA/OSMO/main/docs/_static/osmo_favicon.png
 dependencies:
 - name: dex
-  version: 0.24.1-osmo.1
-  repository: file://../dex-bootstrap
+  version: 0.24.1
+  repository: https://charts.dexidp.io
   condition: embeddedDependencies.dex.enabled
 - name: valkey
   version: 0.11.0

@@ -22,7 +22,6 @@ from typing import Any
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
-import yaml
 
 
 GENERATION = 'osmo.nvidia.com/bootstrap-generation'
@@ -674,25 +673,6 @@ class Coordinator:
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o440)
             with os.fdopen(descriptor, 'wb') as output:
                 output.write(raw)
-        if os.environ.get('OSMO_BOOTSTRAP_DEX_CONFIG'):
-            dex = yaml.safe_load(os.environ['OSMO_BOOTSTRAP_DEX_CONFIG'])
-            for password in dex.get('staticPasswords') or []:
-                environment_name = password.pop('hashFromEnv')
-                password['hash'] = Path(
-                    '/bootstrap-dex-env', environment_name
-                ).read_text(encoding='utf-8')
-            for oauth_client in dex.get('staticClients') or []:
-                if oauth_client.pop('secretEnv', None):
-                    oauth_client['secret'] = Path(
-                        '/bootstrap-dex-env/browser-client-secret'
-                    ).read_text(encoding='utf-8')
-            descriptor = os.open(
-                '/bootstrap-snapshot/config/config.yaml',
-                os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-                0o440,
-            )
-            with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
-                yaml.safe_dump(dex, output)
 
 
 def _run() -> None:

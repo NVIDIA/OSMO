@@ -869,9 +869,6 @@ class KindAdapter:
         )
         retained_chart = os.path.join(retained_directory.name, "quick-start")
         shutil.copytree(chart_ref, retained_chart)
-        dex_fork = os.path.join(os.path.dirname(chart_ref), "dex-bootstrap")
-        if os.path.isdir(dex_fork):
-            shutil.copytree(dex_fork, os.path.join(retained_directory.name, "dex-bootstrap"))
         self._retained_quick_start_directory = retained_directory
         os.environ[OETF_HELM_CHART_PATH] = retained_chart
         return retained_chart

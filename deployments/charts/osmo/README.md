@@ -865,16 +865,17 @@ must set `create: false`.
 ## One bootstrap Job
 
 A nonempty set of enabled bootstrap operations renders exactly one ordinary Job.
-The order is **TLS → identities → service auth → MEK → object-storage buckets**.
+The order is **TLS → OSMO access tokens → service auth → MEK → object-storage buckets**.
 Existing chart flags still decide which steps run. Disabled steps contribute no
 execution, scratch mounts, or step-specific permissions. With every step disabled,
-the chart renders no bootstrap Job. Explicit CA/MEK rotation and database migration
-remain separate lifecycle operations.
+the chart renders no OSMO bootstrap Job. Dex keeps its existing pre/post-install
+and upgrade hooks. Explicit CA/MEK rotation and database migration remain separate
+lifecycle operations.
 
 The Job first claims a release-scoped Lease, validates the retained installation,
 and runs the enabled init containers. It publishes `credentialsReady` only after
 all enabled outputs validate. Consumer init containers then copy those exact bytes
-to shared in-memory volumes, including the rendered Dex configuration. A final
+to shared in-memory volumes. A final
 container waits for the requested consumer rollouts and records completion. This
 allows `helm --wait --wait-for-jobs` without a startup cycle.
 
@@ -975,11 +976,12 @@ command; the API image must also contain `/osmo/bootstrap-step`. Rebuild custom 
 bootstrap images against this version. The separate AWS CLI image uses the static
 supervisor copied into a shared tools volume and does not need Python.
 
-The embedded Dex dependency is the minimal local fork
-[`dex-bootstrap`](../dex-bootstrap/OSMO-PATCH.md), based on upstream 0.24.1. Its
-Deployment template is rendered through the parent chart so its actual config file
-participates in the same startup gate. Service and Deployment identities remain
-unchanged.
+The embedded Dex dependency remains the upstream chart version 0.24.1. Its existing
+pre-install/pre-upgrade hook creates Dex passwords, password hashes, and OAuth
+credentials; its post-install/post-upgrade hook refreshes Dex and OAuth2Proxy when
+credentials or Dex configuration change. These hooks do not create OSMO access
+tokens: the ordinary OSMO bootstrap Job owns those. Dex and OAuth2Proxy retain
+their upstream configuration mounts and do not use the OSMO startup gate.
 
 ## Bootstrap identities
 
@@ -1048,9 +1050,10 @@ authentication:
 ```
 
 Managed credentials are generated with Python's cryptographic `secrets`
-module. Dex hashes use bcrypt cost 12. The Job creates one plaintext password
-Secret per Dex user, one Secret per managed token, a shared OAuth Secret, and a
-hash-only Dex environment Secret. It preserves valid owned Secrets across
+module. Dex hashes use bcrypt cost 12. Dex hooks create one plaintext password
+Secret per Dex user, a shared OAuth Secret, and a hash-only Dex environment Secret.
+The OSMO bootstrap Job creates one Secret per managed OSMO token. Both preserve
+valid owned Secrets across
 install and upgrade, including declarative Helm or Argo CD reconciliation.
 Helm rollback changes declarations but does not roll credential bytes back.
 Helm uninstall does not delete the API-created Secrets.

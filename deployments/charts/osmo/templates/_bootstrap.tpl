@@ -47,23 +47,14 @@
 {{- end -}}
 {{- end -}}
 {{- if has "identity" $names -}}
-{{- $hashKeys := list -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
 {{- if $identity.enabled -}}
-{{- if and (eq $.Values.authentication.provider "embeddedDex") (dig "enabled" false ($identity.dex | default dict)) -}}
-{{- $secrets = append $secrets (dict "name" (include "osmo.bootstrap.dexPasswordSecretName" $identityID) "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "password" "password-hash")) -}}
-{{- $hashKeys = append $hashKeys (include "osmo.bootstrap.dexHashEnvironmentName" $identityID) -}}
-{{- end -}}
 {{- range $token := $identity.tokens -}}
 {{- if hasKey $token "managedSecret" -}}
 {{- $secrets = append $secrets (dict "name" $token.managedSecret.name "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "token") "optional_keys" (list "previous-token")) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- end -}}
-{{- if eq .Values.authentication.provider "embeddedDex" -}}
-{{- $secrets = append $secrets (dict "name" "osmo-embedded-dex-oauth" "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "browser-client-secret" "cookie-secret")) -}}
-{{- $secrets = append $secrets (dict "name" "osmo-embedded-dex-password-hashes" "step" "identity" "owner" "osmo-identity-bootstrap" "keys" $hashKeys "protected" false) -}}
 {{- end -}}
 {{- end -}}
 {{- if has "service-auth" $names -}}
@@ -94,15 +85,16 @@
 {{- end -}}
 
 {{- if .Values.gateway.envoy.enabled -}}{{- $consumers = append $consumers (printf "%s-envoy" (include "osmo.gateway.fullname" .)) -}}{{- end -}}
-{{- if .Values.gateway.oauth2Proxy.enabled -}}{{- $consumers = append $consumers (printf "%s-oauth2-proxy" (include "osmo.gateway.fullname" .)) -}}{{- end -}}
-{{- if eq .Values.authentication.provider "embeddedDex" -}}{{- $consumers = append $consumers "osmo-dex" -}}{{- end -}}
 {{- end -}}
-{{- $generationInputs := dict "secrets" $secrets "steps" $names "consumers" $consumers "identities" .Values.authentication.bootstrap.identities "tls" (omit .Values.gateway.tls.generated "bootstrap") "serviceAuthRollout" .Values.secrets.serviceAuth.rolloutNonce -}}
+{{- $tokenIdentities := dict -}}
+{{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
+{{- if and $identity.enabled $identity.tokens -}}{{- $_ := set $tokenIdentities $identityID (omit $identity "dex") -}}{{- end -}}
+{{- end -}}
+{{- $generationInputs := dict "secrets" $secrets "steps" $names "consumers" $consumers "identities" $tokenIdentities "tls" (omit .Values.gateway.tls.generated "bootstrap") "serviceAuthRollout" .Values.secrets.serviceAuth.rolloutNonce -}}
 {{- if $tlsRotation -}}
 {{- $rotationDefinition := include "osmo.bootstrap.internal-tls" (dict "root" . "phase" "rotation") | fromYaml -}}
 {{- $_ := set $generationInputs "rotationArguments" (first ($rotationDefinition.container | fromYamlArray)).args -}}
 {{- end -}}
-{{- if eq .Values.authentication.provider "embeddedDex" -}}{{- $_ := set $generationInputs "dexConfig" (include "osmo.embeddedDex.config" .) -}}{{- end -}}
 {{- $effectiveSteps := list -}}
 {{- range $steps -}}
 {{- $container := first (.container | fromYamlArray) -}}

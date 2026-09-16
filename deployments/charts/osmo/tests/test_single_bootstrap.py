@@ -389,6 +389,56 @@ class SingleBootstrapTests(unittest.TestCase):
 
 
 class BootstrapInputValidationTest(unittest.TestCase):
+    def test_upstream_dex_keeps_its_independent_bootstrap_hooks(self) -> None:
+        options = [
+            '--set', 'authentication.provider=embeddedDex',
+            '--set', 'embeddedDependencies.dex.enabled=true',
+            '--set', 'authentication.bootstrap.identities.admin.enabled=true',
+        ]
+        for mask in (0, 31):
+            with self.subTest(mask=mask):
+                extra = [] if mask else ['--set', 'authentication.bootstrap.identities.admin.tokens.primary=null']
+                resources = render(mask, options + extra)
+                jobs = bootstrap_jobs(resources)
+                self.assertEqual(len(jobs), int(bool(mask)))
+                hooks = [item for item in resources if item['kind'] == 'Job'
+                         and 'helm.sh/hook' in item['metadata'].get('annotations', {})]
+                self.assertEqual(len(hooks), 2)
+                self.assertEqual(
+                    {hook['metadata']['annotations']['helm.sh/hook'] for hook in hooks},
+                    {'pre-install,pre-upgrade', 'post-install,post-upgrade'},
+                )
+                for hook in hooks:
+                    arguments = hook['spec']['template']['spec']['containers'][0]['args']
+                    self.assertIn('--password', arguments)
+                    self.assertIn('--dex-hash-secret-name', arguments)
+                    self.assertIn('--oauth-secret-name', arguments)
+                    self.assertNotIn('--token', arguments)
+                    self.assertEqual('--config-rollout-identity' in arguments,
+                                     hook['metadata']['name'].endswith('-post'))
+                dex = next(item for item in resources if item['kind'] == 'Deployment'
+                           and item['metadata']['name'] == 'osmo-dex')
+                pod = dex['spec']['template']['spec']
+                self.assertNotIn('bootstrap-credentials', [item['name'] for item in pod.get('initContainers', [])])
+                config = next(volume for volume in pod['volumes'] if volume['name'] == 'config')
+                self.assertEqual(config['secret']['secretName'], 'osmo-dex-config')
+                container = next(item for item in pod['containers'] if item['name'] == 'dex')
+                self.assertIn({'secretRef': {'name': 'osmo-embedded-dex-password-hashes'}}, container['envFrom'])
+                self.assertIn({'name': 'config', 'mountPath': '/etc/dex', 'readOnly': True}, container['volumeMounts'])
+                if jobs:
+                    job = jobs[0]
+                    step = next(item for item in job['spec']['template']['spec']['initContainers']
+                                if item['name'] == 'identity-bootstrap')
+                    self.assertIn('--token', step['args'])
+                    for argument in ('--password', '--oauth-secret-name', '--dex-hash-secret-name'):
+                        self.assertNotIn(argument, step['args'])
+                    config_map = next(item for item in resources if item['kind'] == 'ConfigMap'
+                                      and item['metadata']['name'] == job['metadata']['name'] + '-config')
+                    configuration = json.loads(config_map['data']['config.json'])
+                    self.assertFalse(any('dex' in secret['name'] for secret in configuration['secrets']))
+                    self.assertFalse(any('dex' in name or 'oauth2-proxy' in name
+                                         for name in configuration['consumers']))
+
     def test_node_selector_requires_string_values(self) -> None:
         for value in ('1', 'true', 'null'):
             with self.subTest(value=value), self.assertRaises(subprocess.CalledProcessError) as error:
@@ -396,47 +446,6 @@ class BootstrapInputValidationTest(unittest.TestCase):
             self.assertIn('bootstrap.nodeSelector.pool', error.exception.stderr.replace('/', '.'))
         for selector in ('null', '{}', '{"pool":"control"}'):
             render(4, ['--set-json', f'bootstrap.nodeSelector={selector}'])
-
-    def test_dex_existing_secret_requires_a_name(self) -> None:
-        chart = CHART.parent / 'dex-bootstrap'
-        result = subprocess.run(
-            ['helm', 'template', 'dex', str(chart), '--set', 'configSecret.create=false'],
-            capture_output=True, text=True,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('configSecret.name is required', result.stderr)
-        output = subprocess.check_output(
-            ['helm', 'template', 'dex', str(chart), '--set', 'configSecret.create=false',
-             '--set', 'configSecret.name=existing-config'], text=True,
-        )
-        deployment = next(item for item in yaml.safe_load_all(output)
-                          if item and item['kind'] == 'Deployment')
-        pod = deployment['spec']['template']['spec']
-        config_volume = next(volume for volume in pod['volumes'] if volume['name'] == 'config')
-        self.assertEqual(config_volume['secret']['secretName'], 'existing-config')
-        dex = next(container for container in pod['containers'] if container['name'] == 'dex')
-        self.assertIn(
-            {'name': 'config', 'mountPath': '/etc/dex', 'readOnly': True},
-            dex.get('volumeMounts', []),
-        )
-
-    def test_dex_disruption_budget_requires_one_field_and_preserves_zero(self) -> None:
-        command = ['helm', 'template', 'dex', str(CHART.parent / 'dex-bootstrap'),
-                   '--set', 'podDisruptionBudget.enabled=true']
-        for field in ('minAvailable', 'maxUnavailable'):
-            output = subprocess.check_output(
-                command + ['--set', f'podDisruptionBudget.{field}=0'], text=True,
-            )
-            budget = next(item for item in yaml.safe_load_all(output)
-                          if item and item['kind'] == 'PodDisruptionBudget')
-            self.assertEqual(budget['spec'][field], 0)
-            other = 'minAvailable' if field == 'maxUnavailable' else 'maxUnavailable'
-            self.assertNotIn(other, budget['spec'])
-        for extra in ([], ['--set', 'podDisruptionBudget.minAvailable=0',
-                           '--set', 'podDisruptionBudget.maxUnavailable=1']):
-            result = subprocess.run(command + extra, capture_output=True, text=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn('requires exactly one', result.stderr)
 
 
 if __name__ == '__main__':

@@ -4,14 +4,14 @@
 
 set -euo pipefail
 
-EXPECTED_SHA256=f42ba91bc8186d08fadac5b7aad573bf3927abd7a6b018b8dbb626bc2dd16219
+EXPECTED_SHA256=0940d77f3de5e03992d83281ba8923db1dc9eafff8d215a440bc49ddb2b8481c
 EXPECTED_CHART_NAME=dex
-EXPECTED_CHART_VERSION=0.24.1-osmo.1
+EXPECTED_CHART_VERSION=0.24.1
 EXPECTED_APP_VERSION=2.44.0
 CHART_DIRECTORY=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ARCHIVE=${1:-"$CHART_DIRECTORY/charts/dex-${EXPECTED_CHART_VERSION}.tgz"}
 
-for required_command in awk python3 tar; do
+for required_command in awk sha256sum tar; do
     command -v "$required_command" >/dev/null || {
         echo "ERROR: $required_command is required to verify the Dex chart archive" >&2
         exit 1
@@ -23,25 +23,7 @@ if [[ ! -f "$ARCHIVE" ]]; then
     exit 1
 fi
 
-# Hash canonical member contents: Helm repackages local dependencies with varying
-# archive timestamps. gzip.decompress also rejects appended non-gzip bytes.
-actual_sha256=$(python3 - "$ARCHIVE" <<'PYDIGEST'
-import gzip
-import hashlib
-import io
-import sys
-import tarfile
-try:
-    digest = hashlib.sha256()
-    with tarfile.open(fileobj=io.BytesIO(gzip.decompress(open(sys.argv[1], 'rb').read())), mode='r:') as archive:
-        for member in sorted(archive.getmembers(), key=lambda item: item.name):
-            if member.isfile():
-                digest.update(member.name.encode() + b'\0' + hashlib.sha256(archive.extractfile(member).read()).digest())
-    print(digest.hexdigest())
-except (OSError, EOFError, tarfile.TarError):
-    print('invalid-archive')
-PYDIGEST
-)
+read -r actual_sha256 _ < <(sha256sum "$ARCHIVE")
 if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
     echo "ERROR: Dex chart archive SHA-256 mismatch: expected $EXPECTED_SHA256, got $actual_sha256 ($ARCHIVE)" >&2
     exit 1

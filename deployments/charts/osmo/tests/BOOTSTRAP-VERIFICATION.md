@@ -1,6 +1,45 @@
 # Single bootstrap Job verification
 
-## Candidate and environment
+## Current scope: OSMO bootstrap only
+
+Dex uses the original upstream chart 0.24.1 and retains its existing credential
+and configuration-refresh Helm hooks. Only managed OSMO access tokens move out of
+those hooks into the ordinary OSMO bootstrap Job. The local Dex fork and the
+Dex/OAuth2Proxy startup gates are removed.
+
+The restored Dex Deployment, Service, config Secret, ServiceAccount, and
+OAuth2Proxy Deployment render identically to baseline `02c1fab45` under the same
+values. A semantic regression check verifies separate Dex hooks with every OSMO
+step enabled and with all OSMO steps disabled; removing the post-hook config
+refresh argument in a temporary chart copy makes that check fail.
+
+Current ARM64 runtime:
+`osmo.local/service@sha256:58c37383131db47a704cf6f78344e1c4c6c89d9f431187bdfbaecc2f9b6402f4`.
+
+The full chart shell suite and four focused Bazel targets for coordinator,
+identity reconciliation, chart semantics (including all 32 OSMO enable
+combinations), and deployment adapters passed.
+
+All five selected lifecycle cases passed on the current runtime:
+
+- Fresh installation with real Dex login and verified OSMO credential files.
+- Upgrade from baseline chart/image with retained credentials and token overlap.
+- Independent Dex config and user-email refresh: Dex Pods replaced, OSMO Job UID
+  unchanged, credentials preserved, and login succeeds with the updated email.
+- Unavailable object storage followed by deliberate retry.
+- Crash after token creation before the step receipt, followed by deliberate retry.
+
+Both retries preserve credentials already issued. Independent source review
+approved the final OSMO-only scope with no blockers. Local receipts are
+`/private/tmp/osmo-dex-restore-fast.log`,
+`/private/tmp/osmo-dex-restore-chart-final.log`,
+`/private/tmp/osmo-dex-restore-cluster.log`, and
+`/private/tmp/osmo-bootstrap-evidence/dex-restored/`.
+
+Earlier V6–V8 results below describe historical candidates before restoring the
+Dex boundary; they are not final-scope reruns.
+
+## Historical candidates and environment
 
 Implementation starts at NVIDIA/OSMO `02c1fab45` on branch
 `single-bootstrap-job`. The image digests below pin the executed runtime
@@ -22,7 +61,7 @@ Waiting for that Pod to disappear would deadlock behind its unready replacement.
 V8 also rejects takeover of every stranded foreign-held coordinator Lease;
 normal supervised retries release ownership after verified process cleanup.
 
-## Fast checks completed
+## Historical fast checks completed
 
 V8 service image builds passed for ARM64 (executed on KIND) and AMD64
 (build qualification only). AMD64 OCI manifest: `sha256:b161860231b938f9cf00361f7ab84ccb5d943237449d688cfaa2895fe51dcad9`.
@@ -63,7 +102,7 @@ after integration. New upstream MEK test fakes were adapted to the nonblocking
 advisory lock and updated ownership error. Cluster receipts below remain tied to
 their recorded images; the complete cluster matrix was not rerun after this merge.
 
-## Cluster results
+## Historical cluster results
 
 The checked-in OETF suite is `//test/smoke:bootstrap_lifecycle_kind`; see
 [`test/oetf/README.md`](../../../../test/oetf/README.md) for image variables and
@@ -112,7 +151,7 @@ disabled consumers, incomplete cluster-RBAC teardown, and a transient status-rea
 Independent source review completed, including the final gate validation and
 stranded-lease recovery policy, with no remaining correctness blocker reported.
 
-## PR review follow-up
+## Historical PR review follow-up
 
 The initial Local KIND Deployment CI run installed OSMO successfully and passed
 its five normal test targets. It failed because OETF matched `kind` as a substring

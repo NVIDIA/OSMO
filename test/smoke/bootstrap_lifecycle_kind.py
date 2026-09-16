@@ -86,7 +86,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.assertIn(expected_digest, installed['imageID'])
         return job
 
-    def authenticate(self) -> str:
+    def authenticate(self, *, login_email: str = 'admin@osmo.local') -> str:
         password = base64.b64decode(
             self.kube_json(['get', 'secret', 'osmo-embedded-dex-admin'])['data'][
                 'password'
@@ -94,7 +94,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         )
         with self.port_forward('service/osmo-gateway', 80, self.port):
             return self._authenticate_embedded_admin(
-                self.values['externalUrl'], password
+                self.values['externalUrl'], password, login_email=login_email
             )
 
     def failed_step(self, name: str, message: str | tuple[str, ...]) -> dict:
@@ -216,9 +216,31 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                     deployment['status'].get('updatedReplicas'),
                 )
 
+    def test_dex_hooks_refresh_config_independently(self) -> None:
+        self.install(self.values)
+        self.authenticate()
+        before = self.secret_identities(list(self.record()['committed']) + [
+            'osmo-embedded-dex-admin', 'osmo-embedded-dex-oauth',
+        ])
+        job_uid = self.require_bootstrap_job()['metadata']['uid']
+        dex_before = self.kube_json(['get', 'pods', '-l', 'app.kubernetes.io/name=dex'])['items']
+        self.values['authentication'] = {
+            'embeddedDex': {'expiry': {'idTokens': '12h'}},
+            'bootstrap': {'identities': {'admin': {'dex': {'email': 'updated-admin@osmo.local'}}}},
+        }
+        self.install(self.values)
+        self.assertEqual(self.require_bootstrap_job()['metadata']['uid'], job_uid)
+        self.assert_identities_preserved(before)
+        dex_after = self.kube_json(['get', 'pods', '-l', 'app.kubernetes.io/name=dex'])['items']
+        self.assertTrue(dex_before and dex_after)
+        self.assertTrue({pod['metadata']['uid'] for pod in dex_before}.isdisjoint(
+            {pod['metadata']['uid'] for pod in dex_after}))
+        self.assertFalse(any('dex' in name for name in self.record()['committed']))
+        self.authenticate(login_email='updated-admin@osmo.local')
+
     def test_bootstrap_missing_retained_secret(self) -> None:
         self.install(self.values)
-        missing = 'osmo-embedded-dex-admin'
+        missing = 'osmo-admin-token'
         retained = self.secret_identities(
             [name for name in self.record()['committed'] if name != missing]
         )
@@ -618,8 +640,6 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         names = list(record['committed']) + [
             'osmo-admin-token',
             'osmo-backend-token',
-            'osmo-embedded-dex-admin',
-            'osmo-embedded-dex-oauth',
         ]
         before = self.secret_identities(names)
         # The faulted resources were applied without a Helm release; remove only

@@ -43,7 +43,7 @@ class _LoopbackRedirectHandler(urllib.request.HTTPRedirectHandler):
 class EmbeddedAuthAssertions(unittest.TestCase):
     """Use with a unittest fixture; credentials stay in memory."""
 
-    def _authenticate_embedded_admin(self, external_url, password):
+    def _authenticate_embedded_admin(self, external_url, password, *, login_email='admin@osmo.local'):
         callback_url = 'http://127.0.0.1:33747/callback'
         verifier = (
             base64.urlsafe_b64encode(secrets.token_bytes(48))
@@ -99,7 +99,7 @@ class EmbeddedAuthAssertions(unittest.TestCase):
             login_url,
             data=urllib.parse.urlencode(
                 {
-                    'login': 'admin@osmo.local',
+                    'login': login_email,
                     'password': password.decode('ascii'),
                 }
             ).encode('ascii'),

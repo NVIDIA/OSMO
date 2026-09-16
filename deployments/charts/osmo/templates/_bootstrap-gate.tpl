@@ -23,7 +23,6 @@
 {{- $deployment := .deployment -}}
 {{- $configuration := .configuration -}}
 {{- $pod := $deployment.spec.template.spec -}}
-{{- $isDex := eq $deployment.metadata.name "osmo-dex" -}}
 {{- $annotations := $deployment.spec.template.metadata.annotations | default dict -}}
 {{- $_ := set $annotations "osmo.nvidia.com/bootstrap-generation" $configuration.generation -}}
 {{- $_ := set $deployment.spec.template.metadata "annotations" $annotations -}}
@@ -49,33 +48,8 @@
 {{- $mounts = append $mounts (dict "name" .name "mountPath" (printf "/bootstrap-snapshot/%s" .name)) -}}
 {{- $volumes = append $volumes (dict "name" .name "emptyDir" (dict "medium" "Memory" "sizeLimit" "16Mi")) -}}
 {{- $readSecrets = append $readSecrets $secretName -}}
-{{- else if and $isDex (eq .name "config") -}}
-{{- $volumes = append $volumes (dict "name" .name "emptyDir" (dict "medium" "Memory" "sizeLimit" "1Mi")) -}}
-{{- $mounts = append $mounts (dict "name" .name "mountPath" "/bootstrap-snapshot/config") -}}
 {{- else -}}
 {{- $volumes = append $volumes . -}}
-{{- end -}}
-{{- end -}}
-{{- if $isDex -}}
-{{- $volumes = append $volumes (dict "name" "bootstrap-dex-env" "emptyDir" (dict "medium" "Memory" "sizeLimit" "1Mi")) -}}
-{{- $mounts = append $mounts (dict "name" "bootstrap-dex-env" "mountPath" "/bootstrap-dex-env") -}}
-{{- range $secretName := list "osmo-embedded-dex-oauth" "osmo-embedded-dex-password-hashes" -}}
-{{- range (index $secrets $secretName).keys -}}
-{{- $mappings = append $mappings (dict "secret" $secretName "key" . "path" (printf "/bootstrap-dex-env/%s" .)) -}}
-{{- end -}}
-{{- $readSecrets = append $readSecrets $secretName -}}
-{{- end -}}
-{{- range $pod.containers -}}
-{{- $env := list -}}
-{{- range (.env | default list) -}}
-{{- if ne .name "OSMO_DEX_BROWSER_CLIENT_SECRET" -}}{{- $env = append $env . -}}{{- end -}}
-{{- end -}}
-{{- $_ := set . "env" $env -}}
-{{- $envFrom := list -}}
-{{- range (.envFrom | default list) -}}
-{{- if ne (dig "secretRef" "name" "" .) "osmo-embedded-dex-password-hashes" -}}{{- $envFrom = append $envFrom . -}}{{- end -}}
-{{- end -}}
-{{- $_ := set . "envFrom" $envFrom -}}
 {{- end -}}
 {{- end -}}
 {{- $apiVolume := first (include "osmo.bootstrap.apiVolume" $root | fromYamlArray) -}}
@@ -90,7 +64,6 @@
 {{- $containerSecurity := include "osmo.bootstrap.securityContext" . | fromYaml -}}
 {{- $_ := set $containerSecurity "runAsGroup" $security.fsGroup -}}
 {{- $gate := dict "name" "bootstrap-credentials" "image" (include "osmo.component.image" (dict "root" $root "component" $root.Values.services.api)) "imagePullPolicy" (include "osmo.component.imagePullPolicy" (dict "root" $root "component" $root.Values.services.api)) "command" (list "/osmo/bootstrap-step") "args" (list "--timeout" "300s" "--" "osmo-bootstrap" "--config" "/bootstrap-config/config.json" "gate") "volumeMounts" $mounts "securityContext" $containerSecurity "resources" $root.Values.bootstrap.resources "env" (list (dict "name" "OSMO_BOOTSTRAP_FILES" "value" (toJson $mappings))) -}}
-{{- if $isDex -}}{{- $_ := set $gate "env" (append $gate.env (dict "name" "OSMO_BOOTSTRAP_DEX_CONFIG" "value" (include "osmo.embeddedDex.config" $root))) -}}{{- end -}}
 {{- if $configuration.tls_rotation -}}
 {{- $_ := set $gate "env" (append $gate.env (dict "name" "OSMO_BOOTSTRAP_TLS_PHASE" "value" (printf "%s:%s" $configuration.tls_rotation.id $configuration.tls_rotation.phase))) -}}
 {{- end -}}

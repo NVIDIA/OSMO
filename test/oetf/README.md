@@ -1399,6 +1399,10 @@ chart with its dependencies. The fixture freezes a chart copy for each case and
 checks the actual bootstrap supervisor image ID. It performs real Dex login and
 API authorization after successful lifecycle transitions.
 
+Dex retains its independent pre/post Helm hooks. The
+`test_dex_hooks_refresh_config_independently` case verifies that a Dex configuration
+change refreshes Dex and preserves login without replacing the OSMO bootstrap Job.
+
 ```sh
 export KUBECONFIG=/path/to/disposable-bootstrap.kubeconfig
 export OETF_BOOTSTRAP_IMAGE=osmo.local/service@sha256:YOUR_CANDIDATE_DIGEST

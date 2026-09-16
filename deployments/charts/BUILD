@@ -41,7 +41,7 @@ filegroup(
 
 filegroup(
     name = "osmo",
-    srcs = glob(["osmo/**", "dex-bootstrap/**"]),
+    srcs = glob(["osmo/**"]),
     visibility = ["//visibility:public"],
 )
 

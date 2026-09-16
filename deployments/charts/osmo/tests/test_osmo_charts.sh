@@ -554,18 +554,17 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    cp -R "$CHARTS_ROOT/dex-bootstrap" "$charts_copy/dex-bootstrap"
-    if ! compgen -G "$charts_copy/osmo/charts/dex-0.24.1-osmo.1.tgz" >/dev/null || \
+    if ! compgen -G "$charts_copy/osmo/charts/dex-0.24.1.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
     local dex_archive_verifier="$charts_copy/osmo/tests/verify_dex_chart_archive.sh"
-    local dex_archive="$charts_copy/osmo/charts/dex-0.24.1-osmo.1.tgz"
+    local dex_archive="$charts_copy/osmo/charts/dex-0.24.1.tgz"
     [[ -f "$dex_archive_verifier" ]] || fail "Dex chart archive verifier is required"
     bash "$dex_archive_verifier" "$dex_archive" >/dev/null
-    local altered_dex_archive="$TEST_DIRECTORY/altered-dex-0.24.1-osmo.1.tgz"
+    local altered_dex_archive="$TEST_DIRECTORY/altered-dex-0.24.1.tgz"
     cp "$dex_archive" "$altered_dex_archive"
     printf 'altered archive\n' >>"$altered_dex_archive"
     if bash "$dex_archive_verifier" "$altered_dex_archive" \
@@ -732,11 +731,11 @@ test_control_umbrella() {
     done
     bootstrap_container "$TEST_DIRECTORY/embedded-auth-default.yaml" identity-bootstrap \
         >"$TEST_DIRECTORY/embedded-auth-identity-step.yaml"
-    require_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--password'
-    require_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--oauth-secret-name'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--password'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--oauth-secret-name'
     require_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" 'readOnlyRootFilesystem: true'
     require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--dex-pod-selector'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" 'helm.sh/hook: post-install'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" 'helm.sh/hook: post-install,post-upgrade'
 
     local long_identity_bootstrap_override
     printf -v long_identity_bootstrap_override '%*s' 63 ''
@@ -758,7 +757,7 @@ test_control_umbrella() {
         >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
     local mutated_job_name
     mutated_job_name=$(bootstrap_job_name "$TEST_DIRECTORY/embedded-auth-config-mutated.yaml" step:identity-bootstrap)
-    [[ "$identity_job_name" != "$mutated_job_name" ]] || fail "Dex config change reused the completed bootstrap Job"
+    [[ "$identity_job_name" == "$mutated_job_name" ]] || fail "Dex config change changed the OSMO bootstrap Job"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         'kind: NetworkPolicy'
     resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" NetworkPolicy \
@@ -829,7 +828,6 @@ test_control_umbrella() {
     helm_template embedded-auth-pdb "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         --set dex.podDisruptionBudget.enabled=true \
-        --set dex.podDisruptionBudget.maxUnavailable=0 \
         >"$TEST_DIRECTORY/embedded-auth-pdb.yaml"
     require_resource "$TEST_DIRECTORY/embedded-auth-pdb.yaml" PodDisruptionBudget \
         osmo-dex
@@ -1215,8 +1213,9 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         "osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
-    require_secret_snapshot "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" osmo-embedded-dex-oauth browser-client-secret
-    require_secret_snapshot "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" osmo-embedded-dex-oauth cookie-secret
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'secretName: osmo-embedded-dex-oauth'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'key: browser-client-secret'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'key: cookie-secret'
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Namespace \
         "osmo-workflows"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Namespace \
@@ -6366,7 +6365,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 26
+        "type: RuntimeDefault" 25
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \

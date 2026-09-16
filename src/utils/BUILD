@@ -41,7 +41,7 @@ go_library(
 osmo_py_library(
     name = "bootstrap_lib",
     srcs = ["bootstrap.py"],
-    deps = [requirement("kubernetes"), requirement("pyyaml")],
+    deps = [requirement("kubernetes")],
     visibility = ["//visibility:public"],
 )
 

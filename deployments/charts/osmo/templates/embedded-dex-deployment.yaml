@@ -1,3 +1,0 @@
-{{- if and .Values.planes.control.enabled (eq .Values.authentication.provider "embeddedDex") -}}
-{{- include "osmo.bootstrap.gatedResources" (dict "root" . "content" (include "dex.deployment" .Subcharts.dex)) -}}
-{{- end -}}

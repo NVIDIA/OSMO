@@ -121,7 +121,6 @@ bash deployments/charts/service/tests/render-tests.sh
 | Chart | Purpose |
 |-------|---------|
 | `osmo/` | Unified chart with directly owned control-plane, gateway, and compute-plane templates; supports control-only, compute-only, and converged profiles. Control-plane releases use embedded Dex by default (memory-only, no Dex CRDs/RBAC/PVCs) or an explicit external OIDC provider. |
-| `dex-bootstrap/` | Minimal Dex 0.24.1 fork exposing its Deployment template to the parent chart startup gate. |
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
 

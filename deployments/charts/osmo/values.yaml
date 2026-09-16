@@ -2086,8 +2086,6 @@ valkey:
 # Dex CRDs and Kubernetes API permissions; Dex restarts invalidate sessions
 # and signing keys.
 dex:
-  deployment:
-    enabled: false
   fullnameOverride: osmo-dex
   image:
     repository: ghcr.io/dexidp/dex

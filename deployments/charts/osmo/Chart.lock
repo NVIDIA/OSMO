@@ -1,7 +1,7 @@
 dependencies:
 - name: dex
-  repository: file://../dex-bootstrap
-  version: 0.24.1-osmo.1
+  repository: https://charts.dexidp.io
+  version: 0.24.1
 - name: valkey
   repository: oci://ghcr.io/valkey-io/valkey-helm
   version: 0.11.0
@@ -11,5 +11,5 @@ dependencies:
 - name: rustfs
   repository: https://charts.rustfs.com
   version: 1.0.0-rc.2
-digest: sha256:507eef9d28e3c485fc0ba546b1a878fc9b017c54008eeaf9261d79355a4fa41c
-generated: "2026-09-15T16:22:17.401833-07:00"
+digest: sha256:661ececbfa11fdfae13de5e1991e52dd2c31126c32b721ce14233fc04eb69a29
+generated: "2026-09-04T14:58:24.327898979-04:00"
