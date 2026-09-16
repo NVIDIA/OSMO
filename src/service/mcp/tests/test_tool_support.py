@@ -128,6 +128,10 @@ class ToolSupportTest(unittest.TestCase):
                 osmo_errors.OSMOUsageError,
                 osmo_errors.OSMOResourceError,
                 osmo_errors.OSMOCredentialError,
+                osmo_errors.OSMORegistryError,
+                osmo_errors.OSMOImageNotFoundError,
+                osmo_errors.OSMORegistryRateLimitError,
+                osmo_errors.OSMORegistryUnavailableError,
                 osmo_errors.OSMODatabaseError,
                 osmo_errors.OSMOSubmissionError,
             )
