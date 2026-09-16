@@ -700,7 +700,7 @@ services:
     image:
       registry: ''
       repository: ''
-      name: mcp-self-hosted
+      name: mcp
       tag: ''
       digest: ''
       pullPolicy: IfNotPresent
@@ -1799,8 +1799,8 @@ configuration:
   # and deleted default entries remain exact after Helm values merging.
   snapshot: null
   # Workflow containers use service_base_url for logs, token refresh and CLI
-  # access. It defaults to externalUrl; override it with a cluster-reachable
-  # gateway URL when the public origin is only reachable from a workstation.
+  # access. It defaults to the internal gateway for converged releases and
+  # externalUrl for control-only releases. Overrides must be workload-reachable.
   service: {}
   workflow:
     max_num_tasks: 100

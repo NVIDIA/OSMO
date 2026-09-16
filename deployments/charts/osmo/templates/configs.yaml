@@ -32,8 +32,14 @@ data:
     {{- end }}
     service:
       {{- $service := deepCopy ($cfg.service | default dict) }}
-      {{- if and .Values.externalUrl (not (get $service "service_base_url")) }}
-      {{- $_ := set $service "service_base_url" .Values.externalUrl }}
+      {{- if not (index $service "service_base_url") }}
+      {{- $serviceBaseUrl := .Values.externalUrl }}
+      {{- if and .Values.planes.control.enabled .Values.planes.compute.enabled }}
+      {{- $serviceBaseUrl = include "osmo.compute.serviceUrl" . }}
+      {{- end }}
+      {{- if $serviceBaseUrl }}
+      {{- $_ := set $service "service_base_url" $serviceBaseUrl }}
+      {{- end }}
       {{- end }}
       {{- toYaml $service | nindent 6 }}
     {{- if $cfg.workflow }}

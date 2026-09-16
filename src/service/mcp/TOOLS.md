@@ -16,14 +16,32 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# External MCP tool plan
+# MCP tool contracts
 
 The external MCP exposes a deliberately smaller surface than the OSMO CLI. A
 tool is included only when it can be implemented as a bounded, fixed mapping to
 an existing external REST API while preserving the caller's OSMO identity and
 RBAC.
 
-## Phase 1: read-only operations (implemented)
+`tool_registry.py` owns the client-facing titles, descriptions, and annotations;
+the [generated tool reference](docs/TOOL_REFERENCE.md) renders that metadata.
+This document owns the API mappings, CLI relationships, and operational caveats;
+catalog tests independently lock public names, function bindings, schemas, and
+annotations.
+
+After changing registry metadata, regenerate and check the reference from the
+public checkout:
+
+```bash
+bazel run //src/service/mcp/docs:generate_tool_reference -- \
+  --output "$PWD/src/service/mcp/docs/TOOL_REFERENCE.md"
+bazel test //src/service/mcp/docs:test_tool_reference
+```
+
+The generator's `--check` option verifies an output without writing. This tooling
+does not enter the MCP image dependency closure.
+
+## Read-only operations
 
 | Capability | Tools | Contract | OSMO APIs |
 | --- | --- | --- | --- |
@@ -48,7 +66,7 @@ lookup remains excluded until Gateway authorization resolves UUIDs to their
 owning pool.
 
 The existing resource APIs do not atomically intersect resource assignments
-with the current allowed-pools header. Under this no-Core-change phase, MCP
+with the current allowed-pools header. MCP
 uses the active profile snapshot and fails closed for callers with no pools.
 Resource lists send a non-empty pool filter. Resource detail fetches only the
 encoded node route, then filters its assignments against that same profile
@@ -75,22 +93,63 @@ byte-for-byte equality with the CLI's presentation or raw API JSON is not a
 valid compatibility contract. Overlapping fields and Core request semantics
 must still agree.
 
-The inventory distinguishes shared Core mutation requests with executable
-evidence, semantic projections of the same state, documented intentional
-differences, and tools with no CLI equivalent. A shared request does not imply
-identical auxiliary reads or presentation.
+The table below owns the CLI command mapping. "Projection" means a bounded
+view of the same state, "Difference" identifies an intentional behavior change,
+and "Shared request" means the final Core mutation agrees, not that auxiliary
+reads or presentation are identical. Command names are references, not proof of
+executed coverage; consult the CLI reference for complete arguments.
+
+| MCP tool | CLI command | Relationship |
+| --- | --- | --- |
+| `osmo_health` | None | No equivalent |
+| `osmo_get_profile` | `osmo profile list` | Projection |
+| `osmo_set_profile` | `osmo profile set` | Projection |
+| `osmo_search_pools` | `osmo pool list` | Projection |
+| `osmo_list_resources` | `osmo resource list` | Projection |
+| `osmo_get_resource` | `osmo resource info` | Projection |
+| `osmo_list_workflows` | `osmo workflow list` | Difference |
+| `osmo_list_tasks` | `osmo task list` | Projection |
+| `osmo_get_workflow` | `osmo workflow query` | Projection |
+| `osmo_get_workflow_logs` | `osmo workflow logs` | Projection |
+| `osmo_get_workflow_events` | `osmo workflow events` | Projection |
+| `osmo_get_workflow_spec` | `osmo workflow spec` | Projection |
+| `osmo_submit_workflow` | `osmo workflow submit` | Difference |
+| `osmo_validate_workflow` | `osmo workflow validate` | Difference |
+| `osmo_restart_workflow` | `osmo workflow restart` | Shared request |
+| `osmo_cancel_workflow` | `osmo workflow cancel` | Difference |
+| `osmo_list_apps` | `osmo app list` | Projection |
+| `osmo_get_app` | `osmo app info` | Projection |
+| `osmo_get_app_spec` | `osmo app spec` | Projection |
+| `osmo_create_app` | `osmo app create` | Difference |
+| `osmo_update_app` | `osmo app update` | Difference |
+| `osmo_delete_app` | `osmo app delete` | Projection |
+| `osmo_rename_app` | `osmo app rename` | Projection |
+| `osmo_submit_app` | `osmo app submit` | Difference |
+| `osmo_list_credentials` | `osmo credential list` | Projection |
+| `osmo_delete_credential` | `osmo credential delete` | Projection |
+
+The CLI has no caller-bound health command. Resource detail requires explicit
+pool/platform selection when a node has multiple accessible assignments; the
+CLI selects the first assignment. Workflow lists retain the optional legacy
+`tags` filter for MCP compatibility, while the 6.4 CLI removes it; both keep
+label selectors. The workflow and app sections below explain inline YAML,
+cancellation messages, version creation, and READY-version pinning differences.
+Restart's shared final request is covered by
+`test_workflow.WorkflowRestartTest.test_uses_source_workflow_pool_when_pool_is_omitted`
+and `test_workflow_actions.test_restart_preflights_source_and_uses_its_pool`.
 
 The CLI and MCP share dependency-light helpers for resource quantity
 normalization, credential request envelopes, and workflow template detection.
-`//src/service/mcp/tests:test_cli_parity` requires every registered tool to
-declare its CLI relationship in a parity inventory and locks selected shared
-behaviors with frozen fixtures. `//test/smoke:mcp-checks` additionally compares
+`//src/service/mcp/tests:test_cli_parity` checks that every registered tool has
+exactly one classification and locks selected shared behaviors with frozen
+fixtures. CLI rationale lives here, not in a second test-owned prose inventory.
+`//test/smoke:mcp-checks` additionally compares
 stable profile and credential metadata through a deployed CLI and MCP using
 the same caller. Mutable capacity counters and state-changing workflow, app,
 and credential operations remain covered by deterministic route/payload tests
 or explicit manual checks rather than sequential live comparisons.
 
-## Phase 2: workflow actions (implemented; deployment verification pending)
+## Workflow actions
 
 `osmo_validate_workflow`, `osmo_submit_workflow`,
 `osmo_restart_workflow`, and `osmo_cancel_workflow` are implemented.
@@ -118,14 +177,7 @@ query-string cancellation message because Gateway and authz access logs record
 it. The shared mutation relay never retries and reports an unknown outcome for
 ambiguous transport, server, database, or malformed-success failures.
 
-The `//test/smoke:mcp-checks` target verifies the exact catalog and exercises
-successful validation through a deployed Gateway/MCP/Core path without
-launching compute. It must pass against an MCP-enabled deployment before Phase
-2 is considered released. Submission, restart, and cancellation remain manual
-Inspector checks against disposable workflows so the smoke suite does not
-consume compute or mutate existing workflow state.
-
-## Phase 3: user-owned mutations (implemented; deployment verification pending)
+## User-owned mutations
 
 `osmo_set_profile`, `osmo_delete_credential`,
 `osmo_create_app`, `osmo_update_app`, `osmo_delete_app`,
@@ -142,8 +194,10 @@ omitting Core's legacy profile field.
 App create synchronously creates version 1 and schedules its upload. Update
 always creates and schedules a new version from the submitted inline YAML; it
 does not reproduce the CLI editor's read-before-write unchanged-content check.
-Delete schedules one version or all non-deleted versions and returns a bounded
-version prefix plus total count. Rename is synchronous. App specs may contain
+Delete schedules one version or all non-deleted versions and returns at most
+200 version numbers, the total scheduled count, and a `more_versions` marker.
+An already-deleted requested version is a successful no-op. Rename is
+synchronous. App specs may contain
 sensitive values, so callers should reference OSMO credentials instead; MCP
 does not return or log submitted specs, but the calling client may retain its
 arguments. Descriptions are non-secret query values that may appear in
@@ -168,9 +222,7 @@ sensitive; callers should prefer OSMO credentials for secrets because their
 MCP client may retain submitted arguments. Local paths, environment injection,
 dry-run, rsync, and local-file expansion are excluded. Submission consumes
 compute, can leave a `FAILED_SUBMISSION` record when Core rejects the workflow
-during validation, and is never automatically retried. Deployment smoke
-verifies discovery only; app submission remains a manual Inspector check
-against disposable user-owned state.
+during validation, and is never automatically retried.
 
 ## Out of scope
 
@@ -180,6 +232,45 @@ exec/port-forward/rsync, or privileged user, backend, and service-configuration
 administration. Kubernetes process
 health remains available through `/health`, `/health/live`, and `/health/ready`;
 `osmo_health` instead checks caller-bound OSMO access.
+
+## Deployment verification
+
+The implementations above still require verification against an MCP-enabled
+deployment. Run the smoke suite with an OETF environment whose caller can read
+profile and credential metadata and create workflows in `OETF_POOL`:
+
+```bash
+bazel run //test/oetf:run -- \
+  --env <mcp-enabled-env> --tags mcp \
+  --bazel-arg=--test_env=OSMO_MCP_ACCESS_TOKEN
+```
+
+Authenticated checks also require `OSMO_MCP_ACCESS_TOKEN`, obtained through the
+deployment's MCP OAuth flow and passed through the test environment. The normal
+OETF API token cannot authenticate to `/mcp`. Use the same identity for CLI and
+MCP comparisons, and do not put token values in command arguments or logs. If
+the MCP token is absent, those checks are skipped; a run containing skips does
+not establish authenticated tool coverage.
+
+The suite verifies discovery, the current catalog, caller-bound health, profile
+and credential projections against the CLI, and successful workflow validation
+through Gateway → MCP → Gateway → Core. The known-good validation case does not
+enqueue compute or create a workflow row; failed validation can create a
+`FAILED_SUBMISSION` row.
+
+If the deployment cannot validate `ubuntu:22.04`, select an approved image:
+
+```bash
+bazel run //test/oetf:run -- \
+  --env <mcp-enabled-env> --tags mcp \
+  --bazel-arg=--test_env=OSMO_MCP_ACCESS_TOKEN \
+  --bazel-arg=--test_env=OETF_DEFAULT_IMAGE=<registry/image:tag>
+```
+
+Profile updates, credential deletion, app lifecycle changes, workflow and app
+submission, restart, and cancellation remain manual Inspector checks against
+disposable user-owned state. They can change saved state or consume compute.
+Inspect OSMO state after an ambiguous outcome before retrying a one-shot action.
 
 ## Contract for every tool
 

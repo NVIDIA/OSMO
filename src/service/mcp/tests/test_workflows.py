@@ -938,29 +938,24 @@ class WorkflowValidationUnitTest(unittest.IsolatedAsyncioTestCase):
     async def test_cross_field_and_direct_argument_validation(self) -> None:
         with self.assertRaises(ToolError):
             await workflows.osmo_get_workflow_logs(
-                None,  # type: ignore[arg-type]
                 'wf-1',
                 error_logs=True,
             )
         with self.assertRaises(ToolError):
             await workflows.osmo_get_workflow_events(
-                None,  # type: ignore[arg-type]
                 'wf-1',
                 retry_id=1,
             )
         with self.assertRaises(ToolError):
             await workflows.osmo_list_workflows(
-                None,  # type: ignore[arg-type]
                 status=['INVALID'],  # type: ignore[list-item]
             )
         with self.assertRaises(ToolError):
             await workflows.osmo_list_workflows(
-                None,  # type: ignore[arg-type]
                 limit=True,  # type: ignore[arg-type]
             )
         with self.assertRaises(ToolError):
             await workflows.osmo_list_tasks(
-                None,  # type: ignore[arg-type]
                 ['node-1'],
                 status=['INVALID'],  # type: ignore[list-item]
             )

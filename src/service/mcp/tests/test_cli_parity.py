@@ -21,7 +21,6 @@ SPDX-License-Identifier: Apache-2.0
 # pylint: disable=protected-access
 
 import argparse
-import dataclasses
 import inspect
 import unittest
 from typing import Any
@@ -42,243 +41,55 @@ from src.service.mcp import (
 from src.service.mcp import app_action_models, workflow_action_models, workflow_models
 
 
-_SHARED_REQUEST = 'shared_request'
-_SEMANTIC_PROJECTION = 'semantic_projection'
-_INTENTIONAL_DIFFERENCE = 'intentional_difference'
-_NO_CLI_EQUIVALENT = 'no_cli_equivalent'
-_CLASSIFICATIONS = frozenset((
-    _SHARED_REQUEST,
-    _SEMANTIC_PROJECTION,
-    _INTENTIONAL_DIFFERENCE,
-    _NO_CLI_EQUIVALENT,
-))
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class _ParityContract:
-    classification: str
-    cli_command: str | None = None
-    rationale: str | None = None
-    evidence: str | None = None
-
-
-# This inventory forces an explicit decision for every public MCP tool. It does
-# not claim that the command strings themselves are executable coverage; the
-# high-risk shared behaviors have focused tests below.
-_PARITY_CONTRACTS = {
-    'osmo_health': _ParityContract(
-        _NO_CLI_EQUIVALENT,
-        rationale='The CLI has no caller-bound API health command.',
+# CLI command mappings and the rationale for these classifications live in
+# TOOLS.md#cli-semantic-parity. Keep this inventory independent of registration
+# so every new tool requires an explicit compatibility decision.
+_CLI_RELATIONSHIPS: dict[str, tuple[str, ...]] = {
+    'shared_request': ('osmo_restart_workflow',),
+    'semantic_projection': (
+        'osmo_delete_app',
+        'osmo_delete_credential',
+        'osmo_get_app',
+        'osmo_get_app_spec',
+        'osmo_get_profile',
+        'osmo_get_resource',
+        'osmo_get_workflow',
+        'osmo_get_workflow_events',
+        'osmo_get_workflow_logs',
+        'osmo_get_workflow_spec',
+        'osmo_list_apps',
+        'osmo_list_credentials',
+        'osmo_list_resources',
+        'osmo_list_tasks',
+        'osmo_rename_app',
+        'osmo_search_pools',
+        'osmo_set_profile',
     ),
-    'osmo_get_profile': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo profile list --format-type json',
+    'intentional_difference': (
+        'osmo_cancel_workflow',
+        'osmo_create_app',
+        'osmo_list_workflows',
+        'osmo_submit_app',
+        'osmo_submit_workflow',
+        'osmo_update_app',
+        'osmo_validate_workflow',
     ),
-    'osmo_set_profile': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo profile set <setting> <value>',
-    ),
-    'osmo_search_pools': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo pool list --format-type json',
-    ),
-    'osmo_list_resources': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo resource list --format-type json',
-    ),
-    'osmo_get_resource': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo resource info <node> --pool <pool> --platform <platform>',
-        (
-            'MCP requires explicit pool/platform selection when a node has '
-            'multiple accessible assignments and omits resource kinds without '
-            'positive allocatable capacity; CLI selects the first assignment '
-            'and may render explicit zero capacity.'
-        ),
-    ),
-    'osmo_list_workflows': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo workflow list --format-type json',
-        (
-            'MCP retains its optional legacy tags filter for compatibility; '
-            'the 6.4 CLI removes it. Both surfaces keep label selectors.'
-        ),
-    ),
-    'osmo_list_tasks': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo task list --node <node> --format-type json',
-    ),
-    'osmo_get_workflow': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo workflow query <workflow-id> --format-type json',
-    ),
-    'osmo_get_workflow_logs': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo workflow logs <workflow-id>',
-    ),
-    'osmo_get_workflow_events': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo workflow events <workflow-id>',
-    ),
-    'osmo_get_workflow_spec': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo workflow spec <workflow-id>',
-    ),
-    'osmo_submit_workflow': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo workflow submit <workflow-file>',
-        (
-            'MCP accepts bounded inline YAML while sharing per-run label '
-            'overrides and policy-warning results with the CLI.'
-        ),
-    ),
-    'osmo_validate_workflow': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo workflow validate <workflow-file>',
-        (
-            'MCP accepts bounded inline YAML instead of a local file while '
-            'sharing label overrides and policy-warning results.'
-        ),
-    ),
-    'osmo_restart_workflow': _ParityContract(
-        _SHARED_REQUEST,
-        'osmo workflow restart <workflow-id>',
-        evidence=(
-            'test_workflow.WorkflowRestartTest.'
-            'test_uses_source_workflow_pool_when_pool_is_omitted '
-            'and test_workflow_actions.test_restart_preflights_source_and_uses_its_pool'
-        ),
-    ),
-    'osmo_cancel_workflow': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo workflow cancel <workflow-id>',
-        'MCP deliberately omits the CLI free-form cancellation message.',
-    ),
-    'osmo_list_apps': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo app list --format-type json',
-    ),
-    'osmo_get_app': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo app info <app-id> --format-type json',
-    ),
-    'osmo_get_app_spec': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo app spec <app-id>',
-    ),
-    'osmo_create_app': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo app create <name> --description <description> --file <workflow-file>',
-        'MCP accepts bounded inline YAML instead of a local file.',
-    ),
-    'osmo_update_app': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo app update <app-id> --file <workflow-file>',
-        'MCP always creates a version and has no local editor flow.',
-    ),
-    'osmo_delete_app': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo app delete <app-id>',
-    ),
-    'osmo_rename_app': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo app rename <app-id> <new-name>',
-    ),
-    'osmo_submit_app': _ParityContract(
-        _INTENTIONAL_DIFFERENCE,
-        'osmo app submit <app-id>',
-        (
-            'MCP resolves and returns the concrete READY version it submits '
-            'while sharing label overrides and policy-warning results.'
-        ),
-    ),
-    'osmo_list_credentials': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo credential --format-type json list',
-    ),
-    'osmo_delete_credential': _ParityContract(
-        _SEMANTIC_PROJECTION,
-        'osmo credential delete <name>',
-    ),
+    'no_cli_equivalent': ('osmo_health',),
 }
 
 
-def _assert_complete_parity_contract(
-    catalog_names: set[str],
-    contracts: dict[str, _ParityContract],
-) -> None:
-    if set(contracts) != catalog_names:
-        raise AssertionError(
-            'Every MCP tool must have exactly one CLI parity classification.'
-        )
-    for contract in contracts.values():
-        if contract.classification not in _CLASSIFICATIONS:
-            raise AssertionError('Unknown CLI parity classification.')
-        if contract.classification == _NO_CLI_EQUIVALENT:
-            if contract.cli_command is not None or not contract.rationale:
-                raise AssertionError(
-                    'A tool without a CLI equivalent needs a rationale only.'
-                )
-        elif not contract.cli_command:
-            raise AssertionError('CLI-equivalent tools need a CLI command.')
-        if (
-            contract.classification == _SHARED_REQUEST
-            and not contract.evidence
-        ):
-            raise AssertionError(
-                'Shared CLI request claims need executable test evidence.'
-            )
-        if (
-            contract.classification == _INTENTIONAL_DIFFERENCE
-            and not contract.rationale
-        ):
-            raise AssertionError(
-                'Intentional CLI differences need a rationale.'
-            )
-
-
 class ToolParityManifestTest(unittest.TestCase):
-    """Require an explicit CLI relationship for every external MCP tool."""
+    """Require exactly one CLI relationship for every external MCP tool."""
 
     def test_manifest_exactly_covers_the_tool_catalog(self) -> None:
-        catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
-
-        self.assertEqual(len(catalog_names), 26)
-        _assert_complete_parity_contract(
-            catalog_names,
-            _PARITY_CONTRACTS,
+        self.assertCountEqual(
+            [
+                name
+                for names in _CLI_RELATIONSHIPS.values()
+                for name in names
+            ],
+            [spec.name for spec in tool_registry.TOOL_SPECS],
         )
-
-    def test_missing_catalog_entry_is_rejected(self) -> None:
-        catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
-        incomplete_contracts = dict(_PARITY_CONTRACTS)
-        incomplete_contracts.pop('osmo_get_profile')
-
-        with self.assertRaisesRegex(
-            AssertionError,
-            'Every MCP tool must have exactly one CLI parity classification',
-        ):
-            _assert_complete_parity_contract(
-                catalog_names,
-                incomplete_contracts,
-            )
-
-    def test_shared_request_without_evidence_is_rejected(self) -> None:
-        catalog_names = {spec.name for spec in tool_registry.TOOL_SPECS}
-        unsupported_contracts = dict(_PARITY_CONTRACTS)
-        unsupported_contracts['osmo_restart_workflow'] = dataclasses.replace(
-            unsupported_contracts['osmo_restart_workflow'],
-            evidence=None,
-        )
-
-        with self.assertRaisesRegex(
-            AssertionError,
-            'Shared CLI request claims need executable test evidence',
-        ):
-            _assert_complete_parity_contract(
-                catalog_names,
-                unsupported_contracts,
-            )
 
 
 class ResourceQuantityParityTest(unittest.TestCase):
