@@ -257,14 +257,12 @@ func RunCommand(cmd *exec.Cmd,
 	go streamErrCommand(stderrScanner, &waitStreamLogs)
 	waitStreamLogs.Wait()
 
+	// Reap the subprocess even when the stdout watchdog killed it on timeout.
+	err = cmd.Wait()
 	if <-timeoutChan {
-		if err := cmd.Process.Signal(os.Interrupt); err != nil {
-			log.Printf("Error sending interrupt signal: %s\n", err)
-		}
 		return "", &osmo_errors.TimeoutError{S: "Command timed out"}
 	}
 
-	err = cmd.Wait()
 	return fmt.Sprintf("Command failed with error: %v\n", err), err
 }
 

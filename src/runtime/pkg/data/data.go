@@ -47,9 +47,9 @@ var DataTimeout time.Duration = 10 * time.Minute
 var CpuCount string = "1"
 
 const (
-	Download         string = "download"
-	NotApplicable    string = "N/A"
-	BenchmarkSuffix  string = "_benchmark.json"
+	Download        string = "download"
+	NotApplicable   string = "N/A"
+	BenchmarkSuffix string = "_benchmark.json"
 )
 
 // BenchmarkPath is the directory under which the OSMO data CLI writes its
@@ -58,7 +58,7 @@ const (
 var BenchmarkPath = "/osmo/data/benchmarks/"
 
 const (
-	URLOperation     string = "Url"
+	URLOperation string = "Url"
 )
 
 type WebsocketConnectionInfo struct {
@@ -123,41 +123,54 @@ func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
 		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
 		defer waitStreamLogs.Done()
 
+		var progressMutex sync.Mutex
 		lastMessageTime := time.Now()
-		quit := make(chan bool)
+		timeout := DataTimeout
+		quit := make(chan struct{})
+		watchdogDone := make(chan struct{})
+		timedOut := false
 
 		go func() {
+			defer close(watchdogDone)
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-quit:
 					return
-				default:
-					if time.Since(lastMessageTime) >= DataTimeout {
+				case <-ticker.C:
+					progressMutex.Lock()
+					idleTime := time.Since(lastMessageTime)
+					progressMutex.Unlock()
+					if idleTime >= timeout {
 						if err := cmd.Process.Kill(); err != nil {
 							osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 							panic(fmt.Sprintf("Failed to kill process: %s", err))
 						}
-						timeoutChan <- true
+						timedOut = true
 						return
 					}
-					// Wait a second between checks
-					time.Sleep(time.Second)
 				}
 			}
+		}()
+		defer func() {
+			close(quit)
+			// Join the watchdog so a timeout-triggered EOF cannot report success.
+			<-watchdogDone
+			timeoutChan <- timedOut
 		}()
 
 		for scanner.Scan() {
 			log.Println(scanner.Text())
 			osmoChan <- scanner.Text()
+			progressMutex.Lock()
 			lastMessageTime = time.Now()
+			progressMutex.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
 			osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 			panic(err)
 		}
-
-		quit <- true
-		timeoutChan <- false
 	}
 	return streamOutCommand
 }
