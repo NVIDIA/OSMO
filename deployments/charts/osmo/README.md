@@ -90,6 +90,7 @@ Secret-creation permissions and retain the remaining release values:
 helm upgrade osmo deployments/charts/osmo \
   --namespace osmo \
   --reuse-values \
+  --set-string bootstrap.initializationId= \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
   --set secrets.serviceAuth.bootstrap.enabled=false \
   --wait \
@@ -876,6 +877,15 @@ all enabled outputs validate. Consumer init containers then copy those exact byt
 to shared in-memory volumes, including the rendered Dex configuration. A final
 container waits for the requested consumer rollouts and records completion. This
 allows `helm --wait --wait-for-jobs` without a startup cycle.
+
+The shared service account can create Secrets in the release namespace while an
+enabled step needs to issue credentials. Kubernetes RBAC cannot limit Secret
+`create` to particular names; reads and mutations of existing Secrets use named
+rules. Every step with the projected token shares these permissions, so use a
+dedicated namespace and trusted step images. Protected credentials are created
+atomically after recording issuance intent; Helm-created empty placeholders are
+not a supported substitute. To avoid Secret creation permission, provide all
+credentials externally and disable every credential-generating bootstrap step.
 
 ### New installations and adoption
 

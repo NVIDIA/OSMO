@@ -83,7 +83,7 @@ class EmbeddedAuthAssertions(unittest.TestCase):
                 with opener.open(authorization_url, timeout=5) as response:
                     login_page = response.read().decode('utf-8')
                 break
-            except urllib.error.URLError, ConnectionError:
+            except (urllib.error.URLError, ConnectionError):
                 time.sleep(1)
         if login_page is None:
             raise AssertionError('embedded Dex login did not become reachable')

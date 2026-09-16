@@ -220,8 +220,8 @@ class SingleBootstrapTests(unittest.TestCase):
             and item['metadata']['name']
             == bootstrap_jobs(resources)[0]['metadata']['name']
         ]
-        # Service-auth create/get authorization stays scoped even though the
-        # shared Role also grants lifecycle state updates on ConfigMaps/Leases.
+        # Service-auth reads are name-scoped. Kubernetes RBAC cannot name-scope
+        # create; that permission applies to the release namespace.
         secret_rules = [
             rule for rule in roles[0]['rules'] if 'secrets' in rule['resources']
         ]
@@ -386,6 +386,51 @@ class SingleBootstrapTests(unittest.TestCase):
                         for application_mount in container.get('volumeMounts', [])
                     )
                 )
+
+
+class BootstrapInputValidationTest(unittest.TestCase):
+    def test_node_selector_requires_string_values(self):
+        for value in ('1', 'true', 'null'):
+            with self.subTest(value=value), self.assertRaises(subprocess.CalledProcessError) as error:
+                render(4, ['--set-json', f'bootstrap.nodeSelector={{"pool":{value}}}'])
+            self.assertIn('bootstrap.nodeSelector.pool', error.exception.stderr.replace('/', '.'))
+        for selector in ('null', '{}', '{"pool":"control"}'):
+            render(4, ['--set-json', f'bootstrap.nodeSelector={selector}'])
+
+    def test_dex_existing_secret_requires_a_name(self):
+        chart = CHART.parent / 'dex-bootstrap'
+        result = subprocess.run(
+            ['helm', 'template', 'dex', str(chart), '--set', 'configSecret.create=false'],
+            capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('configSecret.name is required', result.stderr)
+        output = subprocess.check_output(
+            ['helm', 'template', 'dex', str(chart), '--set', 'configSecret.create=false',
+             '--set', 'configSecret.name=existing-config'], text=True,
+        )
+        deployment = next(item for item in yaml.safe_load_all(output)
+                          if item and item['kind'] == 'Deployment')
+        self.assertTrue(any(volume.get('secret', {}).get('secretName') == 'existing-config'
+                            for volume in deployment['spec']['template']['spec']['volumes']))
+
+    def test_dex_disruption_budget_requires_one_field_and_preserves_zero(self):
+        command = ['helm', 'template', 'dex', str(CHART.parent / 'dex-bootstrap'),
+                   '--set', 'podDisruptionBudget.enabled=true']
+        for field in ('minAvailable', 'maxUnavailable'):
+            output = subprocess.check_output(
+                command + ['--set', f'podDisruptionBudget.{field}=0'], text=True,
+            )
+            budget = next(item for item in yaml.safe_load_all(output)
+                          if item and item['kind'] == 'PodDisruptionBudget')
+            self.assertEqual(budget['spec'][field], 0)
+            other = 'minAvailable' if field == 'maxUnavailable' else 'maxUnavailable'
+            self.assertNotIn(other, budget['spec'])
+        for extra in ([], ['--set', 'podDisruptionBudget.minAvailable=0',
+                           '--set', 'podDisruptionBudget.maxUnavailable=1']):
+            result = subprocess.run(command + extra, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('requires exactly one', result.stderr)
 
 
 if __name__ == '__main__':

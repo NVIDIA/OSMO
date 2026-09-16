@@ -315,10 +315,12 @@ osmo_py_binary(
 osmo_py_library(
     name = "cluster_fixture",
     srcs = ["cluster_fixture.py"],
+    tags = ["manual"],
     deps = [":fixture_base", requirement("pyyaml")],
 )
 
 osmo_py_library(
     name = "embedded_auth",
     srcs = ["embedded_auth.py"],
+    tags = ["manual"],
 )

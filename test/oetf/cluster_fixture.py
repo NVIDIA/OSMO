@@ -303,6 +303,7 @@ class ClusterFixture(OetfFixture):
         return job
 
     def job_pod(self, job: dict[str, Any]) -> dict[str, Any] | None:
+        """Select the latest terminal Pod only after every owned Pod is terminal."""
         pods = self.kube_json(
             [
                 'get',
@@ -311,7 +312,22 @@ class ClusterFixture(OetfFixture):
                 f'batch.kubernetes.io/job-name={job["metadata"]["name"]}',
             ]
         )['items']
-        return pods[0] if len(pods) == 1 else None
+        for pod in pods:
+            owners = [
+                owner for owner in pod['metadata'].get('ownerReferences', [])
+                if owner.get('controller')
+            ]
+            self.assertEqual(len(owners), 1, 'Ambiguous bootstrap Pod ownership.')
+            self.assertEqual(owners[0].get('kind'), 'Job')
+            self.assertEqual(owners[0].get('uid'), job['metadata']['uid'])
+        if not pods or any(
+            pod.get('status', {}).get('phase') not in ('Succeeded', 'Failed')
+            for pod in pods
+        ):
+            return None
+        return max(pods, key=lambda pod: (
+            pod['metadata']['creationTimestamp'], pod['metadata']['name'],
+        ))
 
     def wait_job(self, successful: bool) -> dict[str, Any]:
         expected = 'Complete' if successful else 'Failed'

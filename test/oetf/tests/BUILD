@@ -155,6 +155,13 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_cluster_fixture",
+    srcs = ["test_cluster_fixture.py"],
+    deps = ["//test/oetf:cluster_fixture"],
+    tags = ["manual"],
+)
+
+osmo_py_test(
     name = "test_deploy_and_run",
     srcs = ["test_deploy_and_run.py"],
     deps = [

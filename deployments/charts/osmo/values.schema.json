@@ -12,7 +12,7 @@
         "attempt": { "type": "string", "maxLength": 128 },
         "coordinatorActiveDeadlineSeconds": { "type": "integer", "minimum": 1 },
         "storageActiveDeadlineSeconds": { "type": "integer", "minimum": 1 },
-        "nodeSelector": { "type": ["object", "null"] },
+        "nodeSelector": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
         "tolerations": { "type": ["array", "null"] },
         "affinity": { "type": ["object", "null"] },
         "resources": { "type": "object" }

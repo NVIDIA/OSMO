@@ -96,6 +96,6 @@ Create the name of the secret containing the config file to use
 {{- if .Values.configSecret.create }}
 {{- default (include "dex.fullname" .) .Values.configSecret.name }}
 {{- else }}
-{{- default "default" .Values.configSecret.name }}
+{{- required "configSecret.name is required when configSecret.create is false" .Values.configSecret.name }}
 {{- end }}
 {{- end }}

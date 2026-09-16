@@ -112,6 +112,23 @@ disabled consumers, incomplete cluster-RBAC teardown, and a transient status-rea
 Independent source review completed, including the final gate validation and
 stranded-lease recovery policy, with no remaining correctness blocker reported.
 
+## PR review follow-up
+
+The initial Local KIND Deployment CI run installed OSMO successfully and passed
+its five normal test targets. It failed because OETF matched `kind` as a substring
+of `bootstrap-kind`, selecting the isolated lifecycle suite with the wrong
+environment. Tag inclusion and exclusion now match complete Bazel list elements.
+Real Bazel queries prove the old matcher selects that suite and the fixed matcher
+excludes exactly that suite while preserving explicit `bootstrap-kind` selection.
+
+Review fixes passed the full chart suite, the expanded 13-method semantic suite,
+coordinator and OETF unit tests, Python 3.12 compilation, and both Linux supervisor
+package builds. Coverage includes typed node selectors, Dex existing-Secret names,
+zero-valued disruption budgets, shared readiness deadlines, and retry-Pod selection
+that refuses live Pods or mismatched Job ownership. Namespace-wide Secret creation
+is documented as a bootstrap permission boundary; pre-created empty protected
+Secrets would violate atomic issuance and retained-state validation.
+
 ## Recovery contract discovered during testing
 
 The chart declares **one desired ordinary bootstrap Job**. Helm can leave a

@@ -888,6 +888,7 @@ class KindAdapter:
 
     def _helm_install_chart(self, chart_ref: str, *, unified: bool) -> None:
         """Install one resolved OSMO chart reference."""
+        readiness_timeout = "140m" if unified else "25m"
         if unified:
             chart_ref = self._retain_quick_start_chart(chart_ref)
             self._ensure_helm_repo(RUSTFS_REPO_NAME, RUSTFS_REPO_URL)
@@ -901,7 +902,7 @@ class KindAdapter:
             "--namespace", OSMO_NAMESPACE, "--create-namespace",
             # First-run image pulls on CPU hosts can easily exceed 15 min;
             # subsequent runs re-use the docker image cache and are much faster.
-            "--timeout", "140m" if unified else "25m",
+            "--timeout", readiness_timeout,
         ]
         if not unified:
             args += [
@@ -954,7 +955,7 @@ class KindAdapter:
         self._run(
             [
                 "kubectl", "wait", "--for=condition=Available", "deployment",
-                "--all", "-n", OSMO_NAMESPACE, "--timeout=25m",
+                "--all", "-n", OSMO_NAMESPACE, f"--timeout={readiness_timeout}",
             ],
             "Waiting for osmo Deployments to be Available",
         )

@@ -8,6 +8,7 @@ go_library(
     name = "bootstrap_step",
     srcs = ["main.go", "process_linux.go", "lease.go"],
     importpath = "go.corp.nvidia.com/osmo/runtime/cmd/bootstrap_step",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
 )
 

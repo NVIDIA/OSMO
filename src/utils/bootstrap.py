@@ -734,7 +734,7 @@ def _run() -> None:
             if arguments.action != 'begin' or time.monotonic() >= deadline:
                 raise
             time.sleep(1)
-        except BootstrapError, ApiException:
+        except (BootstrapError, ApiException):
             if (
                 arguments.action not in ('complete', 'gate')
                 or time.monotonic() >= deadline

@@ -11,11 +11,32 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 import argparse
 from contextlib import redirect_stdout
 import io
+import re
 from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from test.oetf import main as oetf_main
+
+
+class TagSelectionTest(unittest.TestCase):
+    """Environment tags must not select a different cluster's lifecycle suite."""
+
+    @mock.patch.object(oetf_main.subprocess, "check_output", return_value="//test:chosen\n")
+    def test_include_and_exclude_tags_match_complete_elements(self, query):
+        selected = oetf_main._resolve_targets_via_query("kind,auth", "bootstrap-kind")
+        self.assertEqual(selected, ["//test:chosen"])
+        expression = query.call_args.args[0][2]
+        quoted_patterns = re.findall(r'attr\(tags, ("(?:\\.|[^"\\])*"),', expression)
+        # Bazel preserves regex backslashes inside query string literals.
+        include, exclude = [re.compile(value[1:-1]) for value in quoted_patterns]
+        for tags in ("[kind]", "[manual, kind]", "[kind, manual]", "[auth]"):
+            self.assertIsNotNone(include.search(tags), tags)
+        for tags in ("[bootstrap-kind]", "[kind-extra]", "[oauth]", "[manual]"):
+            self.assertIsNone(include.search(tags), tags)
+        self.assertIsNotNone(exclude.search("[manual, bootstrap-kind]"))
+        self.assertIsNone(exclude.search("[kind]"))
+        self.assertIsNone(exclude.search("[bootstrap-kind-extra]"))
 
 
 class ResolveEnvAuthTest(unittest.TestCase):

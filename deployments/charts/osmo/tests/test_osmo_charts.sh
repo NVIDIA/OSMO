@@ -829,6 +829,7 @@ test_control_umbrella() {
     helm_template embedded-auth-pdb "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
         --set dex.podDisruptionBudget.enabled=true \
+        --set dex.podDisruptionBudget.maxUnavailable=0 \
         >"$TEST_DIRECTORY/embedded-auth-pdb.yaml"
     require_resource "$TEST_DIRECTORY/embedded-auth-pdb.yaml" PodDisruptionBudget \
         osmo-dex
@@ -4261,7 +4262,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "automountServiceAccountToken: false"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "serviceAccountName:"
+        "serviceAccountName: $(bootstrap_job_name "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" step:object-storage-bootstrap)"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "mountPath: /tmp"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
