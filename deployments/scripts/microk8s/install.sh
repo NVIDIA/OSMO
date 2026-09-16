@@ -15,24 +15,40 @@
 #   - kubeconfig export with proper ownership
 #
 # Usage:
-#   sudo ./install.sh           # CPU-only
-#   sudo ./install.sh --gpu     # GPU instance with NVIDIA driver >= 525
+#   sudo ./install.sh                          # CPU-only, minio addon enabled
+#   sudo ./install.sh --gpu                    # GPU instance, NVIDIA driver >= 525
+#   sudo ./install.sh --storage-backend rustfs # skip the minio addon (RustFS path)
 
 set -euo pipefail
 
 CHANNEL="${MICROK8S_CHANNEL:-1.31/stable}"
 ENABLE_GPU=false
+# Storage backend the OSMO deploy will use. The `minio` addon is only enabled
+# for the minio/auto backends; selecting rustfs (or any other backend) skips it
+# so MinIO isn't present even as an addon. Defaults to auto to preserve the
+# standalone `sudo ./install.sh` behavior (auto -> minio on single-node).
+STORAGE_BACKEND="${STORAGE_BACKEND:-auto}"
 REAL_USER="${SUDO_USER:-${USER:-ubuntu}}"
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-for arg in "$@"; do [[ "$arg" == "--gpu" ]] && ENABLE_GPU=true; done
+# Preserve the original invocation for the run-as-root error message before the
+# parse loop consumes the positional parameters.
+ORIG_ARGS="$*"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --gpu) ENABLE_GPU=true; shift ;;
+        --storage-backend) STORAGE_BACKEND="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
 
 # ── Preflight ─────────────────────────────────────────────────────────────────
 PASS=true
 
 if [[ "$EUID" -ne 0 ]]; then
-    echo "ERROR: must be run as root — use: sudo $0 $*"
+    echo "ERROR: must be run as root — use: sudo $0 $ORIG_ARGS"
     PASS=false
 fi
 
@@ -134,7 +150,20 @@ fi
 # Note: `registry` is intentionally NOT enabled — OSMO doesn't use a local
 # image registry. Add it if your workflow needs `localhost:32000`.
 echo "==> Enabling addons"
-microk8s enable dns hostpath-storage helm3 rbac minio
+microk8s enable dns hostpath-storage helm3 rbac
+
+# The `minio` addon is only for the minio/auto storage backends. For rustfs (or
+# any other backend) it must NOT be enabled — MinIO and RustFS are mutually
+# exclusive, so MinIO mustn't be present even as an addon.
+case "$STORAGE_BACKEND" in
+    minio|auto)
+        echo "==> Enabling minio addon (storage backend: $STORAGE_BACKEND)"
+        microk8s enable minio
+        ;;
+    *)
+        echo "==> Skipping minio addon (storage backend: $STORAGE_BACKEND)"
+        ;;
+esac
 
 # ── 5. GPU addon ─────────────────────────────────────────────────────────────
 # Symlink workaround needed when host driver is pre-installed (vs container-
