@@ -21,7 +21,20 @@
 Identity Provider (IdP) Setup
 ================================================
 
-This guide explains how to use OSMO with an external **identity provider (IdP)** so that users log in with your organization’s credentials (e.g., Microsoft Entra ID, Google Workspace, AWS IAM Identity Center). OSMO connects **directly** to the IdP; there is no Keycloak or other broker in the middle.
+The unified ``osmo`` chart uses embedded Dex by default and bootstraps a static
+admin account whose password is stored in a retained Secret. This configuration
+uses volatile Dex storage and is intended only to speed up development and
+evaluation. For production, disable embedded Dex and configure an external
+**identity provider (IdP)** so users log in with your organization's credentials
+(for example, Microsoft Entra ID, Google Workspace, or AWS IAM Identity
+Center). OSMO connects directly to the IdP; there is no Keycloak or other
+broker in the middle.
+
+External OIDC uses two client types because the UI and CLI have different
+security properties. The confidential browser client handles the web redirect
+flow and has a client secret. The public CLI client uses authorization code
+with PKCE and must not have a client secret. Some providers allow both client
+types in one application registration; others require separate registrations.
 
 .. note::
 
@@ -35,22 +48,31 @@ This guide explains how to use OSMO with an external **identity provider (IdP)**
    name, and honor an explicit URI port. See
    :doc:`migrating_to_embedded_dex` for the complete migration contract.
 
-Create browser-client and cookie Secrets without putting their values in shell
-history or process arguments:
+Generate a random 32-byte cookie secret:
 
 .. code-block:: bash
 
-   umask 077
-   OSMO_OIDC_SECRET_DIR=$(mktemp -d)
-   trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
-   read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET
-   printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
-     "$OSMO_OIDC_SECRET_DIR/client_secret"
-   unset OSMO_BROWSER_CLIENT_SECRET
-   openssl rand 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
-   kubectl --namespace osmo create secret generic osmo-external-oidc \
-     --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
-     --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
+   $ openssl rand -base64 32
+
+Save the browser client secret and command output as
+``external-oidc-secret.yaml``. Restrict access to this file and do not commit
+it to source control:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-external-oidc
+     namespace: osmo
+   type: Opaque
+   stringData:
+     client_secret: <oidc-browser-client-secret>
+     cookie_secret: <random-32-byte-cookie-secret>
+
+.. code-block:: bash
+
+   $ kubectl create --filename external-oidc-secret.yaml
 
 When to use an IdP
 ==================

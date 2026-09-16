@@ -78,9 +78,10 @@ Configure PostgreSQL Connection
 ===============================
 
 Create an empty PostgreSQL database for OSMO. The database user must be able to
-create and update objects in that database. Store the username and password in
-a Secret; the default keys are ``username`` and ``db-password``. Save the
-following as ``postgresql-secret.yaml``:
+create and update objects in that database. The username is non-secret
+connection metadata configured in Helm values. Store the password under the
+default ``db-password`` key and save the following as
+``postgresql-secret.yaml``:
 
 .. code-block:: yaml
 
@@ -91,7 +92,6 @@ following as ``postgresql-secret.yaml``:
      namespace: osmo
    type: Opaque
    stringData:
-     username: <postgresql-username>
      db-password: <postgresql-password>
 
 .. code-block:: bash
@@ -139,15 +139,12 @@ If PostgreSQL uses a private CA, save the referenced trust Secret as
      postgresql:
        existingSecret: osmo-postgresql
        keys:
-         username: username
          password: db-password
 
-Use the same PostgreSQL username in ``postgresql-secret.yaml`` and
-``osmo-values.yaml``. Use ``sslMode: require`` and leave
-``caExistingSecret`` empty only when the connection must be encrypted but no
-CA bundle is available. This does not authenticate the server;
-``verify-full`` is preferred. For a server that does not use TLS, set
-``tls.enabled: false``.
+Use ``sslMode: require`` and leave ``caExistingSecret`` empty only when the
+connection must be encrypted but no CA bundle is available. This does not
+authenticate the server; ``verify-full`` is preferred. For a server that does
+not use TLS, set ``tls.enabled: false``.
 
 Configure Valkey Connection
 ===========================
@@ -363,7 +360,12 @@ MEK
 ---
 
 The master encryption key (MEK) protects encrypted values stored in
-PostgreSQL. For a new database, the chart can create the retained
+PostgreSQL.
+
+Chart-managed
+^^^^^^^^^^^^^
+
+For a new database, the chart can create the retained
 ``osmo-master-encryption-key`` Secret without placing key material in Helm
 state:
 
@@ -381,6 +383,9 @@ state:
 Back up that Secret after installation. Never replace it while retaining the
 database. After the first successful installation, set ``bootstrap.enabled``
 to ``false``.
+
+User-managed
+^^^^^^^^^^^^
 
 For a user-managed MEK, save the following as ``mek-secret.yaml``. The
 ``currentMek`` value must name an entry in ``meks``; each entry is a
@@ -414,8 +419,13 @@ Internal TLS
 ------------
 
 ``gateway.tls`` protects traffic from Envoy to the OSMO services; it does not
-configure public edge TLS. Chart-managed mode creates and retains an internal
-CA, trust bundle, and one leaf Secret per service:
+configure public edge TLS.
+
+Chart-managed
+^^^^^^^^^^^^^
+
+Chart-managed mode creates and retains an internal CA, trust bundle, and one
+leaf Secret per service:
 
 .. code-block:: yaml
 
@@ -427,6 +437,9 @@ CA, trust bundle, and one leaf Secret per service:
 
 Back up the retained TLS Secrets. Do not regenerate a missing CA for an
 existing installation; restore it.
+
+User-managed
+^^^^^^^^^^^^
 
 For user-managed TLS, create a CA Secret containing ``ca.crt`` and a
 ``kubernetes.io/tls`` Secret containing ``tls.crt`` and ``tls.key`` for each
@@ -492,8 +505,13 @@ Change ``gateway.tls.rolloutNonce`` after rotating user-managed TLS Secrets.
 Service auth
 ------------
 
-Service auth is OSMO's stable JWT signing identity. The chart can create the
-retained ``osmo-service-auth`` Secret for a new installation:
+Service auth is OSMO's stable JWT signing identity.
+
+Chart-managed
+^^^^^^^^^^^^^
+
+The chart can create the retained ``osmo-service-auth`` Secret for a new
+installation:
 
 .. code-block:: yaml
 
@@ -508,6 +526,9 @@ retained ``osmo-service-auth`` Secret for a new installation:
 
 Back up the Secret, then set ``bootstrap.enabled`` to ``false`` after the first
 successful installation.
+
+User-managed
+^^^^^^^^^^^^
 
 For a user-managed identity, generate the file with the OSMO service image:
 
@@ -549,30 +570,21 @@ with valid ``public_key`` and ``private_key`` JWK values. Set
 Prepare Values
 ==============
 
-Combine the settings above in ``osmo-values.yaml``. This static-credential
-example uses embedded Dex and chart-bootstrapped MEK, service auth, and internal
-TLS. Replace every angle-bracket placeholder:
+The chart packages a ``profiles/split-plane-control.yaml`` base profile for an
+HA control plane with external PostgreSQL, Valkey, and object storage. The
+profile enables the control plane, disables the compute plane and embedded
+stateful dependencies, uses the chart application version for OSMO images, and
+configures autoscaling, disruption budgets, and topology spreading. The
+deployment commands below layer ``osmo-values.yaml`` after that profile.
+
+Combine only the site-specific settings above in ``osmo-values.yaml``. This
+static-credential example uses the chart defaults for embedded Dex and uses
+chart-managed MEK, service auth, and internal TLS. Replace every angle-bracket
+placeholder:
 
 .. code-block:: yaml
 
-   planes:
-     control:
-       enabled: true
-     compute:
-       enabled: false
-
-   imageTag: <image-tag>
    externalUrl: https://osmo.example.com
-
-   embeddedDependencies:
-     dex:
-       enabled: true
-     postgresql:
-       enabled: false
-     valkey:
-       enabled: false
-     objectStorage:
-       enabled: false
 
    externalDependencies:
      postgresql:
@@ -626,9 +638,6 @@ TLS. Replace every angle-bracket placeholder:
        bootstrap:
          enabled: true
 
-   authentication:
-     provider: embeddedDex
-
    gateway:
      envoy:
        service:
@@ -638,15 +647,20 @@ TLS. Replace every angle-bracket placeholder:
        generated:
          enabled: true
 
-Embedded Dex uses volatile memory storage and is suitable for development and
-evaluation only. Use an external identity provider for production.
-
 Configure an External IdP
 =========================
 
-Register browser and device/CLI clients with your OIDC provider. Save the
-browser client secret and a random 32-byte cookie secret as
-``external-oidc-secret.yaml``:
+By default, the unified chart enables an embedded Dex identity provider and
+bootstraps a statically configured admin identity. Embedded Dex uses volatile
+memory storage and is intended only to speed up development and evaluation;
+it is not suitable for production deployments. For production, disable Dex
+and use your organization's external OIDC identity provider.
+
+Before continuing, follow
+:doc:`../appendix/authentication/identity_provider_setup` to register the
+required confidential browser and public CLI clients and collect their IDs,
+endpoints, and claims. Then save the browser client secret and a random
+32-byte cookie secret as ``external-oidc-secret.yaml``:
 
 .. code-block:: bash
 
@@ -706,45 +720,44 @@ OIDC discovery remain supported:
          existingSecret: osmo-external-oidc
          key: cookie_secret
 
-See :doc:`../appendix/authentication/identity_provider_setup` for
-provider-specific application registration and
-:doc:`../appendix/authentication/idp_role_mapping` for role mapping.
+See :doc:`../appendix/authentication/idp_role_mapping` for role mapping.
 
 .. _deploy_service_deploy_components:
 
 Deploy Components
 =================
 
-Check out the OSMO release you plan to deploy and build the unified chart's
-dependencies. Run the remaining commands from the repository root. The
-``imageTag`` in ``osmo-values.yaml`` must identify images built for that
-release:
+Add the published OSMO chart repository and select the chart version to deploy.
+Pull that version once to obtain its matching control-plane profile for the
+values layering below:
 
 .. code-block:: bash
 
-   $ git clone https://github.com/NVIDIA/OSMO.git
-   $ cd OSMO
-   $ git checkout <release-tag>
-   $ helm repo add osmo-dex https://charts.dexidp.io --force-update
-   $ helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
-   $ helm repo add osmo-rustfs https://charts.rustfs.com --force-update
-   $ helm dependency build deployments/charts/osmo
-   $ helm show chart deployments/charts/osmo
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm repo update
+   $ helm pull osmo/osmo --version <chart-version> \
+       --untar --untardir /tmp/osmo-chart
+   $ helm show chart osmo/osmo --version <chart-version>
 
 Render and lint the release before changing the cluster:
 
 .. code-block:: bash
 
-   $ helm lint deployments/charts/osmo --values osmo-values.yaml
-   $ helm template osmo deployments/charts/osmo \
-       --namespace osmo --values osmo-values.yaml > /tmp/osmo-rendered.yaml
+   $ helm lint /tmp/osmo-chart/osmo \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
+       --values osmo-values.yaml
+   $ helm template osmo osmo/osmo --version <chart-version> \
+       --namespace osmo \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
+       --values osmo-values.yaml > /tmp/osmo-rendered.yaml
 
 Install the control plane and wait for bootstrap and migration Jobs:
 
 .. code-block:: bash
 
-   $ helm upgrade --install osmo deployments/charts/osmo \
+   $ helm upgrade --install osmo osmo/osmo --version <chart-version> \
        --namespace osmo \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
        --values osmo-values.yaml \
        --wait --wait-for-jobs --timeout 30m
 
@@ -754,8 +767,9 @@ cleanup upgrade:
 
 .. code-block:: bash
 
-   $ helm upgrade osmo deployments/charts/osmo \
+   $ helm upgrade osmo osmo/osmo --version <chart-version> \
        --namespace osmo \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
        --values osmo-values.yaml \
        --wait --timeout 30m
 
@@ -814,13 +828,13 @@ Common failures include:
   all external dependencies have endpoints and Secret references. Static
   object storage requires a Secret; ``sdkDefault`` forbids one.
 * **A bootstrap executable is not found**: the chart and OSMO images are from
-  different releases. Check out the intended release and set ``imageTag`` to
-  its matching image tag; do not deploy an unpinned development chart with an
-  older ``latest`` image.
+  different releases. Use the same pinned ``<chart-version>`` for every Helm
+  command and do not override the control-plane profile's chart-version image
+  selection.
 * **PostgreSQL connection or migration fails**: verify DNS, network policy,
-  database ownership, the ``username`` and ``db-password`` keys, TLS mode, and
-  CA bundle. Do not enable ``databaseMigration`` for a new database merely to
-  retry connectivity.
+  database ownership, the configured username, the ``db-password`` Secret key,
+  TLS mode, and CA bundle. Do not enable ``databaseMigration`` for a new
+  database merely to retry connectivity.
 * **Valkey readiness fails**: confirm Valkey/Redis is version 7 or newer, the
   selected database exists, ``redis-password`` is correct, and the TLS trust
   bundle is complete.
