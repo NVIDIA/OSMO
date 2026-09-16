@@ -372,7 +372,7 @@ jobs:
 
 
   docs-deploy:
-    needs: [docs-build]
+    needs: [check-paths, docs-build]
     if: needs.check-paths.outputs.docs == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     environment:

@@ -37,8 +37,8 @@ Step 1: Provision Backend Bootstrap Secret
 The unified chart creates a backend token through its identity bootstrap when
 an enabled identity declares ``managedSecret``. The Quickstart and
 self-contained defaults create ``osmo-backend-token`` and mount it directly in
-the colocated backend operator; those deployments do not need another operator
-installation or a manually generated token.
+the backend operator in the same namespace. Those deployments do not need
+another operator installation or a manually generated token.
 
 For a separate compute cluster, configure a backend identity in the
 control-plane values before installing the compute plane. For example, add
