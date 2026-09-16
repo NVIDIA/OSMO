@@ -93,20 +93,20 @@ OSMO services write logs to standard streams for collection by the platform log 
 
 ### Self-hosted MCP service
 
-The optional MCP workload exposes predefined OSMO operations to compatible
-native or desktop MCP clients. FastMCP validates its own proxy token and relays
-the verified upstream access token through the same Gateway for each mapped
-OSMO API request. That API request still passes the deployment's
-normal identity-provider validation and semantic RBAC.
+MCP uses mandatory in-process OIDC authentication and forwards the verified
+user token through the Gateway for each API call. Follow the
+[MCP deployment guide](../../../docs/deployment_guide/advanced_config/mcp.rst)
+for the identity-provider registration, minimal values overlay, Redis and
+secret setup, routing, verification, and rollback.
 
-`services.mcp.resourceUrl` is the single source of truth for the public MCP
-resource and the outbound Gateway origin. It must be an externally reachable
-HTTPS URL with the exact `/mcp` path. For example,
-`https://osmo.example.com/mcp` produces the fixed outbound origin
-`https://osmo.example.com`. The MCP pod must be able to resolve and reach that
-public origin, and operators must ensure its DNS and routing lead to this
-release's Gateway. Derivation removes a second independently configured
-destination, but it cannot validate external DNS.
+The service chart inherits Redis host, port, and TLS from `services.redis`.
+When that Redis requires a password, use
+`services.mcp.oidcProxy.existingSecret.redisPasswordKey` in the OIDC Secret.
+The alternative `services.mcp.oidcProxy.redis.passwordFile` is used only when
+`existingSecret.name` is unset and the OIDC secret is also supplied as a mounted
+file. The MCP ingress NetworkPolicy is always rendered, including when
+`gateway.networkPolicies.enabled` is false for other upstreams.
+Gateway-to-MCP TLS follows the shared `gateway.tls` configuration.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -122,55 +122,17 @@ destination, but it cannot validate external DNS.
 | `services.mcp.extraVolumes` | Additional MCP pod volumes. | `[]` |
 | `services.mcp.oidcProxy.oidc.configUrl` | Upstream OIDC discovery URL. | `""` |
 | `services.mcp.oidcProxy.oidc.clientId` | Administrator-managed confidential OIDC application client ID. | `""` |
-| `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted file containing the upstream OIDC client secret. | `/etc/osmo/mcp-auth/client-secret` |
-| `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Exact issuer required on upstream API access tokens. | `""` |
+| `services.mcp.oidcProxy.oidc.clientSecretFile` | Mounted OIDC client secret; derived from `existingSecret.mountPath` when that Secret is selected. | `/etc/osmo/mcp-auth/client-secret` |
+| `services.mcp.oidcProxy.oidc.accessTokenIssuer` | Override only when API-token issuer differs from OIDC discovery. | `""` |
 | `services.mcp.oidcProxy.oidc.accessTokenRequiredScope` | Short scope value required in the upstream access token's `scp` claim. | `access_as_user` |
 | `services.mcp.oidcProxy.redis.dbNumber` | Logical Redis database for proxy state. Host, port and TLS come from `services.redis`. | `1` |
 | `services.mcp.oidcProxy.accessTokenTtlSeconds` | Lifetime of proxy access tokens, from 60 through 3600 seconds. | `600` |
-| `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Lifetime of proxy refresh tokens, from 300 through 604800 seconds. | `28800` |
+| `services.mcp.oidcProxy.refreshTokenTtlSeconds` | Fallback refresh-token lifetime when the upstream provider omits expiry, from 300 through 604800 seconds. | `28800` |
 | `services.mcp.oidcProxy.upstreamTimeoutSeconds` | Timeout for upstream OIDC requests, from 1 through 60 seconds. | `10` |
 | `services.mcp.oidcProxy.existingSecret` | Optional existing Secret holding the OIDC client secret and Redis password. The chart references it but never creates credential material. | See `values.yaml` |
 
-The in-process proxy follows OSMO's OIDC profile: a full delegated scope URI is requested
-from the upstream provider while its short suffix is enforced in the verified
-API access token. Register the single stable upstream redirect URI
-`<resourceUrl origin>/mcp/auth/callback`. MCP clients still configure only `resourceUrl`.
-CIMD-capable clients identify themselves with a hosted metadata document;
-older clients can use FastMCP's `/register` DCR endpoint. Both paths use
-authorization-code flow with PKCE and end in the same OSMO Gateway and semantic
-RBAC checks.
-
-Before production exposure, add route-specific rate limits at the trusted
-ingress for the public authorization, callback, registration, and token
-endpoints. The chart does not choose a default shared bucket because one caller
-could otherwise exhaust it and block every user's login; deployments must
-select both the client-IP trust boundary and suitable limits.
-
-FastMCP deterministically derives its proxy-token signing key and the encrypted
-Redis-store key from the upstream OIDC client secret. Rotating that client
-secret therefore invalidates existing proxy tokens; encrypted entries from the
-old key are treated as cache misses, so clients must sign in again after a
-rotation.
-
-Enabling MCP always renders an ingress NetworkPolicy whose allow rule selects
-only this release's Gateway Envoy pods, even when
-`gateway.networkPolicies.enabled` is false for other upstreams. This is
-required because MCP accepts traffic only through the same public Gateway
-boundary.
-NetworkPolicies require enforcement by the cluster CNI and are additive, so
-operators must also ensure no other policy grants MCP ingress. The pod does
-not mount a service-account token, and the chart creates no MCP credential
-Secret. Gateway-to-MCP TLS continues to use the shared `gateway.tls`
-configuration described below.
-
-The external MCP exposes a 26-tool catalog with fixed API routes and no
-caller-selected origin, method, route, or headers. See the
-[external MCP tool plan](../../../src/service/mcp/TOOLS.md) for its exact
-contracts and API mappings. MCP health probes do not call these APIs; a
-tool-level authentication, authorization, timeout, or dependency error does
-not by itself make the pod unhealthy.
-
-Run the enabled and disabled rendering checks locally with:
+See [tool contracts](../../../src/service/mcp/TOOLS.md) for supported operations.
+Run the chart rendering checks from the repository root:
 
 ```bash
 bash deployments/charts/service/tests/render-tests.sh

@@ -69,8 +69,8 @@ def update_backend_queues_from_configmap(
         prev_kb_factory = kb_objects.get_k8s_object_factory(prev_backend)
         prev_cleanup_specs = prev_kb_factory.list_scheduler_resources_spec(prev_backend)
         if prev_cleanup_specs:
-            # Deduplicate cleanup_specs to avoid processing the same resource type twice
-            # if both old and new schedulers use the same resource types with same labels
+            # Deduplicate cleanup_specs to avoid processing the same resource twice if both
+            # old and new schedulers target the same resource identity with the same labels
             seen_specs = set()
             deduped_specs = []
             for spec in cleanup_specs + prev_cleanup_specs:
@@ -79,7 +79,9 @@ def update_backend_queues_from_configmap(
                     spec.resource_type,
                     tuple(sorted(spec.labels.items())),
                     (spec.custom_api.api_major, spec.custom_api.api_minor,
-                     spec.custom_api.path) if spec.custom_api else None
+                     spec.custom_api.path) if spec.custom_api else None,
+                    (spec.generic_api.api_version,
+                     spec.generic_api.kind) if spec.generic_api else None,
                 )
                 if key not in seen_specs:
                     seen_specs.add(key)

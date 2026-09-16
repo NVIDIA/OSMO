@@ -39,6 +39,19 @@ _WORKFLOW_SUFFIXES = frozenset({
 })
 
 
+def _log_best_effort(
+    logger: logging.Logger,
+    level: int,
+    message: str,
+    *arguments: object,
+) -> None:
+    """A logging sink failure must never change a request or write outcome."""
+    try:
+        logger.log(level, message, *arguments)
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+
 def route_template(path: str) -> str:
     """Return a static telemetry label without logging resource identifiers."""
     if path in _STATIC_ROUTES:
@@ -96,7 +109,9 @@ def log_upstream_call(
     request_id: str | None,
 ) -> None:
     """Emit one identifier-free structured record for an upstream call."""
-    _LOGGER.info(
+    _log_best_effort(
+        _LOGGER,
+        logging.INFO,
         'OSMO MCP upstream call tool=%s method=%s route=%s status=%s '
         'outcome=%s duration_ms=%.3f request_id=%s',
         request_context.get_active_tool_name() or '-',
@@ -117,7 +132,9 @@ def log_tool_outcome(
     request_id: str | None,
 ) -> None:
     """Emit the final result classification after MCP result validation."""
-    _LOGGER.info(
+    _log_best_effort(
+        _LOGGER,
+        logging.INFO,
         'OSMO MCP tool call tool=%s outcome=%s duration_ms=%.3f request_id=%s',
         tool_name,
         outcome,

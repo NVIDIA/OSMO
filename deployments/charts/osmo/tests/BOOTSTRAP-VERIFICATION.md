@@ -55,6 +55,14 @@ names, and a required self-generated service-auth Secret mount. A separately
 compiled Linux supervisor with its watchdog disabled failed the timeout test
 under an independent four-second test-runner deadline.
 
+Before opening the PR, upstream `38cc53d2f` was merged. Its service-auth
+node-selector inheritance is preserved when comparing the shared Pod's effective
+scheduling policy; the independent reviewer approved that conflict resolution.
+The full chart shell suite, semantic matrix, and expanded 110-test MEK suite passed
+after integration. New upstream MEK test fakes were adapted to the nonblocking
+advisory lock and updated ownership error. Cluster receipts below remain tied to
+their recorded images; the complete cluster matrix was not rerun after this merge.
+
 ## Cluster results
 
 The checked-in OETF suite is `//test/smoke:bootstrap_lifecycle_kind`; see
@@ -136,6 +144,9 @@ Local run artifacts (not committed):
 - `/private/tmp/osmo-bootstrap-cpu-v8-rerun.log`: passing final CPU workflow run.
 - `/private/tmp/osmo-bootstrap-evidence/cpu-v8-final`: final CPU Allure result and cluster evidence.
 - `/private/tmp/osmo-bootstrap-fast-v8.log`: final coordinator/MEK targets.
+- `/private/tmp/osmo-bootstrap-pr-chart.log`: full chart suite after upstream integration.
+- `/private/tmp/osmo-bootstrap-pr-bazel.log`: passing merged semantic matrix and initial MEK fixture failures.
+- `/private/tmp/osmo-bootstrap-pr-mek-rerun.log`: passing expanded MEK suite after fixture updates.
 
 No production cluster was modified. The disposable cluster and locally loaded
 images are retained for inspection. The final CPU release was uninstalled and its

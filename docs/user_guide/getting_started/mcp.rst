@@ -37,18 +37,17 @@ Ask your administrator for the MCP URL. It normally has the following form:
 
    https://<osmo-host>/mcp
 
-Connecting requires only the MCP URL. The deployment completes the OAuth
-exchange for you in the browser; there is no client ID, scope list or token to
-configure.
+You need only this URL and a browser sign-in; there is no client ID, scope
+list, or token to configure.
 
 MCP acts on your behalf. Every tool call is authorized with your existing OSMO
 roles, API actions, and accessible pools; MCP cannot elevate your access. See
 :ref:`mcp_identity_permissions` for details.
 
-Connect with OIDC Proxy Mode
-============================
+Connect a Client
+================
 
-The following example uses Codex and the recommended endpoint-only login.
+The following example uses Codex.
 Replace ``osmo.example.com`` with your deployment hostname:
 
 .. code-block:: bash
@@ -56,13 +55,8 @@ Replace ``osmo.example.com`` with your deployment hostname:
    $ codex mcp add osmo --url https://osmo.example.com/mcp
    $ codex mcp login osmo
 
-In the browser, follow the prompts to review and approve FastMCP consent and to
-complete the upstream identity-provider sign-in, then return to the terminal.
-FastMCP handles OAuth discovery, client identification with Client ID
-Metadata Documents (CIMD) or registration with Dynamic Client Registration
-(DCR), Proof Key for Code Exchange (PKCE), scopes, callbacks, token exchange,
-and refresh. Do not add a client ID, scope list, client secret, callback port,
-or bearer token.
+Follow the browser prompts to approve access and sign in with your deployment's
+identity provider, then return to the terminal.
 
 Run ``codex mcp list`` to confirm that the entry is configured, then start or
 restart Codex so it loads the authenticated server.
@@ -70,15 +64,8 @@ restart Codex so it loads the authenticated server.
 For another compatible client, select Streamable HTTP, enter only the MCP URL,
 and leave headers, bearer token, client ID, and scopes unset. To use the
 endpoint-only flow, the client must support OAuth discovery, PKCE S256, and
-either CIMD client identification or DCR registration.
-
-.. note::
-
-   The identity provider returns to the deployment's fixed
-   ``https://<osmo-host>/mcp/auth/callback`` URL. After FastMCP completes that
-   exchange, the browser redirects to a temporary loopback URL owned by the MCP
-   client. The administrator registers only the fixed upstream callback with
-   the identity provider.
+either Client ID Metadata Documents (CIMD) or Dynamic Client Registration
+(DCR).
 
 Verify Access
 =============
@@ -102,7 +89,7 @@ role lacks their API action or when the requested pool is outside your access.
 Refresh or Replace a Login
 ==========================
 
-FastMCP normally refreshes an expiring session automatically. Log out and sign
+Your MCP session normally refreshes automatically. Log out and sign
 in again after an administrator changes your identity-provider assignment, or
 when the session is expired, revoked, or cannot be refreshed:
 
@@ -111,10 +98,8 @@ when the session is expired, revoked, or cannot be refreshed:
    $ codex mcp logout osmo
    $ codex mcp login osmo
 
-Remove and re-add the MCP entry when its URL or authentication mode has changed,
-or when an administrator rotates the proxy's upstream client secret and a
-stored DCR registration no longer works. The following sequence resets an OIDC
-proxy configuration:
+Remove and re-add the MCP entry when its URL changes, or when your
+administrator asks you to reset the saved registration after a secret rotation:
 
 .. code-block:: bash
 

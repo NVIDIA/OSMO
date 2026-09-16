@@ -29,6 +29,7 @@ import dataclasses
 import pathlib
 import sys
 from typing import Any, Callable, Sequence
+import urllib.parse
 
 import yaml
 
@@ -247,9 +248,19 @@ class _Converter:
                 'compute': {'enabled': False},
             },
             'embeddedDependencies': {
+                'dex': {'enabled': False},
                 'postgresql': {'enabled': False},
                 'valkey': {'enabled': False},
                 'objectStorage': {'enabled': False},
+            },
+            'authentication': {
+                'provider': 'externalOidc',
+                'bootstrap': {
+                    'identities': {
+                        'admin': {'enabled': False},
+                        'backend-operator-default': {'enabled': False},
+                    },
+                },
             },
             # The legacy chart hard-codes the osmo-* resource prefix. The
             # control profile clears this value, so restore it explicitly.
@@ -266,10 +277,6 @@ class _Converter:
             },
             'secrets': {
                 'valkey': {'generate': False},
-                'backendApiTokens': {
-                    'enabled': False,
-                    'credentials': [],
-                },
                 # Existing releases must preserve their signing identity.
                 'serviceAuth': {
                     'managementMode': 'external',
@@ -575,6 +582,176 @@ class _Converter:
                         f'configuration.workflow.*.credential.{old_key}',
                         'values differ between storage locations')
 
+    def convert_authentication(self) -> None:
+        auth = _pop(self.source, 'services.service.auth')
+        if not isinstance(auth, dict):
+            self.issue('services.service.auth',
+                       'required to configure 6.4 external OIDC')
+            return
+        auth = copy.deepcopy(auth)
+        if auth.pop('enabled', False) is not True:
+            self.issue('services.service.auth.enabled',
+                       '6.4 control-plane authentication is mandatory')
+
+        oauth_root = 'gateway.oauth2Proxy'
+        provider = _pop(self.source, f'{oauth_root}.provider')
+        if provider not in (MISSING, 'oidc'):
+            self.issue(f'{oauth_root}.provider',
+                       '6.4 external authentication requires OIDC')
+        issuer = _pop(self.source, f'{oauth_root}.oidcIssuerUrl')
+        oauth_client_id = _pop(self.source, f'{oauth_root}.clientId')
+        browser_client_id = auth.pop('browser_client_id', MISSING)
+        if (oauth_client_id is not MISSING
+                and browser_client_id is not MISSING
+                and oauth_client_id != browser_client_id):
+            self.issue(f'{oauth_root}.clientId',
+                       'does not match services.service.auth.browser_client_id')
+        if browser_client_id is MISSING:
+            browser_client_id = oauth_client_id
+
+        external: YamlObject = {
+            'issuer': '' if issuer is MISSING else issuer,
+            'browserClientId': (
+                '' if browser_client_id is MISSING else browser_client_id),
+            'cliClientId': auth.pop('device_client_id', ''),
+            'authorizationEndpoint': auth.pop('browser_endpoint', ''),
+            'tokenEndpoint': auth.pop('token_endpoint', ''),
+            'deviceEndpoint': auth.pop('device_endpoint', ''),
+            'logoutEndpoint': auth.pop('logout_endpoint', ''),
+            'rolesClaim': 'roles',
+        }
+        for path in _leaf_paths(auth, 'services.service.auth'):
+            self.issue(path, 'no 6.4 authentication mapping')
+
+        scope = _pop(self.source, f'{oauth_root}.scope')
+        if scope is MISSING:
+            scope = 'openid email profile'
+        if isinstance(scope, str):
+            external['scopes'] = scope.split()
+            _set(self.output, f'{oauth_root}.scope', scope)
+        else:
+            self.issue(f'{oauth_root}.scope',
+                       'expected a space-separated string')
+
+        jwt = _pop(self.source, 'gateway.envoy.jwt')
+        matching_providers: list[YamlObject] = []
+        remaining_providers: list[Any] = []
+        if isinstance(jwt, dict):
+            jwt = copy.deepcopy(jwt)
+            user_header = jwt.pop('user_header', jwt.pop('userHeader', MISSING))
+            if user_header not in (MISSING, 'x-osmo-user'):
+                self.issue('gateway.envoy.jwt.user_header',
+                           '6.4 fixes the user header to x-osmo-user')
+            providers = jwt.pop('providers', [])
+            if isinstance(providers, list):
+                for candidate in providers:
+                    audience = candidate.get('audience') if isinstance(
+                        candidate, dict) else None
+                    if (isinstance(candidate, dict)
+                            and isinstance(issuer, str)
+                            and candidate.get('issuer', '').rstrip('/')
+                            == issuer.rstrip('/')
+                            and audience in {
+                                external['browserClientId'],
+                                external['cliClientId'],
+                            }):
+                        matching_providers.append(candidate)
+                    else:
+                        if (isinstance(candidate, dict)
+                                and candidate.get('cluster')
+                                == 'osmo-service-jwks'):
+                            jwks_uri = candidate.get('jwks_uri')
+                            if isinstance(jwks_uri, str):
+                                parsed_uri = urllib.parse.urlsplit(jwks_uri)
+                                if parsed_uri.path == '/api/auth/keys':
+                                    candidate['cluster'] = 'osmo-api-jwks'
+                                    if (isinstance(parsed_uri.hostname, str)
+                                            and (parsed_uri.hostname
+                                                 == 'osmo-service'
+                                                 or parsed_uri.hostname.startswith(
+                                                     'osmo-service.'))):
+                                        candidate['jwks_uri'] = jwks_uri.replace(
+                                            'osmo-service', 'osmo-api', 1)
+                        remaining_providers.append(candidate)
+            else:
+                self.issue('gateway.envoy.jwt.providers', 'expected a list')
+            for path in _leaf_paths(jwt, 'gateway.envoy.jwt'):
+                self.issue(path, 'no 6.4 authentication mapping')
+        elif jwt is not MISSING:
+            self.issue('gateway.envoy.jwt', 'expected a mapping')
+
+        if matching_providers:
+            jwks_values = {item.get('jwks_uri') for item in matching_providers}
+            user_claims = {item.get('user_claim') for item in matching_providers}
+            roles_claims = {
+                item.get('roles_claim', 'roles')
+                for item in matching_providers
+            }
+            if len(jwks_values) == len(user_claims) == len(roles_claims) == 1:
+                external['jwksUri'] = jwks_values.pop()
+                external['userClaim'] = user_claims.pop()
+                external['rolesClaim'] = roles_claims.pop()
+            else:
+                self.issue('gateway.envoy.jwt.providers',
+                           'matching OIDC providers disagree on claims or JWKS')
+        else:
+            self.issue('gateway.envoy.jwt.providers',
+                       'no provider matches the OIDC issuer and client IDs')
+        if remaining_providers:
+            _set(self.output, 'gateway.envoy.jwt.providers',
+                 remaining_providers)
+        if isinstance(external.get('jwksUri'), str):
+            external['jwksHost'] = urllib.parse.urlsplit(
+                external['jwksUri']).hostname or ''
+
+        extra_skip_paths = _pop(
+            self.source, 'gateway.envoy.extraSkipAuthPaths')
+        if isinstance(extra_skip_paths, list):
+            if any(path not in ('/cli', '/pypi') for path in extra_skip_paths):
+                self.issue('gateway.envoy.extraSkipAuthPaths',
+                           '6.4 authentication bypass paths are chart-managed')
+        elif extra_skip_paths is not MISSING:
+            self.issue('gateway.envoy.extraSkipAuthPaths', 'expected a list')
+
+        use_kubernetes_secrets = _pop(
+            self.source, f'{oauth_root}.useKubernetesSecrets')
+        secret_name = _pop(self.source, f'{oauth_root}.secretName')
+        client_key = _pop(self.source, f'{oauth_root}.clientSecretKey')
+        cookie_key = _pop(self.source, f'{oauth_root}.cookieSecretKey')
+        secret_paths = _pop(self.source, f'{oauth_root}.secretPaths')
+        if use_kubernetes_secrets is True:
+            if secret_name is MISSING:
+                secret_name = 'oauth2-proxy-secrets'
+            external['browserClientSecret'] = {
+                'existingSecret': secret_name,
+                'key': ('client_secret' if client_key is MISSING
+                        else client_key),
+            }
+            external['cookieSecret'] = {
+                'existingSecret': secret_name,
+                'key': ('cookie_secret' if cookie_key is MISSING
+                        else cookie_key),
+            }
+        else:
+            if secret_paths not in (MISSING, None, {}):
+                self.issue(
+                    f'{oauth_root}.secretPaths',
+                    'file paths cannot be converted to Kubernetes Secret '
+                    'references; configure authentication.externalOidc')
+            self.issue('authentication.externalOidc.browserClientSecret',
+                       'existing Kubernetes Secret reference is required')
+            self.issue('authentication.externalOidc.cookieSecret',
+                       'existing Kubernetes Secret reference is required')
+        for field in (
+                'issuer', 'browserClientId', 'cliClientId',
+                'authorizationEndpoint', 'tokenEndpoint', 'deviceEndpoint',
+                'jwksUri', 'jwksHost', 'userClaim', 'rolesClaim', 'scopes',
+                'logoutEndpoint'):
+            if external.get(field) in (None, '', []):
+                self.issue(f'authentication.externalOidc.{field}',
+                           'required value is missing from legacy OIDC values')
+        _set(self.output, 'authentication.externalOidc', external)
+
     def convert_services(self) -> None:
         for old_name, new_name in (
                 ('mcp', 'mcp'), ('ui', 'ui'),
@@ -594,21 +771,6 @@ class _Converter:
         for component in ('worker', 'api', 'router', 'logger'):
             _set(self.output,
                  f'services.{component}.podDisruptionBudget.enabled', False)
-        auth = _pop(self.source, 'services.service.auth')
-        if isinstance(auth, dict):
-            for old_key, new_key in (
-                    ('enabled', 'enabled'),
-                    ('device_endpoint', 'deviceEndpoint'),
-                    ('device_client_id', 'deviceClientId'),
-                    ('browser_endpoint', 'browserEndpoint'),
-                    ('browser_client_id', 'browserClientId'),
-                    ('token_endpoint', 'tokenEndpoint'),
-                    ('logout_endpoint', 'logoutEndpoint')):
-                if old_key in auth:
-                    _set(self.output, f'services.api.auth.{new_key}',
-                         auth.pop(old_key))
-            for path in _leaf_paths(auth, 'services.service.auth'):
-                self.issue(path, 'no unified-chart mapping')
         self.unsupported(
             'services.service.ingress',
             'the API-specific Ingress was removed; configure the root ingress')
@@ -670,38 +832,86 @@ class _Converter:
         backend_tokens = _pop(self.source, 'services.backendApiTokens')
         if isinstance(backend_tokens, dict):
             converted = copy.deepcopy(backend_tokens)
-            bootstrap = converted.get('bootstrap')
-            if isinstance(bootstrap, dict) and isinstance(
-                    bootstrap.get('image'), str):
-                bootstrap['image'] = _image(bootstrap['image'])
-                pull_policy = bootstrap.pop('imagePullPolicy', MISSING)
-                if pull_policy is not MISSING:
-                    bootstrap['image']['pullPolicy'] = pull_policy
-            for credential in converted.get('credentials', []):
-                if isinstance(credential, dict) and 'secretName' in credential:
-                    credential['existingSecret'] = {
-                        'name': credential.pop('secretName')}
-            _set(self.output, 'secrets.backendApiTokens', converted)
+            enabled = converted.pop('enabled', False)
+            converted.pop('bootstrap', None)
+            if converted.pop('rolloutNonce', ''):
+                self.issue('services.backendApiTokens.rolloutNonce',
+                           'has no 6.4 bootstrap-identity equivalent')
+            credentials = converted.pop('credentials', [])
+            tokens: YamlObject = {}
+            if enabled and isinstance(credentials, list):
+                for index, credential in enumerate(credentials):
+                    if not isinstance(credential, dict):
+                        self.issue(
+                            f'services.backendApiTokens.credentials[{index}]',
+                            'expected a mapping')
+                        continue
+                    credential = copy.deepcopy(credential)
+                    name = credential.pop('name', '')
+                    if 'secretName' in credential:
+                        credential['existingSecret'] = {
+                            'name': credential.pop('secretName')}
+                    if name and len(credential) == 1:
+                        tokens[name] = credential
+                    else:
+                        self.issue(
+                            f'services.backendApiTokens.credentials[{index}]',
+                            'requires a name and exactly one Secret reference')
+                if tokens:
+                    _set(
+                        self.output,
+                        'authentication.bootstrap.identities.'
+                        'legacy-backend-operator', {
+                            'enabled': True,
+                            'username': 'osmo-backend',
+                            'roles': ['osmo-backend'],
+                            'tokens': tokens,
+                        })
+            elif enabled:
+                self.issue('services.backendApiTokens.credentials',
+                           'enabled credentials must be a list')
+            for path in _leaf_paths(converted, 'services.backendApiTokens'):
+                self.issue(path, 'no 6.4 bootstrap-identity mapping')
         default_admin = _pop(self.source, 'services.defaultAdmin')
         if isinstance(default_admin, dict):
             enabled = default_admin.pop('enabled', False)
-            converted_admin: YamlObject = {
-                'generate': False,
-                'username': default_admin.pop('username', 'admin'),
-            }
+            username = default_admin.pop('username', 'admin')
             secret_name = default_admin.pop('passwordSecretName', '')
+            secret_key = default_admin.pop('passwordSecretKey', 'password')
             if enabled and secret_name:
-                converted_admin['existingSecret'] = secret_name
-            secret_key = default_admin.pop('passwordSecretKey', MISSING)
-            if secret_key is not MISSING:
-                converted_admin['keys'] = {'password': secret_key}
-            _set(self.output, 'secrets.defaultAdmin', converted_admin)
+                _set(
+                    self.output,
+                    'authentication.bootstrap.identities.legacy-admin', {
+                        'enabled': True,
+                        'username': username,
+                        'roles': ['osmo-admin'],
+                        'tokens': {
+                            'primary': {
+                                'existingSecret': {
+                                    'name': secret_name,
+                                    'key': secret_key,
+                                },
+                            },
+                        },
+                    })
+            elif enabled:
+                self.issue('services.defaultAdmin.passwordSecretName',
+                           'required to preserve the existing admin token')
             for path in _leaf_paths(default_admin, 'services.defaultAdmin'):
                 self.issue(path, 'no unified-chart mapping')
 
     def convert_gateway(self) -> None:
         for component in ('envoy', 'oauth2Proxy', 'authz', 'rateLimit'):
             self._gateway_component(component)
+        internal_jwks = _get(self.output, 'gateway.envoy.internalJwks')
+        if (isinstance(internal_jwks, dict)
+                and internal_jwks.get('cluster') == 'osmo-service-jwks'):
+            internal_jwks['cluster'] = 'osmo-api-jwks'
+            host = internal_jwks.get('host')
+            if isinstance(host, str) and (host == 'osmo-service'
+                                          or host.startswith('osmo-service.')):
+                internal_jwks['host'] = host.replace(
+                    'osmo-service', 'osmo-api', 1)
         upstreams = _pop(self.source, 'gateway.upstreams')
         if isinstance(upstreams, dict):
             for old_name, values in upstreams.items():
@@ -971,6 +1181,7 @@ def convert_values(values: YamlObject) -> ConversionResult:
     converter.convert_global()
     converter.convert_dependencies()
     converter.convert_configuration()
+    converter.convert_authentication()
     converter.convert_services()
     converter.convert_secrets()
     converter.convert_gateway()

@@ -18,8 +18,6 @@ SPDX-License-Identifier: Apache-2.0
 
 import re
 
-from fastmcp import Context
-
 import src.lib.utils.workflow_labels as shared_labels
 from src.service.mcp import (
     access_scope,
@@ -115,7 +113,6 @@ _MAX_QUERY_BYTES = 16 * 1024
 
 
 async def osmo_list_workflows(
-    context: Context,
     status: WorkflowStatuses | None = None,
     name: QueryText | None = None,
     pool: QueryTextList | None = None,
@@ -192,7 +189,7 @@ async def osmo_list_workflows(
     if no_labels is not None:
         query['no_label'] = _validate_missing_label_keys(no_labels)
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     if requested_pools is not None:
         if any(
             pool_name not in scope.pool_names
@@ -220,7 +217,6 @@ async def osmo_list_workflows(
     )
 
     response = await tool_requests.request_json_object(
-        context,
         path=_WORKFLOWS_PATH,
         operation='list workflows',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
@@ -245,7 +241,6 @@ async def osmo_list_workflows(
 
 
 async def osmo_list_tasks(
-    context: Context,
     node: QueryTextList,
     status: TaskStatuses | None = None,
     priority: WorkflowPriorities | None = None,
@@ -295,7 +290,7 @@ async def osmo_list_tasks(
     if all_users:
         query['all_users'] = True
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     selected_pools = list(scope.pools)
     if not selected_pools:
         return ListTasksResult(
@@ -312,7 +307,6 @@ async def osmo_list_tasks(
         max_bytes=_MAX_QUERY_BYTES,
     )
     response = await tool_requests.request_json_object(
-        context,
         path=_TASKS_PATH,
         operation='list tasks',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
@@ -337,7 +331,6 @@ async def osmo_list_tasks(
 
 
 async def osmo_get_workflow(
-    context: Context,
     workflow_id: WorkflowId,
     verbose: bool = False,
     skip_groups: bool = False,
@@ -350,7 +343,6 @@ async def osmo_get_workflow(
     if skip_groups:
         query['skip_groups'] = True
     response = await tool_requests.request_json_object(
-        context,
         path=path,
         operation='get a workflow',
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
@@ -366,7 +358,6 @@ async def osmo_get_workflow(
 
 
 async def osmo_get_workflow_logs(
-    context: Context,
     workflow_id: WorkflowId,
     task_name: QueryText | None = None,
     error_logs: bool = False,
@@ -397,7 +388,6 @@ async def osmo_get_workflow_logs(
     if retry_id is not None:
         query['retry_id'] = retry_id
     logs_result = await tool_requests.request_truncated_text(
-        context,
         path=path,
         operation='get workflow logs',
         max_response_bytes=_MAX_TEXT_RESPONSE_BYTES,
@@ -415,7 +405,6 @@ async def osmo_get_workflow_logs(
 
 
 async def osmo_get_workflow_events(
-    context: Context,
     workflow_id: WorkflowId,
     task_name: QueryText | None = None,
     retry_id: RetryId | None = None,
@@ -433,7 +422,6 @@ async def osmo_get_workflow_events(
     if retry_id is not None:
         query['retry_id'] = retry_id
     events_result = await tool_requests.request_truncated_text(
-        context,
         path=path,
         operation='get workflow events',
         max_response_bytes=_MAX_TEXT_RESPONSE_BYTES,
@@ -450,14 +438,12 @@ async def osmo_get_workflow_events(
 
 
 async def osmo_get_workflow_spec(
-    context: Context,
     workflow_id: WorkflowId,
     use_template: bool = False,
 ) -> WorkflowSpecResult:
     """Get a bounded, redacted workflow YAML spec."""
     path = workflow_path(workflow_id, suffix='spec')
     spec_result = await tool_requests.request_truncated_text(
-        context,
         path=path,
         operation='get a workflow spec',
         max_response_bytes=_MAX_TEXT_RESPONSE_BYTES,

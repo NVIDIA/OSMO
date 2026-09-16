@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 from typing import Annotated, Literal
 
-from fastmcp import Context
 import pydantic
 
 from src.service.mcp import (
@@ -86,10 +85,10 @@ class ProfileUpdateResult(pydantic.BaseModel):
     updated: Literal[True]
 
 
-async def osmo_get_profile(context: Context) -> ProfileResult:
+async def osmo_get_profile() -> ProfileResult:
     """Get the active user's OSMO profile, roles, and accessible pools."""
     active_profile = (
-        await access_scope.request_access_scope(context)
+        await access_scope.request_access_scope()
     ).profile
     return ProfileResult.model_validate(
         active_profile.model_dump(),
@@ -98,7 +97,6 @@ async def osmo_get_profile(context: Context) -> ProfileResult:
 
 
 async def osmo_set_profile(
-    context: Context,
     setting: ProfileSetting,
     value: ProfileValue,
     enabled: ProfileEnabled | None = None,
@@ -139,7 +137,6 @@ async def osmo_set_profile(
         }
 
     response = await tool_requests.request_json_mutation(
-        context,
         method='POST',
         path='/api/profile/settings',
         operation='update the active user profile',

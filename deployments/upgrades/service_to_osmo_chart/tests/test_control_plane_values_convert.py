@@ -114,7 +114,16 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                             'sslCertArn': 'example-certificate',
                         },
                     },
-                    'jwt': {'user_header': 'x-user', 'providers': []},
+                    'jwt': {
+                        'user_header': 'x-osmo-user',
+                        'providers': [{
+                            'issuer': 'https://idp.example',
+                            'audience': 'browser-client',
+                            'jwks_uri': 'https://idp.example/keys',
+                            'user_claim': 'preferred_username',
+                            'cluster': 'idp',
+                        }],
+                    },
                 },
                 'upstreams': {
                     'service': {'enabled': True, 'host': 'osmo-service'},
@@ -128,6 +137,14 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
                     }],
                 },
                 'oauth2Proxy': {
+                    'provider': 'oidc',
+                    'oidcIssuerUrl': 'https://idp.example',
+                    'clientId': 'browser-client',
+                    'scope': 'openid email profile',
+                    'useKubernetesSecrets': True,
+                    'secretName': 'oauth-credentials',
+                    'clientSecretKey': 'client_secret',
+                    'cookieSecretKey': 'cookie_secret',
                     'redis': {
                         'serviceName': 'valkey.example.com',
                         'port': 6380,
@@ -177,15 +194,14 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
             converted['services']['worker']['pod']['nodeSelector'],
             {'pool': 'control'})
         self.assertEqual(
-            converted['services']['api']['auth']['deviceEndpoint'],
+            converted['authentication']['externalOidc']['deviceEndpoint'],
             'https://idp.example/device')
         self.assertEqual(converted['gateway']['envoy']['image'], {
             'registry': 'docker.io',
             'repository': 'envoyproxy/envoy',
             'tag': 'v1.38.1',
         })
-        self.assertEqual(converted['gateway']['envoy']['jwt']['userHeader'],
-                         'x-user')
+        self.assertNotIn('jwt', converted['gateway']['envoy'])
         self.assertTrue(
             converted['gateway']['envoy']['autoscaling']['enabled'])
         self.assertEqual(
@@ -226,6 +242,138 @@ class ControlPlaneValuesConvertTest(unittest.TestCase):
             result.values['services']['worker']['autoscaling']['enabled'])
         self.assertFalse(
             result.values['gateway']['envoy']['autoscaling']['enabled'])
+
+    def test_maps_external_oidc_authentication(self):
+        issuer = 'https://idp.example.com/realms/osmo'
+        legacy = {
+            'services': {
+                'service': {
+                    'auth': {
+                        'enabled': True,
+                        'device_endpoint': f'{issuer}/device',
+                        'device_client_id': 'osmo-cli',
+                        'browser_endpoint': f'{issuer}/authorize',
+                        'browser_client_id': 'osmo-browser',
+                        'token_endpoint': f'{issuer}/token',
+                        'logout_endpoint': f'{issuer}/logout',
+                    },
+                },
+                'defaultAdmin': {'enabled': False},
+                'backendApiTokens': {
+                    'enabled': True,
+                    'rolloutNonce': '',
+                    'credentials': [{
+                        'name': 'compute-a',
+                        'existingSecret': {'name': 'compute-a-token'},
+                    }],
+                },
+            },
+            'gateway': {
+                'envoy': {
+                    'extraSkipAuthPaths': ['/cli', '/pypi'],
+                    'jwt': {
+                        'user_header': 'x-osmo-user',
+                        'providers': [{
+                            'issuer': 'osmo',
+                            'audience': 'osmo',
+                            'jwks_uri': 'http://osmo-service/api/auth/keys',
+                            'user_claim': 'unique_name',
+                            'cluster': 'osmo-service-jwks',
+                        }, {
+                            'issuer': issuer,
+                            'audience': 'osmo-browser',
+                            'jwks_uri': f'{issuer}/certs',
+                            'user_claim': 'preferred_username',
+                            'cluster': 'idp',
+                        }],
+                    },
+                },
+                'oauth2Proxy': {
+                    'provider': 'oidc',
+                    'oidcIssuerUrl': issuer,
+                    'clientId': 'osmo-browser',
+                    'scope': 'openid email profile',
+                    'useKubernetesSecrets': True,
+                    'secretName': 'oauth-credentials',
+                    'clientSecretKey': 'client_secret',
+                    'cookieSecretKey': 'cookie_secret',
+                },
+            },
+        }
+
+        result = control_plane_values_convert.convert_values(legacy)
+
+        authentication = result.values['authentication']
+        self.assertEqual(authentication['provider'], 'externalOidc')
+        self.assertEqual(authentication['bootstrap']['identities'], {
+            'admin': {'enabled': False},
+            'backend-operator-default': {'enabled': False},
+            'legacy-backend-operator': {
+                'enabled': True,
+                'username': 'osmo-backend',
+                'roles': ['osmo-backend'],
+                'tokens': {
+                    'compute-a': {
+                        'existingSecret': {'name': 'compute-a-token'},
+                    },
+                },
+            },
+        })
+        self.assertEqual(authentication['externalOidc'], {
+            'issuer': issuer,
+            'browserClientId': 'osmo-browser',
+            'cliClientId': 'osmo-cli',
+            'authorizationEndpoint': f'{issuer}/authorize',
+            'tokenEndpoint': f'{issuer}/token',
+            'deviceEndpoint': f'{issuer}/device',
+            'jwksUri': f'{issuer}/certs',
+            'jwksHost': 'idp.example.com',
+            'userClaim': 'preferred_username',
+            'rolesClaim': 'roles',
+            'scopes': ['openid', 'email', 'profile'],
+            'logoutEndpoint': f'{issuer}/logout',
+            'browserClientSecret': {
+                'existingSecret': 'oauth-credentials',
+                'key': 'client_secret',
+            },
+            'cookieSecret': {
+                'existingSecret': 'oauth-credentials',
+                'key': 'cookie_secret',
+            },
+        })
+        self.assertFalse(
+            result.values['embeddedDependencies']['dex']['enabled'])
+        self.assertNotIn(
+            'auth', result.values.get('services', {}).get('api', {}))
+        self.assertNotIn('backendApiTokens', result.values['secrets'])
+        self.assertNotIn('defaultAdmin', result.values['secrets'])
+        self.assertNotIn(
+            'extraSkipAuthPaths', result.values['gateway']['envoy'])
+        self.assertEqual(
+            result.values['gateway']['envoy']['jwt']['providers'],
+            [{
+                'issuer': 'osmo',
+                'audience': 'osmo',
+                'jwks_uri': 'http://osmo-api/api/auth/keys',
+                'user_claim': 'unique_name',
+                'cluster': 'osmo-api-jwks',
+            }])
+        self.assertFalse(any(
+            issue.path.startswith(('authentication', 'services.defaultAdmin',
+                                   'services.backendApiTokens',
+                                   'gateway.envoy.jwt',
+                                   'gateway.envoy.extraSkipAuthPaths',
+                                   'gateway.oauth2Proxy'))
+            for issue in result.issues), result.issues)
+
+    def test_reports_incomplete_external_oidc_values(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'service': {'auth': {'enabled': True}}},
+            'gateway': {'oauth2Proxy': {'scope': ''}},
+        })
+
+        issue_paths = {issue.path for issue in result.issues}
+        self.assertIn('authentication.externalOidc.scopes', issue_paths)
 
     def test_omits_empty_alb_certificate_annotation(self):
         result = control_plane_values_convert.convert_values({

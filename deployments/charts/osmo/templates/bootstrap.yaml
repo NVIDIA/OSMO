@@ -56,11 +56,12 @@
 {{- $_ := set $volumes "service-auth" (dict "name" "service-auth" "emptyDir" (dict "medium" "Memory" "sizeLimit" "1Mi")) -}}
 {{- end -}}
 {{- $nodeSelector := include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.api) | fromYaml -}}
+{{- $serviceAuthNodeSelector := mergeOverwrite (deepCopy .Values.podDefaults.nodeSelector) .Values.secrets.serviceAuth.bootstrap.nodeSelector -}}
 {{- $tolerations := include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.api) | fromYamlArray -}}
 {{- $affinity := include "osmo.pod.affinity" (dict "root" . "component" .Values.services.api) | fromYaml -}}
 {{- if ne .Values.bootstrap.nodeSelector nil -}}
 {{- $nodeSelector = .Values.bootstrap.nodeSelector -}}
-{{- else if and .Values.secrets.serviceAuth.bootstrap.enabled .Values.secrets.serviceAuth.bootstrap.nodeSelector (not (deepEqual $nodeSelector .Values.secrets.serviceAuth.bootstrap.nodeSelector)) -}}
+{{- else if and .Values.secrets.serviceAuth.bootstrap.enabled .Values.secrets.serviceAuth.bootstrap.nodeSelector (not (deepEqual $nodeSelector $serviceAuthNodeSelector)) -}}
 {{- fail "bootstrap steps have different nodeSelector settings; set bootstrap.nodeSelector explicitly for the shared Pod" -}}
 {{- end -}}
 {{- if ne .Values.bootstrap.tolerations nil -}}
