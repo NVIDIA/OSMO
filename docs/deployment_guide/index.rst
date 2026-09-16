@@ -125,6 +125,7 @@ An OSMO deployment consists of two main components:
 
   Split-plane Infrastructure <getting_started/infrastructure_setup>
   getting_started/create_storage/index
+  getting_started/secrets
   getting_started/deploy_service
 
 .. toctree::
@@ -166,7 +167,7 @@ An OSMO deployment consists of two main components:
 
   Quickstart Deployment <appendix/deploy_local>
   Self-contained Deployment <appendix/deploy_self_contained>
-  Single-plane Deployment <appendix/deploy_minimal>
+  Minimal Deployment <appendix/deploy_minimal>
   appendix/workflow_execution
   appendix/keycloak_setup
   appendix/authentication/index

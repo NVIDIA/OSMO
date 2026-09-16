@@ -139,7 +139,12 @@ The service receives these via:
 
    The admin password must be 43 characters long.
 
-Example: create the secret and enable default admin in your values:
+The following example is for the legacy standalone service chart only. For a
+unified chart deployment, do not create ``default-admin-secret`` or set
+``services.defaultAdmin``. Use the generated embedded Dex administrator
+credentials in :ref:`deploy_minimal` and :ref:`deployment_secrets`.
+
+Legacy example: create the secret and enable default admin in your values:
 
 .. code-block:: bash
 

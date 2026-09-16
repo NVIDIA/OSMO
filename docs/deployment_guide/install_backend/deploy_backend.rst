@@ -34,41 +34,74 @@ Deploying the backend operator will register your compute backend with OSMO, mak
 Step 1: Provision Backend Bootstrap Secret
 -------------------------------------------
 
-Provision the backend bootstrap credential as a Kubernetes Secret. This flow
-does not log in to OSMO or call the user or access-token APIs.
+The unified chart creates a backend token through its identity bootstrap when
+an enabled identity declares ``managedSecret``. The Quickstart and
+self-contained defaults create ``osmo-backend-token`` and mount it directly in
+the colocated backend operator; those deployments do not need another operator
+installation or a manually generated token.
 
-Generate a 43-character credential into a protected temporary file and create
-the control-plane Secret:
-
-.. code-block:: bash
-
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
-   $ kubectl --context <control-context> create secret generic osmo-backend-token-default \
-       --namespace <control-namespace> \
-       --from-file=token="$TOKEN_FILE"
-   $ rm -f "$TOKEN_FILE"
-
-Configure the control-plane service chart to consume the Secret:
+For a separate compute cluster, configure a backend identity in the
+control-plane values before installing the compute plane. For example, add
+this entry to the ``split-plane-control.yaml`` profile's environment overlay
+(the profile disables the default backend identity):
 
 .. code-block:: yaml
 
-   services:
-     backendApiTokens:
-       enabled: true
-       credentials:
-       - name: default
-         existingSecret:
-           name: osmo-backend-token-default
+   authentication:
+     bootstrap:
+       identities:
+         backend-default:
+           enabled: true
+           username: backend-default
+           roles: [osmo-backend]
+           tokens:
+             primary:
+               managedSecret:
+                 name: osmo-backend-token-default
+
+Apply the control-plane values and wait for its bootstrap to finish before
+transferring the generated Secret in Step 2. Token bytes do not appear in Helm
+values or rendered manifests. On an upgrade to a chart containing PR #1414,
+first adopt the existing credential declarations, then add new identities in a
+subsequent upgrade; see :ref:`sequenced_bootstrap`.
+
+If an external secret manager owns the token, replace the token declaration
+with ``existingSecret`` and materialize the same credential in both clusters:
+
+.. code-block:: yaml
+
+   authentication:
+     bootstrap:
+       identities:
+         backend-default:
+           enabled: true
+           username: backend-default
+           roles: [osmo-backend]
+           tokens:
+             primary:
+               existingSecret:
+                 name: osmo-backend-token-default
+                 key: token
+
+An external Secret must exist before consumers start. Automatic generation does
+not synchronize credentials between clusters or namespaces. Do not generate
+independent tokens in the control and compute clusters. Retain the original
+Secret for upgrades and recovery; see :ref:`deployment_secrets`.
 
 .. note::
 
-  For production, materialize the Secret through your approved external-secret
-  integration instead of generating it on an administrator workstation.
+   The remaining steps install the standalone ``backend-operator`` chart,
+   which can connect to the unified control plane. Its
+   ``global.accountTokenSecret`` points to the copied Secret. If the control
+   plane also uses the older standalone ``service`` chart, use the following
+   setup instead of the unified ``authentication.bootstrap.identities`` map.
 
-For single-cluster development, the service chart can generate the Secret on
-the initial install:
+Standalone service chart only
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a new single-cluster development installation of ``osmo/service``, merge
+these values into the control-plane ``osmo_values.yaml`` before its initial
+install in :ref:`deploy_service`:
 
 .. code-block:: yaml
 
@@ -80,33 +113,58 @@ the initial install:
          managedSecret:
            name: osmo-backend-token-default
 
-The backend operator can consume that Secret directly when it runs in the same
-namespace. A pre-install kubectl hook generates the credential inside Kubernetes; the
-token is not included in Helm output or release state. A pre-upgrade hook
-preserves and validates it, and fails rather than replacing a missing Secret.
-The Secret persists independently of Helm uninstall and rollback. This mode
-does not synchronize the token to another cluster, so use ``existingSecret``
-with an external secret manager for production and multi-cluster deployments.
-Managed credentials must be configured during the initial install. Add later
-credentials by provisioning them explicitly and using ``existingSecret``.
-Chart-bootstrap Secrets persist after Helm uninstall; delete them explicitly
-when they are no longer needed.
+The pre-install hook creates the Secret in the control-plane namespace. Wait
+for the control-plane install to succeed before proceeding to Step 2. Upgrades
+validate and preserve that Secret; they fail if it is missing. Managed
+credentials must be declared during the initial install.
 
-.. tip::
+For production, multiple clusters, or a new credential added to an existing
+release, provision the Secret through an external secret manager and use
+``existingSecret``. For development, the following Bash commands generate a
+43-character token into a protected temporary file and create its Secret
+without printing the token. The control-plane namespace must already exist:
 
-  The service always maps this credential to the ``osmo-backend`` role. The
-  role cannot be changed through Helm values or Secret data.
+.. code-block:: bash
 
-.. seealso::
+   (
+     set -euo pipefail
+     umask 077
+     OSMO_BACKEND_TOKEN_FILE=$(mktemp)
+     trap 'rm -f -- "$OSMO_BACKEND_TOKEN_FILE"' EXIT
+     openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$OSMO_BACKEND_TOKEN_FILE"
+     test "$(wc -c < "$OSMO_BACKEND_TOKEN_FILE" | tr -d ' ')" -eq 43
+     kubectl --context <control-context> create secret generic osmo-backend-token-default \
+       --namespace <control-namespace> \
+       --from-file=token="$OSMO_BACKEND_TOKEN_FILE"
+   )
 
-  Personal access tokens and other service-account tokens continue to use the
-  OSMO token APIs. This Secret contract is specific to backend bootstrap.
+This create-only command fails if the Secret already exists. Reuse the original
+credential for an existing backend; do not generate a replacement on upgrade.
+Configure the standalone control plane to consume the provisioned Secret:
+
+.. code-block:: yaml
+
+   services:
+     backendApiTokens:
+       enabled: true
+       credentials:
+       - name: default
+         existingSecret:
+           name: osmo-backend-token-default
+
+Merge the entry into the existing credentials list and reapply the control-plane
+release with its full values file before proceeding to Step 2. The token key
+is ``token`` and its role is fixed to ``osmo-backend``. Neither source
+automatically copies the Secret to another namespace or cluster. For lifecycle
+details, see the standalone chart's `Backend API Token Settings
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service#backend-api-token-settings>`_.
 
 
 Step 2: Create K8s Namespaces and Secrets
 ------------------------------------------------
 
-Create Kubernetes namespaces and secrets necessary for the backend deployment.
+Create the compute namespaces and copy the already-created control-plane
+credential. Skip the copy when an external secret manager synchronizes it.
 
 .. code-block:: bash
   :substitutions:
@@ -257,20 +315,26 @@ If you chose a different backend name, update the default pool in ``osmo_values.
 
 .. code-block:: yaml
 
-  services:
-    configs:
-      pools:
-        default:
-          backend: <your-backend-name>
+  configuration:
+    pools:
+      default:
+        backend: <your-backend-name>
 
-Re-apply with ``helm upgrade``. To add additional pools or platforms, see :ref:`advanced_pool_configuration`.
+Re-apply the unified control-plane release with ``helm upgrade``. For a legacy
+standalone service chart, use ``services.configs.pools`` instead. To add
+additional pools or platforms, see :ref:`advanced_pool_configuration`.
 
 
 Rotate the Backend Bootstrap Secret
 -----------------------------------
 
-Use an overlap window so every API replica and backend operator can move to the
-new credential without losing registration:
+For externally managed tokens, use an overlap window so every API replica and
+backend operator can move to the new credential without losing registration.
+For chart-managed tokens on PR #1414 charts, follow the retained credential
+replacement procedure in :ref:`sequenced_bootstrap`; do not mutate or delete a
+protected Secret to force regeneration.
+
+For externally managed tokens:
 
 1. Update the control-plane Secret so ``token`` contains the new value and
    ``previous-token`` contains the old value.

@@ -63,7 +63,7 @@ Install the following tools on your workstation:
 * `Docker <https://docs.docker.com/get-started/get-docker/>`_ - Container runtime (>=28.3.2)
 * `KIND <https://kind.sigs.k8s.io/docs/user/quick-start/#installation>`_ - Kubernetes in Docker (>=0.29.0)
 * `kubectl <https://kubernetes.io/docs/tasks/tools/>`_ - Kubernetes command-line tool (>=1.32.2)
-* `helm <https://helm.sh/docs/intro/install/>`_ - Helm package manager (>=3.16.2)
+* `helm <https://helm.sh/docs/intro/install/>`_ - Helm package manager (>=3.19.0)
 
 The resulting cluster requires Kubernetes 1.30 or newer and a default dynamic
 ``StorageClass``.
@@ -283,7 +283,10 @@ OSMO services and embedded dependencies on the control worker and submitted
 workflows on the compute worker. The chart uses the in-cluster gateway URL for
 workflow pods while retaining the public loopback URL for login. The scheduling
 overrides are specific to this cluster topology and are therefore not chart
-defaults:
+defaults.
+
+For a chart containing PR #1414, add the initialization ID and use the timeout
+from :ref:`sequenced_bootstrap` in the install command below.
 
 .. code-block:: bash
 
@@ -300,6 +303,15 @@ defaults:
      --wait \
      --wait-for-jobs \
      --timeout 20m
+
+The chart creates managed administrator and backend tokens, embedded Dex
+password and OAuth credentials, the service signing identity, and the master
+encryption key. CloudNativePG and the embedded dependency templates supply the
+database, Valkey, and RustFS credentials. Do not pre-create these Secrets; see
+:ref:`deployment_secrets` for the ownership settings and external exceptions.
+
+After installation succeeds, complete :ref:`deployment_secrets_cleanup` before normal use. The
+cleanup command preserves the scheduling overrides with ``--reuse-values``.
 
 Log in and run a workflow
 =========================

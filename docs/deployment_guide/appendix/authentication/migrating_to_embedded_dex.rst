@@ -71,7 +71,8 @@ the default entries. Set an entry's ``enabled`` field to ``false`` to disable a
 default. Compute-plane authentication must reference a token identity whose
 only role is ``osmo-backend``.
 
-The pre-install/pre-upgrade bootstrap Job creates or reconciles retained
+In charts predating PR #1414, the pre-install/pre-upgrade bootstrap Job
+creates or reconciles retained
 password, token, and OAuth credential Secrets; the separate post-install/
 post-upgrade Job restarts Dex when Helm updates its config Secret. The Jobs
 delete only Dex or OAuth2 Proxy Pods selected by release-specific labels and
@@ -81,9 +82,13 @@ not observe rollout drift. This requires namespace-scoped ``list`` and ``delete`
 Pod permissions for the bootstrap ServiceAccount. Retrieve the random password
 only with an explicit Kubernetes Secret read; do not add it to values, Git,
 Helm commands, or logs.
-Missing managed credentials are generated automatically during any later Helm
-or GitOps reconciliation. Existing valid credentials remain byte-for-byte
-stable. To rotate one, delete only its named Secret and reconcile again.
+Existing valid credentials remain byte-for-byte stable. Charts containing
+PR #1414 run identity creation inside the shared sequenced bootstrap Job and
+use verified credential startup gates. They fail closed if a retained credential
+is missing; deleting a Secret is not a rotation request. Follow
+:ref:`sequenced_bootstrap` for initialization, adoption, and recovery, and use
+the lifecycle instructions for your installed chart version before replacing
+credentials.
 
 Remove obsolete configuration
 ==============================

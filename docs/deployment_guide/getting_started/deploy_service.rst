@@ -33,6 +33,28 @@ This guide provides step-by-step instructions for deploying OSMO service compone
    chart README; the service-chart-specific values later in this page do not
    disable authentication in the unified chart.
 
+Unified chart secret setup
+===========================
+
+For new deployments, use the unified ``deployments/charts/osmo`` chart. Review
+:ref:`deployment_secrets` before creating any Secrets. Quickstart and
+self-contained installs generate their MEK, service signing identity, embedded
+Dex credentials, and managed backend tokens automatically. External OIDC and
+external dependency credentials still require operator configuration.
+
+Use :ref:`deploy_minimal` for development on an existing cluster or
+:ref:`deploy_self_contained` for persistent embedded dependencies. For external
+dependencies, follow the unified chart's
+`single-plane and split-plane profiles
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/osmo/profiles>`_.
+Those profiles deliberately disable MEK and service-auth bootstrap; supply their
+existing credentials as described in :ref:`deployment_secrets`.
+
+The remaining steps on this page apply to the standalone ``osmo/service``
+chart. Its ``services.*`` values and manual secret setup are not the unified
+chart's bootstrap interface. Do not run those creation commands for credentials
+already managed by a unified release.
+
 Components Overview
 ====================
 
@@ -94,8 +116,8 @@ Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then 
 
    $ kubectl delete pod osmo-db-ops
 
-Step 2: Create namespace and secrets
-====================================
+Step 2: Create standalone-chart namespace and secrets
+=====================================================
 
 Before creating secrets, register OSMO as an OAuth2/OIDC application in your identity provider and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific steps.
 
@@ -162,7 +184,9 @@ Create the workflow data credentials Secret (you can use the same bucket or a di
    standard AWS S3.
 
 
-Create the master encryption key (MEK) for database encryption:
+**Standalone service chart only:** Create the master encryption key (MEK) for
+database encryption. Unified Quickstart and self-contained deployments use
+:ref:`chart bootstrap <deployment_secrets>` instead:
 
 1. **Generate a new master encryption key and create its Secret**:
 

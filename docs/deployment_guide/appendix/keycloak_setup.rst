@@ -287,6 +287,11 @@ All endpoints are under the ``osmo`` realm:
 Create secrets
 --------------
 
+Keycloak is an external identity provider from the OSMO chart's perspective.
+Its browser-client secret and the OAuth cookie Secret remain operator-owned;
+OSMO bootstrap does not generate them. Skip this section when using embedded
+Dex. See :ref:`deployment_secrets`.
+
 Create the OAuth2 Proxy secret using the client secret from :ref:`keycloak_post_installation_configuration`:
 
 .. code-block:: bash
@@ -298,7 +303,7 @@ Create the OAuth2 Proxy secret using the client secret from :ref:`keycloak_post_
    $ printf '%s' "$OSMO_KEYCLOAK_CLIENT_SECRET" > \
        "$OSMO_KEYCLOAK_SECRET_DIR/client_secret"
    $ unset OSMO_KEYCLOAK_CLIENT_SECRET
-   $ openssl rand -base64 32 > "$OSMO_KEYCLOAK_SECRET_DIR/cookie_secret"
+   $ openssl rand 32 > "$OSMO_KEYCLOAK_SECRET_DIR/cookie_secret"
    $ kubectl --namespace osmo create secret generic oauth2-proxy-secrets \
        --from-file=client_secret="$OSMO_KEYCLOAK_SECRET_DIR/client_secret" \
        --from-file=cookie_secret="$OSMO_KEYCLOAK_SECRET_DIR/cookie_secret"
@@ -306,8 +311,17 @@ Create the OAuth2 Proxy secret using the client secret from :ref:`keycloak_post_
 OSMO Helm values for Keycloak
 ------------------------------
 
-When preparing the OSMO Helm values (see :ref:`deploy_service_osmo_values`), use the Keycloak
-endpoints for the ``auth``, ``oauth2Proxy``, and ``jwt`` sections. For the full deployment
+For the unified chart, configure ``authentication.provider: externalOidc`` and
+supply the full provider contract in
+:doc:`authentication/identity_provider_setup`. Set both
+``authentication.externalOidc.browserClientSecret.existingSecret`` and
+``authentication.externalOidc.cookieSecret.existingSecret`` to
+``oauth2-proxy-secrets``, with keys ``client_secret`` and ``cookie_secret``.
+Disable embedded Dex and the default local administrator as described there.
+
+The remaining values examples in this section are for the standalone service
+chart. When preparing those values (see :ref:`deploy_service_osmo_values`), use
+the Keycloak endpoints for the ``auth``, ``oauth2Proxy``, and ``jwt`` sections. For the full deployment
 procedure and all other Helm values, follow :doc:`../getting_started/deploy_service`.
 
 Below are the Keycloak-specific sections that differ from the generic IdP examples in the

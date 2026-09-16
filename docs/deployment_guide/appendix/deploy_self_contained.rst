@@ -147,8 +147,14 @@ created by the OSMO release:
      --wait \
      --timeout 10m
 
-Create the OAuth Secret
-=======================
+Create the external OIDC Secret
+===============================
+
+The external provider's browser-client and cookie credentials remain
+operator-owned. OSMO bootstrap cannot create a client secret in that provider.
+This is the only manual Secret creation in this example; embedded Dex evaluation
+installs instead generate their OAuth credentials automatically. See
+:ref:`deployment_secrets`.
 
 Create the release namespace. Prepare a file that contains the OIDC client
 Secret, then generate an exact 32-byte cookie Secret and create the OAuth
@@ -173,14 +179,25 @@ Helm profiles are values overlays, not a ``profile`` setting. The environment
 overlay below is the file supplied with the chart. Before installing, replace:
 
 * ``externalUrl`` with the public HTTPS URL for OSMO;
-* every example identity-provider URL, host, client ID, audience, and claim;
+* the external OIDC provider settings described below;
 * ``clusterCIDRs`` with every IPv4 Pod and Service CIDR used by the cluster; and
 * node-selector keys or values only if you used labels other than those shown
   in :ref:`the prerequisites <self_contained_prerequisites>`.
 
-Keep the ``cluster: idp`` value unless you also define a different Envoy cluster
-for the identity provider. Keep all environment-specific values separate from
-the production profile so that upgrades can reuse them.
+The supplied environment example defaults to embedded Dex. For this production
+external-OIDC deployment, add the complete ``authentication.externalOidc``
+contract from :doc:`authentication/identity_provider_setup` to your copy. Set
+``authentication.provider: externalOidc``, disable
+``authentication.bootstrap.identities.admin.enabled`` and
+``embeddedDependencies.dex.enabled``, and set both
+``authentication.externalOidc.browserClientSecret.existingSecret`` and
+``authentication.externalOidc.cookieSecret.existingSecret`` to
+``osmo-oauth2-proxy``. Use keys ``client_secret`` and ``cookie_secret`` to match
+the Secret created above. Supply the provider's endpoints, client IDs, JWKS
+host, and user/role claims; the chart validates this contract.
+
+Keep all environment-specific values separate from the profile so that upgrades
+can reuse them.
 
 The ``clusterCIDRs`` list must cover every IPv4 Pod and Service CIDR used by the
 cluster. Add entries when the cluster uses more than one CIDR.
@@ -192,6 +209,10 @@ RustFS. It also adds the ``compute`` selector to the default workflow Pod
 templates. If you add pool-specific Pod templates or replace the default
 templates, retain the compute-node selector so workflows do not run on OSMO
 platform nodes.
+
+For charts containing PR #1414, apply :ref:`sequenced_bootstrap` to the install
+and upgrade commands in this guide: provide an initialization ID for a new
+installation and allow the longer bootstrap timeout.
 
 Review the complete environment overlay before copying it:
 
@@ -220,6 +241,21 @@ bootstrap Job, which creates the shared service identity during installation.
 The chart also creates the local database, cache, object storage, required
 buckets, workflow namespace, configuration, backend bootstrap credential, and
 retained master encryption key.
+
+After successful installation, add the disabled bootstrap flags from
+:ref:`deployment_secrets_cleanup` to ``self-contained-environment-values.yaml``.
+Apply them with the same profile and environment file:
+
+.. code-block:: bash
+
+   helm upgrade osmo deployments/charts/osmo \
+     --namespace osmo \
+     --values deployments/charts/osmo/profiles/self-contained.yaml \
+     --values self-contained-environment-values.yaml \
+     --wait --wait-for-jobs --timeout 30m
+
+For PR #1414 charts, also clear the initialization ID and use ``--timeout 140m``.
+Keep these cleanup settings in the environment file for subsequent upgrades.
 
 Validate the deployment
 =======================
