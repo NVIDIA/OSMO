@@ -22,6 +22,7 @@ from unittest import mock
 
 import pydantic
 
+from src.lib.utils import common
 from src.utils import connectors
 from src.utils.job import workflow
 
@@ -251,7 +252,8 @@ class WorkflowSpecValidateRegistryTest(unittest.TestCase):
 
         with mock.patch(
             'src.utils.job.workflow.common.registry_auth',
-            side_effect=[unauthenticated_response, authenticated_response],
+            side_effect=[common.RegistryAttempt(unauthenticated_response, True),
+                         common.RegistryAttempt(authenticated_response, True)],
         ) as registry_auth, mock.patch(
             'src.utils.job.workflow.connectors.PostgresConnector.get_instance',
             return_value=database,

@@ -467,6 +467,39 @@ class AppSubmissionProtocolTest(unittest.IsolatedAsyncioTestCase):
             request.method == 'GET' for request in captured_requests
         ))
 
+    async def test_submit_preserves_registry_error_codes(self) -> None:
+        for error_code in (
+            'CREDENTIAL', 'REGISTRY', 'IMAGE_NOT_FOUND',
+            'REGISTRY_RATE_LIMIT', 'REGISTRY_UNAVAILABLE', 'UNKNOWN_ERROR',
+        ):
+            with self.subTest(error_code=error_code):
+                captured_requests: list[httpx.Request] = []
+                response = await _HARNESS.call_tool(
+                    _submission_result_handler(
+                        httpx.Response(400, json={
+                            'error_code': error_code,
+                            'message': 'private-registry-detail',
+                            'workflow_id': 'private-workflow-1',
+                        }),
+                        captured_requests,
+                    ),
+                    'osmo_submit_app',
+                    {'name': 'training_app', 'pool': 'pool-a', 'version': 3},
+                )
+
+                self.assertTrue(response.json()['result']['isError'])
+                self.assertIn('HTTP 400', response.text)
+                if error_code == 'UNKNOWN_ERROR':
+                    self.assertNotIn('error_code=', response.text)
+                else:
+                    self.assertIn(f'error_code={error_code}', response.text)
+                self.assertNotIn('private-registry-detail', response.text)
+                self.assertNotIn('private-workflow-1', response.text)
+                self.assertEqual(
+                    sum(request.method == 'POST' for request in captured_requests),
+                    1,
+                )
+
     async def test_ambiguous_or_malformed_submission_is_not_retried(
         self,
     ) -> None:

@@ -179,6 +179,77 @@ class HandleResponseClientErrorTests(unittest.TestCase):
         self.assertEqual(cm.exception.message, 'not json at all')
         self.assertEqual(cm.exception.status_code, 404)
 
+    def test_4xx_with_an_empty_message_falls_back_to_the_response_body(self):
+        response = FakeResponse(
+            status_code=400,
+            text='{"message": "", "error_code": "CREDENTIAL", "workflow_id": "wf-1"}')
+
+        with self.assertRaises(osmo_errors.OSMOCredentialError) as cm:
+            client.handle_response(response)
+
+        self.assertEqual(cm.exception.message, response.text)
+        self.assertEqual(cm.exception.workflow_id, 'wf-1')
+
+    def test_4xx_without_a_message_key_falls_back_to_the_response_body(self):
+        response = FakeResponse(status_code=400, text='{"error_code": "USAGE"}')
+
+        with self.assertRaises(osmo_errors.OSMOSubmissionError) as cm:
+            client.handle_response(response)
+
+        self.assertEqual(cm.exception.message, response.text)
+
+    def test_4xx_with_a_completely_empty_body_reports_the_status_code(self):
+        response = FakeResponse(status_code=400, text='')
+
+        with self.assertRaises(osmo_errors.OSMOUserError) as cm:
+            client.handle_response(response)
+
+        self.assertIn('400', cm.exception.message)
+
+    def test_4xx_submission_code_keeps_its_existing_user_error_mapping(self):
+        """Unmapped codes stay OSMOUserError; only the workflow ID handling changed."""
+        response = FakeResponse(
+            status_code=400,
+            text=json.dumps({'message': 'quota exceeded', 'error_code': 'SUBMISSION',
+                             'workflow_id': 'wf-9'}))
+
+        with self.assertRaises(osmo_errors.OSMOUserError) as cm:
+            client.handle_response(response)
+
+        self.assertNotIsInstance(cm.exception, osmo_errors.OSMOSubmissionError)
+        self.assertEqual(cm.exception.message, 'quota exceeded')
+        self.assertEqual(cm.exception.workflow_id, 'wf-9')
+
+    def test_4xx_preserves_the_workflow_id_for_an_unrecognized_error_code(self):
+        response = FakeResponse(
+            status_code=400,
+            text='{"message": "nope", "error_code": "SCHEMA", "workflow_id": "wf-2"}')
+
+        with self.assertRaises(osmo_errors.OSMOUserError) as cm:
+            client.handle_response(response)
+
+        self.assertEqual(cm.exception.message, 'nope')
+        self.assertEqual(cm.exception.workflow_id, 'wf-2')
+
+    def test_4xx_registry_error_codes_raise_their_matching_error(self):
+        for error_code, error_class in [
+                ('REGISTRY', osmo_errors.OSMORegistryError),
+                ('IMAGE_NOT_FOUND', osmo_errors.OSMOImageNotFoundError),
+                ('REGISTRY_RATE_LIMIT', osmo_errors.OSMORegistryRateLimitError),
+                ('REGISTRY_UNAVAILABLE', osmo_errors.OSMORegistryUnavailableError)]:
+            with self.subTest(error_code=error_code):
+                response = FakeResponse(
+                    status_code=400,
+                    text=json.dumps({'message': 'Could not resolve image tag a/b:1',
+                                     'error_code': error_code,
+                                     'workflow_id': 'wf-3'}))
+
+                with self.assertRaises(error_class) as cm:
+                    client.handle_response(response)
+
+                self.assertEqual(cm.exception.message, 'Could not resolve image tag a/b:1')
+                self.assertEqual(cm.exception.workflow_id, 'wf-3')
+
     def test_4xx_without_error_code_raises_user_error_with_text(self):
         response = FakeResponse(status_code=400, text='{"message": "bad"}')
 
