@@ -173,7 +173,6 @@ fix required by this quickstart.
    helm repo update nvidia
    helm upgrade --install gpu-operator nvidia/gpu-operator \
      --version v25.10.1 \
-     --kube-context kind-osmo \
      --namespace gpu-operator \
      --create-namespace \
      --set driver.enabled=false \
@@ -239,14 +238,15 @@ Install cluster dependencies
 
 Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
-cluster. Keep both operators on the control worker:
+cluster. Keep both operators on the control worker. KAI v0.12.10 applies
+``global.nodeSelector`` to chart-managed pods and ``global.affinity`` to the
+components created by its operator, so both settings are required:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
      oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
      --version v0.12.10 \
-     --kube-context kind-osmo \
      --create-namespace -n kai-scheduler \
      --set-string 'global.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=osmo.nvidia.com/node-pool' \
@@ -256,14 +256,13 @@ cluster. Keep both operators on the control worker:
      --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
 
    kubectl --namespace kai-scheduler wait \
-     --for='jsonpath={.status.conditions[?(@.type=="Available")].status}=True' \
+     --for=condition=Available=True \
      --timeout=5m config.kai.scheduler/kai-config
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
    helm upgrade --install cnpg cnpg/cloudnative-pg \
      --version 0.29.0 \
-     --kube-context kind-osmo \
      --namespace cnpg-system \
      --create-namespace \
      --set-string 'nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
@@ -290,11 +289,9 @@ defaults:
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
-     --kube-context kind-osmo \
      --namespace osmo \
      --create-namespace \
      --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'secrets.serviceAuth.bootstrap.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'postgresql.cluster.affinity.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'valkey.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'dex.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
@@ -402,7 +399,7 @@ for the option you selected:
 
 .. code-block:: bash
 
-   helm uninstall osmo --kube-context kind-osmo --namespace osmo --wait
+   helm uninstall osmo --namespace osmo --wait
 
    # Option A
    nvkind cluster delete --name osmo

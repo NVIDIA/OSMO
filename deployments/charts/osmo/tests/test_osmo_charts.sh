@@ -3505,6 +3505,35 @@ test_control_umbrella() {
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set secrets.serviceAuth.managementMode=osmo \
         --set secrets.serviceAuth.bootstrap.enabled=true \
+        --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+        --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=windows' \
+        --set-string 'secrets.serviceAuth.bootstrap.nodeSelector.kubernetes\.io/os=linux' \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml"
+    local service_auth_bootstrap_pod_defaults_name
+    service_auth_bootstrap_pod_defaults_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" Job \
+        "service-auth-bootstrap")
+    [[ "$service_auth_bootstrap_name" != \
+        "$service_auth_bootstrap_pod_defaults_name" ]] || \
+        fail "service auth bootstrap pod defaults did not change the Job name"
+    resource_document "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" \
+        Job "$service_auth_bootstrap_pod_defaults_name" \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: linux"
+    require_not_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: windows"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
         --set secrets.serviceAuth.bootstrap.activeDeadlineSeconds=899 \
         >"$TEST_DIRECTORY/service-auth-bootstrap-changed.yaml"
     local service_auth_bootstrap_changed_name
