@@ -157,6 +157,42 @@ class WorkflowActionProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn('message', cancel_schema['properties'])
 
+    async def test_submit_preserves_registry_error_codes(self) -> None:
+        captured_requests: list[httpx.Request] = []
+        body = {
+            'error_code': '',
+            'message': 'private-registry-detail',
+            'workflow_id': 'private-workflow-1',
+        }
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(400, json=body)
+
+        for error_code in (
+            'CREDENTIAL', 'REGISTRY', 'IMAGE_NOT_FOUND',
+            'REGISTRY_RATE_LIMIT', 'REGISTRY_UNAVAILABLE', 'UNKNOWN_ERROR',
+        ):
+            with self.subTest(error_code=error_code):
+                captured_requests.clear()
+                body['error_code'] = error_code
+                response = await _HARNESS.call_tool(
+                    handler,
+                    'osmo_submit_workflow',
+                    {'workflow_spec': _WORKFLOW_SPEC, 'pool': 'pool-a'},
+                )
+
+                self.assertTrue(response.json()['result']['isError'])
+                self.assertIn('HTTP 400', response.text)
+                if error_code == 'UNKNOWN_ERROR':
+                    self.assertNotIn('error_code=', response.text)
+                else:
+                    self.assertIn(f'error_code={error_code}', response.text)
+                self.assertNotIn('private-registry-detail', response.text)
+                self.assertNotIn('private-workflow-1', response.text)
+                self.assertEqual(len(captured_requests), 1)
+                self.assertEqual(captured_requests[0].method, 'POST')
+
     async def test_submit_posts_exact_body_and_projects_result(self) -> None:
         captured_requests: list[httpx.Request] = []
         upstream_secret = 'submission-upstream-sensitive-value'

@@ -89,6 +89,7 @@ async def request_json_mutation(
     max_response_bytes: int,
     query: gateway.QueryParams | None = None,
     payload: gateway.JsonRequestBody | None = None,
+    suppress_upstream_details: bool = True,
 ) -> JsonMutationResult:
     """Relay one fixed write and require a bounded object, string, or null."""
     response = await _request(
@@ -98,7 +99,7 @@ async def request_json_mutation(
         max_response_bytes=max_response_bytes,
         query=query,
         json_body=payload,
-        suppress_upstream_details=True,
+        suppress_upstream_details=suppress_upstream_details,
     )
     try:
         return _JSON_MUTATION_RESULT_ADAPTER.validate_json(

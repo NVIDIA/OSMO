@@ -244,6 +244,7 @@ async def request_submission(
         max_response_bytes=_MAX_JSON_RESPONSE_BYTES,
         query=submission_query or None,
         payload=payload.model_dump(mode='json', exclude_none=True),
+        suppress_upstream_details=False,
     )
     return tool_validation.validate_mutation_response(
         UpstreamSubmitResult,
