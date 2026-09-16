@@ -61,7 +61,7 @@ OSMO deployment consists of several main components:
 Prerequisites
 -------------
 
-The cluster must run Kubernetes 1.28 or newer. Install Helm 3.19 or newer,
+The cluster must run Kubernetes 1.30 or newer. Install Helm 3.19 or newer,
 ``kubectl``, and Python 3, select the target cluster context, and confirm that
 the control plane can reach PostgreSQL, Valkey, object storage, and your
 identity provider. Create the deployment namespace before creating Secrets:
@@ -70,36 +70,56 @@ identity provider. Create the deployment namespace before creating Secrets:
 
    $ kubectl create namespace osmo
 
+The Secret manifests in this guide use ``stringData`` so their required keys
+are clear. Replace every placeholder before applying them, restrict access to
+the files, and never commit them to source control.
+
 Configure PostgreSQL Connection
 ===============================
 
 Create an empty PostgreSQL database for OSMO. The database user must be able to
 create and update objects in that database. Store the username and password in
-a Secret; the default keys are ``username`` and ``db-password``:
+a Secret; the default keys are ``username`` and ``db-password``. Save the
+following as ``postgresql-secret.yaml``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-postgresql
+     namespace: osmo
+   type: Opaque
+   stringData:
+     username: <postgresql-username>
+     db-password: <postgresql-password>
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_POSTGRES_SECRET_DIR=$(mktemp -d)
-   $ trap 'rm -rf -- "$OSMO_POSTGRES_SECRET_DIR"' EXIT
-   $ read -rp 'PostgreSQL username: ' OSMO_POSTGRES_USERNAME
-   $ read -rsp 'PostgreSQL password: ' OSMO_POSTGRES_PASSWORD; printf '\n'
-   $ printf '%s' "$OSMO_POSTGRES_USERNAME" > "$OSMO_POSTGRES_SECRET_DIR/username"
-   $ printf '%s' "$OSMO_POSTGRES_PASSWORD" > "$OSMO_POSTGRES_SECRET_DIR/db-password"
-   $ unset OSMO_POSTGRES_USERNAME OSMO_POSTGRES_PASSWORD
-   $ kubectl --namespace osmo create secret generic osmo-postgresql \
-       --from-file=username="$OSMO_POSTGRES_SECRET_DIR/username" \
-       --from-file=db-password="$OSMO_POSTGRES_SECRET_DIR/db-password"
-   $ rm -rf -- "$OSMO_POSTGRES_SECRET_DIR"; trap - EXIT
+   $ kubectl create --filename postgresql-secret.yaml
 
 Reference the endpoint and Secret in ``osmo-values.yaml``:
 
-If PostgreSQL uses a private CA, create the referenced trust Secret first:
+If PostgreSQL uses a private CA, save the referenced trust Secret as
+``postgresql-ca-secret.yaml`` and create it first:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-postgresql-ca
+     namespace: osmo
+   type: Opaque
+   stringData:
+     ca.crt: |
+       -----BEGIN CERTIFICATE-----
+       <base64-encoded-certificate-body>
+       -----END CERTIFICATE-----
 
 .. code-block:: bash
 
-   $ kubectl --namespace osmo create secret generic osmo-postgresql-ca \
-       --from-file=ca.crt=<path-to-postgresql-ca.pem>
+   $ kubectl create --filename postgresql-ca-secret.yaml
 
 .. code-block:: yaml
 
@@ -108,7 +128,7 @@ If PostgreSQL uses a private CA, create the referenced trust Secret first:
        host: postgresql.example.com
        port: 5432
        database: osmo
-       username: osmo
+       username: <postgresql-username>
        tls:
          enabled: true
          sslMode: verify-full
@@ -122,28 +142,54 @@ If PostgreSQL uses a private CA, create the referenced trust Secret first:
          username: username
          password: db-password
 
-Use ``sslMode: require`` and leave ``caExistingSecret`` empty only when the
-connection must be encrypted but no CA bundle is available. This does not
-authenticate the server; ``verify-full`` is preferred. For a server that does
-not use TLS, set ``tls.enabled: false``.
+Use the same PostgreSQL username in ``postgresql-secret.yaml`` and
+``osmo-values.yaml``. Use ``sslMode: require`` and leave
+``caExistingSecret`` empty only when the connection must be encrypted but no
+CA bundle is available. This does not authenticate the server;
+``verify-full`` is preferred. For a server that does not use TLS, set
+``tls.enabled: false``.
 
 Configure Valkey Connection
 ===========================
 
-OSMO requires Valkey or Redis 7 or newer. Create a Secret whose default key is
-``redis-password``:
+OSMO requires Valkey or Redis 7 or newer. Save a Secret whose default key is
+``redis-password`` as ``valkey-secret.yaml``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-valkey
+     namespace: osmo
+   type: Opaque
+   stringData:
+     redis-password: <valkey-password>
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_VALKEY_SECRET_FILE=$(mktemp)
-   $ trap 'rm -f -- "$OSMO_VALKEY_SECRET_FILE"' EXIT
-   $ read -rsp 'Valkey password: ' OSMO_VALKEY_PASSWORD; printf '\n'
-   $ printf '%s' "$OSMO_VALKEY_PASSWORD" > "$OSMO_VALKEY_SECRET_FILE"
-   $ unset OSMO_VALKEY_PASSWORD
-   $ kubectl --namespace osmo create secret generic osmo-valkey \
-       --from-file=redis-password="$OSMO_VALKEY_SECRET_FILE"
-   $ rm -f -- "$OSMO_VALKEY_SECRET_FILE"; trap - EXIT
+   $ kubectl create --filename valkey-secret.yaml
+
+When Valkey uses a private CA, save its trust bundle as
+``valkey-ca-secret.yaml``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-valkey-ca
+     namespace: osmo
+   type: Opaque
+   stringData:
+     ca-bundle.crt: |
+       -----BEGIN CERTIFICATE-----
+       <base64-encoded-certificate-body>
+       -----END CERTIFICATE-----
+
+.. code-block:: bash
+
+   $ kubectl create --filename valkey-ca-secret.yaml
 
 Add the connection to ``osmo-values.yaml``:
 
@@ -157,7 +203,7 @@ Add the connection to ``osmo-values.yaml``:
        tls:
          enabled: true
          # Set these only when Valkey uses a private CA.
-         caExistingSecret: ''
+         caExistingSecret: osmo-valkey-ca
          caKey: ca-bundle.crt
 
    secrets:
@@ -184,23 +230,25 @@ All locations must use the same scheme: ``s3://``, ``azure://``, or
 Static credentials
 ------------------
 
-Create one YAML credential document. The following example is for S3 or an
-S3-compatible service:
+Create one Secret containing the credential document. The following S3 or
+S3-compatible example can be saved as ``object-storage-secret.yaml``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-object-storage
+     namespace: osmo
+   type: Opaque
+   stringData:
+     object-storage.yaml: |
+       access_key_id: <access-key-id>
+       access_key: <secret-access-key>
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_STORAGE_SECRET_FILE=$(mktemp)
-   $ trap 'rm -f -- "$OSMO_STORAGE_SECRET_FILE"' EXIT
-   $ read -rp 'Object-storage access key ID: ' OSMO_STORAGE_ACCESS_KEY_ID
-   $ read -rsp 'Object-storage secret access key: ' OSMO_STORAGE_ACCESS_KEY; printf '\n'
-   $ ACCESS_KEY_ID="$OSMO_STORAGE_ACCESS_KEY_ID" ACCESS_KEY="$OSMO_STORAGE_ACCESS_KEY" \
-       python3 -c 'import json, os; print(json.dumps({"access_key_id": os.environ["ACCESS_KEY_ID"], "access_key": os.environ["ACCESS_KEY"]}))' \
-       > "$OSMO_STORAGE_SECRET_FILE"
-   $ unset OSMO_STORAGE_ACCESS_KEY_ID OSMO_STORAGE_ACCESS_KEY ACCESS_KEY_ID ACCESS_KEY
-   $ kubectl --namespace osmo create secret generic osmo-object-storage \
-       --from-file=object-storage.yaml="$OSMO_STORAGE_SECRET_FILE"
-   $ rm -f -- "$OSMO_STORAGE_SECRET_FILE"; trap - EXIT
+   $ kubectl create --filename object-storage-secret.yaml
 
 Reference the Secret and locations in ``osmo-values.yaml``:
 
@@ -227,7 +275,7 @@ Reference the Secret and locations in ``osmo-values.yaml``:
          credentials: object-storage.yaml
 
 The three locations may share a bucket or container. Grant only the read/write
-permissions needed for those prefixes. Do not put credentials in Helm values.
+permissions needed for those prefixes.
 
 Workload identity
 -----------------
@@ -301,23 +349,30 @@ Back up that Secret after installation. Never replace it while retaining the
 database. After the first successful installation, set ``bootstrap.enabled``
 to ``false``.
 
-For a user-managed MEK, create a Secret whose selected key is ``mek.yaml``.
-The file must contain ``currentMek`` naming an entry in ``meks``; each entry is
-a base64-encoded symmetric JWK:
+For a user-managed MEK, save the following as ``mek-secret.yaml``. The
+``currentMek`` value must name an entry in ``meks``; each entry is a
+base64-encoded symmetric JWK. Generate a random 32-byte key, encode it as
+base64url without padding for the JWK's ``k`` field, then base64-encode the
+complete ``{"k":"...","kid":"key1","kty":"oct"}`` document for the
+``meks`` value:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-master-encryption-key
+     namespace: osmo
+   type: Opaque
+   stringData:
+     mek.yaml: |
+       currentMek: key1
+       meks:
+         key1: <base64-encoded-symmetric-jwk>
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_MEK_FILE=$(mktemp)
-   $ trap 'rm -f -- "$OSMO_MEK_FILE"' EXIT
-   $ OSMO_RANDOM_KEY=$(openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-   $ OSMO_ENCODED_JWK=$(printf '{"k":"%s","kid":"key1","kty":"oct"}' \
-       "$OSMO_RANDOM_KEY" | base64 | tr -d '\n')
-   $ printf 'currentMek: key1\nmeks:\n  key1: %s\n' "$OSMO_ENCODED_JWK" > "$OSMO_MEK_FILE"
-   $ unset OSMO_RANDOM_KEY OSMO_ENCODED_JWK
-   $ kubectl --namespace osmo create secret generic osmo-master-encryption-key \
-       --from-file=mek.yaml="$OSMO_MEK_FILE"
-   $ rm -f -- "$OSMO_MEK_FILE"; trap - EXIT
+   $ kubectl create --filename mek-secret.yaml
 
 Set ``managementMode: external`` and ``bootstrap.enabled: false`` when the
 Secret is user-managed.
@@ -343,7 +398,45 @@ existing installation; restore it.
 For user-managed TLS, create a CA Secret containing ``ca.crt`` and a
 ``kubernetes.io/tls`` Secret containing ``tls.crt`` and ``tls.key`` for each
 enabled upstream. Each certificate's DNS subject alternative name must match
-the corresponding in-cluster Service host. Point OSMO at them as follows:
+the corresponding in-cluster Service host. Save the following as
+``internal-tls-secrets.yaml``, adding one TLS Secret document for every enabled
+upstream:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-internal-ca
+     namespace: osmo
+   type: Opaque
+   stringData:
+     ca.crt: |
+       -----BEGIN CERTIFICATE-----
+       <base64-encoded-ca-certificate-body>
+       -----END CERTIFICATE-----
+   ---
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-api-tls
+     namespace: osmo
+   type: kubernetes.io/tls
+   stringData:
+     tls.crt: |
+       -----BEGIN CERTIFICATE-----
+       <base64-encoded-api-certificate-body>
+       -----END CERTIFICATE-----
+     tls.key: |
+       -----BEGIN PRIVATE KEY-----
+       <base64-encoded-api-private-key-body>
+       -----END PRIVATE KEY-----
+
+.. code-block:: bash
+
+   $ kubectl create --filename internal-tls-secrets.yaml
+
+Point OSMO at the Secret names as follows:
 
 .. code-block:: yaml
 
@@ -383,22 +476,35 @@ retained ``osmo-service-auth`` Secret for a new installation:
 Back up the Secret, then set ``bootstrap.enabled`` to ``false`` after the first
 successful installation.
 
-For a user-managed identity, generate the file with the OSMO service image and
-create the Secret before installation:
+For a user-managed identity, generate the file with the OSMO service image:
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_SERVICE_AUTH_DIR=$(mktemp -d)
-   $ trap 'rm -rf -- "$OSMO_SERVICE_AUTH_DIR"' EXIT
+   $ mkdir --mode 0700 service-auth
    $ docker run --rm --user "$(id -u):$(id -g)" \
        --entrypoint service-auth-bootstrap \
-       --volume "$OSMO_SERVICE_AUTH_DIR:/output" \
+       --volume "$PWD/service-auth:/output" \
        nvcr.io/nvidia/osmo/service:<image-tag> \
        generate --output /output/authentication-config.json
-   $ kubectl --namespace osmo create secret generic osmo-service-auth \
-       --from-file=authentication-config.json="$OSMO_SERVICE_AUTH_DIR/authentication-config.json"
-   $ rm -rf -- "$OSMO_SERVICE_AUTH_DIR"; trap - EXIT
+
+Copy the generated JSON into ``service-auth-secret.yaml`` and create the
+Secret before installation:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-service-auth
+     namespace: osmo
+   type: Opaque
+   stringData:
+     authentication-config.json: |
+       <contents-of-service-auth/authentication-config.json>
+
+.. code-block:: bash
+
+   $ kubectl create --filename service-auth-secret.yaml
 
 The JSON document must contain ``active_key`` and a matching entry in ``keys``
 with valid ``public_key`` and ``private_key`` JWK values. Set
@@ -440,7 +546,7 @@ TLS. Replace every angle-bracket placeholder:
        host: <postgresql-host>
        port: 5432
        database: osmo
-       username: osmo
+       username: <postgresql-username>
        tls:
          enabled: true
          sslMode: verify-full
@@ -505,22 +611,31 @@ evaluation only. Use an external identity provider for production.
 Configure an External IdP
 =========================
 
-Register browser and device/CLI clients with your OIDC provider. Create a
-Secret containing the browser client secret and a random 32-byte cookie secret:
+Register browser and device/CLI clients with your OIDC provider. Save the
+browser client secret and a random 32-byte cookie secret as
+``external-oidc-secret.yaml``:
 
 .. code-block:: bash
 
-   $ umask 077
-   $ OSMO_OIDC_SECRET_DIR=$(mktemp -d)
-   $ trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
-   $ read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET; printf '\n'
-   $ printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > "$OSMO_OIDC_SECRET_DIR/client_secret"
-   $ unset OSMO_BROWSER_CLIENT_SECRET
-   $ openssl rand -base64 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
-   $ kubectl --namespace osmo create secret generic osmo-external-oidc \
-       --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
-       --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
-   $ rm -rf -- "$OSMO_OIDC_SECRET_DIR"; trap - EXIT
+   $ openssl rand -base64 32
+
+Use the command output as ``cookie_secret``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-external-oidc
+     namespace: osmo
+   type: Opaque
+   stringData:
+     client_secret: <oidc-browser-client-secret>
+     cookie_secret: <random-32-byte-cookie-secret>
+
+.. code-block:: bash
+
+   $ kubectl create --filename external-oidc-secret.yaml
 
 Disable embedded Dex and replace the ``authentication`` block in
 ``osmo-values.yaml``. Endpoint URLs are explicit so providers without complete
