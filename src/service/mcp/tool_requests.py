@@ -20,7 +20,6 @@ import dataclasses
 import json
 from typing import Literal, TypeAlias
 
-from fastmcp import Context
 from fastmcp.server.dependencies import get_http_request
 import pydantic
 from starlette.requests import Request
@@ -58,7 +57,6 @@ class TruncatedTextResult:
 
 
 async def request_json_object(
-    context: Context,
     *,
     path: str,
     operation: str,
@@ -73,7 +71,6 @@ async def request_json_object(
     its tool contract intentionally makes missing and inaccessible equivalent.
     """
     response = await _request(
-        context,
         path=path,
         operation=operation,
         max_response_bytes=max_response_bytes,
@@ -85,7 +82,6 @@ async def request_json_object(
 
 
 async def request_json_mutation(
-    context: Context,
     *,
     method: Literal['POST', 'PATCH', 'DELETE'] = 'POST',
     path: str,
@@ -96,7 +92,6 @@ async def request_json_mutation(
 ) -> JsonMutationResult:
     """Relay one fixed write and require a bounded object, string, or null."""
     response = await _request(
-        context,
         method=method,
         path=path,
         operation=operation,
@@ -115,7 +110,6 @@ async def request_json_mutation(
 
 
 async def request_text(
-    context: Context,
     *,
     path: str,
     operation: str,
@@ -125,7 +119,6 @@ async def request_text(
 ) -> str:
     """Relay one fixed GET and require a bounded UTF-8 text response."""
     response = await _request(
-        context,
         path=path,
         operation=operation,
         max_response_bytes=max_response_bytes,
@@ -141,7 +134,6 @@ async def request_text(
 
 
 async def request_truncated_text(
-    context: Context,
     *,
     path: str,
     operation: str,
@@ -155,7 +147,6 @@ async def request_truncated_text(
             f'Invalid MCP request while attempting to {operation}.'
         )
     response = await _request(
-        context,
         path=path,
         operation=operation,
         max_response_bytes=(
@@ -175,10 +166,9 @@ async def request_truncated_text(
     )
 
 
-async def request_active_profile(context: Context) -> ActiveProfile:
+async def request_active_profile() -> ActiveProfile:
     """Read and validate the active caller's profile and token pool scope."""
     response = await request_json_object(
-        context,
         path=_PROFILE_PATH,
         operation='read the active user profile',
         max_response_bytes=_MAX_PROFILE_RESPONSE_BYTES,
@@ -194,9 +184,8 @@ async def request_active_profile(context: Context) -> ActiveProfile:
         ) from None
 
 
-def get_app_context(context: Context) -> gateway.AppContext:
+def get_app_context() -> gateway.AppContext:
     """Resolve process-lifetime dependencies from a real MCP HTTP request."""
-    del context
     try:
         request = get_http_request()
     except RuntimeError:
@@ -218,7 +207,6 @@ def get_app_context(context: Context) -> gateway.AppContext:
 
 
 async def _request(
-    context: Context,
     *,
     method: str = 'GET',
     path: str,
@@ -230,7 +218,7 @@ async def _request(
     truncate_text: bool = False,
     not_found_message: str | None = None,
 ) -> gateway.GatewayResponse:
-    app_context = get_app_context(context)
+    app_context = get_app_context()
     try:
         credentials = request_context.get_request_credentials()
     except RuntimeError:

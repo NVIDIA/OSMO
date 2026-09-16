@@ -23,6 +23,35 @@ Identity Provider (IdP) Setup
 
 This guide explains how to use OSMO with an external **identity provider (IdP)** so that users log in with your organization’s credentials (e.g., Microsoft Entra ID, Google Workspace, AWS IAM Identity Center). OSMO connects **directly** to the IdP; there is no Keycloak or other broker in the middle.
 
+.. note::
+
+   In the unified ``osmo`` chart, select
+   ``authentication.provider: externalOidc``, disable the default local
+   bootstrap user, and set ``embeddedDependencies.dex.enabled: false``. Supply
+   separate confidential browser and public CLI clients, every endpoint,
+   ``jwksHost``, user/role claim names, scopes, and existing Secret references.
+   HTTP endpoints are accepted for trusted development only. HTTPS JWKS
+   connections use the system CA bundle, validate the exact ``jwksHost`` DNS
+   name, and honor an explicit URI port. See
+   :doc:`migrating_to_embedded_dex` for the complete migration contract.
+
+Create browser-client and cookie Secrets without putting their values in shell
+history or process arguments:
+
+.. code-block:: bash
+
+   umask 077
+   OSMO_OIDC_SECRET_DIR=$(mktemp -d)
+   trap 'rm -rf -- "$OSMO_OIDC_SECRET_DIR"' EXIT
+   read -rsp 'OIDC browser client secret: ' OSMO_BROWSER_CLIENT_SECRET
+   printf '%s' "$OSMO_BROWSER_CLIENT_SECRET" > \
+     "$OSMO_OIDC_SECRET_DIR/client_secret"
+   unset OSMO_BROWSER_CLIENT_SECRET
+   openssl rand 32 > "$OSMO_OIDC_SECRET_DIR/cookie_secret"
+   kubectl --namespace osmo create secret generic osmo-external-oidc \
+     --from-file=client_secret="$OSMO_OIDC_SECRET_DIR/client_secret" \
+     --from-file=cookie_secret="$OSMO_OIDC_SECRET_DIR/cookie_secret"
+
 When to use an IdP
 ==================
 
@@ -59,8 +88,11 @@ Identity Provider Configuration Reference
    * - ``<tenant-id>``
      - Microsoft tenant ID
      - ``12345678-1234-1234-1234-123456789abc``
-   * - ``<client-id>``
-     - OAuth2 client/application ID
+   * - ``<browser-client-id>``
+     - Confidential browser OAuth2 client/application ID
+     - From IdP app registration
+   * - ``<cli-client-id>``
+     - Public CLI OAuth2 client/application ID
      - From IdP app registration
    * - ``<client-secret>``
      - OAuth2 client secret
@@ -84,10 +116,11 @@ types explicitly:
    CLI loopback callback, and enable **Allow public client flows**.
 3. Create a client secret under **Certificates & secrets** for OAuth2 Proxy. Do not distribute that
    secret to the CLI; the CLI is a public client and uses an ``S256`` PKCE challenge instead.
-4. The CLI requests only the OpenID Connect ``openid``, ``profile``, and ``offline_access`` scopes.
-   It does not need Microsoft Graph ``User.Read`` or a delegated OSMO API permission for the current
-   ID-token gateway contract. Add a delegated permission only when the client requests and uses that
-   protected API's scope.
+4. OSMO requests only the OpenID Connect ``openid``, ``email``, ``profile``, and
+   ``offline_access`` scopes. The CLI does not need Microsoft Graph
+   ``User.Read`` or a delegated OSMO API permission for the current ID-token
+   gateway contract. Add a delegated permission only when the client requests
+   and uses that protected API's scope.
 5. **Implicit grant and hybrid flows** settings are independent of authorization code with PKCE.
    PKCE does not require the implicit ID-token setting and does not replace delegated permissions.
    Do not disable an existing implicit or hybrid-flow setting as part of enabling PKCE.
@@ -115,28 +148,43 @@ types explicitly:
 
 .. code-block:: yaml
 
-   gateway:
-     envoy:
-       hostname: <your-domain>
-       jwt:
-         user_header: x-osmo-user
-         providers:
-         - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
-           audience: <client-id>
-           jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
-           user_claim: preferred_username
-           cluster: idp
-     oauth2Proxy:
-       enabled: true
-       provider: oidc
-       oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
-       clientId: <client-id>
-       cookieDomain: .<your-domain>
-       scope: "openid email profile"
-       useKubernetesSecrets: true
-       secretName: oauth2-proxy-secrets
-       clientSecretKey: client_secret
-       cookieSecretKey: cookie_secret
+   externalUrl: https://<your-domain>
+
+   authentication:
+     provider: externalOidc
+     bootstrap:
+       identities:
+         admin:
+           enabled: false
+     externalOidc:
+       issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+       browserClientId: <browser-client-id>
+       cliClientId: <cli-client-id>
+       authorizationEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
+       tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
+       deviceEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/devicecode
+       jwksUri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+       jwksHost: login.microsoftonline.com
+       userClaim: preferred_username
+       rolesClaim: groups
+       scopes:
+       - openid
+       - email
+       - profile
+       - offline_access
+       logoutEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/logout
+       browserClientSecret:
+         existingSecret: osmo-external-oidc
+         key: client_secret
+         rolloutNonce: ''
+       cookieSecret:
+         existingSecret: osmo-external-oidc
+         key: cookie_secret
+         rolloutNonce: ''
+
+   embeddedDependencies:
+     dex:
+       enabled: false
 
 Google OAuth2
 --------------------------------
@@ -161,7 +209,9 @@ Google OAuth2
    * - Issuer
      - ``https://accounts.google.com``
 
-Use ``email`` as the user claim for Google. Audience is typically the full client ID (e.g. ``<client-id>.apps.googleusercontent.com``).
+Use ``email`` as the user claim for Google. The browser audience is typically
+the full client ID (for example,
+``<browser-client-id>.apps.googleusercontent.com``).
 
 AWS IAM Identity Center (AWS SSO)
 -----------------------------------

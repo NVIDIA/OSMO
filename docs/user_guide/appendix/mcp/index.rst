@@ -45,13 +45,8 @@ MCP uses the signed-in user's existing OSMO access. Users have the same roles,
 accessible pools, and API permissions as when they use OSMO through the CLI.
 MCP does not grant additional access or elevate permissions.
 
-Authentication works as follows:
-
-* The user configures only the MCP URL. FastMCP handles OAuth discovery,
-  client identification with Client ID Metadata Documents (CIMD) or
-  registration with Dynamic Client Registration (DCR), Proof Key for Code
-  Exchange (PKCE), browser sign-in, token exchange, and refresh inside the
-  existing MCP process.
+Connect with the deployment's MCP URL and complete browser sign-in as
+described in :ref:`getting_started_mcp`.
 
 Successful login does not authorize every tool. Each tool's OSMO API request
 is checked separately. Workflow operations are authorized
@@ -74,7 +69,7 @@ remains authoritative.
      - ``profile:Read`` plus ``pool:List`` for pool search, or
        ``profile:Read`` plus ``resources:Read`` for resource inspection.
    * - Workflow inspection
-     - ``profile:Read`` plus ``workflow:List`` for lists, and
+     - ``profile:Read`` plus ``workflow:List`` for workflow and task lists, and
        ``workflow:Read`` for workflow details, logs, events, and
        specifications.
    * - Workflow actions
@@ -144,6 +139,10 @@ The self-hosted MCP groups tools into the following areas:
      - List workflows; inspect status, logs, events, and specifications;
        filter and inspect workflow labels; validate or submit label overrides;
        inspect label-policy warnings; restart and cancel workflows.
+   * - Tasks
+     - List tasks on named nodes within accessible pools, filtered by status or
+       priority. Lists default to your tasks; ``all_users=true`` includes other
+       users' tasks within that scope.
    * - Applications
      - List applications; inspect metadata, versions, and specifications; create,
        update, delete, rename, and submit applications.

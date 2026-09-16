@@ -23,15 +23,17 @@ references.
 ## Version and Auth
 
 ```bash
-osmo --version
 osmo version [--format-type json|text]
 osmo login [url] [--method pkce|code|password|token|dev]
+osmo login <url> --method token --token-file <path>
 osmo logout
 ```
 
 `pkce` is the default login method. Use `--method code` explicitly when a
-device-authorization flow is required. Do not ask the user to paste passwords
-or tokens into chat.
+device-authorization flow is required. For noninteractive token login, use a
+user-provided local token file with `--method token --token-file <path>`; do
+not read or print its contents. Never ask the user to paste passwords or tokens
+into chat.
 
 ## Profile
 

@@ -108,7 +108,6 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(input_schema['properties']['offset']['minimum'], 0)
 
     async def test_search_uses_accessible_pools_and_preserves_shared_node_set(self) -> None:
-        context = mock.Mock()
         pool_payload = {
             'node_sets': [
                 {
@@ -140,7 +139,6 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await pools.osmo_search_pools(
-                context,
                 query=' shared ',
                 limit=1,
                 offset=1,
@@ -148,13 +146,11 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(request_json.await_args_list, [
             mock.call(
-                context,
                 path='/api/profile/settings',
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
             mock.call(
-                context,
                 path='/api/pool_quota',
                 operation='search accessible pools',
                 max_response_bytes=1024 * 1024,
@@ -183,7 +179,6 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('internal', result_json)
 
     async def test_no_accessible_pools_returns_zero_without_pool_query(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock(return_value=_profile())
 
         with mock.patch.object(
@@ -192,14 +187,12 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             request_json,
         ):
             result = await pools.osmo_search_pools(
-                context,
                 query='anything',
                 limit=10,
                 offset=7,
             )
 
         request_json.assert_awaited_once_with(
-            context,
             path='/api/profile/settings',
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
@@ -277,7 +270,6 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(_BEARER_SECRET, response.text)
 
     async def test_inaccessible_or_malformed_upstream_pool_fails_closed(self) -> None:
-        context = mock.Mock()
         inaccessible_payload = {
             'node_sets': [{
                 'pools': [_pool('not-allowed', description='private')],
@@ -296,7 +288,7 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaisesRegex(ToolError, 'invalid pool response'),
         ):
-            await pools.osmo_search_pools(context)
+            await pools.osmo_search_pools()
 
         malformed_request = mock.AsyncMock(side_effect=[
             _profile('alpha'),
@@ -310,10 +302,9 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaisesRegex(ToolError, 'invalid pool response'),
         ):
-            await pools.osmo_search_pools(context)
+            await pools.osmo_search_pools()
 
     async def test_invalid_search_bounds_fail_before_transport(self) -> None:
-        context = mock.Mock()
         request_json = mock.AsyncMock()
         invalid_calls = (
             {'limit': 0},
@@ -332,7 +323,7 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             for arguments in invalid_calls:
                 with self.subTest(arguments=arguments):
                     with self.assertRaises(ToolError):
-                        await pools.osmo_search_pools(context, **arguments)
+                        await pools.osmo_search_pools(**arguments)
 
         request_json.assert_not_awaited()
 
@@ -358,7 +349,6 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured_requests, [])
 
     async def test_profile_and_gateway_failures_are_not_rewritten(self) -> None:
-        context = mock.Mock()
         upstream_error = ToolError('OSMO Gateway response exceeds the size limit.')
         with (
             mock.patch.object(
@@ -368,7 +358,7 @@ class PoolToolTest(unittest.IsolatedAsyncioTestCase):
             ),
             self.assertRaises(ToolError) as raised,
         ):
-            await pools.osmo_search_pools(context)
+            await pools.osmo_search_pools()
 
         self.assertIs(raised.exception, upstream_error)
 

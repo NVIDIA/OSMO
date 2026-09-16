@@ -19,8 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 import dataclasses
 import re
 
-from fastmcp import Context
-
 from src.service.mcp import tool_requests, tool_validation
 from src.service.mcp.app_models import (
     APP_NAME_PATTERN as _APP_NAME_PATTERN,
@@ -58,7 +56,6 @@ class ResolvedAppVersion:
 
 
 async def osmo_list_apps(
-    context: Context,
     name: AppNameFilter | None = None,
     users: UserFilters | None = None,
     all_users: bool = False,
@@ -93,7 +90,6 @@ async def osmo_list_apps(
         query['all_users'] = True
 
     response = await tool_requests.request_json_object(
-        context,
         path=_APP_LIST_PATH,
         operation='list OSMO apps',
         max_response_bytes=_MAX_APP_RESPONSE_BYTES,
@@ -108,7 +104,6 @@ async def osmo_list_apps(
 
 
 async def osmo_get_app(
-    context: Context,
     name: AppName,
     version: AppVersionNumber | None = None,
     limit: AppListLimit = _DEFAULT_APP_LIST_LIMIT,
@@ -116,7 +111,6 @@ async def osmo_get_app(
     """Get OSMO app metadata and versions, newest version first."""
     encoded_name = validated_app_name(name)
     upstream = await _request_app(
-        context,
         encoded_name=encoded_name,
         version=version,
         limit=limit + 1,
@@ -133,7 +127,6 @@ async def osmo_get_app(
 
 
 async def osmo_get_app_spec(
-    context: Context,
     name: AppName,
     version: AppVersionNumber | None = None,
 ) -> AppSpecResult:
@@ -142,7 +135,6 @@ async def osmo_get_app_spec(
     resolved_version = version
     if resolved_version is None:
         resolved = await resolve_ready_app_version(
-            context,
             name=name,
             version=None,
             operation='resolve the newest READY OSMO app version',
@@ -151,7 +143,6 @@ async def osmo_get_app_spec(
         resolved_version = resolved.version
 
     spec_result = await tool_requests.request_truncated_text(
-        context,
         path=f'/api/app/user/{encoded_name}/spec',
         operation='get an OSMO app spec',
         max_response_bytes=_MAX_APP_SPEC_BYTES,
@@ -181,7 +172,6 @@ def validated_app_name(
 
 
 async def resolve_ready_app_version(
-    context: Context,
     *,
     name: AppName,
     version: AppVersionNumber | None,
@@ -195,7 +185,6 @@ async def resolve_ready_app_version(
         minimum=1,
     )
     upstream = await _request_app(
-        context,
         encoded_name=encoded_name,
         version=validated_version,
         limit=(
@@ -275,7 +264,6 @@ async def resolve_ready_app_version(
 
 
 async def _request_app(
-    context: Context,
     *,
     encoded_name: str,
     version: int | None,
@@ -290,7 +278,6 @@ async def _request_app(
         query['version'] = version
 
     response = await tool_requests.request_json_object(
-        context,
         path=f'/api/app/user/{encoded_name}',
         operation=operation,
         max_response_bytes=_MAX_APP_RESPONSE_BYTES,

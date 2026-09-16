@@ -55,6 +55,15 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
             auth=protocol_harness.any_token_verifier(),
         )
         mcp_server.tool(function, name='boundary_test_tool')
+        return await self._request_tool(mcp_server, arguments, requested_name=requested_name)
+
+    async def _request_tool(
+        self,
+        mcp_server: protocol.OSMOFastMCP,
+        arguments: dict[str, object] | None = None,
+        *,
+        requested_name: object = 'boundary_test_tool',
+    ) -> httpx.Response:
         application = server.create_application(mcp_server)
         async with application.router.lifespan_context(application):
             async with httpx.AsyncClient(
@@ -79,6 +88,102 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
                         },
                     },
                 )
+
+    async def test_known_tool_dispatch_does_not_enumerate_catalog(self) -> None:
+        async def successful_tool() -> dict[str, str]:
+            return {'status': 'ok'}
+
+        mcp_server = protocol.OSMOFastMCP(name='single-tool lookup test')
+        mcp_server.tool(successful_tool, name='boundary_test_tool')
+        credentials = request_context.RequestCredentials(
+            authorization_header=f'Bearer {_BEARER_SECRET}',
+            request_id='boundary-request-123',
+        )
+        with (
+            request_context.bind_credentials(credentials),
+            mock.patch.object(
+                protocol.FastMCP,
+                'list_tools',
+                side_effect=AssertionError('dispatch must not enumerate tools'),
+            ) as list_tools,
+            self.assertLogs('src.service.mcp.telemetry', level='INFO') as captured,
+        ):
+            result = await mcp_server.call_tool('boundary_test_tool', {})
+
+        list_tools.assert_not_called()
+        self.assertEqual(result.structured_content, {'status': 'ok'})
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('tool=boundary_test_tool outcome=success', captured.output[0])
+
+    async def test_unavailable_tools_are_indistinguishable_from_unknown(self) -> None:
+        async def unused_tool() -> None:
+            self.fail('unavailable tool must not execute')
+
+        for unavailable_reason in ('disabled', 'unauthorized'):
+            with self.subTest(reason=unavailable_reason):
+                mcp_server = protocol.OSMOFastMCP(
+                    name='tool visibility test',
+                    auth=protocol_harness.any_token_verifier(),
+                )
+                mcp_server.tool(
+                    unused_tool,
+                    name='boundary_test_tool',
+                    auth=(lambda _: False) if unavailable_reason == 'unauthorized' else None,
+                )
+                if unavailable_reason == 'disabled':
+                    mcp_server.disable(names={'boundary_test_tool'}, components={'tool'})
+                with self.assertLogs(
+                    'src.service.mcp.telemetry', level='INFO',
+                ) as captured:
+                    response = await self._request_tool(mcp_server)
+
+                self.assertTrue(response.json()['result']['isError'])
+                self.assertIn('Unknown MCP tool.', response.text)
+                self.assertNotIn(unavailable_reason, response.text)
+                self.assertEqual(len(captured.output), 1)
+                self.assertIn('tool=unknown outcome=public_error', captured.output[0])
+
+    async def test_skipping_middleware_keeps_the_credential_guard(self) -> None:
+        async def unused_tool(value: str) -> None:
+            del value
+            self.fail('credential-bearing arguments must not reach the tool')
+
+        mcp_server = protocol.OSMOFastMCP(name='direct dispatch boundary test')
+        mcp_server.tool(unused_tool, name='boundary_test_tool')
+        credentials = request_context.RequestCredentials(
+            authorization_header=f'Bearer {_BEARER_SECRET}',
+            request_id='boundary-request-123',
+        )
+        with (
+            request_context.bind_credentials(credentials),
+            self.assertLogs('src.service.mcp.telemetry', level='INFO') as captured,
+        ):
+            with self.assertRaisesRegex(
+                tool_errors.PublicToolError, r'^MCP tool arguments are invalid\.$',
+            ):
+                await mcp_server.call_tool(
+                    'boundary_test_tool', {'value': _BEARER_SECRET},
+                    run_middleware=False,
+                )
+
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('outcome=validation_error', captured.output[0])
+        self.assertNotIn(_BEARER_SECRET, captured.output[0])
+
+    async def test_extra_arguments_are_rejected_before_tool_execution(self) -> None:
+        async def unused_tool() -> None:
+            self.fail('invalid arguments must not execute a tool')
+
+        with self.assertLogs('src.service.mcp.telemetry', level='INFO') as captured:
+            response = await self._call_tool(
+                unused_tool, {'unexpected': 'synthetic-private-argument'},
+            )
+
+        self.assertTrue(response.json()['result']['isError'])
+        self.assertIn('Invalid MCP tool arguments.', response.text)
+        self.assertNotIn('synthetic-private-argument', response.text)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('outcome=validation_error', captured.output[0])
 
     async def test_plain_tool_error_is_generic(self) -> None:
         unsafe_detail = 'plain-tool-error-detail-must-not-be-public'
@@ -265,7 +370,8 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(captured.output), 1)
         record = captured.output[0]
-        self.assertIn('tool=context_test_tool', record)
+        # Authentication context is checked before the requested name is trusted.
+        self.assertIn('tool=unknown', record)
         self.assertIn('outcome=context_error', record)
 
     async def test_telemetry_failure_cannot_replace_public_result(self) -> None:
@@ -287,3 +393,7 @@ class PublicExceptionBoundaryTest(unittest.IsolatedAsyncioTestCase):
         result_text = json.dumps(result)
         self.assertIn('The requested object is not available.', result_text)
         self.assertNotIn(telemetry_secret, result_text)
+
+
+if __name__ == '__main__':
+    unittest.main()

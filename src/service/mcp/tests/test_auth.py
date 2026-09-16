@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 import tempfile
 import time
 from typing import Any
@@ -92,6 +93,56 @@ class MCPAuthConfigTest(unittest.TestCase):
 
 
 class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_readiness_failure_and_recovery(self) -> None:
+        client = mock.AsyncMock()
+        runtime = auth.MCPAuthRuntime(provider=mock.Mock(), redis_client=client)
+        for failure in (
+            auth.RedisError('sensitive connection details'),
+            OSError('certificate failure'),
+            TimeoutError(),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                client.ping.side_effect = failure
+                self.assertFalse(await runtime.is_ready())
+                client.ping.side_effect = None
+                client.ping.return_value = True
+                self.assertTrue(await runtime.is_ready())
+        client.ping.return_value = False
+        self.assertFalse(await runtime.is_ready())
+
+    async def test_readiness_deadline_cancels_stalled_ping(self) -> None:
+        cancelled = asyncio.Event()
+
+        async def stalled_ping() -> bool:
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+            return True
+
+        client = mock.AsyncMock()
+        client.ping.side_effect = stalled_ping
+        runtime = auth.MCPAuthRuntime(provider=mock.Mock(), redis_client=client)
+        self.assertFalse(await asyncio.wait_for(runtime.is_ready(), timeout=3))
+        self.assertTrue(cancelled.is_set())
+
+    async def test_readiness_preserves_caller_cancellation(self) -> None:
+        entered = asyncio.Event()
+
+        async def stalled_ping() -> bool:
+            entered.set()
+            await asyncio.Future()
+            return True
+
+        client = mock.AsyncMock()
+        client.ping.side_effect = stalled_ping
+        runtime = auth.MCPAuthRuntime(provider=mock.Mock(), redis_client=client)
+        task = asyncio.create_task(runtime.is_ready())
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
     async def test_issuer_falls_back_to_the_discovery_document(self) -> None:
         """An unset access-token issuer uses the issuer discovery advertises.
 
@@ -270,6 +321,22 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     '/.well-known/oauth-authorization-server',
                     route_paths,
                 )
+                expected_methods = {
+                    '/authorize': {'GET', 'HEAD', 'POST'},
+                    '/consent': {'GET', 'HEAD', 'POST'},
+                    '/auth/callback': {'GET', 'HEAD'},
+                    '/token': {'POST', 'OPTIONS'},
+                    '/register': {'POST', 'OPTIONS'},
+                    '/.well-known/oauth-authorization-server': {'GET', 'HEAD', 'OPTIONS'},
+                    '/.well-known/oauth-protected-resource/mcp': {'GET', 'HEAD', 'OPTIONS'},
+                }
+                actual_methods = {
+                    route.path: set(route.methods)
+                    for route in application.routes
+                    if hasattr(route, 'path') and hasattr(route, 'methods')
+                    and route.path in expected_methods
+                }
+                self.assertEqual(actual_methods, expected_methods)
                 async with (
                     application.router.lifespan_context(application),
                     httpx.AsyncClient(

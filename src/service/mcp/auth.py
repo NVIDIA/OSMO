@@ -16,8 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import asyncio
 import base64
+from collections.abc import Awaitable
 import dataclasses
+from typing import cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
@@ -31,6 +34,7 @@ from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from key_value.aio.wrappers.prefix_collections import PrefixCollectionsWrapper
 import pydantic
 from redis import asyncio as redis_asyncio
+from redis.exceptions import RedisError
 
 _UPSTREAM_OIDC_SCOPES = ('openid', 'profile', 'email', 'offline_access')
 
@@ -186,6 +190,14 @@ class MCPAuthRuntime:
 
     provider: OIDCProxy
     redis_client: redis_asyncio.Redis
+
+    async def is_ready(self) -> bool:
+        """Check OAuth storage without holding a probe beyond its deadline."""
+        try:
+            async with asyncio.timeout(2):
+                return await cast(Awaitable[bool], self.redis_client.ping())
+        except (RedisError, OSError, TimeoutError):
+            return False
 
     async def aclose(self) -> None:
         await self.redis_client.aclose()

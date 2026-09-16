@@ -23,6 +23,7 @@ import dataclasses
 import json
 import math
 import re
+import ssl
 import time
 from typing import TypeAlias
 from urllib import parse
@@ -295,6 +296,7 @@ async def create_app_context(
     gateway_url: str,
     request_timeout_seconds: float,
     transport: httpx.AsyncBaseTransport | None = None,
+    gateway_ca_file: str = '',
 ) -> AsyncIterator[AppContext]:
     """Create one credential-free HTTP connection pool for the MCP process."""
     validate_gateway_origin(gateway_url)
@@ -312,7 +314,7 @@ async def create_app_context(
         timeout=httpx.Timeout(request_timeout_seconds),
         transport=transport,
         trust_env=False,
-        verify=True,
+        verify=ssl.create_default_context(cafile=gateway_ca_file) if gateway_ca_file else True,
     ) as client:
         yield AppContext(
             gateway=GatewayClient(

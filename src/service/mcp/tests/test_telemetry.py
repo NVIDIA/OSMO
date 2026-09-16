@@ -16,13 +16,37 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import logging
 import unittest
+from unittest import mock
 
 from src.service.mcp import request_context, telemetry
 
 
 class TelemetryTest(unittest.TestCase):
     """Keep upstream telemetry useful without logging resource identifiers."""
+
+    def test_log_tool_outcome_ignores_handler_failure(self) -> None:
+        log_handler = logging.Handler()
+        telemetry_logger = logging.getLogger('src.service.mcp.telemetry')
+        self.addCleanup(telemetry_logger.setLevel, telemetry_logger.level)
+        telemetry_logger.setLevel(logging.INFO)
+        with (
+            mock.patch.object(
+                log_handler,
+                'emit',
+                side_effect=RuntimeError('synthetic-log-handler-failure'),
+            ) as emit,
+            mock.patch.object(telemetry_logger, 'handlers', [log_handler]),
+        ):
+            telemetry.log_tool_outcome(
+                tool_name='osmo_get_profile',
+                outcome='success',
+                duration_ms=3.25,
+                request_id='request-456',
+            )
+
+        emit.assert_called_once()
 
     def test_route_templates_remove_dynamic_identifiers(self) -> None:
         cases = {

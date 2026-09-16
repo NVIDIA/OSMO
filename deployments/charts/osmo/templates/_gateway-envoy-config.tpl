@@ -46,6 +46,17 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $mcpServiceName := include "osmo.component.fullname" (dict "root" . "suffix" "mcp") }}
 {{- $jwtProviders := concat (default (list) $envoy.jwt.providers) (default (list) $envoy.jwt.additionalProviders) }}
 {{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
+{{- if eq .Values.authentication.provider "embeddedDex" }}
+{{- $dexIssuer := include "osmo.authentication.issuer" . }}
+{{- $dexJwks := "http://osmo-dex:5556/dex/keys" }}
+{{- $jwtProviders = concat $jwtProviders (list
+      (dict "issuer" $dexIssuer "audiences" (list .Values.authentication.embeddedDex.browserClientId .Values.authentication.embeddedDex.cliClientId) "jwks_uri" $dexJwks "jwks_cache_duration_seconds" .Values.authentication.embeddedDex.jwksCacheDurationSeconds "user_claim" "name" "browser_user_claim" "name" "roles_claim" "roles" "embedded" true "cluster" "embedded-dex")) }}
+{{- $skipAuthPaths = uniq (concat $skipAuthPaths (list "/dex/")) }}
+{{- else }}
+{{- $external := .Values.authentication.externalOidc }}
+{{- $jwtProviders = concat $jwtProviders (list
+      (dict "issuer" $external.issuer "audiences" (list $external.browserClientId $external.cliClientId) "jwks_uri" $external.jwksUri "user_claim" $external.userClaim "roles_claim" $external.rolesClaim "cluster" "external-idp")) }}
+{{- end }}
 {{- $authnSkipPaths := $skipAuthPaths }}
 {{- if $gw.oauth2Proxy.enabled }}
 {{- $authnSkipPaths = uniq (concat $authnSkipPaths (list "/oauth2/" "/signout")) }}
@@ -95,6 +106,7 @@ application configured for v1-format tokens does.
 {{- fail "services.mcp.allowedOrigins must be a list" }}
 {{- end }}
 {{- range $origin := $mcp.allowedOrigins }}
+{{- include "osmo.mcp.validateUrl" (dict "name" "services.mcp.allowedOrigins" "url" $origin) }}
 {{- if not (regexMatch "^https?://[^/?#]+$" $origin) }}
 {{- fail (printf "services.mcp.allowedOrigins entry %q must be an exact HTTP(S) Origin without a path" $origin) }}
 {{- end }}
@@ -102,7 +114,9 @@ application configured for v1-format tokens does.
 {{- range $skipPath := $skipAuthPaths }}
 {{- $overlapsMcpPath := or (hasPrefix $skipPath $mcpPath) (hasPrefix $mcpPath $skipPath) }}
 {{- $overlapsMcpMetadataPath := or (hasPrefix $skipPath $mcpMetadataPath) (hasPrefix $mcpMetadataPath $skipPath) }}
-{{- if or $overlapsMcpPath $overlapsMcpMetadataPath }}
+{{- $authorizationMetadataPath := "/.well-known/oauth-authorization-server/mcp" }}
+{{- $overlapsAuthorizationMetadata := or (hasPrefix $skipPath $authorizationMetadataPath) (hasPrefix $authorizationMetadataPath $skipPath) }}
+{{- if or $overlapsMcpPath $overlapsMcpMetadataPath $overlapsAuthorizationMetadata }}
 {{- fail (printf "gateway auth bypass prefix %q overlaps a protected MCP path" $skipPath) }}
 {{- end }}
 {{- end }}
@@ -233,13 +247,11 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
-              {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $jwtProviders }}
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
               - x-osmo-workflow-id
               - x-osmo-allowed-pools
-              {{- end }}
               # Client-supplied x-forwarded-host is not trusted. The
               # osmo-router route re-adds it from :authority after this
               # sanitization step.
@@ -248,40 +260,23 @@ data:
               virtual_hosts:
               - name: gateway
                 domains: ["*"]
-                {{- /* Default identity for minimal/demo deployments without
-                       oauth2Proxy + authz. Uses Envoy's built-in
-                       request_headers_to_add with ADD_IF_ABSENT so that when
-                       authz IS enabled and sets these headers via ext_authz
-                       response, the real values win.
-                */ -}}
-                {{- with $envoy.defaultIdentity }}
-                {{- if .user }}
-                request_headers_to_add:
-                - header:
-                    key: x-osmo-user
-                    value: {{ .user | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- if .roles }}
-                - header:
-                    key: x-osmo-roles
-                    value: {{ .roles | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- end }}
-                {{- if .allowedPools }}
-                - header:
-                    key: x-osmo-allowed-pools
-                    value: {{ .allowedPools | quote }}
-                  append_action: ADD_IF_ABSENT
-                {{- end }}
-                {{- end }}
-                {{- end }}
                 routes:
+                {{- if eq .Values.authentication.provider "embeddedDex" }}
+                - match:
+                    prefix: /dex/
+                  route:
+                    cluster: embedded-dex
+                  typed_per_filter_config:
+                    envoy.filters.http.ext_authz:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                      disabled: true
+                {{- end }}
                 {{- if $gw.oauth2Proxy.enabled }}
                 - match:
                     path: /signout
                   redirect:
-                    {{- if .Values.services.api.auth.logoutEndpoint }}
-                    path_redirect: "/oauth2/sign_out?rd={{ .Values.services.api.auth.logoutEndpoint | urlquery }}"
+                    {{- if (include "osmo.authentication.logoutEndpoint" .) }}
+                    path_redirect: "/oauth2/sign_out?rd={{ include "osmo.authentication.logoutEndpoint" . | urlquery }}"
                     {{- else }}
                     path_redirect: "/oauth2/sign_out"
                     {{- end }}
@@ -307,18 +302,29 @@ data:
                 {{- end }}
 
                 {{- if $mcpEnabled }}
-                # FastMCP serves its own RFC 9728 document, so the gateway
-                # forwards this path instead of synthesising it.
-                - name: mcp-protected-resource-metadata
+                {{- $oauthRoutes := list
+                    (dict "name" "protected-resource-metadata" "path" $mcpMetadataPath "target" $mcpMetadataPath "methods" "GET|HEAD|OPTIONS")
+                    (dict "name" "authorization-server-metadata" "path" "/.well-known/oauth-authorization-server/mcp" "target" "/.well-known/oauth-authorization-server" "methods" "GET|HEAD|OPTIONS")
+                    (dict "name" "authorize" "path" "/mcp/authorize" "target" "/authorize" "methods" "GET|HEAD|POST")
+                    (dict "name" "consent" "path" "/mcp/consent" "target" "/consent" "methods" "GET|HEAD|POST")
+                    (dict "name" "callback" "path" "/mcp/auth/callback" "target" "/auth/callback" "methods" "GET|HEAD")
+                    (dict "name" "token" "path" "/mcp/token" "target" "/token" "methods" "POST|OPTIONS")
+                    (dict "name" "register" "path" "/mcp/register" "target" "/register" "methods" "POST|OPTIONS")
+                    (dict "name" "revoke" "path" "/mcp/revoke" "target" "/revoke" "methods" "POST|OPTIONS") }}
+                {{- range $route := $oauthRoutes }}
+                - name: mcp-{{ $route.name }}
                   match:
-                    path: {{ $mcpMetadataPath }}
+                    path: {{ $route.path }}
                     headers:
                     - name: ":method"
                       string_match:
-                        exact: GET
+                        safe_regex:
+                          google_re2: {}
+                          regex: {{ $route.methods | quote }}
                   route:
                     cluster: osmo-mcp
-                    timeout: 15s
+                    prefix_rewrite: {{ $route.target }}
+                    timeout: 45s
                   typed_per_filter_config:
                     envoy.filters.http.jwt_authn:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
@@ -326,35 +332,12 @@ data:
                     envoy.filters.http.ext_authz:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
+                {{- end }}
 
-                # RFC 8414 path-aware authorization-server metadata. FastMCP
-                # registers it at the root, so the prefix is rewritten off.
-                - name: mcp-authorization-server-metadata
+                {{- range $index, $path := list "/mcp/" $mcpMetadataPath "/.well-known/oauth-authorization-server/mcp" }}
+                - name: mcp-reject-{{ $index }}
                   match:
-                    path: /.well-known/oauth-authorization-server/mcp
-                    headers:
-                    - name: ":method"
-                      string_match:
-                        exact: GET
-                  route:
-                    cluster: osmo-mcp
-                    prefix_rewrite: /.well-known/oauth-authorization-server
-                    timeout: 15s
-                  typed_per_filter_config:
-                    envoy.filters.http.jwt_authn:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
-                      disabled: true
-                    envoy.filters.http.ext_authz:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                      disabled: true
-
-                # The /mcp/ prefix below publishes the container's whole root
-                # namespace, so any new non-OAuth root route must be carved out
-                # here too. Auth filters are off so the 404 is this route's own
-                # answer, not jwt_authn's 401 that a later change could move.
-                - name: mcp-health-not-public
-                  match:
-                    prefix: /mcp/health
+                    prefix: {{ $path }}
                   direct_response:
                     status: 404
                   typed_per_filter_config:
@@ -364,24 +347,7 @@ data:
                     envoy.filters.http.ext_authz:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                       disabled: true
-
-                # The MCP SDK registers OAuth at fixed root paths, so the
-                # gateway publishes them under /mcp -- matching what FastMCP
-                # advertises -- and rewrites the prefix off before forwarding.
-                - name: mcp-oauth
-                  match:
-                    prefix: /mcp/
-                  route:
-                    cluster: osmo-mcp
-                    prefix_rewrite: /
-                    timeout: 15s
-                  typed_per_filter_config:
-                    envoy.filters.http.jwt_authn:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
-                      disabled: true
-                    envoy.filters.http.ext_authz:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                      disabled: true
+                {{- end }}
 
                 # FastMCP validates its own token and relays the verified
                 # upstream token to protected /api.
@@ -654,10 +620,8 @@ data:
                               value_match:
                                 prefix: "Bearer "
                           {{- if $mcpEnabled }}
-                          # MCP clients authenticate with bearer JWTs and must
-                          # receive the jwt_authn challenge when the token is
-                          # missing or invalid. Bypass only OAuth2 Proxy here;
-                          # jwt_authn and semantic ext_authz stay enabled.
+                          # These namespaces are handled only by the exact
+                          # FastMCP routes or local rejection routes above.
                           - single_predicate:
                               input:
                                 name: request-headers
@@ -667,29 +631,7 @@ data:
                               value_match:
                                 safe_regex:
                                   google_re2: {}
-                                  regex: "^/mcp([?].*)?$"
-                          # The protected-resource document is public only for
-                          # the exact GET route configured above.
-                          - and_matcher:
-                              predicate:
-                              - single_predicate:
-                                  input:
-                                    name: request-headers
-                                    typed_config:
-                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                                      header_name: ":path"
-                                  value_match:
-                                    safe_regex:
-                                      google_re2: {}
-                                      regex: "^/[.]well-known/oauth-protected-resource/mcp([?].*)?$"
-                              - single_predicate:
-                                  input:
-                                    name: request-headers
-                                    typed_config:
-                                      "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                                      header_name: ":method"
-                                  value_match:
-                                    exact: "GET"
+                                  regex: "^(/mcp([/?].*)?|/[.]well-known/oauth-(protected-resource|authorization-server)/mcp.*)$"
                           {{- end }}
                           {{- if $authnSkipPaths }}
                           - single_predicate:
@@ -748,12 +690,18 @@ data:
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
                     audiences:
+                    {{- if hasKey $provider "audiences" }}
+                    {{- range $provider.audiences }}
+                    - {{ . }}
+                    {{- end }}
+                    {{- else }}
                     - {{ $provider.audience }}
                     {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) (ne $provider.audience $mcpResourceUrl) }}
                     - {{ $mcpResourceUrl }}
                     {{- end }}
+                    {{- end }}
                     forward: true
-                    payload_in_metadata: verified_jwt
+                    payload_in_metadata: verified_jwt_{{$i}}
                     from_headers:
                     - name: authorization
                       value_prefix: "Bearer "
@@ -764,7 +712,7 @@ data:
                         cluster: {{ $provider.cluster }}
                         timeout: 5s
                       cache_duration:
-                        seconds: 600
+                        seconds: {{ default 600 $provider.jwks_cache_duration_seconds }}
                       async_fetch:
                         failed_refetch_duration: 1s
                       retry_policy:
@@ -775,6 +723,10 @@ data:
                     claim_to_headers:
                     - claim_name: {{$provider.user_claim}}
                       header_name: {{$envoy.jwt.userHeader}}
+                    {{- if hasKey $provider "browser_user_claim" }}
+                    - claim_name: {{$provider.browser_user_claim}}
+                      header_name: x-auth-request-preferred-username
+                    {{- end }}
                   {{- end }}
                 rules:
                   {{- if $skipAuthPaths }}
@@ -796,14 +748,7 @@ data:
                   - match:
                       prefix: /
                     requires:
-                      {{- if $envoy.jwt.allowMissing }}
-                      requires_any:
-                        requirements:
-                        {{- range $i, $provider := $jwtProviders }}
-                        - provider_name: provider_{{$i}}
-                        {{- end}}
-                        - allow_missing: {}
-                      {{- else if eq (len $jwtProviders) 1 }}
+                      {{- if eq (len $jwtProviders) 1 }}
                       provider_name: provider_0
                       {{- else }}
                       requires_any:
@@ -821,19 +766,42 @@ data:
                   inline_string: |
                     function envoy_on_request(request_handle)
                       local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
-                      if (meta == nil or meta.verified_jwt == nil) then
+                      if (meta == nil) then
                         return
                       end
-                      local roles = meta.verified_jwt.roles
-                      if (roles ~= nil and type(roles) == 'table') then
-                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                      {{- range $i, $provider := $jwtProviders }}
+                      local jwt = meta.verified_jwt_{{$i}}
+                      if (jwt ~= nil) then
+                        local roles = jwt[{{ default "roles" $provider.roles_claim | quote }}]
+                        {{- if $provider.embedded }}
+                        local embedded_roles = nil
+                        {{- range $identityID, $identity := $.Values.authentication.bootstrap.identities }}
+                        {{- if and $identity.enabled (dig "enabled" false ($identity.dex | default dict)) }}
+                        if (jwt.sub == {{ include "osmo.bootstrap.dexSubject" $identityID | quote }}) then
+                          embedded_roles = {
+                            {{- range $identity.roles }}
+                            {{ . | quote }},
+                            {{- end }}
+                          }
+                        end
+                        {{- end }}
+                        {{- end }}
+                        if (embedded_roles ~= nil) then
+                          roles = embedded_roles
+                        end
+                        {{- end }}
+                        if (roles ~= nil and type(roles) == 'table') then
+                          request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                        end
+                        if (jwt.osmo_token_name ~= nil) then
+                          request_handle:headers():replace('x-osmo-token-name', tostring(jwt.osmo_token_name))
+                        end
+                        if (jwt.osmo_workflow_id ~= nil) then
+                          request_handle:headers():replace('x-osmo-workflow-id', tostring(jwt.osmo_workflow_id))
+                        end
+                        return
                       end
-                      if (meta.verified_jwt.osmo_token_name ~= nil) then
-                        request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
-                      end
-                      if (meta.verified_jwt.osmo_workflow_id ~= nil) then
-                        request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
-                      end
+                      {{- end }}
                     end
 
             {{- if $gw.authz.enabled }}
@@ -1180,6 +1148,59 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $envoy.idp.host }}
+    {{- end }}
+
+    {{- if eq .Values.authentication.provider "embeddedDex" }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: embedded-dex
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: embedded-dex
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: osmo-dex
+                  port_value: 5556
+    {{- else }}
+    {{- $jwksAuthority := regexFind "^https?://[^/?#]+" .Values.authentication.externalOidc.jwksUri }}
+    {{- $jwksPortText := regexFind ":[0-9]+$" $jwksAuthority | trimPrefix ":" }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: external-idp
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_refresh_rate: 5s
+      respect_dns_ttl: true
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: external-idp
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: {{ .Values.authentication.externalOidc.jwksHost }}
+                  port_value: {{ if $jwksPortText }}{{ $jwksPortText }}{{ else }}{{ ternary 443 80 (hasPrefix "https://" .Values.authentication.externalOidc.jwksUri) }}{{ end }}
+      {{- if hasPrefix "https://" .Values.authentication.externalOidc.jwksUri }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ .Values.authentication.externalOidc.jwksHost }}
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/ssl/certs/ca-certificates.crt
+              match_typed_subject_alt_names:
+              - san_type: DNS
+                matcher:
+                  exact: {{ .Values.authentication.externalOidc.jwksHost | quote }}
+      {{- end }}
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}

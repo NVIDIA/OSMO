@@ -18,13 +18,14 @@ fail() {
     exit 1
 }
 
-for required_command in awk base64 grep helm tar; do
+for required_command in awk base64 cmp grep helm sed tar; do
     command -v "$required_command" >/dev/null || \
         fail "required command not found: $required_command"
 done
 
 helm_template() {
-    helm template "$@" --kube-version 1.28.0
+    helm template -f "$CHARTS_ROOT/osmo/tests/default-external-url-values.yaml" \
+        "$@" --kube-version 1.28.0
 }
 
 helm_template_with_backend() {
@@ -463,6 +464,12 @@ require_clean_osmo_sources() {
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.8.0"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
         "condition: embeddedDependencies.postgresql.enabled"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: dex"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "version: 0.24.1"
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
+        "condition: embeddedDependencies.dex.enabled"
+    require_contains "$CHARTS_ROOT/osmo/Chart.lock" "name: dex"
+    require_contains "$CHARTS_ROOT/osmo/Chart.lock" "version: 0.24.1"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: rustfs"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'version: "1.0.0-rc.2"'
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
@@ -531,11 +538,25 @@ test_control_umbrella() {
     local rendered="$TEST_DIRECTORY/osmo.yaml"
     mkdir -p "$charts_copy"
     cp -R "$CHARTS_ROOT/osmo" "$charts_copy/osmo"
-    if ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
+    if ! compgen -G "$charts_copy/osmo/charts/dex-0.24.1.tgz" >/dev/null || \
+        ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
+    local dex_archive_verifier="$charts_copy/osmo/tests/verify_dex_chart_archive.sh"
+    local dex_archive="$charts_copy/osmo/charts/dex-0.24.1.tgz"
+    [[ -f "$dex_archive_verifier" ]] || fail "Dex chart archive verifier is required"
+    bash "$dex_archive_verifier" "$dex_archive" >/dev/null
+    local altered_dex_archive="$TEST_DIRECTORY/altered-dex-0.24.1.tgz"
+    cp "$dex_archive" "$altered_dex_archive"
+    printf 'altered archive\n' >>"$altered_dex_archive"
+    if bash "$dex_archive_verifier" "$altered_dex_archive" \
+        >"$TEST_DIRECTORY/altered-dex-archive.out" 2>&1; then
+        fail "expected an altered Dex chart archive to fail digest verification"
+    fi
+    require_contains "$TEST_DIRECTORY/altered-dex-archive.out" \
+        "Dex chart archive SHA-256 mismatch:"
     local rustfs_archive_verifier="$charts_copy/osmo/tests/verify_rustfs_chart_archive.sh"
     local rustfs_archive="$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz"
     [[ -f "$rustfs_archive_verifier" ]] || \
@@ -551,7 +572,14 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/altered-rustfs-archive.out" \
         "RustFS chart archive SHA-256 mismatch:"
 
-    if ! helm lint "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
+    if ! helm template chart-defaults "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            >"$TEST_DIRECTORY/osmo-chart-defaults.yaml" 2>&1; then
+        cat "$TEST_DIRECTORY/osmo-chart-defaults.yaml" >&2
+        fail "expected chart defaults to render"
+    fi
+    if ! helm lint "$charts_copy/osmo" \
+            >"$TEST_DIRECTORY/osmo-lint.out" 2>&1; then
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
         fail "expected chart defaults to pass helm lint"
     fi
@@ -560,6 +588,508 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageRegistry: nvcr.io"
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageRepository: nvidia/osmo"
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageTag: latest"
+
+    helm_template bootstrap-identities-contract "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set authentication.bootstrap.identities.developer.enabled=true \
+        --set-string authentication.bootstrap.identities.developer.username=developer \
+        --set-string authentication.bootstrap.identities.developer.roles[0]=osmo-user \
+        --set authentication.bootstrap.identities.developer.dex.enabled=true \
+        --set-string authentication.bootstrap.identities.developer.dex.email=developer@osmo.local \
+        --set authentication.bootstrap.identities.developer.tokens.cli.managedSecret.name=osmo-developer-token \
+        >"$TEST_DIRECTORY/bootstrap-identities-contract.yaml"
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        'username: "developer"'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        'hashFromEnv: OSMO_DEX_PASSWORD_HASH_DEVELOPER'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        '"developer=osmo-embedded-dex-developer=OSMO_DEX_PASSWORD_HASH_DEVELOPER"'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        '"developer/cli=osmo-developer-token"'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        '"admin/primary=osmo-admin-token"'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        'mountPath: /etc/osmo/bootstrap-tokens/developer/cli'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
+        'secretName: osmo-developer-token'
+    require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
+        osmo-developer-token
+    require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
+        osmo-embedded-dex-developer
+    if helm_template invalid-bootstrap-kind "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set-string authentication.bootstrap.identities.admin.kind=user \
+            >"$TEST_DIRECTORY/invalid-bootstrap-kind.out" 2>&1; then
+        fail "expected removed bootstrap identity kind to fail schema validation"
+    fi
+    require_additional_property_error \
+        "$TEST_DIRECTORY/invalid-bootstrap-kind.out" "kind"
+
+    if helm_template invalid-bootstrap-dex-role-mapping "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set-string configuration.roles.osmo-admin.external_roles[0]=idp-admin \
+            >"$TEST_DIRECTORY/invalid-bootstrap-dex-role-mapping.out" 2>&1; then
+        fail "expected an indirect external mapping for a Dex bootstrap role to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-dex-role-mapping.out" \
+        'Dex bootstrap identity role "osmo-admin" must set external_roles to ["osmo-admin"]'
+
+    if helm_template invalid-bootstrap-duplicate-username "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set authentication.bootstrap.identities.developer.enabled=true \
+            --set-string authentication.bootstrap.identities.developer.username=admin \
+            --set-string authentication.bootstrap.identities.developer.roles[0]=osmo-user \
+            --set authentication.bootstrap.identities.developer.tokens.cli.managedSecret.name=osmo-developer-token \
+            >"$TEST_DIRECTORY/invalid-bootstrap-duplicate-username.out" 2>&1; then
+        fail "expected duplicate bootstrap usernames to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-duplicate-username.out" \
+        'bootstrap identity username "admin" is used more than once'
+
+    if helm_template invalid-bootstrap-duplicate-secret "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set authentication.bootstrap.identities.admin.tokens.cli.managedSecret.name=osmo-backend-token \
+            >"$TEST_DIRECTORY/invalid-bootstrap-duplicate-secret.out" 2>&1; then
+        fail "expected duplicate bootstrap Secret names to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-duplicate-secret.out" \
+        'bootstrap credential Secret "osmo-backend-token" is used more than once'
+
+    if helm_template invalid-bootstrap-reserved-secret "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set authentication.bootstrap.identities.admin.tokens.cli.managedSecret.name=osmo-embedded-dex-oauth \
+            >"$TEST_DIRECTORY/invalid-bootstrap-reserved-secret.out" 2>&1; then
+        fail "expected a bootstrap token to reject an embedded Dex credential Secret name"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-reserved-secret.out" \
+        'bootstrap credential Secret "osmo-embedded-dex-oauth" is used more than once'
+
+    if helm_template invalid-bootstrap-missing-role "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set-string authentication.bootstrap.identities.admin.roles[0]=missing-role \
+            >"$TEST_DIRECTORY/invalid-bootstrap-missing-role.out" 2>&1; then
+        fail "expected an undefined user bootstrap role to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/invalid-bootstrap-missing-role.out" \
+        'role "missing-role" is not defined in the effective configuration'
+
+    helm_template embedded-auth-default "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set gateway.networkPolicies.enabled=true \
+        >"$TEST_DIRECTORY/embedded-auth-default.yaml"
+    helm_template embedded-auth-custom-username "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string authentication.bootstrap.identities.admin.username=platform-admin \
+        >"$TEST_DIRECTORY/embedded-auth-custom-username.yaml"
+    helm_template embedded-auth-deterministic "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/embedded-auth-deterministic.yaml"
+    helm_template embedded-auth-deterministic "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        -f "$CHARTS_ROOT/osmo/tests/control-embedded-values.yaml" \
+        >"$TEST_DIRECTORY/embedded-auth-deterministic-repeat.yaml"
+    cmp "$TEST_DIRECTORY/embedded-auth-deterministic.yaml" \
+        "$TEST_DIRECTORY/embedded-auth-deterministic-repeat.yaml" || \
+        fail "embedded Dex rendering must be deterministic"
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Deployment \
+        osmo-dex \
+        >"$TEST_DIRECTORY/embedded-auth-dex.yaml"
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" ServiceAccount \
+        osmo-dex \
+        >"$TEST_DIRECTORY/embedded-auth-dex-service-account.yaml"
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex.yaml" \
+        "ghcr.io/dexidp/dex@sha256:5d0656fce7d453c0e3b2706abf40c0d0ce5b371fb0b73b3cf714d05f35fa5f86"
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex.yaml" \
+        "mountPath: /tmp"
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex.yaml" \
+        "emptyDir: {}"
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex-service-account.yaml" \
+        "automountServiceAccountToken: false"
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Service osmo-dex
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Secret osmo-dex-config
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
+        osmo-identity-bootstrap-pre
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
+        osmo-identity-bootstrap-post
+
+    local long_identity_bootstrap_override
+    printf -v long_identity_bootstrap_override '%*s' 63 ''
+    long_identity_bootstrap_override=${long_identity_bootstrap_override// /a}
+    helm_template embedded-auth-name-boundary "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string fullnameOverride="$long_identity_bootstrap_override" \
+        >"$TEST_DIRECTORY/embedded-auth-name-boundary.yaml"
+    local expected_identity_bootstrap_base=${long_identity_bootstrap_override:0:58}
+    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
+        "$expected_identity_bootstrap_base-pre"
+    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
+        "$expected_identity_bootstrap_base-post"
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Role \
+        osmo-identity-bootstrap
+    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" RoleBinding \
+        osmo-identity-bootstrap
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
+        osmo-identity-bootstrap-pre \
+        >"$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml"
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
+        osmo-identity-bootstrap-post \
+        >"$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml"
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Role \
+        osmo-identity-bootstrap \
+        >"$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml"
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        'helm.sh/hook: pre-install,pre-upgrade'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        'helm.sh/hook: post-install,post-upgrade'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        'command: ["identity-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        'command: ["identity-bootstrap"]'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--password'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '"admin=osmo-embedded-dex-admin=OSMO_DEX_PASSWORD_HASH_ADMIN"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--oauth-secret-name'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '"osmo-embedded-dex-oauth"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        'readOnlyRootFilesystem: true'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--dex-pod-selector'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--oauth-pod-selector'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--restart-timeout-seconds'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '--dex-pod-selector'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '"app.kubernetes.io/name=dex,app.kubernetes.io/instance=embedded-auth-default"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '--oauth-pod-selector'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '"app.kubernetes.io/name=osmo,app.kubernetes.io/instance=embedded-auth-default,app.kubernetes.io/component=gateway-oauth2-proxy"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '--restart-timeout-seconds'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '"270"'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '--credential-rollout-identity'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
+        '--config-rollout-identity'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
+        '--config-rollout-identity'
+    local default_config_rollout_identity
+    default_config_rollout_identity=$(awk '
+        /--config-rollout-identity/ {
+            getline
+            gsub(/[[:space:]"]/, "")
+            print
+            exit
+        }
+    ' "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml")
+    local mutated_chart="$TEST_DIRECTORY/osmo-config-mutated"
+    cp -a "$charts_copy/osmo" "$mutated_chart"
+    sed -i 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
+        "$mutated_chart/templates/_helpers.tpl"
+    helm_template embedded-auth-config-mutated "$mutated_chart" \
+        --api-versions postgresql.cnpg.io/v1 \
+        >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
+    resource_document "$TEST_DIRECTORY/embedded-auth-config-mutated.yaml" Job \
+        osmo-identity-bootstrap-post \
+        >"$TEST_DIRECTORY/embedded-auth-config-mutated-post.yaml"
+    local mutated_config_rollout_identity
+    mutated_config_rollout_identity=$(awk '
+        /--config-rollout-identity/ {
+            getline
+            gsub(/[[:space:]"]/, "")
+            print
+            exit
+        }
+    ' "$TEST_DIRECTORY/embedded-auth-config-mutated-post.yaml")
+    if [[ -z "$default_config_rollout_identity" ||
+          "$default_config_rollout_identity" == "$mutated_config_rollout_identity" ]]; then
+        fail "embedded Dex config changes must change the rollout identity"
+    fi
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'resources: ["secrets"]'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'resources: ["pods"]'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'resourceNames:'
+    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'verbs: ["list", "delete"]'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'resources: ["deployments"]'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'verbs: ["*"]'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
+        'customresourcedefinitions'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'kind: NetworkPolicy'
+    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" NetworkPolicy \
+        osmo-gateway-allow-envoy-to-dex \
+        >"$TEST_DIRECTORY/embedded-auth-dex-network-policy.yaml"
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex-network-policy.yaml" \
+        'app.kubernetes.io/name: dex'
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex-network-policy.yaml" \
+        'app.kubernetes.io/instance: embedded-auth-default'
+    require_contains "$TEST_DIRECTORY/embedded-auth-dex-network-policy.yaml" \
+        'port: 5556'
+    require_no_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Secret \
+        osmo-embedded-dex-admin
+    require_no_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Secret \
+        osmo-embedded-dex-oauth
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" "type: memory"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "hashFromEnv: OSMO_DEX_PASSWORD_HASH_ADMIN"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "secretEnv: OSMO_DEX_BROWSER_CLIENT_SECRET"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "seconds: 30"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'deviceRequests: "5m"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'signingKeys: "6h"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'idTokens: "24h"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'reuseInterval: "3s"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'validIfNotUsedFor: "2160h"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'absoluteLifetime: "3960h"'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "--cookie-secure=false"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "prefix: /dex/"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "claim_name: name"
+    require_occurrences "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "header_name: x-auth-request-preferred-username" 1
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "user_roles:"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        'if (jwt.sub == "CgVhZG1pbhIFbG9jYWw") then'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        '"osmo-admin",'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "CiQwOGE4Njg0Yi1kYjg4LTRiNzMtOTBhOS0zY2QxNjYxZjU0NjYSBWxvY2Fs"
+    require_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        'username: "platform-admin"'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        "user_roles:"
+    require_contains "$TEST_DIRECTORY/embedded-auth-custom-username.yaml" \
+        "claim_name: name"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "--device_endpoint"
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "http://127.0.0.1:30080/dex/device/code"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "kind: CustomResourceDefinition"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "apiGroups: [\"dex.coreos.com\"]"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
+        "resources: [\"customresourcedefinitions\"]"
+
+    helm_template embedded-auth-pdb "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set dex.podDisruptionBudget.enabled=true \
+        >"$TEST_DIRECTORY/embedded-auth-pdb.yaml"
+    require_resource "$TEST_DIRECTORY/embedded-auth-pdb.yaml" PodDisruptionBudget \
+        osmo-dex
+
+    local removed_embedded_case removed_embedded_value removed_embedded_property
+    for removed_embedded_case in \
+            'authentication.embeddedDex.admin.username=legacy-admin|admin' \
+            'authentication.embeddedDex.adminSecretName=legacy-admin-secret|adminSecretName' \
+            'authentication.embeddedDex.oauthSecretName=legacy-oauth-secret|oauthSecretName' \
+            'authentication.embeddedDex.bootstrap.allowInitialGeneration=false|bootstrap' \
+            'authentication.embeddedDex.passwordGeneration=2|passwordGeneration'; do
+        removed_embedded_value=${removed_embedded_case%%|*}
+        removed_embedded_property=${removed_embedded_case##*|}
+        if helm_template removed-embedded-dex-value "$charts_copy/osmo" \
+                --api-versions postgresql.cnpg.io/v1 \
+                --set-string "$removed_embedded_value" \
+                >"$TEST_DIRECTORY/removed-embedded-dex-value.out" 2>&1; then
+            fail "expected removed embedded Dex value '$removed_embedded_value' to fail"
+        fi
+        require_additional_property_error \
+            "$TEST_DIRECTORY/removed-embedded-dex-value.out" \
+            "$removed_embedded_property"
+    done
+
+    if helm_template hostile-dex-env-vars "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set-string dex.envVars[0].name=HOSTILE_DEX_ENVIRONMENT \
+            >"$TEST_DIRECTORY/hostile-dex-env-vars.out" 2>&1; then
+        fail "expected direct Dex environment override to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/hostile-dex-env-vars.out" \
+        "embedded Dex environment Secret references are chart-managed"
+
+    local hostile_dex_value
+    for hostile_dex_value in \
+            'dex.image.repository=example.invalid/dex' \
+            'dex.securityContext.privileged=true' \
+            'dex.volumes[0].hostPath.path=/' \
+            'dex.service.type=LoadBalancer' \
+            'dex.networkPolicy.enabled=true' \
+            'dex.replicaCount=2'; do
+        if helm_template hostile-dex-values "$charts_copy/osmo" \
+                --api-versions postgresql.cnpg.io/v1 \
+                --set "$hostile_dex_value" \
+                >"$TEST_DIRECTORY/hostile-dex-values.out" 2>&1; then
+            fail "expected unsafe Dex override '$hostile_dex_value' to fail"
+        fi
+        require_contains "$TEST_DIRECTORY/hostile-dex-values.out" \
+            "embedded Dex security-sensitive dependency values are chart-managed"
+    done
+
+    local embedded_invalid_username
+    for embedded_invalid_username in ' ' '<<' '-admin' 'admin_' 'admin/name'; do
+        if helm_template invalid-embedded-dex-username "$charts_copy/osmo" \
+                --api-versions postgresql.cnpg.io/v1 \
+                --set-string \
+                "authentication.bootstrap.identities.admin.username=$embedded_invalid_username" \
+                >"$TEST_DIRECTORY/invalid-embedded-dex-username.out" 2>&1; then
+            fail "expected invalid embedded Dex username '$embedded_invalid_username' to fail"
+        fi
+        require_schema_path "$TEST_DIRECTORY/invalid-embedded-dex-username.out" \
+            "authentication.bootstrap.identities.admin.username"
+    done
+
+    local external_invalid_secret_value
+    for external_invalid_secret_value in \
+            'authentication.externalOidc.browserClientSecret.existingSecret=invalid_secret' \
+            'authentication.externalOidc.cookieSecret.existingSecret=InvalidName' \
+            'authentication.externalOidc.browserClientSecret.key=invalid/key' \
+            'authentication.externalOidc.cookieSecret.key=invalid/key'; do
+        if helm_template invalid-external-oidc-secret "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string "$external_invalid_secret_value" \
+                >"$TEST_DIRECTORY/invalid-external-oidc-secret.out" 2>&1; then
+            fail "expected invalid external OIDC Secret reference '$external_invalid_secret_value' to fail"
+        fi
+    done
+
+    helm_template external-auth "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        >"$TEST_DIRECTORY/external-auth.yaml"
+    require_no_deployment "$TEST_DIRECTORY/external-auth.yaml" osmo-dex
+    require_no_resource "$TEST_DIRECTORY/external-auth.yaml" ServiceAccount osmo-dex
+    require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Secret osmo-dex-config
+    require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Job \
+        external-auth-osmo-identity-bootstrap-pre
+    require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Job \
+        external-auth-osmo-identity-bootstrap-post
+    require_not_contains "$TEST_DIRECTORY/external-auth.yaml" \
+        "osmo-embedded-dex-admin"
+    require_not_contains "$TEST_DIRECTORY/external-auth.yaml" \
+        "osmo-embedded-dex-oauth"
+    resource_document "$TEST_DIRECTORY/external-auth.yaml" Deployment \
+        external-auth-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/external-auth-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/external-auth-oauth2-proxy.yaml" \
+        "--oidc-issuer-url=https://idp.example.com"
+    require_contains "$TEST_DIRECTORY/external-auth-oauth2-proxy.yaml" \
+        'secretName: "oauth2-proxy-secrets"'
+    resource_document "$TEST_DIRECTORY/external-auth.yaml" ConfigMap \
+        external-auth-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/external-auth-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "name: external-idp"
+    require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "filename: /etc/ssl/certs/ca-certificates.crt"
+    require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        'exact: "idp.example.com"'
+    require_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "claim_name: sub"
+    require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "header_name: x-auth-request-preferred-username"
+    require_not_contains "$TEST_DIRECTORY/external-auth-gateway-config.yaml" \
+        "table.insert(roles, 'osmo-admin')"
+
+    helm_template external-custom-roles-claim "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string authentication.externalOidc.rolesClaim=groups \
+        >"$TEST_DIRECTORY/external-custom-roles-claim.yaml"
+    resource_document "$TEST_DIRECTORY/external-custom-roles-claim.yaml" \
+        ConfigMap external-custom-roles-claim-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/external-custom-roles-claim-config.yaml"
+    require_occurrences "$TEST_DIRECTORY/external-custom-roles-claim-config.yaml" \
+        'local roles = jwt["roles"]' 1
+    require_occurrences "$TEST_DIRECTORY/external-custom-roles-claim-config.yaml" \
+        'local roles = jwt["groups"]' 1
+
+    local unsafe_skip_path_value
+    for unsafe_skip_path_value in \
+            'gateway.envoy.skipAuthPaths[0]=/' \
+            'gateway.envoy.extraSkipAuthPaths[0]=/'; do
+        if helm_template unsafe-auth-skip "$charts_copy/osmo" \
+                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                --set-string "$unsafe_skip_path_value" \
+                >"$TEST_DIRECTORY/unsafe-auth-skip.out" 2>&1; then
+            fail "expected unsafe authentication bypass '$unsafe_skip_path_value' to fail"
+        fi
+        require_contains "$TEST_DIRECTORY/unsafe-auth-skip.out" \
+            "gateway authentication bypass paths are chart-managed"
+    done
+
+    helm_template external-auth-http-jwks "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string authentication.externalOidc.jwksUri=http://idp.example.com/keys \
+        >"$TEST_DIRECTORY/external-auth-http-jwks.yaml"
+    resource_document "$TEST_DIRECTORY/external-auth-http-jwks.yaml" ConfigMap \
+        external-auth-http-jwks-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/external-auth-http-jwks-gateway-config.yaml"
+    require_contains "$TEST_DIRECTORY/external-auth-http-jwks-gateway-config.yaml" \
+        "name: external-idp"
+    require_contains "$TEST_DIRECTORY/external-auth-http-jwks-gateway-config.yaml" \
+        "port_value: 80"
+    require_not_contains "$TEST_DIRECTORY/external-auth-http-jwks-gateway-config.yaml" \
+        "sni: idp.example.com"
+    require_not_contains "$TEST_DIRECTORY/external-auth-http-jwks-gateway-config.yaml" \
+        "filename: /etc/ssl/certs/ca-certificates.crt"
+
+    helm_template external-auth-custom-jwks-port "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string authentication.externalOidc.jwksUri=https://idp.example.com:8443/keys \
+        >"$TEST_DIRECTORY/external-auth-custom-jwks-port.yaml"
+    resource_document "$TEST_DIRECTORY/external-auth-custom-jwks-port.yaml" ConfigMap \
+        external-auth-custom-jwks-port-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/external-auth-custom-jwks-port-gateway-config.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/external-auth-custom-jwks-port-gateway-config.yaml" \
+        "port_value: 8443"
+
+    if helm_template external-auth-mismatched-jwks-host "$charts_copy/osmo" \
+            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            --set-string authentication.externalOidc.jwksHost=other.example.com \
+            >"$TEST_DIRECTORY/external-auth-mismatched-jwks-host.out" 2>&1; then
+        fail "expected mismatched external OIDC JWKS host to fail"
+    fi
+    require_contains "$TEST_DIRECTORY/external-auth-mismatched-jwks-host.out" \
+        "externalOidc.jwksHost must match the jwksUri DNS host"
+
+    helm_template embedded-auth-https "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set externalUrl=https://osmo.example.com \
+        >"$TEST_DIRECTORY/embedded-auth-https.yaml"
+    require_contains "$TEST_DIRECTORY/embedded-auth-https.yaml" \
+        "--cookie-secure=true"
 
     if helm_template missing-split-backend-name "$charts_copy/osmo" \
             -f "$charts_copy/osmo/profiles/split-plane-compute.yaml" \
@@ -605,6 +1135,12 @@ test_control_umbrella() {
         "service-auth-bootstrap"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
+    require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" "osmo-dex"
+    require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Secret osmo-dex-config
+    require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Job \
+        split-compute-osmo-identity-bootstrap-pre
+    require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Job \
+        split-compute-osmo-identity-bootstrap-post
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "kind: Secret"
     require_contains "$TEST_DIRECTORY/split-compute.yaml" \
@@ -750,11 +1286,11 @@ test_control_umbrella() {
         "osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
     require_occurrences "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'secretName: "osmo-oauth2-proxy"' 2
+        'secretName: "osmo-embedded-dex-oauth"' 2
     require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'key: "client_secret"'
+        'key: "browser-client-secret"'
     require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'key: "cookie_secret"'
+        'key: "cookie-secret"'
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Namespace \
         "osmo-workflows"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Namespace \
@@ -783,15 +1319,18 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "helm.sh/resource-policy: keep"
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-backend-token-bootstrap"
+        "osmo-identity-bootstrap-pre"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-backend-token-bootstrap" \
-        >"$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml"
+        "osmo-identity-bootstrap-pre" \
+        >"$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml"
     require_contains \
-        "$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml" \
-        'image: "alpine/k8s@sha256:3c6d1e613d94f03d63a6213b8687c7d4e5b9154903327aa8f0b5d628d7ab010b"'
+        "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
+        'image: "nvcr.io/nvidia/osmo/service:6.3.1"'
     require_contains \
-        "$TEST_DIRECTORY/self-contained-backend-token-bootstrap.yaml" \
+        "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
+        'command: ["identity-bootstrap"]'
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
@@ -893,7 +1432,7 @@ test_control_umbrella() {
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Service \
         "osmo-rustfs-svc"
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-backend-token-bootstrap"
+        "osmo-identity-bootstrap-pre"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
         'name: "osmo-mek-bootstrap-'
     resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
@@ -937,8 +1476,16 @@ test_control_umbrella() {
         "uri: https://osmo-api/api/auth/keys"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "provider_1:"
+    require_not_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "provider_2:"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
-        "issuer: https://idp.example.com"
+        "issuer: https://osmo.example.com/dex"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "- osmo-browser"
+    require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "- osmo-cli"
+    require_not_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
+        "name: external-idp"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "requires_any:"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
@@ -1042,7 +1589,7 @@ test_control_umbrella() {
         "osmo-rustfs-data" >"$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml" "storage: 1Gi"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
-        "osmo-backend-token-bootstrap"
+        "osmo-identity-bootstrap-pre"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
         'name: "osmo-mek-bootstrap-'
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
@@ -1138,9 +1685,11 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         'azure.workload.identity/use: "true"'
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
-        "name: OSMO_DEFAULT_ADMIN_PASSWORD"
+        "mountPath: /etc/osmo/bootstrap-tokens/admin/cli"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
-        "name: osmo-default-admin"
+        "secretName: osmo-default-admin"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "--bootstrap_identity_config_file"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Deployment \
         "osmo-worker" >"$TEST_DIRECTORY/single-plane-azure-worker.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-worker.yaml" \
@@ -1480,9 +2029,9 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-gateway-config.yaml" \
         "cluster: osmo-ui"
     require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-mcp"
-    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" \
+    require_deployment "$TEST_DIRECTORY/quickstart.yaml" \
         "osmo-gateway-oauth2-proxy"
-    require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-gateway-authz"
+    require_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-gateway-authz"
     require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" \
         "osmo-gateway-ratelimit"
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" \
@@ -1549,21 +2098,35 @@ test_control_umbrella() {
     fi
     require_contains \
         "$TEST_DIRECTORY/mismatched-converged-backend-token.out" \
-        "compute.authentication.existingSecret must match a configured backend API token Secret in a converged release"
+        "compute.authentication.existingSecret must match a configured backend bootstrap identity token Secret in a converged release"
 
-    if helm_template_with_backend disabled-converged-backend-tokens "$charts_copy/osmo" \
+    if helm_template_with_backend user-token-for-converged-backend "$charts_copy/osmo" \
             --namespace osmo \
             --api-versions postgresql.cnpg.io/v1 \
             -f "$charts_copy/osmo/profiles/self-contained.yaml" \
             --set externalUrl=https://osmo.example.com \
             --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
-            --set secrets.backendApiTokens.enabled=false \
-            >"$TEST_DIRECTORY/disabled-converged-backend-tokens.out" 2>&1; then
-        fail "expected disabled backend API tokens in a converged release to fail"
+            --set compute.authentication.existingSecret=osmo-admin-token \
+            >"$TEST_DIRECTORY/user-token-for-converged-backend.out" 2>&1; then
+        fail "expected a user token selected for compute authentication to fail"
     fi
     require_contains \
-        "$TEST_DIRECTORY/disabled-converged-backend-tokens.out" \
-        "secrets.backendApiTokens.enabled must be true when both planes are enabled"
+        "$TEST_DIRECTORY/user-token-for-converged-backend.out" \
+        "compute.authentication.existingSecret must match a configured backend bootstrap identity token Secret in a converged release"
+
+    if helm_template_with_backend disabled-converged-backend-identity "$charts_copy/osmo" \
+            --namespace osmo \
+            --api-versions postgresql.cnpg.io/v1 \
+            -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+            --set externalUrl=https://osmo.example.com \
+            --set-string 'compute.workflowNetworkPolicy.clusterCIDRs[0]=10.0.0.0/8' \
+            --set authentication.bootstrap.identities.backend-operator-default.enabled=false \
+            >"$TEST_DIRECTORY/disabled-converged-backend-identity.out" 2>&1; then
+        fail "expected disabled backend bootstrap identity in a converged release to fail"
+    fi
+    require_contains \
+        "$TEST_DIRECTORY/disabled-converged-backend-identity.out" \
+        "compute.authentication.existingSecret must match a configured backend bootstrap identity token Secret in a converged release"
 
     helm_template_with_backend conventions "$charts_copy/osmo" \
         --namespace osmo \
@@ -1798,8 +2361,8 @@ test_control_umbrella() {
         control-monitor-osmo-backend-monitor
 
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
-        osmo-backend-token-bootstrap \
-        >"$TEST_DIRECTORY/conventions-backend-token-bootstrap.yaml"
+        osmo-identity-bootstrap-pre \
+        >"$TEST_DIRECTORY/conventions-identity-bootstrap.yaml"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/conventions.yaml" Job \
         object-storage-bootstrap \
         >"$TEST_DIRECTORY/conventions-object-storage-bootstrap.yaml"
@@ -1811,12 +2374,8 @@ test_control_umbrella() {
     local convention_image_resource
     local convention_image_repository
     for convention_image_resource in \
-            backend-token-bootstrap object-storage-bootstrap \
-            test-runner-template; do
+            object-storage-bootstrap test-runner-template; do
         case "$convention_image_resource" in
-            backend-token-bootstrap)
-                convention_image_repository=backend-token-bootstrap
-                ;;
             object-storage-bootstrap)
                 convention_image_repository=object-storage-bootstrap
                 ;;
@@ -1834,6 +2393,12 @@ test_control_umbrella() {
             "$TEST_DIRECTORY/conventions-$convention_image_resource.yaml" \
             "imagePullPolicy: Always"
     done
+    require_contains "$TEST_DIRECTORY/conventions-identity-bootstrap.yaml" \
+        'image: "nvcr.io/nvidia/osmo/service:6.3.1"'
+    require_contains "$TEST_DIRECTORY/conventions-identity-bootstrap.yaml" \
+        'name: convention-pull-secret'
+    require_contains "$TEST_DIRECTORY/conventions-identity-bootstrap.yaml" \
+        'command: ["identity-bootstrap"]'
 
     local convention_service
     for convention_service in api router logger agent ui mcp gateway; do
@@ -2020,8 +2585,6 @@ test_control_umbrella() {
         'every live leaf and consumer uses the activated CA'
     require_contains "$CHARTS_ROOT/osmo/README.md" \
         'gateway.tls.generated.bootstrap.allowInitialGeneration=true'
-    require_contains "$CHARTS_ROOT/osmo/README.md" \
-        'Suspend the OAuth2 Proxy HPA'
     if [[ $(grep -c -- '--consumer-deployment' \
             "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml") -ne 5 ]]; then
         fail 'generated TLS hook does not verify every consumer Deployment'
@@ -2207,68 +2770,6 @@ test_control_umbrella() {
             fail "CA rotation did not freeze HorizontalPodAutoscaler/$hpa"
         fi
     done
-
-    helm_template generated-oauth-cookie "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=operator-oauth-client \
-        --set secrets.oauthCookieSecret.generate=true \
-        --set-string secrets.oauthCookieSecret.existingSecret= \
-        >"$TEST_DIRECTORY/generated-oauth-cookie.yaml"
-    resource_document "$TEST_DIRECTORY/generated-oauth-cookie.yaml" Secret \
-        generated-oauth-cookie-osmo-oauth-cookie \
-        >"$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml"
-    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml" \
-        'helm.sh/resource-policy: keep'
-    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml" \
-        'meta.helm.sh/release-name: "generated-oauth-cookie"'
-    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml" \
-        'meta.helm.sh/release-namespace: "default"'
-    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml" \
-        'app.kubernetes.io/managed-by: Helm'
-    require_contains "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml" \
-        '"cookie_secret":'
-    require_not_contains "$TEST_DIRECTORY/generated-oauth-cookie.yaml" \
-        'oauth-cookie-bootstrap'
-    local generated_cookie_data mounted_cookie raw_cookie_length
-    generated_cookie_data=$(awk '$1 == "\"cookie_secret\":" {
-        gsub(/\"/, "", $2); print $2
-    }' "$TEST_DIRECTORY/generated-oauth-cookie-secret.yaml")
-    mounted_cookie=$(printf '%s' "$generated_cookie_data" | base64 -d)
-    if [[ ! "$mounted_cookie" =~ ^[A-Za-z0-9_-]{43}=$ ]]; then
-        fail 'generated OAuth cookie is not canonical URL-safe base64'
-    fi
-    raw_cookie_length=$(printf '%s' "$mounted_cookie" | tr '_-' '/+' \
-        | base64 -d | wc -c | tr -d ' ')
-    if [[ "$raw_cookie_length" -ne 32 ]]; then
-        fail 'generated OAuth cookie does not contain 32 random bytes'
-    fi
-
-    if helm_template mixed-oauth-cookie "$charts_copy/osmo" \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.oauthCookieSecret.generate=true \
-        --set secrets.oauthCookieSecret.existingSecret=operator-cookie \
-        >"$TEST_DIRECTORY/mixed-oauth-cookie.out" 2>&1; then
-        fail 'expected mixed generated/existing OAuth cookie mode to fail'
-    fi
-    require_contains "$TEST_DIRECTORY/mixed-oauth-cookie.out" \
-        'secrets.oauthCookieSecret.generate and existingSecret are mutually exclusive'
-
-    if helm_template missing-generated-oauth-cookie "$charts_copy/osmo" \
-        --is-upgrade \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=operator-oauth-client \
-        --set secrets.oauthCookieSecret.generate=true \
-        --set-string secrets.oauthCookieSecret.existingSecret= \
-        >"$TEST_DIRECTORY/missing-generated-oauth-cookie.out" 2>&1; then
-        fail 'expected a missing generated OAuth cookie on upgrade to fail'
-    fi
-    require_contains "$TEST_DIRECTORY/missing-generated-oauth-cookie.out" \
-        'is missing during upgrade; restore it'
 
     require_deployment "$rendered" "osmo-api"
     resource_document "$rendered" Deployment osmo-api \
@@ -2527,21 +3028,21 @@ test_control_umbrella() {
     helm_template managed-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.backendApiTokens.enabled=true \
-        --set secrets.backendApiTokens.credentials[0].name=default \
-        --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
+        --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
         >"$TEST_DIRECTORY/managed-backend-token.yaml"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        "managed-backend-token-osmo-backend-token-bootstrap"
+        "managed-backend-token-osmo-identity-bootstrap-pre"
+    require_no_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
+        "managed-backend-token-osmo-identity-bootstrap-post"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
-        "managed-backend-token-osmo-backend-token-bootstrap-state"
+        "managed-backend-token-osmo-bootstrap-identities"
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
-        managed-backend-token-osmo-backend-token-bootstrap-state \
+        managed-backend-token-osmo-bootstrap-identities \
         >"$TEST_DIRECTORY/managed-backend-token-state.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-state.yaml" \
-        "    osmo-backend-token"
+        '"username": "backend-operator-default"'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        managed-backend-token-osmo-backend-token-bootstrap \
+        managed-backend-token-osmo-identity-bootstrap-pre \
         >"$TEST_DIRECTORY/managed-backend-token-job.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "helm.sh/hook: pre-install,pre-upgrade"
@@ -2550,113 +3051,53 @@ test_control_umbrella() {
     require_occurrences "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "cpu:" 1
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        "cpu: 50m"
+        "cpu: 25m"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "memory: 128Mi"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        "--api-deployment-name"
+        'command: ["identity-bootstrap"]'
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        '"managed-backend-token-osmo-api"'
-    require_occurrences "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        "        - --is-upgrade" 0
+        '"backend-operator-default/primary=osmo-backend-token"'
+    require_not_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
+        'alpine/k8s'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Role \
-        managed-backend-token-osmo-backend-token-bootstrap \
+        managed-backend-token-osmo-identity-bootstrap \
         >"$TEST_DIRECTORY/managed-backend-token-role.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
-        'apiGroups: ["apps"]'
+        'resources: ["secrets"]'
     require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
-        'resources: ["deployments"]'
-    require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
-        'resourceNames: ["managed-backend-token-osmo-api"]'
+        '- "osmo-backend-token"'
+    require_not_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
+        'resources: ["pods"]'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Deployment \
         managed-backend-token-osmo-api \
         >"$TEST_DIRECTORY/managed-backend-token-api.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
-        "--backend_token_directory"
+        "--bootstrap_identity_config_file"
     require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
-        "mountPath: /etc/osmo/backend-tokens/default"
+        "--bootstrap_token_directory"
+    require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
+        "mountPath: /etc/osmo/bootstrap-tokens/backend-operator-default/primary"
     require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
         "secretName: osmo-backend-token"
     require_no_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Secret \
         osmo-backend-token
-    require_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
-        'image: "alpine/k8s:1.30.14"'
     require_not_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
-        "--from-file=token=/dev/stdin"
-
-    helm_template upgraded-backend-token "$charts_copy/osmo" \
-        --is-upgrade \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.backendApiTokens.enabled=true \
-        --set secrets.backendApiTokens.rolloutNonce=rotation-1 \
-        --set secrets.backendApiTokens.credentials[0].name=default \
-        --set secrets.backendApiTokens.credentials[0].managedSecret.name=osmo-backend-token \
-        >"$TEST_DIRECTORY/upgraded-backend-token.yaml"
-    require_occurrences "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
-        "        - --is-upgrade" 1
-    require_contains "$TEST_DIRECTORY/upgraded-backend-token.yaml" \
-        "--state-config-map"
-    resource_document "$TEST_DIRECTORY/upgraded-backend-token.yaml" Deployment \
-        upgraded-backend-token-osmo-api \
-        >"$TEST_DIRECTORY/upgraded-backend-token-api.yaml"
-    require_contains "$TEST_DIRECTORY/upgraded-backend-token-api.yaml" \
-        'osmo.nvidia.com/backend-token-rollout: rotation-1'
+        "stringData:"
 
     helm_template existing-backend-token "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set secrets.backendApiTokens.enabled=true \
-        --set secrets.backendApiTokens.credentials[0].name=default \
-        --set secrets.backendApiTokens.credentials[0].existingSecret.name=osmo-existing-backend-token \
+        --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
+        --set authentication.bootstrap.identities.backend-operator-default.tokens.primary.managedSecret=null \
+        --set authentication.bootstrap.identities.backend-operator-default.tokens.primary.existingSecret.name=osmo-existing-backend-token \
         >"$TEST_DIRECTORY/existing-backend-token.yaml"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" Job \
-        "existing-backend-token-osmo-backend-token-bootstrap"
+        "existing-backend-token-osmo-identity-bootstrap-pre"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" \
-        ServiceAccount "existing-backend-token-osmo-backend-token-bootstrap"
+        ServiceAccount "existing-backend-token-osmo-identity-bootstrap"
     require_contains "$TEST_DIRECTORY/existing-backend-token.yaml" \
         "secretName: osmo-existing-backend-token"
-
-    if helm_template empty-backend-token-name "$charts_copy/osmo" \
-            -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-            --set secrets.backendApiTokens.enabled=true \
-            --set-string secrets.backendApiTokens.credentials[0].name= \
-            --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one \
-            >"$TEST_DIRECTORY/empty-backend-token-name.out" 2>&1; then
-        fail "expected an empty backend token credential name to fail schema validation"
-    fi
-    require_schema_path "$TEST_DIRECTORY/empty-backend-token-name.out" \
-        "secrets.backendApiTokens.credentials.0.name"
-
-    local invalid_backend_token_case
-    local invalid_backend_token_values
-    local invalid_backend_token_error
-    while IFS='|' read -r invalid_backend_token_case \
-            invalid_backend_token_values invalid_backend_token_error; do
-        if helm_template "invalid-backend-token-$invalid_backend_token_case" \
-                "$charts_copy/osmo" \
-                -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-                --set secrets.backendApiTokens.enabled=true \
-                $invalid_backend_token_values \
-                >"$TEST_DIRECTORY/invalid-backend-token-$invalid_backend_token_case.out" \
-                2>&1; then
-            fail "expected invalid backend token case $invalid_backend_token_case to fail"
-        fi
-        require_contains \
-            "$TEST_DIRECTORY/invalid-backend-token-$invalid_backend_token_case.out" \
-            "$invalid_backend_token_error"
-    done <<'EOF'
-empty||secrets.backendApiTokens.credentials must not be empty when backend API tokens are enabled
-invalid-name|--set secrets.backendApiTokens.credentials[0].name=INVALID --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one|invalid backend API token credential name "INVALID"
-duplicate-name|--set secrets.backendApiTokens.credentials[0].name=duplicate --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one --set secrets.backendApiTokens.credentials[1].name=duplicate --set secrets.backendApiTokens.credentials[1].existingSecret.name=token-two|duplicate backend API token credential name "duplicate"
-missing-source|--set secrets.backendApiTokens.credentials[0].name=default|backend API token credential "default" must configure exactly one of existingSecret or managedSecret
-conflicting-source|--set secrets.backendApiTokens.credentials[0].name=default --set secrets.backendApiTokens.credentials[0].existingSecret.name=token-one --set secrets.backendApiTokens.credentials[0].managedSecret.name=token-two|backend API token credential "default" must configure exactly one of existingSecret or managedSecret
-legacy-source|--set secrets.backendApiTokens.credentials[0].name=legacy --set secrets.backendApiTokens.credentials[0].secretName=osmo-legacy-backend-token|secretName
-duplicate-secret|--set secrets.backendApiTokens.credentials[0].name=one --set secrets.backendApiTokens.credentials[0].existingSecret.name=shared-token --set secrets.backendApiTokens.credentials[1].name=two --set secrets.backendApiTokens.credentials[1].managedSecret.name=shared-token|duplicate backend API token Secret name "shared-token"
-invalid-secret|--set secrets.backendApiTokens.credentials[0].name=default --set secrets.backendApiTokens.credentials[0].existingSecret.name=INVALID_SECRET|invalid backend API token Secret name "INVALID_SECRET"
-EOF
 
     local mek_component
     for mek_component in api worker router logger agent delayed-job-monitor; do
@@ -2960,6 +3401,11 @@ EOF
         /^kind: Secret$/ { secret = 1 }
         secret && /^(data|stringData):$/ { secret_data = 1; next }
         secret_data && /^  [^ ]+:/ {
+            key = $0
+            sub(/^  /, "", key)
+            sub(/:.*/, "", key)
+            gsub(/"/, "", key)
+            if (key == "config.yaml") next
             value = $0
             sub(/^  [^:]+:[[:space:]]*/, "", value)
             if (value != "\"\"" && value != "\047\047") {
@@ -3053,6 +3499,35 @@ EOF
         'argocd.argoproj.io/hook:'
     require_no_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Secret \
         "osmo-service-auth"
+
+    helm_template service-auth-bootstrap "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set secrets.serviceAuth.managementMode=osmo \
+        --set secrets.serviceAuth.bootstrap.enabled=true \
+        --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
+        --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=windows' \
+        --set-string 'secrets.serviceAuth.bootstrap.nodeSelector.kubernetes\.io/os=linux' \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml"
+    local service_auth_bootstrap_pod_defaults_name
+    service_auth_bootstrap_pod_defaults_name=$(resource_name_with_hash_suffix \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" Job \
+        "service-auth-bootstrap")
+    [[ "$service_auth_bootstrap_name" != \
+        "$service_auth_bootstrap_pod_defaults_name" ]] || \
+        fail "service auth bootstrap pod defaults did not change the Job name"
+    resource_document "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" \
+        Job "$service_auth_bootstrap_pod_defaults_name" \
+        >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    require_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: linux"
+    require_not_contains \
+        "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults-job.yaml" \
+        "kubernetes.io/os: windows"
 
     helm_template service-auth-bootstrap "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -3372,6 +3847,25 @@ EOF
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
+
+    helm_template default-internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-default-internal-workflow-url.yaml" \
+        ConfigMap osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway:80"
+
+    helm_template internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string configuration.service.service_base_url=http://osmo-gateway \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-internal-workflow-url.yaml" ConfigMap \
+        osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-internal-workflow-url-config.yaml" \
+        "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "vault.hashicorp.com"
     require_not_contains "$rendered" "labels_config:"
     require_not_contains "$rendered" "OSMO_SCHEMA_VERSION"
@@ -3602,41 +4096,30 @@ EOF
     helm_template external-url-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set-string externalUrl=https://osmo.example.com:8443/osmo/ \
+        --set-string externalUrl=https://osmo.example.com:8443/ \
         --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-external-url.yaml"
     resource_document "$TEST_DIRECTORY/osmo-external-url.yaml" Deployment \
         external-url-release-osmo-gateway-oauth2-proxy \
         >"$TEST_DIRECTORY/osmo-external-url-oauth2-proxy.yaml"
     require_contains "$TEST_DIRECTORY/osmo-external-url-oauth2-proxy.yaml" \
-        "- --redirect-url=https://osmo.example.com:8443/osmo/oauth2/callback"
+        "- --redirect-url=https://osmo.example.com:8443/oauth2/callback"
 
     helm_template external-http-url-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set-string externalUrl=http://osmo.example.com:65535/base/ \
+        --set-string externalUrl=http://osmo.example.com:65535/ \
         --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-external-http-url.yaml"
     resource_document "$TEST_DIRECTORY/osmo-external-http-url.yaml" Deployment \
         external-http-url-release-osmo-gateway-oauth2-proxy \
         >"$TEST_DIRECTORY/osmo-external-http-url-oauth2-proxy.yaml"
     require_contains "$TEST_DIRECTORY/osmo-external-http-url-oauth2-proxy.yaml" \
-        "- --redirect-url=http://osmo.example.com:65535/base/oauth2/callback"
+        "- --redirect-url=http://osmo.example.com:65535/oauth2/callback"
 
     helm_template values-api "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set services.api.auth.enabled=true \
-        --set services.api.auth.deviceEndpoint=https://idp.example.com/device \
-        --set services.api.auth.deviceClientId=device-client \
-        --set services.api.auth.browserEndpoint=https://idp.example.com/authorize \
-        --set services.api.auth.browserClientId=browser-client \
-        --set services.api.auth.tokenEndpoint=https://idp.example.com/token \
-        --set services.api.auth.logoutEndpoint=https://idp.example.com/logout \
         >"$TEST_DIRECTORY/osmo-values-api.yaml"
     resource_document "$TEST_DIRECTORY/osmo-values-api.yaml" Deployment values-api-osmo-api \
         >"$TEST_DIRECTORY/osmo-values-api-deployment.yaml"
@@ -3645,7 +4128,8 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client"
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
         "https://idp.example.com/authorize"
-    require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "browser-client"
+    require_occurrences "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "device-client" 1
+    require_occurrences "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" "browser-client" 1
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
         "https://idp.example.com/token"
     require_contains "$TEST_DIRECTORY/osmo-values-api-deployment.yaml" \
@@ -5043,16 +5527,13 @@ EOF
         --set secrets.postgresql.rolloutNonce=postgres-v2 \
         --set secrets.valkey.rolloutNonce=valkey-v2 \
         --set secrets.objectStorage.rolloutNonce=storage-v2 \
-        --set secrets.defaultAdmin.rolloutNonce=admin-v2 \
         >"$TEST_DIRECTORY/osmo-secret-rollout.yaml"
     require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
-        'osmo.nvidia.com/postgresql-secret-rollout: "postgres-v2"' 6
+        'osmo.nvidia.com/postgresql-secret-rollout: "postgres-v2"' 7
     require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
-        'osmo.nvidia.com/valkey-secret-rollout: "valkey-v2"' 6
+        'osmo.nvidia.com/valkey-secret-rollout: "valkey-v2"' 7
     require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
         'osmo.nvidia.com/object-storage-secret-rollout: "storage-v2"' 6
-    require_occurrences "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
-        'osmo.nvidia.com/default-admin-secret-rollout: "admin-v2"' 1
     require_not_contains "$TEST_DIRECTORY/osmo-secret-rollout.yaml" \
         "osmo.nvidia.com/mek-secret-rollout"
 
@@ -5060,10 +5541,10 @@ EOF
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set gateway.oauth2Proxy.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthClientSecret.rolloutNonce=client-v2 \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
-        --set secrets.oauthCookieSecret.rolloutNonce=cookie-v2 \
+        --set authentication.externalOidc.browserClientSecret.existingSecret=oauth-client \
+        --set authentication.externalOidc.browserClientSecret.rolloutNonce=client-v2 \
+        --set authentication.externalOidc.cookieSecret.existingSecret=oauth-cookie \
+        --set authentication.externalOidc.cookieSecret.rolloutNonce=cookie-v2 \
         >"$TEST_DIRECTORY/osmo-oauth-secret-rollout.yaml"
     resource_document "$TEST_DIRECTORY/osmo-oauth-secret-rollout.yaml" Deployment \
         oauth-secret-rollout-osmo-gateway-oauth2-proxy \
@@ -5074,6 +5555,17 @@ EOF
         'osmo.nvidia.com/oauth-cookie-secret-rollout: "cookie-v2"'
     require_not_contains "$TEST_DIRECTORY/osmo-oauth-secret-rollout-deployment.yaml" \
         "osmo.nvidia.com/mek-secret-rollout"
+
+    helm_template external-oidc-scopes "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-json 'authentication.externalOidc.scopes=["openid","groups","profile"]' \
+        >"$TEST_DIRECTORY/external-oidc-scopes.yaml"
+    resource_document "$TEST_DIRECTORY/external-oidc-scopes.yaml" Deployment \
+        external-oidc-scopes-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/external-oidc-scopes-oauth2-proxy.yaml"
+    require_contains "$TEST_DIRECTORY/external-oidc-scopes-oauth2-proxy.yaml" \
+        "--scope=openid groups profile"
 
     resource_document "$rendered" Deployment osmo-agent \
         >"$TEST_DIRECTORY/osmo-agent.yaml"
@@ -5298,10 +5790,10 @@ EOF
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         --set gateway.oauth2Proxy.enabled=true \
         --set-string secrets.objectStorage.keys.credentials=null \
-        --set-string secrets.oauthClientSecret.existingSecret=true \
-        --set-string secrets.oauthClientSecret.keys.value=false \
-        --set-string secrets.oauthCookieSecret.existingSecret=null \
-        --set-string secrets.oauthCookieSecret.keys.value=true \
+        --set-string authentication.externalOidc.browserClientSecret.existingSecret=true \
+        --set-string authentication.externalOidc.browserClientSecret.key=false \
+        --set-string authentication.externalOidc.cookieSecret.existingSecret=null \
+        --set-string authentication.externalOidc.cookieSecret.key=true \
         >"$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml"
     require_contains "$TEST_DIRECTORY/osmo-quoted-secret-scalars.yaml" \
         'secretName: "true"'
@@ -5542,6 +6034,22 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-ratelimit-tls.yaml" \
         "secretName: valkey-ca"
 
+    helm_template external-trailing-issuer "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string authentication.externalOidc.issuer=https://idp.example.com/ \
+        >"$TEST_DIRECTORY/external-trailing-issuer.yaml"
+    resource_document "$TEST_DIRECTORY/external-trailing-issuer.yaml" ConfigMap \
+        external-trailing-issuer-osmo-gateway-envoy-config \
+        >"$TEST_DIRECTORY/external-trailing-issuer-envoy.yaml"
+    resource_document "$TEST_DIRECTORY/external-trailing-issuer.yaml" Deployment \
+        external-trailing-issuer-osmo-gateway-oauth2-proxy \
+        >"$TEST_DIRECTORY/external-trailing-issuer-oauth.yaml"
+    require_contains "$TEST_DIRECTORY/external-trailing-issuer-envoy.yaml" \
+        "issuer: https://idp.example.com/"
+    require_contains "$TEST_DIRECTORY/external-trailing-issuer-oauth.yaml" \
+        "--oidc-issuer-url=https://idp.example.com/"
+
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -5552,18 +6060,49 @@ EOF
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-mcp"
     require_deployment "$TEST_DIRECTORY/osmo-mcp.yaml" "osmo-gateway-authz"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "path: /mcp"
-    # FastMCP serves its own metadata now, so the gateway forwards these
-    # paths instead of synthesising a document, and publishes the OAuth
-    # endpoints under /mcp with the prefix rewritten off before forwarding.
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-oauth"
-    # Anchored: a fixed-string check for "prefix_rewrite: /" also matches the
-    # authorization-server rewrite below it, and would pass with this one gone.
-    require_matches "$TEST_DIRECTORY/osmo-mcp.yaml" "prefix_rewrite: /$"
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "name: mcp-authorization-server-metadata"
-    # The /mcp/ prefix would otherwise publish the container's health routes.
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: mcp-health-not-public"
-    require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "status: 404"
+    local route_name route_path route_target route_methods
+    while IFS=' ' read -r route_name route_path route_target route_methods; do
+        awk -v route="mcp-$route_name" '
+            /^                - name:/ { keep = ($3 == route) }
+            keep { print }
+        ' "$TEST_DIRECTORY/osmo-mcp.yaml" >"$TEST_DIRECTORY/mcp-route.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "path: $route_path"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'name: ":method"'
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "regex: \"$route_methods\""
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" "prefix_rewrite: $route_target"
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'cluster: osmo-mcp'
+        require_contains "$TEST_DIRECTORY/mcp-route.yaml" 'timeout: 45s'
+        require_occurrences "$TEST_DIRECTORY/mcp-route.yaml" 'disabled: true' 2
+    done <<'MCP_ROUTES'
+protected-resource-metadata /.well-known/oauth-protected-resource/mcp /.well-known/oauth-protected-resource/mcp GET|HEAD|OPTIONS
+authorization-server-metadata /.well-known/oauth-authorization-server/mcp /.well-known/oauth-authorization-server GET|HEAD|OPTIONS
+authorize /mcp/authorize /authorize GET|HEAD|POST
+consent /mcp/consent /consent GET|HEAD|POST
+callback /mcp/auth/callback /auth/callback GET|HEAD
+token /mcp/token /token POST|OPTIONS
+register /mcp/register /register POST|OPTIONS
+revoke /mcp/revoke /revoke POST|OPTIONS
+MCP_ROUTES
+    require_not_contains "$TEST_DIRECTORY/osmo-mcp.yaml" 'name: mcp-oauth'
+    awk '
+        /name: mcp-revoke$/ { allowed = NR }
+        /name: mcp-reject-0$/ { rejected = NR }
+        /prefix: \/api\/router$/ { api = NR }
+        END { exit !(allowed && rejected > allowed && api > rejected) }
+    ' "$TEST_DIRECTORY/osmo-mcp.yaml" || fail 'MCP routes must precede rejections and API routes'
+    local rejected_path rejected_index=0
+    for rejected_path in /mcp/ /.well-known/oauth-protected-resource/mcp \
+            /.well-known/oauth-authorization-server/mcp; do
+        awk -v route="mcp-reject-$rejected_index" '
+            /^                - name:/ { keep = ($3 == route) }
+            keep { print }
+        ' "$TEST_DIRECTORY/osmo-mcp.yaml" >"$TEST_DIRECTORY/mcp-reject.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-reject.yaml" "prefix: $rejected_path"
+        require_contains "$TEST_DIRECTORY/mcp-reject.yaml" 'status: 404'
+        require_not_contains "$TEST_DIRECTORY/mcp-reject.yaml" 'cluster:'
+        require_occurrences "$TEST_DIRECTORY/mcp-reject.yaml" 'disabled: true' 2
+        rejected_index=$((rejected_index + 1))
+    done
     # The runtime cannot start without these.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_RESOURCE_URL"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" "name: OSMO_MCP_AUTH_OIDC_CLIENT_SECRET_FILE"
@@ -5587,15 +6126,122 @@ EOF
         'osmo.nvidia.com/valkey-secret-rollout: ""'
     # The MCP audience joins the provider whose issuer it authenticates against.
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "issuer: https://issuer.example.com"
+        "issuer: https://idp.example.com"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "- https://osmo.example.com/mcp"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp-self-hosted:latest"
+        "image: nvcr.io/nvidia/osmo/mcp:latest"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "kubernetes.io/os: linux" 11
+        "kubernetes.io/os: linux" 12
+
+    local mcp_redis_host mcp_redis_authority
+    while IFS='|' read -r mcp_redis_host mcp_redis_authority; do
+        helm_template mcp-ipv6 "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set-string "externalDependencies.valkey.host=$mcp_redis_host" \
+            --set externalDependencies.valkey.port=6380 \
+            --set externalDependencies.valkey.tls.enabled=true \
+            --set services.mcp.oidcProxy.redis.dbNumber=7 \
+            >"$TEST_DIRECTORY/mcp-ipv6.yaml"
+        resource_document "$TEST_DIRECTORY/mcp-ipv6.yaml" Deployment \
+            mcp-ipv6-osmo-mcp >"$TEST_DIRECTORY/mcp-ipv6-deployment.yaml"
+        require_contains "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" \
+            "value: \"rediss://$mcp_redis_authority:6380/7\""
+    done <<'MCP_REDIS_HOSTS'
+external-valkey|external-valkey
+192.0.2.10|192.0.2.10
+2001:db8::10|[2001:db8::10]
+[2001:db8::10]|[2001:db8::10]
+MCP_REDIS_HOSTS
+
+    require_not_contains "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" \
+        'name: OSMO_MCP_GATEWAY_CA_FILE'
+    local mcp_probe mcp_probe_path
+    while IFS='|' read -r mcp_probe mcp_probe_path; do
+        awk -v probe="$mcp_probe" '
+            /^        [A-Za-z]+:/ { keep = ($1 == probe ":") }
+            keep { print }
+        ' "$TEST_DIRECTORY/mcp-ipv6-deployment.yaml" >"$TEST_DIRECTORY/mcp-probe.yaml"
+        require_matches "$TEST_DIRECTORY/mcp-probe.yaml" "path: $mcp_probe_path$"
+    done <<'MCP_PROBES'
+readinessProbe|/health/ready
+livenessProbe|/health
+startupProbe|/health
+MCP_PROBES
+
+    local mcp_ca_mode
+    for mcp_ca_mode in plaintext system private combined; do
+        local mcp_ca_settings=()
+        if [[ "$mcp_ca_mode" != plaintext ]]; then
+            mcp_ca_settings+=(--set externalDependencies.valkey.tls.enabled=true)
+        fi
+        if [[ "$mcp_ca_mode" == private || "$mcp_ca_mode" == combined ]]; then
+            mcp_ca_settings+=(
+                --set externalDependencies.valkey.tls.caExistingSecret=mcp-private-ca
+                --set externalDependencies.valkey.tls.caKey=trust.pem
+            )
+        fi
+        if [[ "$mcp_ca_mode" == combined ]]; then
+            mcp_ca_settings+=(--set services.mcp.oidcProxy.existingSecret.redisPasswordKey=redis-password)
+        fi
+        helm_template mcp-ca "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set gateway.tls.enabled=false \
+            --set externalDependencies.postgresql.tls.enabled=true \
+            --set externalDependencies.postgresql.tls.caExistingSecret=postgresql-ca \
+            "${mcp_ca_settings[@]}" >"$TEST_DIRECTORY/mcp-ca.yaml"
+        resource_document "$TEST_DIRECTORY/mcp-ca.yaml" Deployment \
+            mcp-ca-osmo-mcp >"$TEST_DIRECTORY/mcp-ca-deployment.yaml"
+        require_not_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'postgresql-ca'
+        if [[ "$mcp_ca_mode" == plaintext ]]; then
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" \
+                'value: "redis://external-valkey:6379/1"'
+        else
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" \
+                'value: "rediss://external-valkey:6379/1"'
+        fi
+        if [[ "$mcp_ca_mode" == private || "$mcp_ca_mode" == combined ]]; then
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'name: SSL_CERT_FILE'
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" \
+                'value: /etc/osmo/ca/valkey/ca-bundle.crt'
+            require_occurrences "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'name: valkey-ca' 2
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" \
+                'mountPath: /etc/osmo/ca/valkey'
+            require_secret_projection_key "$TEST_DIRECTORY/mcp-ca-deployment.yaml" \
+                mcp-private-ca trust.pem
+            require_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'path: ca-bundle.crt'
+            if [[ "$mcp_ca_mode" == combined ]]; then
+                require_not_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'name: mcp-valkey'
+            fi
+        else
+            require_not_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'name: SSL_CERT_FILE'
+            require_not_contains "$TEST_DIRECTORY/mcp-ca-deployment.yaml" 'name: valkey-ca'
+        fi
+    done
+
+    local invalid_mcp_ca_setting invalid_mcp_ca_error
+    while IFS='|' read -r invalid_mcp_ca_setting invalid_mcp_ca_error; do
+        if helm_template mcp-ca-invalid "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set externalDependencies.valkey.tls.enabled=true \
+            --set externalDependencies.valkey.tls.caExistingSecret=mcp-private-ca \
+            --set "$invalid_mcp_ca_setting" >"$TEST_DIRECTORY/mcp-ca-invalid.out" 2>&1; then
+            fail "expected MCP CA collision to fail: $invalid_mcp_ca_setting"
+        fi
+        require_contains "$TEST_DIRECTORY/mcp-ca-invalid.out" "$invalid_mcp_ca_error"
+    done <<'MCP_CA_COLLISIONS'
+services.mcp.extraEnv[0].name=SSL_CERT_FILE,services.mcp.extraEnv[0].value=/other.pem|must not override managed variable SSL_CERT_FILE
+services.mcp.pod.extraVolumes[0].name=valkey-ca|duplicate MCP volume name valkey-ca
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/osmo/ca/valkey|MCP mount paths overlap
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/osmo/ca|MCP mount paths overlap
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/osmo/ca/valkey/oidc|MCP mount paths overlap
+services.mcp.extraVolumeMounts[0].name=mcp-valkey,services.mcp.extraVolumeMounts[0].mountPath=/etc/osmo/ca/valkey|MCP mount paths overlap
+MCP_CA_COLLISIONS
 
     helm_template mcp-combined-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -5617,6 +6263,107 @@ EOF
         '/etc/osmo/mcp-valkey'
     require_not_contains "$TEST_DIRECTORY/mcp-combined-secret-deployment.yaml" \
         'secretName: "external-valkey-secret"'
+
+    helm_template mcp-mounted "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set services.mcp.replicas=2 \
+        --set-string services.mcp.oidcProxy.existingSecret.name= \
+        --set-string services.mcp.oidcProxy.oidc.clientSecretFile=/credentials/client-secret \
+        --set-string services.mcp.gatewayCaFile=/credentials/gateway.pem \
+        --set-json 'services.mcp.pod.extraVolumes=[{"name":"credentials","secret":{"secretName":"external-oidc"}}]' \
+        --set-json 'services.mcp.extraVolumeMounts=[{"name":"credentials","mountPath":"/credentials","readOnly":true}]' \
+        >"$TEST_DIRECTORY/mcp-mounted.yaml"
+    resource_document "$TEST_DIRECTORY/mcp-mounted.yaml" Deployment \
+        mcp-mounted-osmo-mcp >"$TEST_DIRECTORY/mcp-mounted-deployment.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'replicas: 2'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'mountPath: /credentials'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'secretName: external-oidc'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'value: "/credentials/client-secret"'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'name: OSMO_MCP_GATEWAY_CA_FILE'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'value: "/credentials/gateway.pem"'
+    require_contains "$TEST_DIRECTORY/mcp-mounted-deployment.yaml" 'automountServiceAccountToken: false'
+
+    helm_template mcp-ui "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set gateway.oauth2Proxy.enabled=true \
+        --set authentication.externalOidc.browserClientSecret.existingSecret=ui-client \
+        --set authentication.externalOidc.cookieSecret.existingSecret=ui-cookie \
+        >"$TEST_DIRECTORY/mcp-ui.yaml"
+    awk '
+        /- name: ext-authz-oauth2-proxy$/ { keep = 1 }
+        keep { print }
+        keep && /extension_config:/ { exit }
+    ' "$TEST_DIRECTORY/mcp-ui.yaml" >"$TEST_DIRECTORY/mcp-ui-matcher.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-ui-matcher.yaml" \
+        'regex: "^(/mcp([/?].*)?|/[.]well-known/oauth-(protected-resource|authorization-server)/mcp.*)$"'
+    require_contains "$TEST_DIRECTORY/mcp-ui-matcher.yaml" 'name: skip'
+
+    helm_template mcp-url-port "$charts_copy/osmo" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+        --set-string services.mcp.resourceUrl=https://osmo.example.com:65535/mcp \
+        --set-string 'services.mcp.allowedOrigins[0]=http://[::1]:6274' \
+        --set-string services.mcp.oidcProxy.oidc.configUrl=https://issuer.example.com/tenant/:0/discovery \
+        --set-string services.mcp.oidcProxy.oidc.accessTokenIssuer=https://issuer.example.com \
+        >"$TEST_DIRECTORY/mcp-url-port.yaml"
+    require_contains "$TEST_DIRECTORY/mcp-url-port.yaml" 'https://osmo.example.com:65535/mcp'
+
+    local invalid_mcp_value
+    while IFS= read -r invalid_mcp_value; do
+        if helm_template mcp-invalid "$charts_copy/osmo" \
+            -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+            -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+            --set "$invalid_mcp_value" >"$TEST_DIRECTORY/mcp-invalid.out" 2>&1; then
+            fail "expected invalid MCP setting to fail: $invalid_mcp_value"
+        fi
+        require_contains "$TEST_DIRECTORY/mcp-invalid.out" 'Error:'
+    done <<'MCP_INVALID_VALUES'
+services.mcp.unknown=true
+services.mcp.gatewayCaFile=relative.pem
+services.mcp.gatewayCaFile=/ca/../gateway.pem
+services.mcp.extraEnv[0].name=OSMO_MCP_GATEWAY_CA_FILE,services.mcp.extraEnv[0].value=/other.pem
+services.mcp.oidcProxy.enabled=false
+services.mcp.oidcProxy.oidc.audience=old
+services.mcp.oidcProxy.redis.host=old
+services.mcp.oidcProxy.existingSecret.unknown=true
+services.mcp.resourceUrl=https://osmo.example.com:0/mcp
+services.mcp.resourceUrl=https://osmo.example.com:65536/mcp
+services.mcp.resourceUrl=https://user@osmo.example.com/mcp
+services.mcp.oidcProxy.oidc.configUrl=http://issuer.example.com/.well-known/openid-configuration
+services.mcp.oidcProxy.oidc.configUrl=https://issuer.example.com:99999/.well-known/openid-configuration
+services.mcp.oidcProxy.oidc.accessTokenIssuer=https://issuer.example.com:0
+services.mcp.oidcProxy.oidc.accessTokenRequiredScope=two scopes
+services.mcp.oidcProxy.redis.keyPrefix=two prefixes
+services.mcp.oidcProxy.redis.dbNumber=16
+services.mcp.oidcProxy.accessTokenTtlSeconds=59
+services.mcp.oidcProxy.refreshTokenTtlSeconds=604801
+services.mcp.oidcProxy.upstreamTimeoutSeconds=61
+services.mcp.oidcProxy.redis.connectTimeoutSeconds=31
+services.mcp.oidcProxy.redis.operationTimeoutSeconds=0
+services.mcp.requestTimeoutSeconds=61
+services.mcp.allowedOrigins[0]=https://host:65536
+services.mcp.allowedOrigins[0]=http://[::1]:0
+services.mcp.allowedOrigins[0]=http://[::1]:65536
+services.mcp.allowedOrigins[0]=https://user@host
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/../credentials
+services.mcp.oidcProxy.existingSecret.mountPath=/etc/osmo/mcp-valkey
+services.mcp.oidcProxy.existingSecret.clientSecretKey=../secret
+services.mcp.oidcProxy.existingSecret.clientSecretKey=..
+services.mcp.pod.extraVolumes[0].name=mcp-valkey
+services.mcp.extraVolumeMounts[0].name=missing,services.mcp.extraVolumeMounts[0].mountPath=/credentials
+services.mcp.extraVolumeMounts[0].name=mcp-valkey,services.mcp.extraVolumeMounts[0].mountPath=/etc
+services.mcp.extraVolumeMounts[0].name=mcp-valkey,services.mcp.extraVolumeMounts[0].mountPath=/etc/osmo/mcp-valkey/child
+services.mcp.extraEnv[0].name=OSMO_MCP_AUTH_RESOURCE_URL,services.mcp.extraEnv[0].value=override
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/mcp
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-authorization-server/mcp/child
+gateway.envoy.extraSkipAuthPaths[0]=/mcp
+gateway.envoy.extraSkipAuthPaths[0]=/.well-known/oauth-protected-resource/mcp
+gateway.authz.enabled=false
+gateway.envoy.enabled=false
+MCP_INVALID_VALUES
 
     helm_template osmo "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -5694,8 +6441,6 @@ EOF
     helm_template workload-policy "$charts_copy/osmo" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-workload-policy-values.yaml" \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-workload-policy.yaml"
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" Deployment \
         workload-policy-osmo-api \
@@ -5751,7 +6496,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 12
+        "type: RuntimeDefault" 13
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \
@@ -5866,8 +6611,6 @@ EOF
         --set gateway.oauth2Proxy.enabled=true \
         --set gateway.authz.enabled=true \
         --set gateway.tls.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         >"$TEST_DIRECTORY/osmo-image-defaults.yaml"
     require_contains "$TEST_DIRECTORY/osmo-image-defaults.yaml" \
         "image: nvcr.io/nvidia/osmo/service:latest"
@@ -5895,8 +6638,6 @@ EOF
         --set gateway.oauth2Proxy.enabled=true \
         --set gateway.authz.enabled=true \
         --set gateway.tls.enabled=true \
-        --set secrets.oauthClientSecret.existingSecret=oauth-client \
-        --set secrets.oauthCookieSecret.existingSecret=oauth-cookie \
         --set imageRegistry=mirror.example.com \
         --set imagePullSecrets[0].name=mirror-secret \
         >"$TEST_DIRECTORY/osmo-image-mirror.yaml"
@@ -6246,14 +6987,13 @@ EOF
     if helm_template missing-oauth-client-secret "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set gateway.oauth2Proxy.enabled=true \
-        --set-string secrets.oauthClientSecret.existingSecret= \
-        --set-string secrets.oauthCookieSecret.existingSecret= \
+        --set-string authentication.externalOidc.browserClientSecret.existingSecret= \
+        --set-string authentication.externalOidc.cookieSecret.existingSecret= \
         >"$TEST_DIRECTORY/missing-oauth-client-secret.out" 2>&1; then
         fail "expected an enabled OAuth2 proxy without credential Secrets to fail"
     fi
     require_contains "$TEST_DIRECTORY/missing-oauth-client-secret.out" \
-        "secrets.oauthClientSecret.existingSecret is required when the OAuth2 proxy is enabled"
+        "externalOidc endpoints, clients, claims, hosts, and Secret references must be complete"
 
     if helm_template legacy-oauth-secret-values "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -6355,7 +7095,7 @@ EOF
         fail "expected ingress.enabled=true with Envoy disabled to fail"
     fi
     require_contains "$TEST_DIRECTORY/dangling-ingress.out" \
-        "ingress.enabled=true requires gateway.envoy.enabled=true"
+        "gateway.envoy.enabled cannot be false"
 
     if helm_template dangling-httproute "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
@@ -6367,7 +7107,7 @@ EOF
         fail "expected httproute.enabled=true with Envoy disabled to fail"
     fi
     require_contains "$TEST_DIRECTORY/dangling-httproute.out" \
-        "httproute.enabled=true requires gateway.envoy.enabled=true"
+        "gateway.envoy.enabled cannot be false"
 
     local invalid_external_url
     for invalid_external_url in \
@@ -6383,6 +7123,8 @@ EOF
         "https://osmo.example.com/%ZZ" \
         "https://osmo.example.com/foo|bar" \
         "https://osmo.example.com/foo\\\\bar" \
+        "https://osmo.example.com/base" \
+        "http://osmo.example.com/base/" \
         "https://osmo.example.com:65536/base" \
         "https://osmo.example.com?next=/base" \
         "https://osmo.example.com#base" \

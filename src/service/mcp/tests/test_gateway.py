@@ -18,7 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 from collections.abc import AsyncIterator, Callable, Coroutine
+import logging
 import unittest
+from unittest import mock
 
 import httpx
 
@@ -67,6 +69,36 @@ class _TrackingTransport(httpx.MockTransport):
 
 class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
     """Validate fixed-origin Gateway request and response boundaries."""
+
+    async def test_gateway_ca_is_explicit_and_does_not_enable_environment_trust(self) -> None:
+        for ca_file in ('', '/ca/gateway.pem'):
+            with (
+                self.subTest(ca_file=ca_file),
+                mock.patch.object(gateway.ssl, 'create_default_context') as create_context,
+                mock.patch.object(gateway.httpx, 'AsyncClient') as create_client,
+            ):
+                async with gateway.create_app_context(
+                    gateway_url='https://gateway.test', request_timeout_seconds=5,
+                    gateway_ca_file=ca_file,
+                ):
+                    pass
+                options = create_client.call_args.kwargs
+                self.assertIs(options['trust_env'], False)
+                self.assertIs(options['follow_redirects'], False)
+                if ca_file:
+                    create_context.assert_called_once_with(cafile=ca_file)
+                    self.assertIs(options['verify'], create_context.return_value)
+                else:
+                    create_context.assert_not_called()
+                    self.assertIs(options['verify'], True)
+
+    async def test_missing_gateway_ca_fails_closed(self) -> None:
+        with self.assertRaises(FileNotFoundError):
+            async with gateway.create_app_context(
+                gateway_url='https://gateway.test', request_timeout_seconds=5,
+                gateway_ca_file='/nonexistent/mcp-gateway-ca.pem',
+            ):
+                self.fail('missing CA must not fall back to unverified TLS')
 
     @staticmethod
     def _credentials(
@@ -321,6 +353,47 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                 b'"set_string_variables":[]}'
             ),
         )
+
+    async def test_logging_handler_failure_cannot_replace_write_result(self) -> None:
+        captured_requests: list[httpx.Request] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            captured_requests.append(request)
+            return httpx.Response(200, content=b'{"name":"workflow-1"}')
+
+        log_handler = logging.Handler()
+        telemetry_logger = logging.getLogger('src.service.mcp.telemetry')
+        self.addCleanup(telemetry_logger.setLevel, telemetry_logger.level)
+        telemetry_logger.setLevel(logging.INFO)
+        with (
+            mock.patch.object(
+                log_handler,
+                'emit',
+                side_effect=RuntimeError('synthetic-private-log-handler-detail'),
+            ) as emit,
+            mock.patch.object(
+                logging.getLogger('src.service.mcp.telemetry'),
+                'handlers',
+                [log_handler],
+            ),
+        ):
+            async with gateway.create_app_context(
+                gateway_url='https://gateway.test',
+                request_timeout_seconds=5,
+                transport=httpx.MockTransport(handler),
+            ) as app_context:
+                response = await app_context.gateway.request(
+                    'POST',
+                    '/api/pool/pool-a/workflow',
+                    credentials=self._credentials(),
+                    max_response_bytes=1024,
+                    json_body={'file': 'version: 2\n'},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.body, b'{"name":"workflow-1"}')
+        self.assertEqual(len(captured_requests), 1)
+        emit.assert_called_once()
 
     async def test_writes_json_encode_string_bodies(self) -> None:
         captured_requests: list[httpx.Request] = []

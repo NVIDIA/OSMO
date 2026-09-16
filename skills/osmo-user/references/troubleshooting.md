@@ -31,6 +31,26 @@ pattern, or when the same workflow has already failed after three fix attempts.
 
 ---
 
+## Retry a Failed or Canceled Workflow
+
+After establishing the failure cause:
+
+- When the user asks to run a failed or `FAILED_CANCELED` workflow again
+  as-is and there is no deterministic problem to fix, run:
+  ```bash
+  osmo workflow restart <workflow_id>
+  ```
+- When the failure is deterministic, diagnose and fix the local workflow YAML,
+  validate it, then resubmit the corrected file with:
+  ```bash
+  osmo workflow submit <workflow_file>
+  ```
+- `osmo workflow submit <workflow_id>` starts a new full run from the saved
+  spec. Use it only when the user explicitly asks for that, rather than as the
+  normal failed-workflow retry.
+
+---
+
 ## Status: PENDING for an unusually long time
 
 ### Signature
@@ -119,7 +139,7 @@ mismatch, broken C extension, hardware fault, or an uncaught native exception).
   driver on the node (e.g. driver version visible in `nvidia-smi` output if the
   script logs it).
 - If using a custom image, rebuild with versions known to work on the target nodes.
-- If it's a transient hardware issue, resubmit once — repeated segfaults on the
+- If it's a transient hardware issue, restart once — repeated segfaults on the
   same node may indicate a bad GPU; ask the user to file a ticket with the node
   name and timestamp.
 
@@ -141,7 +161,7 @@ workloads), or a node going into maintenance.
 - If `--priority LOW` was used, expect occasional preemption — resubmit at NORMAL
   priority once quota is available, or accept the preemption risk.
 - If neither — check `osmo workflow events` for node maintenance or eviction
-  reasons, and ask the user to resubmit.
+  reasons, and ask the user to restart the workflow.
 
 ---
 
@@ -189,7 +209,7 @@ The container runtime cannot fetch the image:
   `references/workflow-credentials.md`; check or create the `REGISTRY`
   credential for the registry host. Do not try to fix image pulls by adding
   task-level `credentials:` YAML.
-- For transient issues, resubmit once. If it keeps failing, switch to a known-good
+- For transient issues, restart once. If it keeps failing, switch to a known-good
   image as a smoke test before debugging further.
 
 ---

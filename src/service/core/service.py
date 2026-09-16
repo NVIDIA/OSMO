@@ -343,6 +343,9 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
     backend_secret_auth.configure(config.backend_token_directory)
+    backend_secret_auth.configure_bootstrap(
+        config.bootstrap_identity_config_file,
+        config.bootstrap_token_directory)
 
     login_info = auth.LoginInfo(
         device_endpoint=config.device_endpoint,

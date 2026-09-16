@@ -16,8 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from fastmcp import Context
-
 from src.service.mcp import access_scope, tool_requests, tool_validation
 from src.service.mcp.pool_models import (
     MAX_QUERY_CHARACTERS as _MAX_QUERY_CHARACTERS,
@@ -42,7 +40,6 @@ _MAX_LIMIT = 200
 
 
 async def osmo_search_pools(
-    context: Context,
     query: SearchQuery | None = None,
     limit: PageLimit = _DEFAULT_LIMIT,
     offset: PageOffset = 0,
@@ -56,7 +53,7 @@ async def osmo_search_pools(
         error_message='Invalid pool pagination arguments.',
     )
 
-    scope = await access_scope.request_access_scope(context)
+    scope = await access_scope.request_access_scope()
     if scope.empty:
         return PoolSearchResult(
             node_sets=[],
@@ -70,7 +67,6 @@ async def osmo_search_pools(
 
     accessible_pools = list(scope.pools)
     pool_payload = await tool_requests.request_json_object(
-        context,
         path=_POOL_QUOTA_PATH,
         operation='search accessible pools',
         max_response_bytes=_MAX_POOL_RESPONSE_BYTES,
