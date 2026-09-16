@@ -823,10 +823,22 @@ class TestKindAdapter(unittest.TestCase):
 class TestKindPreflight(unittest.TestCase):
     """check_kind_prereqs enumerates rather than raising."""
 
-    def test_returns_list(self):
-        # Don't assert contents — depends on local machine state.
-        result = check_kind_prereqs()
-        self.assertIsInstance(result, list)
+    def setUp(self):
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.shutil.which",
+            return_value="/mock/bin/tool",
+        ))
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.subprocess.run",
+            return_value=_FakeCompleted(),
+        ))
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.socket.gethostbyname",
+            return_value="127.0.0.1",
+        ))
+
+    def test_healthy_prereqs_return_no_errors(self):
+        self.assertEqual(check_kind_prereqs(), [])
 
     def test_no_nvcr_requirement(self):
         """NVCR creds are no longer needed for pulls from public nvcr.io/nvidia/osmo."""
