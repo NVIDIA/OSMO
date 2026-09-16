@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -483,7 +484,7 @@ func TestRunCommand_DataStreamResults(t *testing.T) {
 	}
 }
 
-func TestRunOSMOCommandStreamingWithRetry_RetriesAfterTimeout(t *testing.T) {
+func TestRunOSMOCommandStreamingWithRetry_RetriesAfterTimeoutWithClosedStdout(t *testing.T) {
 	originalTimeout := DataTimeout
 	originalConnection := WebsocketConnection
 	DataTimeout = 100 * time.Millisecond
@@ -497,7 +498,7 @@ func TestRunOSMOCommandStreamingWithRetry_RetriesAfterTimeout(t *testing.T) {
 	completed := make(chan struct{})
 	go func() {
 		RunOSMOCommandStreamingWithRetry(
-			[]string{"sleep", "30"},
+			[]string{"sh", "-c", "exec 1>&-; sleep 30"},
 			[]string{"sh", "-c", "echo retry-success"},
 			2, osmoChan, 0)
 		close(completed)
@@ -516,6 +517,29 @@ func TestRunOSMOCommandStreamingWithRetry_RetriesAfterTimeout(t *testing.T) {
 	want := "OSMO Command timed out. Retrying...\nretry-success"
 	if got := strings.Join(messages, "\n"); got != want {
 		t.Fatalf("messages = %q, want %q", got, want)
+	}
+}
+
+func TestRunCommand_TimesOutAfterOutputCloses(t *testing.T) {
+	originalTimeout := DataTimeout
+	DataTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { DataTimeout = originalTimeout })
+
+	for _, redirect := range []string{"exec 1>&-", "exec 1>&- 2>&-"} {
+		t.Run(redirect, func(t *testing.T) {
+			cmd := exec.Command("sh", "-c", redirect+"; sleep 3")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			osmoChan := make(chan string, 1)
+			_, err := common.RunCommand(cmd,
+				createOutCommandStream(osmoChan), createErrCommandStream(osmoChan))
+			var timeoutError *osmo_errors.TimeoutError
+			if !errors.As(err, &timeoutError) {
+				t.Fatalf("expected TimeoutError after output closed, got %v", err)
+			}
+			if cmd.ProcessState == nil {
+				t.Fatal("timed-out command was not reaped")
+			}
+		})
 	}
 }
 
@@ -568,14 +592,16 @@ func TestCreateOutCommandStream_StreamsScannerLinesToChannel(t *testing.T) {
 	wg.Add(1)
 	timeoutChan := make(chan bool, 1)
 
-	streamFn(cmd, scanner, &wg, timeoutChan)
+	commandDone := make(chan struct{})
+	close(commandDone)
+	streamFn(cmd, scanner, &wg, timeoutChan, commandDone)
 
 	got1 := <-osmoChan
 	got2 := <-osmoChan
 	if got1 != "alpha" || got2 != "beta" {
 		t.Errorf("channel = (%q, %q), want (alpha, beta)", got1, got2)
 	}
-	// streamOutCommand sends false to timeoutChan after a clean scan.
+	// The completed process stops the watchdog without a timeout.
 	if timedOut := <-timeoutChan; timedOut {
 		t.Errorf("timeoutChan = true, want false on clean scanner exit")
 	}
@@ -603,10 +629,12 @@ func TestCreateOutCommandStream_CompletesAfterTimeout(t *testing.T) {
 	var waitStreamLogs sync.WaitGroup
 	waitStreamLogs.Add(1)
 	timeoutChan := make(chan bool, 1)
+	commandDone := make(chan struct{})
+	defer close(commandDone)
 	completed := make(chan struct{})
 	go func() {
 		createOutCommandStream(make(chan string, 1))(
-			cmd, bufio.NewScanner(stdout), &waitStreamLogs, timeoutChan)
+			cmd, bufio.NewScanner(stdout), &waitStreamLogs, timeoutChan, commandDone)
 		close(completed)
 	}()
 
@@ -621,7 +649,7 @@ func TestCreateOutCommandStream_CompletesAfterTimeout(t *testing.T) {
 		if !timedOut {
 			t.Fatal("timeout was reported as normal completion")
 		}
-	default:
+	case <-time.After(5 * time.Second):
 		t.Fatal("timeout result was not reported")
 	}
 	if len(timeoutChan) != 0 {

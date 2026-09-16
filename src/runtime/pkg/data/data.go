@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -117,33 +118,43 @@ func (f WebsocketConnectionInfo) TimeLeft() time.Duration {
 
 var WebsocketConnection WebsocketConnectionInfo
 
+// createOutCommandStream monitors stdout inactivity until the process is reaped,
+// even if the process closes stdout before exiting.
 func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
-	*bufio.Scanner, *sync.WaitGroup, chan bool) {
+	*bufio.Scanner, *sync.WaitGroup, chan bool, <-chan struct{}) {
 	streamOutCommand := func(cmd *exec.Cmd, scanner *bufio.Scanner,
-		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
+		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool, commandDone <-chan struct{}) {
 		defer waitStreamLogs.Done()
 
 		var progressMutex sync.Mutex
 		lastMessageTime := time.Now()
 		timeout := DataTimeout
-		quit := make(chan struct{})
-		watchdogDone := make(chan struct{})
-		timedOut := false
 
 		go func() {
-			defer close(watchdogDone)
+			timedOut := false
+			defer func() { timeoutChan <- timedOut }()
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 			for {
 				select {
-				case <-quit:
+				case <-commandDone:
 					return
 				case <-ticker.C:
 					progressMutex.Lock()
 					idleTime := time.Since(lastMessageTime)
 					progressMutex.Unlock()
 					if idleTime >= timeout {
-						if err := cmd.Process.Kill(); err != nil {
+						var err error
+						if cmd.SysProcAttr != nil && cmd.SysProcAttr.Setpgid {
+							// Descendants may still hold stderr open after the parent exits.
+							err = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+						} else {
+							err = cmd.Process.Kill()
+						}
+						if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+							return
+						}
+						if err != nil {
 							osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 							panic(fmt.Sprintf("Failed to kill process: %s", err))
 						}
@@ -152,12 +163,6 @@ func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
 					}
 				}
 			}
-		}()
-		defer func() {
-			close(quit)
-			// Join the watchdog so a timeout-triggered EOF cannot report success.
-			<-watchdogDone
-			timeoutChan <- timedOut
 		}()
 
 		for scanner.Scan() {
@@ -214,6 +219,7 @@ func RunOSMOCommandStreamingWithRetry(command []string, retryCommand []string,
 				continue
 			}
 			cmd := exec.Command(commandInput[0], commandInput[1:]...)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			msg, err = common.RunCommand(cmd,
 				createOutCommandStream(osmoChan), createErrCommandStream(osmoChan))
 			if err != nil {
