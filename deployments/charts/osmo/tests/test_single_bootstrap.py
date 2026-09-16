@@ -389,7 +389,7 @@ class SingleBootstrapTests(unittest.TestCase):
 
 
 class BootstrapInputValidationTest(unittest.TestCase):
-    def test_node_selector_requires_string_values(self):
+    def test_node_selector_requires_string_values(self) -> None:
         for value in ('1', 'true', 'null'):
             with self.subTest(value=value), self.assertRaises(subprocess.CalledProcessError) as error:
                 render(4, ['--set-json', f'bootstrap.nodeSelector={{"pool":{value}}}'])
@@ -397,7 +397,7 @@ class BootstrapInputValidationTest(unittest.TestCase):
         for selector in ('null', '{}', '{"pool":"control"}'):
             render(4, ['--set-json', f'bootstrap.nodeSelector={selector}'])
 
-    def test_dex_existing_secret_requires_a_name(self):
+    def test_dex_existing_secret_requires_a_name(self) -> None:
         chart = CHART.parent / 'dex-bootstrap'
         result = subprocess.run(
             ['helm', 'template', 'dex', str(chart), '--set', 'configSecret.create=false'],
@@ -414,7 +414,7 @@ class BootstrapInputValidationTest(unittest.TestCase):
         self.assertTrue(any(volume.get('secret', {}).get('secretName') == 'existing-config'
                             for volume in deployment['spec']['template']['spec']['volumes']))
 
-    def test_dex_disruption_budget_requires_one_field_and_preserves_zero(self):
+    def test_dex_disruption_budget_requires_one_field_and_preserves_zero(self) -> None:
         command = ['helm', 'template', 'dex', str(CHART.parent / 'dex-bootstrap'),
                    '--set', 'podDisruptionBudget.enabled=true']
         for field in ('minAvailable', 'maxUnavailable'):

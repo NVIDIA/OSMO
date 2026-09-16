@@ -129,6 +129,10 @@ that refuses live Pods or mismatched Job ownership. Namespace-wide Secret creati
 is documented as a bootstrap permission boundary; pre-created empty protected
 Secrets would violate atomic issuance and retained-state validation.
 
+The replacement [Local KIND Deployment run](https://github.com/NVIDIA/OSMO/actions/runs/35132562879)
+passed on `99743d0f5`. CodeRabbit's follow-up check succeeded with no unresolved
+threads; its remaining three test return-annotation nits were applied afterward.
+
 ## Recovery contract discovered during testing
 
 The chart declares **one desired ordinary bootstrap Job**. Helm can leave a
