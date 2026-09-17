@@ -313,7 +313,6 @@ jobs:
             ${{ runner.temp }}/testbot/handoff.json
             ${{ runner.temp }}/testbot/verified_changes.json
             ${{ runner.temp }}/testbot/targets_meta.json
-            ${{ runner.temp }}/testbot/coverage_report.json
             ${{ runner.temp }}/testbot/generate_summary.md
             ${{ runner.temp }}/testbot/review_summary.md
           overwrite: true
@@ -363,7 +362,6 @@ jobs:
           gh auth setup-git --hostname github.com
           PYTHONPATH=. python -m src.scripts.testbot.create_pr \
             --targets-meta "$RUNNER_TEMP/testbot/targets_meta.json" \
-            --coverage-report "$RUNNER_TEMP/testbot/coverage_report.json" \
             --generate-summary "$RUNNER_TEMP/testbot/generate_summary.md" \
             --review-summary "$RUNNER_TEMP/testbot/review_summary.md" \
             --verified-changes "$RUNNER_TEMP/testbot/verified_changes.json"

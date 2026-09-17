@@ -330,8 +330,7 @@ else:
                     handoff = self.artifacts / 'publication'
                     handoff.mkdir()
                     for name in ('final.patch', 'handoff.json', 'verified_changes.json',
-                                 'targets_meta.json', 'coverage_report.json',
-                                 'generate_summary.md', 'review_summary.md'):
+                                 'targets_meta.json', 'generate_summary.md', 'review_summary.md'):
                         (handoff / name).write_bytes((output / name).read_bytes())
                 sys.argv = ['pipeline.py', '--stage', stage, '--artifacts', str(handoff)]
                 pipeline.main()

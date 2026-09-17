@@ -27,10 +27,6 @@ from typing import Any
 
 from src.scripts.testbot.guardrails import get_changed_test_files
 from src.scripts.testbot.verification import load_verified_changes
-from src.scripts.testbot.verify_coverage import (
-    render_markdown,
-    reports_from_json,
-)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -299,19 +295,7 @@ def _files_summary_for_pr(
 
 
 def _build_generator_summary_section(path: str) -> str:
-    """Render the generator's final summary into the PR body.
-
-    The Generate step writes the LLM's final ``result`` text — which
-    typically contains the LLM's own per-target coverage breakdown,
-    per-range hit/miss reasoning, and a "Files changed" recap — to
-    ``$RUNNER_TEMP/generate_summary.md``. Embedding that block in the
-    PR body gives reviewers the same narrative the LLM produced
-    instead of only the harness's bare-numbers coverage section.
-
-    Missing / unreadable summary file yields an empty string so the PR
-    opens unchanged. Leading/trailing whitespace is stripped to avoid
-    extra blank lines around the section.
-    """
+    """Embed the generator summary, omitting missing or empty files."""
     if not path:
         return ""
     try:
@@ -322,23 +306,6 @@ def _build_generator_summary_section(path: str) -> str:
     if not body:
         return ""
     return f"## Generator summary\n\n{body}\n"
-
-
-def _build_coverage_section(path: str) -> str:
-    """Render the coverage-gain section from verify_coverage.py's JSON.
-
-    Missing / unreadable reports yield an empty string so the PR still
-    opens. Rendering itself lives in verify_coverage so the PR body and
-    the generator's self-check report cannot drift apart.
-    """
-    if not path:
-        return ""
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("Could not read coverage report %s: %s", path, exc)
-        return ""
-    return render_markdown(reports_from_json(payload))
 
 
 def _build_rationale_section(meta: dict[str, dict]) -> str:
@@ -520,19 +487,8 @@ def main() -> None:
              "the PR body includes the 'Why this file was targeted' section",
     )
     parser.add_argument(
-        "--coverage-report", default="",
-        help="Optional path to verify_coverage.py's JSON report; when "
-             "provided, the PR body includes a 'Coverage gain on listed "
-             "uncovered ranges' section so reviewers can see how many of "
-             "the picker's listed lines the generated tests actually hit",
-    )
-    parser.add_argument(
         "--generate-summary", default="",
-        help="Optional path to the LLM's final result text dumped by the "
-             "Generate step. When present, embedded verbatim in a "
-             "'Generator summary' section so reviewers see the LLM's own "
-             "narrative (per-target breakdown, still-uncovered reasoning, "
-             "files changed) alongside the harness's bare-numbers report.",
+        help="Path to the generator summary included in the PR body",
     )
     parser.add_argument(
         "--verified-changes", type=Path,
@@ -613,10 +569,6 @@ def main() -> None:
     if rationale_section:
         rationale_section = "\n" + rationale_section
 
-    coverage_section = _build_coverage_section(args.coverage_report)
-    if coverage_section:
-        coverage_section = "\n" + coverage_section
-
     generator_summary_section = _build_generator_summary_section(
         args.generate_summary,
     )
@@ -637,7 +589,7 @@ Issue - None
 
 ## Targets selected
 {files_list}
-{rationale_section}{generator_summary_section}{review_summary_section}{coverage_section}{bugs_section}
+{rationale_section}{generator_summary_section}{review_summary_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes

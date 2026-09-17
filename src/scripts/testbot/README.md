@@ -252,7 +252,7 @@ src/scripts/testbot/
 ├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets
 ├── SELECT_TARGETS_PROMPT.md    # System prompt for the Stage-2 picker
 ├── verify_coverage.py          # LCOV → per-range coverage report (used by generator + harness)
-├── create_pr.py                # Branch, commit, push, open PR (with coverage report in body)
+├── create_pr.py                # Branch, commit, push, open PR with agent summaries
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
 ├── respond.py                  # Review response: Claude Code CLI + GitHub API
 ├── TESTBOT_RULES.md            # Shared test quality rules and conventions
