@@ -71,19 +71,22 @@ the default entries. Set an entry's ``enabled`` field to ``false`` to disable a
 default. Compute-plane authentication must reference a token identity whose
 only role is ``osmo-backend``.
 
-The pre-install/pre-upgrade bootstrap Job creates or reconciles retained
-password, token, and OAuth credential Secrets; the separate post-install/
-post-upgrade Job restarts Dex when Helm updates its config Secret. The Jobs
+The pre-install/pre-upgrade bootstrap hook creates or reconciles retained
+Dex passwords and OAuth credential Secrets. The separate post-install/
+post-upgrade hook restarts Dex when Helm updates its config Secret. The hooks
 delete only Dex or OAuth2 Proxy Pods selected by release-specific labels and
-record applied one-way identities on the hook-owned Secrets. They do not patch
-Helm-managed Deployments, so Argo CD and other declarative deployment tools do
-not observe rollout drift. This requires namespace-scoped ``list`` and ``delete``
-Pod permissions for the bootstrap ServiceAccount. Retrieve the random password
+record applied one-way identities on the hook-owned Secrets. They do not patch Helm-managed
+Deployments, so Argo CD and other declarative deployment tools do not observe
+rollout drift. This requires namespace-scoped ``list`` and ``delete`` Pod
+permissions for the bootstrap ServiceAccount. Retrieve the random password
 only with an explicit Kubernetes Secret read; do not add it to values, Git,
-Helm commands, or logs.
-Missing managed credentials are generated automatically during any later Helm
-or GitOps reconciliation. Existing valid credentials remain byte-for-byte
-stable. To rotate one, delete only its named Secret and reconcile again.
+Helm commands, or logs. Existing valid credentials remain byte-for-byte stable.
+
+The shared OSMO bootstrap Job creates OSMO access tokens and fails closed if a
+retained token is missing. Dex and OAuth2 Proxy keep their upstream configuration mounts and do not use the OSMO
+credential startup gate. Follow :ref:`sequenced_bootstrap` for OSMO token
+initialization, adoption, and recovery, and use the lifecycle instructions for
+your installed chart version before replacing credentials.
 
 Remove obsolete configuration
 ==============================

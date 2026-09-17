@@ -62,6 +62,10 @@ redirect URI, register a fixed port and pass it to ``osmo login`` with
    name, and honor an explicit URI port. See
    :doc:`migrating_to_embedded_dex` for the complete migration contract.
 
+External OIDC credentials remain operator-owned even when chart bootstrap is
+enabled. Skip this setup for embedded Dex, whose browser-client and cookie
+Secrets are generated automatically; see :ref:`deployment_secrets`.
+
 Generate a random 32-byte cookie secret:
 
 .. code-block:: bash
@@ -97,7 +101,8 @@ Use an IdP when:
 - You want to map IdP groups or roles to OSMO roles so that access is controlled partly by your directory.
 - You are deploying in production and already have an IdP.
 
-If you are evaluating OSMO or running in an environment without an IdP, use the **default admin** and **access tokens** instead (see :ref:`default_admin_setup`).
+For evaluation without an external IdP, use embedded Dex and its generated
+administrator credentials (see :ref:`deploy_minimal`).
 
 How it works
 ====================
