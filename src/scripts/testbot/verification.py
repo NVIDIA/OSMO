@@ -55,12 +55,13 @@ def save_patch(path: Path) -> None:
 def retain_generated_tests() -> None:
     """Apply the generator's test-only contract before the reviewer gets control."""
     paths = set(changed_files())
-    tracked = set(git('ls-files', '-z').split('\0'))
+    tracked = set(git('ls-tree', '-r', '--name-only', '-z', 'HEAD').split('\0'))
     for name in paths:
         if not is_allowed_change(name, paths):
             if name in tracked:
-                git('restore', '--source=HEAD', '--staged', '--worktree', '--', name)
+                git('--literal-pathspecs', 'restore', '--source=HEAD', '--staged', '--worktree', '--', name)
             else:
+                git('--literal-pathspecs', 'reset', 'HEAD', '--', name)
                 Path(name).unlink()
 
 

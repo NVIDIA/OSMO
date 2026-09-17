@@ -335,6 +335,7 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
+          persist-credentials: false
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
 
       - name: Set up publication runtime
@@ -360,6 +361,7 @@ jobs:
           if [[ -f "$RUNNER_TEMP/testbot/skipped.json" ]]; then
             exit 0
           fi
+          gh auth setup-git --hostname github.com
           PYTHONPATH=. python -m src.scripts.testbot.create_pr \
             --targets-meta "$RUNNER_TEMP/testbot/targets_meta.json" \
             --coverage-report "$RUNNER_TEMP/testbot/coverage_report.json" \

@@ -4,6 +4,7 @@
 
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -205,6 +206,42 @@ class TestPrCreationHelpers(unittest.TestCase):
         enable_auto_merge_mock.assert_called_once_with(
             "https://github.com/NVIDIA/OSMO/pull/123",
         )
+
+    def test_main_stages_only_literal_verified_paths(self):
+        verified = ["--all", ":(glob)src/*.py", "src/test_[ab].py", "src/test_*.py"]
+        excluded = ["src/excluded.py", "src/test_a.py"]
+        real_run = subprocess.run
+        with tempfile.TemporaryDirectory() as directory:
+            real_run(["git", "init", "-q", directory], check=True)
+            for name in verified + excluded:
+                path = Path(directory) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# generated file\n", encoding="utf-8")
+
+            def run_command(command, check=True):
+                if command[0] == "git" and "add" in command[1:]:
+                    return real_run(command, cwd=directory, check=check)
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch.dict(os.environ, {"SKIP_SLACK": "true", "GITHUB_OUTPUT": ""}), \
+                    patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                          return_value=False), \
+                    patch("src.scripts.testbot.create_pr.load_verified_changes",
+                          return_value=verified), \
+                    patch("src.scripts.testbot.create_pr.get_changed_test_files") as fallback, \
+                    patch("src.scripts.testbot.create_pr.run", side_effect=run_command), \
+                    patch("src.scripts.testbot.create_pr.subprocess.run",
+                          return_value=subprocess.CompletedProcess(
+                              [], 0, stdout="https://github.com/NVIDIA/OSMO/pull/123\n")), \
+                    patch("src.scripts.testbot.create_pr._scan_suspected_bugs", return_value=[]), \
+                    patch("src.scripts.testbot.create_pr._enable_auto_merge", return_value=True), \
+                    patch.object(sys, "argv", ["create_pr.py", "--verified-changes", "manifest"]):
+                main()
+                fallback.assert_not_called()
+
+            staged = real_run(["git", "ls-files", "-z"], cwd=directory,
+                              capture_output=True, text=True, check=True)
+            self.assertEqual(set(staged.stdout.rstrip("\0").split("\0")), set(verified))
 
     def test_main_exits_when_auto_merge_enable_fails(self):
         gh_create_result = subprocess.CompletedProcess(

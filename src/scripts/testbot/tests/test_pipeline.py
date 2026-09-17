@@ -70,6 +70,32 @@ class TestAgentProcess(unittest.TestCase):
         self.assertTrue(result.successful)
         self.assertEqual(result.summary, 'review done')
 
+    def test_malformed_nested_events_do_not_stop_stdout_drain(self):
+        cases = (
+            ('claude', 'assistant', 'message', {'id': 'valid-message'},
+             {'type': 'result', 'subtype': 'success', 'is_error': False,
+              'result': 'complete'}),
+            ('codex', 'item.completed', 'item',
+             {'type': 'agent_message', 'text': 'complete'}, {'type': 'turn.completed'}),
+        )
+        malformed_values: tuple[object, ...] = (None, [], 'invalid', 1, True)
+        for backend, event_type, field, valid, terminal in cases:
+            for malformed in malformed_values:
+                with self.subTest(backend=backend, malformed=malformed):
+                    events = [
+                        {'type': event_type, field: malformed},
+                        {'type': event_type, field: valid},
+                        terminal,
+                    ]
+                    stream = ''.join(json.dumps(event) + '\n' for event in events)
+                    result, directory = self.run_script(
+                        f'import sys; sys.stdout.write({stream!r})', backend=backend)
+                    self.assertTrue(result.successful)
+                    self.assertEqual(result.summary, 'complete')
+                    self.assertEqual(result.turns, 1)
+                    self.assertEqual((directory / 'stream.jsonl').read_text(encoding='utf-8'),
+                                     stream)
+
     def test_independent_checks_do_not_inherit_inference_credentials(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'check.log'
@@ -157,10 +183,16 @@ class TestRecovery(RepositoryTest):
     def test_generator_source_edits_are_removed_before_independent_review(self):
         Path('src/example.py').write_text('unreviewed source edit\n', encoding='utf-8')
         Path('src/tests/test_example.py').write_text('generated regression\n', encoding='utf-8')
+        Path('src/new_source.py').write_text('staged source addition\n', encoding='utf-8')
         verification.git('add', '.')
+        Path('src/untracked.py').write_text('untracked source addition\n', encoding='utf-8')
         verification.retain_generated_tests()
         self.assertEqual(Path('src/example.py').read_text(encoding='utf-8'), 'def add(a, b):\n    return a - b\n')
+        self.assertFalse(Path('src/new_source.py').exists())
+        self.assertFalse(Path('src/untracked.py').exists())
         self.assertEqual(verification.changed_files(), ['src/tests/test_example.py'])
+        self.assertEqual(verification.git('diff', '--cached', '--name-only').splitlines(),
+                         ['src/tests/test_example.py'])
 
     def test_reviewer_can_fix_source_and_retry_failed_verification(self):
         prompts = []

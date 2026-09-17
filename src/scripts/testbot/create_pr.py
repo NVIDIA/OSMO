@@ -591,7 +591,7 @@ def main() -> None:
         return
 
     run(["git", "checkout", "-b", branch])
-    run(["git", "add"] + changed_files)
+    run(["git", "--literal-pathspecs", "add", "--", *changed_files])
     subprocess.run(
         ["git", "commit", "-m", f"Add AI-generated tests for {files_summary}"],
         check=True,

@@ -88,7 +88,10 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                         attempt.summary = str(event.get('compact_error', 'Compaction failed'))
                         compact_failed.set()
                     if event.get('type') == 'assistant':
-                        message_id = event.get('message', {}).get('id')
+                        message = event.get('message')
+                        if not isinstance(message, dict):
+                            continue
+                        message_id = message.get('id')
                         if message_id:
                             assistant_ids.add(message_id)
                     if event.get('type') == 'result':
@@ -103,8 +106,12 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                         )
                 else:
                     kind = event.get('type')
-                    if kind == 'item.completed' and event.get('item', {}).get('type') == 'agent_message':
-                        attempt.summary = event['item'].get('text', '')
+                    if kind == 'item.completed':
+                        item = event.get('item')
+                        if not isinstance(item, dict):
+                            continue
+                        if item.get('type') == 'agent_message':
+                            attempt.summary = item.get('text', '')
                     if kind in ('turn.completed', 'turn.failed'):
                         attempt.completed = True
                         attempt.successful = kind == 'turn.completed'
