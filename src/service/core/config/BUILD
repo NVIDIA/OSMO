@@ -43,7 +43,6 @@ osmo_py_library(
 osmo_py_library(
     name = "config",
     srcs = [
-        "config_history_helpers.py",
         "config_service.py",
         "helpers.py",
         "objects.py",

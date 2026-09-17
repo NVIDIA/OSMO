@@ -190,9 +190,6 @@ osmo_py_library(
 osmo_py_library(
     name = "config_history",
     srcs = ["config_history.py"],
-    deps = [
-        ":osmo_errors",
-    ],
 )
 
 osmo_py_library(
