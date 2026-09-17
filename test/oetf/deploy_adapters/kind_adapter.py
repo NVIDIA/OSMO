@@ -910,6 +910,8 @@ class KindAdapter:
             args += [
                 "--set-string", f"externalUrl={KIND_SOURCE_URL}",
                 "--set", "services.mcp.enabled=true",
+                # Workflow log reads can exceed the chart's small API memory limit.
+                "--set", "services.api.resources.limits.memory=1Gi",
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]

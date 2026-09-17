@@ -271,6 +271,7 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(env.auth.strategy, "dev")
         self.assertEqual(env.url, "http://quick-start.osmo")
         self.assertNotIn("services.mcp.enabled=true", osmo_calls[0])
+        self.assertNotIn("services.api.resources.limits.memory=1Gi", osmo_calls[0])
 
     def test_deploy_reuses_existing_cluster(self):
         # kind get clusters returns 'osmo' → no create call
@@ -479,6 +480,15 @@ class TestKindAdapter(unittest.TestCase):
             "services.agent.resources.requests.memory=1Gi",
             osmo_helm_args,
         )
+        self.assertIn(
+            "services.api.resources.limits.memory=1Gi",
+            osmo_helm_args,
+            "workflow log reads must not hit the chart's 512Mi API limit",
+        )
+        self.assertFalse(any(
+            arg.startswith("services.api.resources.requests.memory=")
+            for arg in osmo_helm_args
+        ))
         self.assertIn(
             "externalUrl=http://127.0.0.1",
             osmo_helm_args,
