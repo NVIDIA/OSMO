@@ -143,7 +143,7 @@ OSMO's backend worker creates and cleans up group template resources using its K
 ServiceAccount. Before using a group template that creates a given resource kind, the backend
 operator must be granted permission for that kind in the workflow namespace.
 
-The ``backend-operator`` Helm chart exposes a ``services.backendWorker.extraRBACRules`` values
+The unified ``osmo`` Helm chart exposes a ``services.backendWorker.extraRBACRules`` values
 field for this purpose (see :ref:`deploy_backend`). For each resource kind referenced in your
 group templates, add a corresponding entry:
 

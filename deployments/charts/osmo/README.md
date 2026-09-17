@@ -652,10 +652,10 @@ referenced Secret in the compute release namespace. Its `token` key must contain
 the current 43- or 64-character URL-safe backend token; `previous-token` may
 contain a distinct old token during rotation.
 
-Copy the profile and replace its example `externalUrl` and
-`compute.authentication.existingSecret` values, then install it with an
-explicit backend name. Each compute release attached to the same control plane
-must use a unique name.
+Keep the profile unchanged and provide `externalUrl`, `compute.backendName`,
+and `compute.authentication.existingSecret` in a separate environment values
+file. Each compute release attached to the same control plane must use a unique
+name.
 
 ```bash
 helm dependency build deployments/charts/osmo
@@ -663,8 +663,8 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \
   --namespace osmo-compute \
   --create-namespace \
+  --values deployments/charts/osmo/profiles/split-plane-compute.yaml \
   --values <compute-values.yaml> \
-  --set-string compute.backendName=<backend-name> \
   --wait \
   --timeout 10m
 ```
