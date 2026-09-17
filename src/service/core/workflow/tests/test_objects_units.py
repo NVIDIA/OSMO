@@ -45,6 +45,12 @@ def _workflow_config(**credential_config) -> connectors.WorkflowConfig:
     return connectors.WorkflowConfig(credential_config=credential_config)
 
 
+def _registry_attempt(status_code: int) -> typing.Any:
+    """Stand in for the RegistryAttempt that common.registry_auth returns."""
+    return types.SimpleNamespace(response=types.SimpleNamespace(status_code=status_code),
+                                 challenged=False)
+
+
 def _backend_info(grafana_url: str = '', dashboard_url: str = '',
                   namespace: str = 'osmo') -> types.SimpleNamespace:
     return types.SimpleNamespace(grafana_url=grafana_url, dashboard_url=dashboard_url,
@@ -213,7 +219,7 @@ class TestUserRegistryCredential(unittest.TestCase):
         config = _workflow_config()
 
         with mock.patch.object(objects.common, 'registry_auth',
-                               return_value=types.SimpleNamespace(status_code=401)):
+                               return_value=_registry_attempt(401)):
             with self.assertRaisesRegex(osmo_errors.OSMOCredentialError,
                                         'Registry authentication failed'):
                 credential.valid_cred(config)
@@ -224,7 +230,7 @@ class TestUserRegistryCredential(unittest.TestCase):
         config = _workflow_config()
 
         with mock.patch.object(objects.common, 'registry_auth',
-                               return_value=types.SimpleNamespace(status_code=200)) as auth:
+                               return_value=_registry_attempt(200)) as auth:
             credential.valid_cred(config)
 
         auth.assert_called_once_with('https://nvcr.io/v2/', 'alice', 'token')
