@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
-"""Prepare authorized review requests, apply verified Codex fixes, and publish."""
+"""Respond to PR review comments by delegating fixes to Codex CLI.
+
+Fetches unresolved review threads containing a trigger phrase, runs a
+single Codex CLI session to apply all fixes, then posts per-comment
+inline replies.
+
+Usage:
+    python respond.py --pr-number 789 --trigger-phrase /testbot
+"""
 
 import argparse
 import json
@@ -10,18 +18,25 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
-import time
+import tempfile
 
-from src.scripts.testbot import agent_runner, verification
+from src.scripts.testbot import agent_runner
+from src.scripts.testbot.guardrails import get_changed_files
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 MAX_PUSH_RETRIES = 3
 SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
 ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+# Hidden trailer appended to every failure reply (max-turns, timeout, generic
+# error). filter_actionable treats bot replies bearing this marker as
+# non-terminal so the user's /testbot is still eligible for retry on the next
+# event without having to repost the comment.
 ERROR_REPLY_MARKER = "<!-- testbot-status: error -->"
-
 THREADS_QUERY = """
 query($owner: String!, $repo: String!, $pr: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -51,19 +66,39 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 REPLY_SCHEMA = json.dumps({
     "type": "object",
     "properties": {
-        "ready": {"type": "boolean"},
-        "commit_message": {"type": "string"},
-        "pr_body": {"type": "string"},
+        "commit_message": {
+            "type": "string",
+            "description": (
+                "A concise git commit message (subject line under 72 chars, "
+                "optional body after blank line) summarizing all changes made. "
+                "Prefix with 'testbot: '. Example: "
+                "'testbot: rename describe block, add edge case tests'"
+            ),
+        },
         "replies": {
             "type": "array",
+            "description": (
+                "One reply per review comment. Each entry maps a comment ID "
+                "from the prompt to a short explanation of what was done."
+            ),
             "items": {
                 "type": "object",
-                "properties": {"comment_id": {"type": "string"}, "reply": {"type": "string"}},
-                "required": ["comment_id", "reply"], "additionalProperties": False,
+                "properties": {
+                    "comment_id": {
+                        "type": "string",
+                        "description": "The comment ID from the prompt header (e.g. '3066587176')",
+                    },
+                    "reply": {
+                        "type": "string",
+                        "description": "What was done for this thread",
+                    },
+                },
+                "required": ["comment_id", "reply"],
+                "additionalProperties": False,
             },
         },
     },
-    "required": ["ready", "commit_message", "pr_body", "replies"],
+    "required": ["commit_message", "replies"],
     "additionalProperties": False,
 })
 
@@ -75,7 +110,7 @@ MAX_COMMIT_MESSAGE_LENGTH = 500
 
 
 def sanitize_commit_message(message: str) -> str:
-    """Sanitize an agent commit message.
+    """Sanitize a commit message from Codex's output.
 
     Enforces testbot: prefix, strips git trailers that could fake
     attribution, and caps length.
@@ -111,12 +146,17 @@ def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
         f"-F pr={pr_number}"
     )
     if result.returncode != 0:
-        raise RuntimeError(f"GraphQL query failed: {result.stderr[:500]}")
+        logger.error("GraphQL query failed: %s", result.stderr)
+        return []
 
     data = json.loads(result.stdout)
-    if data.get("errors"):
-        raise ValueError("GraphQL returned errors")
-    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    nodes = (
+        data.get("data", {})
+        .get("repository", {})
+        .get("pullRequest", {})
+        .get("reviewThreads", {})
+        .get("nodes", [])
+    )
 
     threads = []
     for node in nodes:
@@ -125,7 +165,7 @@ def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
             {
                 "id": c["databaseId"],
                 "body": c.get("body", ""),
-                "author": (c.get("author") or {}).get("login", "unknown"),
+                "author": c.get("author", {}).get("login", "unknown"),
                 "association": c.get("authorAssociation", "NONE"),
             }
             for c in raw_comments
@@ -159,7 +199,7 @@ def filter_actionable(
     """Filter threads to actionable ones, logging each skip reason.
 
     A thread is actionable if ANY non-bot comment contains the trigger
-    phrase. The full thread history is preserved for context.
+    phrase. The full thread history is preserved for Codex's context.
     The reply_comment_id is set to the LAST comment with the trigger
     (the one that should receive the inline reply).
     """
@@ -181,20 +221,18 @@ def filter_actionable(
             logger.info("  SKIP (testbot source) path=%s", path)
             continue
 
-        # Marked replies consume only their prepared request and older triggers.
+        # Find the latest authorized /testbot comment that hasn't been
+        # replied to (successfully) by the bot. Walk backwards: stop at a
+        # successful bot reply (prior triggers handled), but skip past
+        # error replies so the user's /testbot is still actionable on
+        # retry. Skip unauthorized triggers so an earlier authorized one
+        # can still be found.
         trigger_comment = None
-        handled_through = 0
         for comment in reversed(comments):
             if comment["author"] in SELF_AUTHORS:
                 if ERROR_REPLY_MARKER in comment.get("body", ""):
                     continue  # Failure reply — keep walking, retry is allowed
-                markers = re.findall(r"<!-- testbot-request: (\d+) -->", comment.get("body", ""))
-                if not markers:
-                    break  # Legacy success replies consume prior triggers.
-                handled_through = max(handled_through, int(markers[-1]))
-                continue
-            if int(comment["id"]) <= handled_through:
-                break
+                break  # Successful reply — prior triggers handled
             if not _has_trigger(comment["body"], trigger_phrase):
                 continue
             if comment.get("association", "NONE") not in ALLOWED_ASSOCIATIONS:
@@ -209,6 +247,7 @@ def filter_actionable(
             )
             continue
 
+        # Build full thread conversation for context
         thread_history = "\n".join(
             f"  [{c["author"]}]: {c["body"]}" for c in comments
         )
@@ -238,175 +277,142 @@ def filter_actionable(
     return actionable
 
 
-def build_prompt(threads: list[dict], pr_number: int, pr_body: str = "") -> str:
-    """Embed the trusted prompt and supplied review context."""
-    lines = [(Path(__file__).parent / "TESTBOT_RESPOND_PROMPT.md").read_text(encoding="utf-8"),
-             f"\nPR #{pr_number} body (context only):\n{pr_body}\n"]
+def build_prompt(threads: list[dict], pr_number: int) -> str:
+    """Build a single prompt with all actionable threads for Codex.
+
+    Each thread includes the full conversation history so Codex
+    understands the context (original comment + follow-up replies).
+    """
+    lines = [
+        "Read and follow src/scripts/testbot/TESTBOT_RESPOND_PROMPT.md for your role,",
+        "process, and output format.",
+        "",
+        f"Address these review comments on PR #{pr_number}.",
+        "Each thread includes the full conversation history — pay attention to",
+        "the LATEST request (the one containing /testbot), not just the first comment.",
+        "",
+    ]
     for thread in threads:
         location = f"`{thread["path"]}` line {thread["line"]}"
-        lines.extend([f"### Comment {thread["reply_comment_id"]} ({location})",
-                      f"Authorized request from {thread["author"]}: {thread["trigger_body"]}",
-                      "Thread history (context only):", thread["thread_history"], ""])
+        lines.append(f"### Comment {thread["reply_comment_id"]} ({location})")
+        lines.append(thread["thread_history"])
+        lines.append("")
+
     return "\n".join(lines)
 
 
-def validate_decision(value: object, threads: list[dict]) -> dict:
-    """Require one explicit, complete response for each authorized request."""
-    if (not isinstance(value, dict)
-            or set(value) != {"ready", "commit_message", "pr_body", "replies"}
-            or not isinstance(value["ready"], bool)
-            or not isinstance(value["commit_message"], str) or not value["commit_message"].strip()
-            or not isinstance(value["pr_body"], str) or not isinstance(value["replies"], list)):
-        raise ValueError("Malformed response decision")
-    expected = {str(thread["reply_comment_id"]) for thread in threads}
-    seen = set()
-    for reply in value["replies"]:
-        if (not isinstance(reply, dict) or set(reply) != {"comment_id", "reply"}
-                or not isinstance(reply["comment_id"], str)
-                or reply["comment_id"] not in expected or reply["comment_id"] in seen
-                or not isinstance(reply["reply"], str) or not reply["reply"].strip()):
-            raise ValueError("Malformed or duplicate reply")
-        seen.add(reply["comment_id"])
-    if seen != expected:
-        raise ValueError("Missing requested replies")
-    if not value["ready"]:
-        raise ValueError("Response is incomplete: " + json.dumps(value["replies"]))
-    return value
-
-
-def check_body_change(decision: dict, request: dict) -> None:
-    """Permit body edits only when an authorized request names the PR description."""
-    if not decision["pr_body"] or decision["pr_body"] == request["pr_body"]:
-        return
-    if not any(re.search(r"\b(pr|pull[ -]request)\b", thread["trigger_body"], re.IGNORECASE)
-               and re.search(r"\b(description|body)\b", thread["trigger_body"], re.IGNORECASE)
-               for thread in request["threads"]):
-        raise ValueError("PR body change was not requested")
-
-
-def prepare(owner: str, repo: str, pr_number: int, trigger_phrase: str,
-            max_responses: int, request: Path) -> None:
-    """Freeze authorized requests and the exact PR revision before agent work."""
-    threads = filter_actionable(fetch_threads(owner, repo, pr_number), trigger_phrase, max_responses)
-    result = run_gh(f"pr view {pr_number} --repo {shlex.quote(owner + "/" + repo)} "
-                    "--json headRefOid,headRefName,body")
-    result.check_returncode()
-    metadata = json.loads(result.stdout)
-    head = metadata["headRefOid"]
-    branch = metadata["headRefName"]
-    if not re.fullmatch(r"[a-f0-9]{40,64}", head):
-        raise ValueError("Invalid PR head revision")
-    subprocess.run(["git", "check-ref-format", "--branch", branch],
-                   capture_output=True, check=True)
-    request.parent.mkdir(parents=True, exist_ok=True)
-    request.write_text(json.dumps({
-        "owner": owner, "repo": repo, "pr": pr_number, "head_sha": head,
-        "branch": branch, "pr_body": metadata["body"], "threads": threads,
-    }), encoding="utf-8")
-    if output := os.environ.get("GITHUB_OUTPUT"):
-        with Path(output).open("a", encoding="utf-8") as stream:
-            stream.write(f"has_work={str(bool(threads)).lower()}\nhead_sha={head}\n")
-
-
-def write_json(path: Path, value: dict) -> None:
-    """Replace reserved outputs without following an agent-created symlink."""
-    path.unlink(missing_ok=True)
-    path.write_text(json.dumps(value), encoding="utf-8")
-
-
-def apply(request: dict, artifacts: Path, attempts: int, timeout: int) -> None:
-    """Recover fresh Codex sessions and independently verify the resulting files."""
-    artifacts.mkdir(parents=True, exist_ok=True)
-    manifest = artifacts / "verified_changes.json"
-    manifest.unlink(missing_ok=True)
-    try:
-        if verification.changed_files() or verification.git("rev-parse", "HEAD").strip() != request["head_sha"]:
-            raise ValueError("Response requires the clean prepared PR revision")
-        if not os.environ.get("NVIDIA_API_KEY"):
-            raise ValueError("NVIDIA_API_KEY is required")
-        schema = artifacts / "reply_schema.json"
+def run_codex(
+    prompt: str,
+    model: str = "azure/openai/gpt-6-astra",
+    timeout: int = 720,
+) -> dict:
+    """Run one Codex session and adapt its final JSON to the existing reply flow."""
+    with tempfile.TemporaryDirectory(prefix="testbot-respond-") as directory:
+        artifacts = Path(directory)
+        schema, output = artifacts / "schema.json", artifacts / "response.json"
         schema.write_text(REPLY_SCHEMA, encoding="utf-8")
-        build_environment = agent_runner.reviewer_build_environment(artifacts)
-        environment = {key: value for key, value in os.environ.items()
-                       if key not in {"GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY"}}
-        prompt = build_prompt(request["threads"], request["pr"], request["pr_body"])
-        deadline = time.monotonic() + timeout
-        feedback = "Address the authorized requests."
-        for number in range(1, attempts + 1):
-            if time.monotonic() >= deadline:
-                break
-            write_json(artifacts / "checkpoint.json", {
-                "attempt": number, "feedback": feedback, "changed_files": verification.changed_files(),
-            })
-            output = artifacts / f"response-{number}.json"
-            output.unlink(missing_ok=True)
-            result = agent_runner.run_agent(
-                agent_runner.codex_command(artifacts, schema, output, build_environment),
-                prompt + f"\nCheckpoint: {artifacts / "checkpoint.json"}\n"
-                + f"Fresh session; preserve useful edits. Latest outcome: {feedback[-4000:]}\n",
-                artifacts / f"attempt-{number}", min(900, deadline - time.monotonic()),
-                "codex", env=environment)
-            patch = artifacts / f"attempt-{number}.patch"
-            patch.unlink(missing_ok=True)
-            verification.save_patch(patch)
-            if not result.successful:
-                feedback = f"{result.reason}: {result.summary}"
-                if not result.recoverable:
-                    break
+        command = agent_runner.codex_command(
+            artifacts, schema, output, agent_runner.reviewer_build_environment(artifacts),
+            model=model, allow_github=True)
+        result = agent_runner.run_agent(command, prompt, artifacts / "session", timeout, "codex")
+        if result.reason == "timeout":
+            return {"is_error": True, "subtype": "timeout"}
+        if not result.successful:
+            logger.error("Codex failed: %s: %s", result.reason, result.summary)
+            return {}
+        try:
+            parsed = json.loads(output.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                return {"structured_output": parsed, "result": result.summary}
+        except (OSError, ValueError) as error:
+            logger.error("Failed to read Codex JSON output: %s", error)
+        return {}
+
+
+def _extract_replies(agent_output: dict) -> dict[str, str]:
+    """Extract per-comment replies from Codex output with tiered fallback.
+
+    Returns a dict mapping comment_id (str) to reply text.
+    """
+    def _parse_replies_list(replies: list) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for entry in replies:
+            if not isinstance(entry, dict):
                 continue
-            try:
-                decision = validate_decision(json.loads(output.read_text(encoding="utf-8")), request["threads"])
-                check_body_change(decision, request)
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("Response time budget exhausted")
-                paths = verification.changed_files()
-                verification.check_change_scope(paths)
-                before = verification.fingerprint(paths)
-                if any(Path(name).suffix not in {".md", ".rst"} for name in paths):
-                    checks = artifacts / f"verify-{number}"
-                    checks.mkdir()
-                    verification.verify([], checks, request["head_sha"],
-                                        int(deadline - time.monotonic()), build_environment)
-                if (verification.git("rev-parse", "HEAD").strip() != request["head_sha"]
-                        or before != verification.fingerprint(verification.changed_files())):
-                    raise ValueError("Files or baseline changed during verification")
-                write_json(manifest, {"verified": True, "base_commit": request["head_sha"],
-                                      "files": before})
-                write_json(artifacts / "result.json", decision)
-                return
-            except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.CalledProcessError) as error:
-                feedback = str(error)
-                logger.warning("Attempt %d failed: %s", number, feedback)
-        raise RuntimeError(f"Response did not complete: {feedback}")
-    except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.CalledProcessError) as error:
-        manifest.unlink(missing_ok=True)
-        write_json(artifacts / "result.json", {"error": str(error)})
-        raise
+            comment_id = str(entry.get("comment_id", ""))
+            reply = entry.get("reply", "")
+            if comment_id and reply:
+                result[comment_id] = reply
+        return result
+
+    # Tier 1: structured_output.replies
+    structured = agent_output.get("structured_output")
+    if isinstance(structured, dict) and isinstance(structured.get("replies"), list):
+        replies = _parse_replies_list(structured["replies"])
+        if replies:
+            logger.info("Parsed %d replies from structured_output (tier 1)", len(replies))
+            return replies
+
+    # Tier 2: extract JSON from result text
+    result_text = agent_output.get("result", "")
+    if isinstance(result_text, str) and result_text:
+        try:
+            start = result_text.index("{")
+            end = result_text.rindex("}") + 1
+            data = json.loads(result_text[start:end])
+            if isinstance(data, dict) and isinstance(data.get("replies"), list):
+                replies = _parse_replies_list(data["replies"])
+                if replies:
+                    logger.info("Parsed %d replies from result text (tier 2)", len(replies))
+                    return replies
+        except (ValueError, json.JSONDecodeError):
+            pass
+
+    logger.warning("No per-thread replies found in Codex output")
+    return {}
 
 
-def commit_and_push(files: list[str], message: str, branch: str) -> bool:
-    """Commit verified paths and retry transient pushes without merging new changes."""
+def discard_changes() -> None:
+    """Discard all uncommitted changes and remove untracked files."""
+    subprocess.run(["git", "checkout", "--", "."], check=False)
+    subprocess.run(["git", "clean", "-fd", "--exclude=.claude/"], check=False)
+
+
+def commit_and_push(files: list[str], message: str) -> bool:
+    """Stage specific files, commit, and push with retries."""
+    logger.info("Commit message: %s", message.split("\n")[0])
     try:
-        for command in (["git", "reset", "HEAD"],
-                        ["git", "--literal-pathspecs", "add", "--", *files],
-                        ["git", "config", "user.name", "testbot[bot]"],
-                        ["git", "config", "user.email", "testbot[bot]@users.noreply.github.com"]):
-            subprocess.run(command, check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-F", "-"], input=message, text=True, check=True)
-        run_gh("auth setup-git --hostname github.com").check_returncode()
-    except (OSError, subprocess.CalledProcessError) as error:
-        logger.error("Commit/authentication failed: %s", error)
+        subprocess.run(["git", "add"] + files, check=True)
+        subprocess.run(
+            ["git", "commit", "-F", "-"],
+            input=message, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error("git add/commit failed: %s", exc)
         return False
     for attempt in range(1, MAX_PUSH_RETRIES + 1):
-        result = subprocess.run(["git", "push", "origin", f"HEAD:refs/heads/{branch}"],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ["git", "push"],
+            capture_output=True, text=True, check=False,
+        )
         if result.returncode == 0:
             return True
-        logger.warning("Push attempt %d failed: %s", attempt, result.stderr[:500])
-        if any(reason in result.stderr.lower() for reason in (
-                "gh013", "gh006", "non-fast-forward", "fetch first", "[rejected]",
-                "permission denied", "authentication failed", "403", "401")):
-            break
+        stderr = result.stderr.strip()
+        logger.warning(
+            "git push failed (attempt %d/%d): %s",
+            attempt, MAX_PUSH_RETRIES, stderr[:500],
+        )
+        # Repository rule violations (GH013) won't resolve with retries.
+        if "GH013" in stderr:
+            logger.error(
+                "Push blocked by repository ruleset. "
+                "The service account may need bypass permissions."
+            )
+            return False
+        if attempt < MAX_PUSH_RETRIES:
+            subprocess.run(["git", "pull", "--rebase"], check=False)
+
+    logger.error("git push failed after %d attempts", MAX_PUSH_RETRIES)
     return False
 
 
@@ -426,7 +432,7 @@ def reply_to_comment(
     result = run_gh(
         f"api repos/{owner}/{repo}/pulls/{pr_number}"
         f"/comments/{reply_comment_id}/replies "
-        f"-f body={shlex.quote(message)}"
+        f"-F body={shlex.quote(message)}"
     )
     if result.returncode != 0:
         logger.error(
@@ -437,79 +443,145 @@ def reply_to_comment(
     return True
 
 
-def publish(request: dict, artifacts: Path) -> None:
-    """Publish verified writes before reporting success to the requesting threads."""
-    failure = ""
-    replies = {}
-    try:
-        if os.environ.get("TESTBOT_APPLY_OUTCOME") != "success":
-            raise ValueError("Apply stage did not succeed")
-        decision = validate_decision(json.loads((artifacts / "result.json").read_text(encoding="utf-8")),
-                                     request["threads"])
-        check_body_change(decision, request)
-        if verification.git("rev-parse", "HEAD").strip() != request["head_sha"]:
-            raise ValueError("PR revision changed after preparation")
-        files = verification.load_verified_changes(artifacts / "verified_changes.json")
-        current = run_gh(f"pr view {request["pr"]} --repo {shlex.quote(request["owner"] + "/" + request["repo"])} "
-                         "--json headRefOid,headRefName,body")
-        current.check_returncode()
-        metadata = json.loads(current.stdout)
-        if (not isinstance(metadata, dict) or metadata.get("headRefOid") != request["head_sha"]
-                or metadata.get("headRefName") != request["branch"]):
-            raise ValueError("PR head or branch changed; rerun the response")
-        if (decision["pr_body"] and decision["pr_body"] != request["pr_body"]
-                and metadata.get("body") != request["pr_body"]):
-            raise ValueError("PR description changed; rerun the response")
-        if files and not commit_and_push(files, sanitize_commit_message(decision["commit_message"]), request["branch"]):
-            raise RuntimeError("Could not push verified changes")
-        if decision["pr_body"] and decision["pr_body"] != request["pr_body"]:
-            run_gh(f"api --method PATCH repos/{request["owner"]}/{request["repo"]}/pulls/{request["pr"]} "
-                   f"-f body={shlex.quote(decision["pr_body"])}").check_returncode()
-        replies = {reply["comment_id"]: reply["reply"] for reply in decision["replies"]}
-    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
-        failure = str(error)
-        logger.error("Response publication failed: %s", failure)
-    reply_failed = False
-    for thread in request["threads"]:
-        message = ("I could not finish this request. See the workflow logs and retry.\n\n"
-                   + ERROR_REPLY_MARKER) if failure else (
-                       replies[str(thread["reply_comment_id"])].replace(ERROR_REPLY_MARKER, "")
-                       + f"\n\n<!-- testbot-request: {thread["reply_comment_id"]} -->")
-        if not reply_to_comment(request["owner"], request["repo"], request["pr"], thread, message):
-            reply_failed = True
-    if failure or reply_failed:
-        raise RuntimeError(failure or "Reply publication failed")
-
-
 def main() -> None:
-    """Keep GitHub credentials in preparation and publication stages."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("prepare", "apply", "publish"), required=True)
+    """Fetch actionable review threads, delegate to Codex, post replies."""
+    parser = argparse.ArgumentParser(
+        description="Respond to PR review comments via Codex CLI.",
+    )
     parser.add_argument("--pr-number", type=int, required=True)
-    parser.add_argument("--request", type=Path, required=True)
-    parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--trigger-phrase", default="/testbot")
-    parser.add_argument("--max-responses", type=int, default=10)
-    parser.add_argument("--attempts", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--max-responses", type=int, default=10,
+                        help="Max threads to address per trigger (default: 10)")
+    parser.add_argument("--timeout", type=int, default=720,
+                        help="Codex CLI timeout in seconds (default: 720)")
+    parser.add_argument("--model", default="azure/openai/gpt-6-astra",
+                        help="LLM model name (default: azure/openai/gpt-6-astra)")
     args = parser.parse_args()
-    request_path, artifacts = args.request.resolve(), args.artifacts.resolve()
-    if (request_path.is_relative_to(Path.cwd()) or request_path.is_relative_to(artifacts)
-            or artifacts.is_relative_to(Path.cwd())):
-        raise ValueError("Request and artifacts must be outside the checkout and separate")
-    if min(args.attempts, args.timeout, args.max_responses) <= 0:
-        raise ValueError("Budgets must be positive")
-    if args.stage == "prepare":
-        owner, repo = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO").split("/", 1)
-        prepare(owner, repo, args.pr_number, args.trigger_phrase, args.max_responses, request_path)
+
+    github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
+    owner, repo = github_repository.split("/", 1)
+
+    threads = fetch_threads(owner, repo, args.pr_number)
+    logger.info("Filtering %d threads for trigger '%s':", len(threads), args.trigger_phrase)
+    actionable = filter_actionable(threads, args.trigger_phrase, args.max_responses)
+    if not actionable:
+        logger.info("No actionable comments on PR #%d", args.pr_number)
         return
-    request = json.loads(request_path.read_text(encoding="utf-8"))
-    if request["pr"] != args.pr_number:
-        raise ValueError("Prepared PR differs from the requested PR")
-    if args.stage == "apply":
-        apply(request, artifacts, args.attempts, args.timeout)
+
+    logger.info("=== Actionable threads to send to Codex ===")
+    for thread in actionable:
+        logger.info(
+            "  reply_comment_id=%s author=%s path=%s line=%s trigger=%s",
+            thread["reply_comment_id"], thread["author"],
+            thread["path"], thread["line"],
+            thread["trigger_body"][:120].replace("\n", " "),
+        )
+
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    prompt = build_prompt(actionable, args.pr_number)
+    logger.info("Running Codex for %d comment(s)...", len(actionable))
+    agent_output = run_codex(
+        prompt, model=args.model, timeout=args.timeout,
+    )
+
+    if not agent_output:
+        logger.error("Codex failed — discarding any partial changes")
+        discard_changes()
+        for comment in actionable:
+            reply_to_comment(
+                owner, repo, args.pr_number, comment,
+                "I encountered an error processing this request. "
+                "Please retry or handle manually.\n\n"
+                + ERROR_REPLY_MARKER,
+            )
+        return
+
+    # On timeout or max-turns, discard partial file changes (may be incomplete)
+    # and post an informative reply with the error marker so the user can
+    # retry without having to repost the /testbot comment.
+    subtype = agent_output.get("subtype")
+    if subtype in ("timeout", "error_max_turns"):
+        reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
+        turns_used = agent_output.get("num_turns", "?")
+        logger.warning("Codex %s after %s turns — discarding partial changes", reason, turns_used)
+        discard_changes()
+        status_msg = (
+            f"I {reason} after {turns_used} turns. "
+            f"Try breaking this into smaller requests, or handle manually.\n\n"
+            + ERROR_REPLY_MARKER
+        )
+        for comment in actionable:
+            reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
+        return
+
+    logger.info("Codex output keys: %s", list(agent_output.keys()))
+    logger.info(
+        "Codex diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
+        agent_output.get("num_turns"),
+        agent_output.get("stop_reason"),
+        agent_output.get("terminal_reason"),
+        agent_output.get("total_cost_usd"),
+    )
+    if "structured_output" in agent_output:
+        logger.info("structured_output: %s", json.dumps(agent_output["structured_output"]))
+    if "result" in agent_output:
+        logger.info("result text: %s", agent_output["result"])
+
+    per_thread_replies = _extract_replies(agent_output)
+    structured = agent_output.get("structured_output", {})
+    raw_commit_message = (
+        structured.get("commit_message", "testbot: address review feedback")
+        if isinstance(structured, dict)
+        else "testbot: address review feedback"
+    )
+    commit_message = sanitize_commit_message(raw_commit_message)
+
+    modified_files = get_changed_files()
+    push_succeeded = False
+    if modified_files:
+        logger.info("Modified files: %s", modified_files)
+        push_succeeded = commit_and_push(modified_files, commit_message)
+        if not push_succeeded:
+            logger.error("Push failed — discarding changes")
+            subprocess.run(["git", "reset", "--hard", head_sha], check=False)
     else:
-        publish(request, artifacts)
+        logger.info("No file modifications detected")
+
+    # When push fails, Codex's per-thread replies describe work that wasn't
+    # applied — discard them so we don't mislead the reviewer.
+    if modified_files and not push_succeeded:
+        per_thread_replies = {}
+        fallback_message = (
+            "I prepared a fix but could not push it. "
+            "Please retry or push manually.\n\n"
+            + ERROR_REPLY_MARKER
+        )
+    elif not modified_files:
+        fallback_message = (
+            "I reviewed this but didn't find changes to make. "
+            "Please retry or review manually."
+        )
+    else:
+        fallback_message = "Fix applied — see the latest commit for details."
+
+    # Post reply to each actionable thread
+    replied = 0
+    for comment in actionable:
+        comment_id = str(comment["reply_comment_id"])
+        message = per_thread_replies.get(comment_id, fallback_message)
+        reply_posted = reply_to_comment(
+            owner, repo, args.pr_number, comment, message,
+        )
+        if reply_posted:
+            replied += 1
+
+    logger.info(
+        "Done: responded to %d comment(s) on PR #%d", replied, args.pr_number,
+    )
 
 
 if __name__ == "__main__":

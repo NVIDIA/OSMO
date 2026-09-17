@@ -190,7 +190,9 @@ def reviewer_build_environment(artifacts: Path) -> dict[str, str]:
 
 
 def codex_command(artifacts: Path, schema: Path, output: Path,
-                  build_environment: dict[str, str]) -> list[str]:
+                  build_environment: dict[str, str], *,
+                  model: str = 'azure/openai/gpt-6-astra',
+                  allow_github: bool = False) -> list[str]:
     """Use the NVIDIA Responses endpoint; credentials stay out of argv/config."""
     command = [
         'npx', '--yes', '@openai/codex@0.154.0',
@@ -198,7 +200,7 @@ def codex_command(artifacts: Path, schema: Path, output: Path,
         '--sandbox', 'workspace-write', '--add-dir', str(artifacts),
         '--output-schema', str(schema), '--output-last-message', str(output),
         '-c', 'model_provider="nvidia"',
-        '-c', 'model="azure/openai/gpt-6-astra"',
+        '-c', f'model={json.dumps(model)}',
         '-c', 'model_providers.nvidia.name="NVIDIA"',
         '-c', 'model_providers.nvidia.base_url="https://inference-api.nvidia.com/v1"',
         '-c', 'model_providers.nvidia.env_key="NVIDIA_API_KEY"',
@@ -206,9 +208,12 @@ def codex_command(artifacts: Path, schema: Path, output: Path,
         '-c', 'model_providers.nvidia.requires_openai_auth=false',
         '-c', 'model_providers.nvidia.supports_websockets=false',
         '-c', 'sandbox_workspace_write.network_access=true',
-        '-c', 'shell_environment_policy.exclude=["NVIDIA_API_KEY", "ANTHROPIC_API_KEY", '
-              '"GH_TOKEN", "GITHUB_TOKEN"]',
+        '-c', 'shell_environment_policy.exclude=' + json.dumps(
+            ['NVIDIA_API_KEY', 'ANTHROPIC_API_KEY']
+            + ([] if allow_github else ['GH_TOKEN', 'GITHUB_TOKEN'])),
     ]
+    if allow_github:
+        command.extend(['-c', 'shell_environment_policy.ignore_default_excludes=true'])
     for name, value in build_environment.items():
         command.extend(['-c', f'shell_environment_policy.set.{name}={json.dumps(value)}'])
     return command + ['-']

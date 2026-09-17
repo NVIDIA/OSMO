@@ -72,30 +72,23 @@ authentication. See the permissions table below and `TESTBOT_REVIEW_PROMPT.md`.
 
 ### Review Response (`testbot-respond.yaml`)
 
-```mermaid
-flowchart LR
-    A[Prepare authorized requests] --> B[Codex: apply and recover]
-    B --> C[Verify final changes]
-    C --> D[Push changes and reply]
+```text
+/testbot comment → respond.py
+  ├─ fetch all thread comments (GraphQL)
+  ├─ filter: trigger phrase, author, dedup
+  ├─ Codex CLI: read files, apply fix, run tests
+  ├─ respond.py: git commit + push
+  ├─ structured reply via --output-schema
+  └─ post inline reply to each thread
 ```
 
-The responder uses the same `azure/openai/gpt-6-astra` model, sandbox, build
-cache, and recovery runner as final review. Each run snapshots pending member
-requests and the PR revision, then makes up to three attempts within 30 minutes.
-Retries preserve edits and checkpoint the failure. New comments queue behind
-active work; bot replies do not trigger another editing session.
-
-Codex can fix source bugs and resolve skipped tests. It returns one structured
-reply per requested comment. The harness checks scope and runs final tests for
-code changes; documentation-only edits still require matching file fingerprints.
-A failed session or check blocks publication and retains diagnostics for 14 days.
-
-Preparation and publication use the harness from the PR's base revision. GitHub
-write credentials are available only to those steps, and checkout credentials
-are not persisted. Publication stages only verified files and pushes to the
-prepared branch without rebasing. Success replies follow successful publication;
-failed requests get an error reply and can be retried. PR descriptions change
-only when explicitly requested.
+| Feature | Description |
+|---------|-------------|
+| **Trigger** | Comment starting with `/testbot` on any PR with the `ai-generated` label |
+| **Thread context** | Full conversation history (all nested comments) passed to Codex |
+| **Structured output** | `--output-schema` returns per-thread replies and commit message |
+| **Safety** | Repo-member-only access, crash recovery, push retry |
+| **Dedup** | Skips threads where the bot already replied and is awaiting human follow-up |
 
 ### Generation and publication boundary
 
@@ -108,8 +101,7 @@ only when explicitly requested.
 | Commit, push, create PR | No | No | Yes, after verification |
 | Preserve failures and enforce budgets | — | — | Yes |
 
-The `/testbot` responder follows the same edit/verify/publish boundary and can
-also update the PR description when requested.
+The separate `/testbot` response workflow retains its existing permissions.
 
 ## Triggering on GitHub
 
@@ -178,18 +170,13 @@ default) → the in-code fallback `#osmo-slack-test` for forks/dev repos with
 no var configured. Pass an empty string to the dispatch input to skip the
 notification. Direct channel IDs are also accepted.
 
-### Review response (CLI)
+### Review response (CLI args in `testbot-respond.yaml`)
 
 | Arg | Default | Description |
 |-----|---------|-------------|
-| `--stage` | Required | `prepare`, `apply`, or `publish` |
-| `--attempts` | `3` | Fresh editing sessions after recoverable failures |
-| `--max-responses` | `10` | Maximum threads per run |
-| `--timeout` | `1800` | Shared editing and verification budget, in seconds |
-
-The workflow passes the PR number, a request snapshot, and an artifacts directory
-to each stage. Inference uses `NVIDIA_API_KEY`, falling back to `NVIDIA_NIM_KEY`;
-GitHub access uses `SVC_OSMO_CI_TOKEN` from the `testbot-respond` environment.
+| `--max-responses` | `10` | Max threads to address per trigger |
+| `--timeout` | `1800` | Codex session timeout in seconds (workflow) |
+| `--model` | `azure/openai/gpt-6-astra` | LLM model |
 
 ### Coverage target selection
 
@@ -266,7 +253,7 @@ src/scripts/testbot/
 ├── verify_coverage.py          # LCOV → per-range coverage report (used by generator + harness)
 ├── create_pr.py                # Branch, commit, push, open PR with agent summaries
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
-├── respond.py                  # Prepare requests, recover Codex, verify and publish
+├── respond.py                  # Review response: Codex CLI + GitHub API
 ├── TESTBOT_RULES.md            # Shared test quality rules and conventions
 ├── TESTBOT_PROMPT.md           # Prompt for generate workflow (coverage targets)
 ├── TESTBOT_RESPOND_PROMPT.md   # Prompt for respond workflow (review feedback)
