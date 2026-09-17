@@ -60,7 +60,9 @@ bootstrap job manages this credential; it is never stored in Helm values.
 The client ID is configurable through
 ``authentication.embeddedDex.mcpClientId``. MCP uses the release's Valkey and
 in-cluster Dex and Gateway endpoints, so it does not call its public loopback
-address from inside the pod.
+address from inside the pod. Keep Kubernetes Service links enabled on the MCP
+Pod (``enableServiceLinks: true``) so it can validate the in-cluster HTTP
+Gateway address.
 
 Dex issues opaque access tokens. MCP verifies the signed ID token instead,
 checking its issuer and MCP client audience, then forwards that verified token
@@ -74,9 +76,11 @@ restarts its Dex and MCP consumers; users must sign in again. Embedded Dex
 stores sessions and signing keys in memory and is intended for development
 and evaluation only.
 
-To use a separately managed MCP identity provider, set
-``services.mcp.oidcProxy.oidc.configUrl`` and the remaining explicit settings
-below. This also works when browser and CLI login still use embedded Dex.
+To use a separately managed identity provider only for MCP, set
+``services.mcp.oidcProxy.oidc.configUrl``, configure a matching Gateway JWT
+provider, and supply the remaining explicit settings below. Leave
+``authentication.provider`` set to ``embeddedDex`` to keep browser and CLI
+login on embedded Dex.
 
 External OIDC Prerequisites
 ===========================
@@ -88,10 +92,12 @@ Before enabling MCP:
   ``/mcp`` path; the chart derives the outbound Gateway origin from it.
 * In the unified ``osmo`` chart, enable ``planes.control.enabled``.
   Gateway Envoy, OAuth2 Proxy, and authorization are mandatory and cannot be
-  disabled. The default provider is embedded Dex; use
-  ``authentication.provider: externalOidc`` and ``authentication.externalOidc``
-  for an operator-managed provider. Supply the public HTTPS endpoint and
-  confidential application for external MCP OIDC.
+  disabled. MCP can use its own operator-managed OIDC provider while browser
+  and CLI login remain on embedded Dex. Setting
+  ``authentication.provider: externalOidc`` switches browser and CLI login for
+  the entire release; configure ``authentication.externalOidc`` for that option.
+  Supply the public HTTPS endpoint and confidential application for external
+  MCP OIDC.
 * Configure a matching identity-provider JWT entry under
   ``gateway.envoy.jwt.providers`` or ``gateway.envoy.jwt.additionalProviders``
   and role mappings for the upstream API token. The chart adds the MCP
@@ -363,8 +369,10 @@ Troubleshooting
    * - A tool returns ``HTTP 403``
      - Verify the user's API action and pool access for that tool.
    * - Tools time out or report a Gateway dependency failure
-     - Check reachability of the public Gateway origin derived from
-       ``resourceUrl``, then Gateway and API health.
+     - For embedded Dex with ``gateway.envoy.ssl.enabled: false``, check
+       reachability of the in-cluster Gateway Service. For external OIDC or
+       embedded Dex with Gateway Envoy TLS enabled, check the public Gateway
+       origin derived from ``resourceUrl``. Then check Gateway and API health.
    * - Direct in-cluster requests fail
      - With NetworkPolicy enforced, only this release's Gateway Envoy pods may
        reach MCP.

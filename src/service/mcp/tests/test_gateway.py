@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import asyncio
 from collections.abc import AsyncIterator, Callable, Coroutine
 import logging
+import os
 import unittest
 from unittest import mock
 
@@ -93,7 +94,14 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(options['verify'], True)
 
     async def test_embedded_http_transport_requires_explicit_opt_in(self) -> None:
-        with mock.patch.object(gateway.httpx, 'AsyncClient') as create_client:
+        with (
+            mock.patch.dict(os.environ, {
+                'OSMO_GATEWAY_URL': 'http://osmo-gateway:80',
+                'OSMO_GATEWAY_SERVICE_HOST': '10.96.0.10',
+                'OSMO_GATEWAY_SERVICE_PORT': '80',
+            }, clear=True),
+            mock.patch.object(gateway.httpx, 'AsyncClient') as create_client,
+        ):
             with self.assertRaises(ValueError):
                 async with gateway.create_app_context(
                     gateway_url='http://osmo-gateway', request_timeout_seconds=5,
@@ -107,6 +115,58 @@ class GatewayClientTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(create_client.call_args.kwargs['base_url'], 'http://osmo-gateway')
             self.assertIs(create_client.call_args.kwargs['follow_redirects'], False)
             self.assertIs(create_client.call_args.kwargs['trust_env'], False)
+
+    def test_embedded_http_allows_only_loopback_without_a_gateway_service(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            for origin in ('http://localhost:8080', 'http://127.0.0.1', 'http://[::1]'):
+                with self.subTest(origin=origin):
+                    gateway.validate_gateway_origin(origin, allow_http=True)
+                    with self.assertRaises(ValueError):
+                        gateway.validate_gateway_origin(origin)
+            for origin in ('http://external.example', 'http://osmo-gateway', 'http://10.96.0.10'):
+                with self.subTest(origin=origin), self.assertRaises(ValueError):
+                    gateway.validate_gateway_origin(origin, allow_http=True)
+            gateway.validate_gateway_origin('https://external.example', allow_http=True)
+
+    def test_embedded_http_requires_the_configured_gateway_service_origin(self) -> None:
+        with mock.patch.dict(os.environ, {
+            'OSMO_GATEWAY_URL': 'http://custom-gateway:8080',
+            'CUSTOM_GATEWAY_SERVICE_HOST': '10.96.0.10',
+            'CUSTOM_GATEWAY_SERVICE_PORT': '8080',
+            'OTHER_SERVICE_HOST': '10.96.0.11',
+            'OTHER_SERVICE_PORT': '8080',
+        }, clear=True):
+            gateway.validate_gateway_origin('http://custom-gateway:8080/', allow_http=True)
+            for origin in (
+                'http://external.example:8080',
+                'http://custom-gateway.external.example:8080',
+                'http://other:8080',
+                'http://custom-gateway',
+                'http://custom-gateway:0',
+                'http://custom-gateway:8081',
+            ):
+                with self.subTest(origin=origin), self.assertRaises(ValueError):
+                    gateway.validate_gateway_origin(origin, allow_http=True)
+            for settings in (
+                {'OSMO_GATEWAY_URL': 'http://custom-gateway:invalid'},
+                {'OSMO_GATEWAY_URL': 'https://custom-gateway:8080'},
+                {'CUSTOM_GATEWAY_SERVICE_HOST': ''},
+                {'CUSTOM_GATEWAY_SERVICE_HOST': 'external.example'},
+                {'CUSTOM_GATEWAY_SERVICE_PORT': '80'},
+            ):
+                with (
+                    self.subTest(settings=settings),
+                    mock.patch.dict(os.environ, settings),
+                    self.assertRaises(ValueError),
+                ):
+                    gateway.validate_gateway_origin('http://custom-gateway:8080', allow_http=True)
+
+    def test_configured_external_http_origin_is_rejected(self) -> None:
+        with mock.patch.dict(os.environ, {
+            'OSMO_GATEWAY_URL': 'http://external.example',
+        }, clear=True):
+            with self.assertRaises(ValueError):
+                gateway.validate_gateway_origin('http://external.example', allow_http=True)
 
     def test_embedded_http_transport_keeps_origin_validation(self) -> None:
         for url in (

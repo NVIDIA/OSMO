@@ -561,7 +561,10 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                             self.assertIsNone(access)
                 # A valid Dex token is insufficient without the MCP resource
                 # token and its server-side session mapping.
-                self.assertIsNone(await provider.load_access_token(identity_token))
+                valid_identity_token = keys.create_token(
+                    issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
+                )
+                self.assertIsNone(await provider.load_access_token(valid_identity_token))
                 wrong_signature = RSAKeyPair.generate().create_token(
                     issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
                 )

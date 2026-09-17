@@ -611,14 +611,23 @@ class MCPServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('result-size-secret', response.text)
 
     def test_embedded_dex_allows_the_in_cluster_http_gateway(self) -> None:
-        config = protocol_harness.service_config(
-            oidc_provider='embeddedDex',
-            gateway_url='http://osmo-gateway:80',
-            resource_url='http://127.0.0.1:30080/mcp',
-            oidc_config_url='http://osmo-dex:5556/dex/.well-known/openid-configuration',
-            oidc_access_token_issuer=None,
-        )
-        self.assertEqual(str(config.gateway_url), 'http://osmo-gateway/')
+        with mock.patch.dict(os.environ, {
+            'OSMO_GATEWAY_URL': 'http://osmo-gateway:80',
+            'OSMO_GATEWAY_SERVICE_HOST': '10.96.0.10',
+            'OSMO_GATEWAY_SERVICE_PORT': '80',
+        }, clear=True):
+            config = protocol_harness.service_config(
+                oidc_provider='embeddedDex',
+                gateway_url='http://osmo-gateway:80',
+                resource_url='http://127.0.0.1:30080/mcp',
+                oidc_config_url='http://osmo-dex:5556/dex/.well-known/openid-configuration',
+                oidc_access_token_issuer=None,
+            )
+            self.assertEqual(str(config.gateway_url), 'http://osmo-gateway/')
+            with self.assertRaises(pydantic.ValidationError):
+                protocol_harness.service_config(
+                    **{**config.model_dump(), 'gateway_url': 'http://external.example'},
+                )
 
     def test_runtime_config_requires_https_gateway_origin(self) -> None:
         config = protocol_harness.service_config(

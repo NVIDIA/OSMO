@@ -684,13 +684,22 @@ data:
                   {{- range $i, $provider := $jwtProviders }}
                   provider_{{$i}}:
                     issuer: {{ $provider.issuer }}
-                    audiences:
-                    {{- $audiences := $provider.audiences | default (list $provider.audience) }}
+                    {{- $audiences := list }}
+                    {{- range ($provider.audiences | default (list $provider.audience)) }}
+                    {{- if kindIs "string" . }}
+                    {{- $audiences = append $audiences . }}
+                    {{- end }}
+                    {{- end }}
                     {{- if and $mcpEnabled (eq (trimSuffix "/" $provider.issuer) $mcpTokenIssuer) }}
                     {{- $audiences = uniq (append $audiences $mcpTokenAudience) }}
                     {{- end }}
+                    {{- if $audiences }}
+                    audiences:
                     {{- range $audiences }}
-                    - {{ . }}
+                    - {{ . | quote }}
+                    {{- end }}
+                    {{- else }}
+                    audiences: []
                     {{- end }}
                     forward: true
                     payload_in_metadata: verified_jwt_{{$i}}

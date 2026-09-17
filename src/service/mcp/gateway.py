@@ -20,8 +20,10 @@ import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 import contextlib
 import dataclasses
+import ipaddress
 import json
 import math
+import os
 import re
 import ssl
 import time
@@ -351,6 +353,38 @@ def validate_gateway_origin(gateway_url: str, *, allow_http: bool = False) -> No
         raise ValueError(
             f'gateway_url must be an {scheme_description} origin without credentials, '
             'path, query, or fragment.')
+    if (
+        parsed_url.scheme == 'http'
+        and parsed_url.hostname not in {'localhost', '127.0.0.1', '::1'}
+        and not _is_in_cluster_gateway_origin(parsed_url)
+    ):
+        raise ValueError(
+            'HTTP Gateway URLs must use loopback or the configured in-cluster Gateway Service.')
+
+
+def _is_in_cluster_gateway_origin(parsed_url: parse.SplitResult) -> bool:
+    """Match the chart URL to its Kubernetes-provided Service configuration."""
+    hostname = parsed_url.hostname or ''
+    if re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', hostname) is None:
+        return False
+    try:
+        configured_url = parse.urlsplit(os.environ.get('OSMO_GATEWAY_URL', ''))
+        configured_port = configured_url.port
+    except ValueError:
+        return False
+    port = 80 if parsed_url.port is None else parsed_url.port
+    if (
+        configured_url.scheme != 'http'
+        or configured_url.hostname != hostname
+        or (80 if configured_port is None else configured_port) != port
+    ):
+        return False
+    service_prefix = hostname.upper().replace('-', '_')
+    try:
+        ipaddress.ip_address(os.environ.get(f'{service_prefix}_SERVICE_HOST', ''))
+    except ValueError:
+        return False
+    return os.environ.get(f'{service_prefix}_SERVICE_PORT') == str(port)
 
 
 def _validate_api_path(path: str) -> None:
