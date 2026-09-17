@@ -71,24 +71,25 @@ the default entries. Set an entry's ``enabled`` field to ``false`` to disable a
 default. Compute-plane authentication must reference a token identity whose
 only role is ``osmo-backend``.
 
-In charts predating PR #1414, the pre-install/pre-upgrade bootstrap Job
-creates or reconciles retained
-password, token, and OAuth credential Secrets; the separate post-install/
-post-upgrade Job restarts Dex when Helm updates its config Secret. The Jobs
-delete only Dex or OAuth2 Proxy Pods selected by release-specific labels and
-record applied one-way identities on the hook-owned Secrets. They do not patch
-Helm-managed Deployments, so Argo CD and other declarative deployment tools do
-not observe rollout drift. This requires namespace-scoped ``list`` and ``delete``
-Pod permissions for the bootstrap ServiceAccount. Retrieve the random password
+The pre-install/pre-upgrade bootstrap hook creates or reconciles retained
+Dex passwords and OAuth credential Secrets. The separate post-install/
+post-upgrade hook restarts Dex when Helm updates its config Secret. These
+hooks remain in charts containing PR #1414. They delete only Dex or OAuth2
+Proxy Pods selected by release-specific labels and record applied one-way
+identities on the hook-owned Secrets. They do not patch Helm-managed
+Deployments, so Argo CD and other declarative deployment tools do not observe
+rollout drift. This requires namespace-scoped ``list`` and ``delete`` Pod
+permissions for the bootstrap ServiceAccount. Retrieve the random password
 only with an explicit Kubernetes Secret read; do not add it to values, Git,
-Helm commands, or logs.
-Existing valid credentials remain byte-for-byte stable. Charts containing
-PR #1414 run identity creation inside the shared sequenced bootstrap Job and
-use verified credential startup gates. They fail closed if a retained credential
-is missing; deleting a Secret is not a rotation request. Follow
-:ref:`sequenced_bootstrap` for initialization, adoption, and recovery, and use
-the lifecycle instructions for your installed chart version before replacing
-credentials.
+Helm commands, or logs. Existing valid credentials remain byte-for-byte stable.
+
+In charts predating PR #1414, the identity hook also creates OSMO access tokens.
+Charts containing PR #1414 create those tokens in the shared sequenced OSMO
+bootstrap Job, which fails closed if a retained token is missing. Dex and
+OAuth2 Proxy keep their upstream configuration mounts and do not use the OSMO
+credential startup gate. Follow :ref:`sequenced_bootstrap` for OSMO token
+initialization, adoption, and recovery, and use the lifecycle instructions for
+your installed chart version before replacing credentials.
 
 Remove obsolete configuration
 ==============================

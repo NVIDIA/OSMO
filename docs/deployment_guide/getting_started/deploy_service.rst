@@ -21,10 +21,20 @@
 Deploy Service
 ==============
 
-This guide provides step-by-step instructions for deploying OSMO service
-components on a Kubernetes cluster. It uses the unified ``osmo`` Helm chart in
-control-plane-only mode and externally managed PostgreSQL, Valkey, and object
-storage.
+Deploy a fresh OSMO service with the unified ``osmo`` Helm chart. The simplest
+path uses embedded PostgreSQL, Valkey, object storage, and Dex. The chart and
+CloudNativePG create the required Secrets during installation, including the
+database credentials and CA, storage credentials, master encryption key (MEK),
+service signing identity, and administrator password. You do not need to create
+any Secrets manually.
+
+This example installs the control plane for development and evaluation. For a
+complete service and compute deployment, see :ref:`deploy_minimal`. For
+production, see :ref:`deploy_self_contained` or the chart's
+`deployment profiles
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/osmo/profiles>`_.
+Embedded Dex uses memory-only sessions and signing keys and is intended for
+development and evaluation.
 
 Components Overview
 ===================
@@ -59,26 +69,230 @@ OSMO deployment consists of several main components:
    :align: center
 
 Prerequisites
--------------
+=============
 
-The cluster must run Kubernetes 1.30 or newer. Install Helm 3.19 or newer,
-``kubectl``, and Python 3, select the target cluster context, and confirm that
-the control plane can reach PostgreSQL, Valkey, object storage, and your
-identity provider. Create the deployment namespace before creating Secrets:
+Use Kubernetes 1.30 or newer, Helm 3.19 or newer, ``kubectl``, and a default
+dynamic StorageClass. Select the target cluster context and check storage:
+
+.. code-block:: bash
+
+   $ kubectl config current-context
+   $ kubectl get storageclass
+
+Embedded PostgreSQL requires the CloudNativePG operator. Install it if it is
+not already available in the cluster:
+
+.. code-block:: bash
+
+   $ helm repo add cnpg https://cloudnative-pg.github.io/charts
+   $ helm repo update cnpg
+   $ helm upgrade --install cnpg cnpg/cloudnative-pg \
+       --version 0.29.0 \
+       --namespace cnpg-system --create-namespace \
+       --wait --timeout 10m
+
+Allow capacity for the OSMO services and the embedded dependencies. The default
+persistent volume requests are 1 GiB for PostgreSQL, 512 MiB for Valkey, and
+1 GiB for object storage. This service-only installation does not require
+KAI Scheduler or a GPU operator.
+
+.. _deploy_service_osmo_values:
+
+Prepare Values
+==============
+
+Save the following as ``osmo-values.yaml``. It keeps the chart's embedded
+dependencies and credential generation enabled, disables the compute plane,
+and uses a local port-forward for browser and CLI access:
+
+.. code-block:: yaml
+
+   externalUrl: http://127.0.0.1:8080
+   # Use the OSMO image version packaged with the selected chart.
+   imageTag: ''
+
+   planes:
+     compute:
+       enabled: false
+
+   gateway:
+     envoy:
+       service:
+         type: ClusterIP
+     tls:
+       enabled: true
+       generated:
+         enabled: true
+
+There are no passwords, CA bundles, or existing Secret references to supply.
+CloudNativePG creates PostgreSQL's password and CA Secrets. Embedded Valkey
+uses its generated password without TLS, so it does not need a CA Secret.
+OSMO also generates the internal TLS certificates enabled above. Keep embedded
+Dex enabled to use the generated administrator login.
+
+Use these values directly with the chart defaults. The
+``split-plane-control.yaml`` profile selects external dependencies and requires
+additional configuration; it is not needed for this fresh install.
+
+.. _deploy_service_deploy_components:
+
+Deploy Components
+=================
+
+Add the OSMO chart repository and choose a published unified chart version with
+matching OSMO images. Use the same ``<chart-version>`` in every command:
+
+.. code-block:: bash
+
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm repo update osmo
+   $ helm search repo osmo/osmo --versions
+   $ helm show chart osmo/osmo --version <chart-version>
+
+Render the release before installing it. The API flag tells the offline render
+that the CloudNativePG operator is available:
+
+.. code-block:: bash
+
+   $ helm template osmo osmo/osmo --version <chart-version> \
+       --namespace osmo \
+       --api-versions postgresql.cnpg.io/v1 \
+       --values osmo-values.yaml > /tmp/osmo-rendered.yaml
+
+For charts containing PR #1414, add
+``--set-string bootstrap.initializationId=my-new-osmo-installation`` to the
+initial install below and use ``--timeout 140m``. See
+:ref:`sequenced_bootstrap` for that version's lifecycle details.
+
+Install the service and wait for bootstrap and migration Jobs:
+
+.. code-block:: bash
+
+   $ helm upgrade --install osmo osmo/osmo --version <chart-version> \
+       --namespace osmo --create-namespace \
+       --values osmo-values.yaml \
+       --wait --wait-for-jobs --timeout 30m
+
+.. _deployment_secrets_cleanup:
+
+After successful bootstrap
+--------------------------
+
+After the first successful installation, add the following to
+``osmo-values.yaml`` to disable the install-only MEK and service-auth creation
+steps. Keep the generated Secrets and their default references:
+
+.. code-block:: yaml
+
+   secrets:
+     masterEncryptionKey:
+       bootstrap:
+         enabled: false
+     serviceAuth:
+       bootstrap:
+         enabled: false
+
+Apply the saved values. For a chart containing PR #1414, also add
+``--set-string bootstrap.initializationId=`` and use ``--timeout 140m``.
+Remove the initialization ID from saved values if you added it there:
+
+.. code-block:: bash
+
+   $ helm upgrade osmo osmo/osmo --version <chart-version> \
+       --namespace osmo \
+       --values osmo-values.yaml \
+       --wait --wait-for-jobs --timeout 30m
+
+For a Quickstart or minimal deployment installed from the repository with
+command-line settings, preserve those settings using ``--reuse-values``:
+
+.. code-block:: bash
+
+   helm upgrade osmo deployments/charts/osmo \
+     --namespace osmo \
+     --reuse-values \
+     --set secrets.masterEncryptionKey.bootstrap.enabled=false \
+     --set secrets.serviceAuth.bootstrap.enabled=false \
+     --wait --wait-for-jobs --timeout 20m
+
+For charts containing PR #1414, also clear the initialization ID and use the
+longer timeout described above. Save the disabled flags for future upgrades.
+Other enabled bootstrap operations can still require Secret access. Back up
+retained Secrets with their database and storage data; never generate a new
+MEK for an existing database. Helm uninstall or rollback does not restore or
+rotate Secret contents.
+
+Verify and Sign In
+==================
+
+Check that the service, embedded dependencies, and bootstrap Jobs are ready:
+
+.. code-block:: bash
+
+   $ helm status osmo --namespace osmo
+   $ kubectl --namespace osmo get pods,jobs,pvc,services
+   $ kubectl --namespace osmo get secret \
+       osmo-master-encryption-key osmo-service-auth osmo-embedded-dex-admin
+   $ kubectl --namespace osmo wait --for=condition=Available deployment \
+       --selector=app.kubernetes.io/instance=osmo --timeout=10m
+
+Keep this port-forward running:
+
+.. code-block:: bash
+
+   $ kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
+
+In another private terminal, verify the API and retrieve the generated
+administrator password:
+
+.. code-block:: bash
+
+   $ curl --fail http://127.0.0.1:8080/api/version
+   $ kubectl --namespace osmo get secret osmo-embedded-dex-admin \
+       --output jsonpath='{.data.password}' | base64 --decode
+   $ printf '\n'
+
+Open http://127.0.0.1:8080 and sign in as ``admin@osmo.local`` with that
+password. Install the :ref:`OSMO CLI <cli_install>` and sign in:
+
+.. code-block:: bash
+
+   $ osmo login http://127.0.0.1:8080
+
+The service is now ready. Running workflows also requires a compute backend;
+continue with :ref:`deploy_backend` when you are ready to connect one. Before
+connecting a remote backend, configure a gateway URL reachable from that
+cluster and its workflow pods, and make object storage reachable from those
+pods. Embedded object storage uses cluster DNS by default. The local
+port-forward is only for this initial service evaluation.
+
+.. _deploy_service_external_dependencies:
+
+Optional: Use External Dependencies
+===================================
+
+Skip this section for the fresh install above. Use it only when you already
+have PostgreSQL, Valkey, or object storage to connect to instead of the embedded
+components. Configure each selected external dependency before the initial
+install; changing to an external database later requires a data migration.
+Merge the following settings into ``osmo-values.yaml``, keeping one mapping for
+each top-level key.
+
+External credentials belong to those services and cannot be generated by OSMO.
+Static authentication therefore requires existing Secrets; object storage can
+instead use workload identity. The examples use ``stringData`` so the keys are
+clear. Replace placeholders, restrict file access, and never commit credentials.
+Create the namespace before creating any external Secrets:
 
 .. code-block:: bash
 
    $ kubectl create namespace osmo
 
-The Secret manifests in this guide use ``stringData`` so their required keys
-are clear. Replace every placeholder before applying them, restrict access to
-the files, and never commit them to source control.
-
 Configure PostgreSQL Connection
-===============================
+-------------------------------
 
-Create an empty PostgreSQL database for OSMO. The database user must be able to
-create and update objects in that database. The username is non-secret
+Disable embedded PostgreSQL and create an empty external database for OSMO.
+The database user must be able to create and update objects in that database. The username is non-secret
 connection metadata configured in Helm values. Store the password under the
 default ``db-password`` key and save the following as
 ``postgresql-secret.yaml``:
@@ -98,9 +312,8 @@ default ``db-password`` key and save the following as
 
    $ kubectl create --filename postgresql-secret.yaml
 
-Reference the endpoint and Secret in ``osmo-values.yaml``:
-
-If PostgreSQL uses a private CA, save the referenced trust Secret as
+With ``sslMode: verify-full``, the chart requires a CA Secret, even for a
+publicly trusted certificate. Save the CA that signs the server certificate in
 ``postgresql-ca-secret.yaml`` and create it first:
 
 .. code-block:: yaml
@@ -122,6 +335,10 @@ If PostgreSQL uses a private CA, save the referenced trust Secret as
    $ kubectl create --filename postgresql-ca-secret.yaml
 
 .. code-block:: yaml
+
+   embeddedDependencies:
+     postgresql:
+       enabled: false
 
    externalDependencies:
      postgresql:
@@ -147,7 +364,7 @@ authenticate the server; ``verify-full`` is preferred. For a server that does
 not use TLS, set ``tls.enabled: false``.
 
 Configure Valkey Connection
-===========================
+---------------------------
 
 OSMO requires Valkey or Redis 7 or newer. Save a Secret whose default key is
 ``redis-password`` as ``valkey-secret.yaml``:
@@ -192,6 +409,10 @@ Add the connection to ``osmo-values.yaml``:
 
 .. code-block:: yaml
 
+   embeddedDependencies:
+     valkey:
+       enabled: false
+
    externalDependencies:
      valkey:
        host: valkey.example.com
@@ -218,14 +439,14 @@ for a trusted network endpoint that does not provide TLS.
 .. _configure_data:
 
 Configure Storage Connection
-============================
+----------------------------
 
 OSMO uses three locations for workflow state, logs, and application bundles.
 All locations must use the same scheme: ``s3://``, ``azure://``, or
 ``swift://``.
 
 Static credentials
-------------------
+^^^^^^^^^^^^^^^^^^
 
 Create one Secret containing the credential document. The following S3 or
 S3-compatible example can be saved as ``object-storage-secret.yaml``:
@@ -251,6 +472,10 @@ Reference the Secret and locations in ``osmo-values.yaml``:
 
 .. code-block:: yaml
 
+   embeddedDependencies:
+     objectStorage:
+       enabled: false
+
    externalDependencies:
      objectStorage:
        authentication:
@@ -275,7 +500,7 @@ The three locations may share a bucket or container. Grant only the read/write
 permissions needed for those prefixes.
 
 Workload identity
------------------
+^^^^^^^^^^^^^^^^^
 
 As an alternative, configure AWS IRSA, Azure Workload Identity, or GCP
 Workload Identity and grant the identities used by the API, worker, and
@@ -301,6 +526,10 @@ Select the provider SDK's default credential chain, add the identity to each
 target pool's pod templates, and do not configure an object-storage Secret:
 
 .. code-block:: yaml
+
+   embeddedDependencies:
+     objectStorage:
+       enabled: false
 
    externalDependencies:
      objectStorage:
@@ -355,21 +584,14 @@ used by the release; with release name ``osmo`` they are ``osmo-api``,
 
 .. _deployment_secrets:
 
-Configure Other Secrets
-=======================
+Optional: Customize Secret Management
+=====================================
 
-The unified ``deployments/charts/osmo`` chart creates credentials for enabled
-managed components during installation. For a new Quickstart or self-contained
-installation, do not run the legacy ``kubectl create secret`` commands for the
-MEK, service signing identity, embedded Dex, or managed backend tokens. Configure
-Secret references and bootstrap settings in Helm values; bootstrap writes the
-credential bytes directly to Kubernetes.
-
-Automatic creation depends on the selected profile. The single-plane and
-split-plane profiles use external dependencies and disable some credential
-creation steps. An ``existingSecret`` reference alone does not always mean you
-must pre-create the Secret: for the MEK and service auth it is also the name of
-the output when OSMO bootstrap is enabled.
+Skip this section for the fresh install above: the chart defaults already
+create the managed credentials. Use these settings only to change credential
+ownership, restore an existing deployment, or understand which component owns
+each Secret. An ``existingSecret`` reference can name the output of enabled
+bootstrap; it does not always mean you must create the Secret yourself.
 
 .. list-table::
    :header-rows: 1
@@ -419,8 +641,8 @@ workload identity instead of a static Secret. See
 
 The Quickstart and self-contained profiles enable MEK and service-auth
 bootstrap by default. The single-plane and split-plane base profiles disable
-those steps; this guide's environment values explicitly enable them for a new
-installation. Select one owner for each credential below.
+those steps; the fresh-install path above uses chart defaults, which enable
+them. Select one owner for each credential below.
 
 MEK
 ---
@@ -642,11 +864,12 @@ Charts containing PR #1414
 ------------------------------
 
 `PR #1414 <https://github.com/NVIDIA/OSMO/pull/1414>`_ consolidates ordinary
-bootstrap into one Job, in this order: TLS, identities, service auth, MEK, and
-object-storage buckets, followed by consumer readiness checks. It retains the
-per-step values above; disabled steps do not run. CA and MEK rotations and
-database migrations remain separate operations. Use this section only with a
-chart and matching images that include that change.
+OSMO bootstrap into one Job, in this order: TLS, OSMO access tokens, service
+auth, MEK, and object-storage buckets, followed by consumer readiness checks.
+Dex passwords and OAuth credentials still use separate Helm hooks. The Job
+retains the per-step values above; disabled steps do not run. CA and MEK
+rotations and database migrations remain separate operations. Use this section
+only with a chart and matching images that include that change.
 
 For an intentionally new installation, add a unique, non-secret ID to the
 initial Helm install command:
@@ -670,7 +893,7 @@ Keep the runtime-owned ``<fullname>-bootstrap-state`` ConfigMap with the retaine
 Secrets. Missing, changed, or foreign credential identities fail closed;
 deleting a Secret is not a rotation procedure. Follow the chart's
 `bootstrap recovery instructions
-<https://github.com/NVIDIA/OSMO/blob/548ccd9bfe7ca1dcfe0e69d9e5039a45b77ef8b3/deployments/charts/osmo/README.md#one-bootstrap-job>`_
+<https://github.com/NVIDIA/OSMO/blob/cd396d7ce387b66c7ac8f8b4146e65f6fac5383f/deployments/charts/osmo/README.md#one-bootstrap-job>`_
 for credential replacement, adoption, and recovery.
 
 If a bootstrap attempt fails, capture the Job logs and events, correct the
@@ -681,90 +904,8 @@ once its old execution is confirmed terminal. Recreating a Secret with the same
 bytes changes its UID and is not a supported way to bypass retained identity
 checks.
 
-.. _deploy_service_osmo_values:
-
-Prepare Values
-==============
-
-The chart packages a ``profiles/split-plane-control.yaml`` base profile for an
-HA control plane with external PostgreSQL, Valkey, and object storage. The
-profile enables the control plane, disables the compute plane and embedded
-stateful dependencies, uses the chart application version for OSMO images, and
-configures autoscaling, disruption budgets, and topology spreading. The
-deployment commands below layer ``osmo-values.yaml`` after that profile.
-
-Combine only the site-specific settings above in ``osmo-values.yaml``. This
-static-credential example uses the chart defaults for embedded Dex and uses
-chart-managed MEK, service auth, and internal TLS. Replace every angle-bracket
-placeholder:
-
-.. code-block:: yaml
-
-   externalUrl: https://osmo.example.com
-
-   externalDependencies:
-     postgresql:
-       host: <postgresql-host>
-       port: 5432
-       database: osmo
-       username: <postgresql-username>
-       tls:
-         enabled: true
-         sslMode: verify-full
-         caExistingSecret: osmo-postgresql-ca
-         caKey: ca.crt
-     valkey:
-       host: <valkey-host>
-       port: 6379
-       database: 0
-       tls:
-         enabled: true
-     objectStorage:
-       authentication:
-         type: static
-       locations:
-         workflows: s3://<bucket>/workflows
-         logs: s3://<bucket>/logs
-         apps: s3://<bucket>/apps
-       s3:
-         region: <region>
-         overrideUrl: ''
-
-   secrets:
-     postgresql:
-       existingSecret: osmo-postgresql
-     valkey:
-       generate: false
-       existingSecret: osmo-valkey
-     objectStorage:
-       generate: false
-       existingSecret: osmo-object-storage
-     masterEncryptionKey:
-       managementMode: osmo
-       existingSecret:
-         name: osmo-master-encryption-key
-         key: mek.yaml
-       bootstrap:
-         enabled: true
-     serviceAuth:
-       managementMode: osmo
-       existingSecret:
-         name: osmo-service-auth
-         key: authentication-config.json
-       bootstrap:
-         enabled: true
-
-   gateway:
-     envoy:
-       service:
-         type: LoadBalancer
-     tls:
-       enabled: true
-       generated:
-         enabled: true
-
-Configure an External IdP
-=========================
+Optional: Configure an External IdP
+===================================
 
 By default, the unified chart enables an embedded Dex identity provider and
 bootstraps a statically configured admin identity. Embedded Dex uses volatile
@@ -774,11 +915,27 @@ and use your organization's external OIDC identity provider. External browser
 client and cookie Secrets remain operator-owned even when bootstrap is enabled;
 embedded Dex generates its own OAuth credentials automatically.
 
-Before continuing, follow
+For the fresh install above, keep embedded Dex and skip this section. To use
+an external provider, follow
 :doc:`../appendix/authentication/identity_provider_setup` to register the
 required confidential browser and public CLI clients and collect their IDs,
-endpoints, and claims. Then save the browser client secret and a random
-32-byte cookie secret as ``external-oidc-secret.yaml``:
+endpoints, and claims. Set ``externalUrl`` in ``osmo-values.yaml`` to the
+client-facing URL registered with the provider. For a public deployment,
+configure matching DNS, gateway exposure through a load balancer or Ingress,
+and public HTTPS termination. ``gateway.tls`` protects internal service traffic;
+it does not provide public edge TLS. For local evaluation, keep the port-forward
+and register exactly ``http://127.0.0.1:8080/oauth2/callback`` if your provider
+allows it.
+
+If the ``osmo`` namespace does not exist yet, create it before applying the
+external OIDC Secret:
+
+.. code-block:: bash
+
+   $ kubectl create namespace osmo
+
+Save the browser client secret and a random 32-byte cookie secret as
+``external-oidc-secret.yaml``:
 
 .. code-block:: bash
 
@@ -840,132 +997,6 @@ OIDC discovery remain supported:
 
 See :doc:`../appendix/authentication/idp_role_mapping` for role mapping.
 
-.. _deploy_service_deploy_components:
-
-Deploy Components
-=================
-
-Add the published OSMO chart repository and select the chart version to deploy.
-Pull that version once to obtain its matching control-plane profile for the
-values layering below:
-
-.. code-block:: bash
-
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   $ helm repo update
-   $ helm pull osmo/osmo --version <chart-version> \
-       --untar --untardir /tmp/osmo-chart
-   $ helm show chart osmo/osmo --version <chart-version>
-
-Render and lint the release before changing the cluster:
-
-.. code-block:: bash
-
-   $ helm lint /tmp/osmo-chart/osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
-       --values osmo-values.yaml
-   $ helm template osmo osmo/osmo --version <chart-version> \
-       --namespace osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
-       --values osmo-values.yaml > /tmp/osmo-rendered.yaml
-
-For charts containing PR #1414, apply the initialization ID and timeout from
-:ref:`sequenced_bootstrap` to the initial install and cleanup commands below.
-
-Install the control plane and wait for bootstrap and migration Jobs:
-
-.. code-block:: bash
-
-   $ helm upgrade --install osmo osmo/osmo --version <chart-version> \
-       --namespace osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
-       --values osmo-values.yaml \
-       --wait --wait-for-jobs --timeout 30m
-
-.. _deployment_secrets_cleanup:
-
-After successful bootstrap
---------------------------
-
-After a successful chart-managed MEK and service-auth bootstrap, change both
-``bootstrap.enabled`` values to ``false`` in your saved environment values:
-
-.. code-block:: yaml
-
-   secrets:
-     masterEncryptionKey:
-       bootstrap:
-         enabled: false
-     serviceAuth:
-       bootstrap:
-         enabled: false
-
-Keep the Secret references and ``managementMode`` unchanged. For this guide,
-save the flags in ``osmo-values.yaml`` and apply a cleanup upgrade:
-
-.. code-block:: bash
-
-   $ helm upgrade osmo osmo/osmo --version <chart-version> \
-       --namespace osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
-       --values osmo-values.yaml \
-       --wait --timeout 30m
-
-For a Quickstart or minimal deployment installed from the repository with
-command-line settings, preserve those settings using ``--reuse-values``:
-
-.. code-block:: bash
-
-   helm upgrade osmo deployments/charts/osmo \
-     --namespace osmo \
-     --reuse-values \
-     --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-     --set secrets.serviceAuth.bootstrap.enabled=false \
-     --wait --wait-for-jobs --timeout 20m
-
-For charts containing PR #1414, clear the initialization ID and use the longer
-timeout in :ref:`sequenced_bootstrap`. Disabling these steps removes their
-creation permissions; other enabled bootstrap operations can still require
-Secret access. Save the disabled flags in the values used for future upgrades.
-Back up retained Secrets with their database and storage data. Helm uninstall
-or rollback does not restore or rotate their contents.
-
-Configure public DNS and edge TLS for ``externalUrl`` after the gateway's
-LoadBalancer address is assigned. ``gateway.tls`` does not terminate public
-TLS; use your load balancer, Ingress, or Gateway API implementation for that.
-
-Verify
-======
-
-Check the release without reading Secret values:
-
-.. code-block:: bash
-
-   $ helm status osmo --namespace osmo
-   $ kubectl --namespace osmo get pods,jobs,services
-   $ kubectl --namespace osmo get secret \
-       osmo-master-encryption-key osmo-service-auth
-   $ kubectl --namespace osmo wait --for=condition=Available deployment \
-       --selector=app.kubernetes.io/instance=osmo --timeout=10m
-
-Verify the API through the same gateway used by clients. A port-forward avoids
-waiting for public DNS during initial validation:
-
-.. code-block:: bash
-
-   $ kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
-
-In another terminal:
-
-.. code-block:: bash
-
-   $ curl --fail http://127.0.0.1:8080/api/version
-
-Sign in through the UI or CLI, list pools and resources, and submit a small CPU
-workflow. Confirm that PostgreSQL contains the new workflow, Valkey remains
-reachable, and objects appear under the configured workflow, log, and app
-locations.
-
 Troubleshooting
 ===============
 
@@ -982,12 +1013,14 @@ Start with release events and failed containers or Jobs:
 Common failures include:
 
 * **Values validation fails before install**: run ``helm lint`` and check that
-  all external dependencies have endpoints and Secret references. Static
+  embedded dependencies remain enabled for the fresh-install example. If using
+  external dependencies, supply their endpoints and Secret references. Static
   object storage requires a Secret; ``sdkDefault`` forbids one.
 * **A bootstrap executable is not found**: the chart and OSMO images are from
   different releases. Use the same pinned ``<chart-version>`` for every Helm
-  command and do not override the control-plane profile's chart-version image
-  selection.
+  command and keep ``imageTag: ''`` to select the chart application version.
+* **Embedded dependency stays Pending**: check PVCs, the default StorageClass,
+  node capacity, and CloudNativePG operator status.
 * **PostgreSQL connection or migration fails**: verify DNS, network policy,
   database ownership, the configured username, the ``db-password`` Secret key,
   TLS mode, and CA bundle. Do not enable ``databaseMigration`` for a new
@@ -1000,11 +1033,13 @@ Common failures include:
   write each prefix. For workload identity, inspect the rendered ServiceAccount
   names and federation subjects.
 * **MEK bootstrap fails**: use it only with a new database. Correct the cause
-  and increment ``secrets.masterEncryptionKey.bootstrap.attempt`` to retry. Do
-  not generate a replacement for an installation with retained encrypted data.
+  and increment ``secrets.masterEncryptionKey.bootstrap.attempt`` to retry
+  (``bootstrap.attempt`` for charts containing PR #1414). Do not generate a
+  replacement for an installation with retained encrypted data.
 * **Service-auth bootstrap fails**: correct image pull or RBAC issues and
-  increment ``secrets.serviceAuth.bootstrap.attempt``. Do not replace the
-  retained signing identity during an ordinary upgrade.
+  increment ``secrets.serviceAuth.bootstrap.attempt`` (``bootstrap.attempt``
+  for charts containing PR #1414). Do not replace the retained signing identity
+  during an ordinary upgrade.
 * **Internal TLS bootstrap fails**: with generated TLS, restore any missing
   retained CA rather than enabling initial generation. With user-managed TLS,
   verify ``ca.crt``, ``tls.crt``, ``tls.key``, and each Service DNS SAN.
