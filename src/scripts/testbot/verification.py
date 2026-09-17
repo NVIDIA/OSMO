@@ -54,10 +54,10 @@ def save_patch(path: Path) -> None:
 
 def retain_generated_tests() -> None:
     """Apply the generator's test-only contract before the reviewer gets control."""
-    paths = changed_files()
+    paths = set(changed_files())
     tracked = set(git('ls-files', '-z').split('\0'))
     for name in paths:
-        if not is_allowed_change(name, set(paths)):
+        if not is_allowed_change(name, paths):
             if name in tracked:
                 git('restore', '--source=HEAD', '--staged', '--worktree', '--', name)
             else:
@@ -84,12 +84,14 @@ def load_verified_changes(path: Path) -> list[str]:
     return paths
 
 
-def run_check(command: list[str], output: Path, deadline: float) -> None:
+def run_check(command: list[str], output: Path, deadline: float,
+              env: dict[str, str] | None = None) -> None:
     """Run a check with a shared deadline and terminate descendants on timeout."""
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError('Independent verification time budget exhausted')
-    environment = {name: value for name, value in os.environ.items() if name not in {
+    environment = {name: value for name, value in (dict(os.environ) | (env or {})).items()
+                   if name not in {
         'NVIDIA_API_KEY', 'ANTHROPIC_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN',
     }}
     with output.open('w', encoding='utf-8') as log:
@@ -139,7 +141,8 @@ def coverage_on_original_lines(meta: list[dict], coverage: dict[str, dict[int, i
     return mapped, edited
 
 
-def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) -> list[dict]:
+def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int,
+           build_environment: dict[str, str] | None = None) -> list[dict]:
     """Re-run tests after the reviewer edits, then record actual coverage."""
     deadline = time.monotonic() + timeout
     paths = changed_files()
@@ -154,39 +157,42 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) ->
     non_ui = [name for name in paths + selected if not name.startswith('src/ui/')]
     coverage: dict[str, dict[int, int]] = {}
     if non_ui:
-        packages = sorted({package_for(name) for name in non_ui})
+        change_set = set(paths)
+        packages_by_file = {name: package_for(name) for name in set(non_ui)}
+        packages = sorted(set(packages_by_file.values()))
         patterns = ' union '.join(f'//{package}/...' if package else '//...' for package in packages)
-        production = [name for name in paths if not is_allowed_change(name, set(paths))
+        production = [name for name in paths if not is_allowed_change(name, change_set)
                       and not name.startswith('src/ui/')]
         if production:
-            roots = ' '.join(f'//{package_for(name)}:all' for name in production)
+            roots = ' '.join(f'//{package}:all'
+                             for package in sorted({packages_by_file[name] for name in production}))
             patterns += f' union rdeps(//src/..., set({roots}))'
         query = f'kind(".*_test rule", {patterns})'
         query = f'({query}) except attr("tags", "manual", ({query}))'
         query_log = artifacts / 'bazel-query.log'
-        run_check(['bazel', 'query', query, '--output=label'], query_log, deadline)
+        run_check(['bazel', 'query', query, '--output=label'], query_log, deadline, env=build_environment)
         targets = [line for line in query_log.read_text(encoding='utf-8').splitlines() if line.startswith('//')]
         if not targets:
             raise ValueError('No Bazel tests discovered for the reviewed changes')
         # Verify that every added/edited test is actually wired into a test rule.
         for index, name in enumerate(paths):
-            if not name.endswith(('.py', '.go')) or not is_allowed_change(name, set(paths)):
+            if not name.endswith(('.py', '.go')) or not is_allowed_change(name, change_set):
                 continue
             if not Path(name).exists():
                 continue
-            package = package_for(name)
+            package = packages_by_file[name] if name in packages_by_file else package_for(name)
             relative = Path(name).relative_to(package or '.').as_posix()
             pattern = f'//{package}/...' if package else '//...'
             wiring = f'kind(".*_test rule", rdeps({pattern}, //{package}:{relative}))'
             wiring = f'({wiring}) except attr("tags", "lint", ({wiring}))'
             wiring_log = artifacts / f'wiring-{index}.log'
-            run_check(['bazel', 'query', wiring, '--output=label'], wiring_log, deadline)
+            run_check(['bazel', 'query', wiring, '--output=label'], wiring_log, deadline, env=build_environment)
             if not any(line in targets for line in wiring_log.read_text(encoding='utf-8').splitlines()):
                 raise ValueError(f'Test is not wired into the verification targets: {name}')
         lcov = Path('bazel-out/_coverage/_coverage_report.dat')
         lcov.unlink(missing_ok=True)
-        run_check(['bazel', 'coverage', '--test_output=errors', *targets],
-                  artifacts / 'bazel-coverage.log', deadline)
+        run_check(['bazel', 'coverage', '--nocache_test_results', '--test_output=errors', *targets],
+                  artifacts / 'bazel-coverage.log', deadline, env=build_environment)
         if not lcov.is_file():
             raise ValueError('Bazel produced no fresh LCOV report')
         coverage.update(verify_coverage.parse_lcov(lcov))
@@ -195,7 +201,7 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) ->
         lcov = Path('src/ui/coverage/lcov.info')
         lcov.unlink(missing_ok=True)
         run_check(['pnpm', '--dir', 'src/ui', 'validate:coverage'],
-                  artifacts / 'ui-validation.log', deadline)
+                  artifacts / 'ui-validation.log', deadline, env=build_environment)
         if not lcov.is_file():
             raise ValueError('UI validation produced no fresh LCOV report')
         for name, hits in verify_coverage.parse_lcov(lcov).items():
@@ -206,7 +212,8 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) ->
         (artifacts / 'ui-coverage.dat').write_bytes(lcov.read_bytes())
     mapped, edited = coverage_on_original_lines(meta, coverage, base_commit)
     reports = verify_coverage.build_reports(meta, mapped)
-    (artifacts / 'coverage_report.json').write_text(verify_coverage.render_json(reports), encoding='utf-8')
+    report_json = verify_coverage.render_json(reports)
+    (artifacts / 'coverage_report.json').write_text(report_json, encoding='utf-8')
     markdown = verify_coverage.render_markdown(reports)
     if edited:
         markdown += ('\nSource fixes shifted selected ranges in: ' + ', '.join(edited)
@@ -217,4 +224,4 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) ->
         raise ValueError('Coverage is missing for a selected target')
     if before != fingerprint(changed_files()):
         raise ValueError('Files changed during independent verification')
-    return json.loads(verify_coverage.render_json(reports))
+    return json.loads(report_json)

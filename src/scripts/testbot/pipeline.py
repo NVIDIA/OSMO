@@ -39,21 +39,6 @@ REVIEW_SCHEMA = {
 }
 
 
-@dataclasses.dataclass
-class Budget:
-    """A shared stage deadline; retries cannot reset the time budget."""
-
-    seconds: int
-    deadline: float = dataclasses.field(init=False)
-
-    def __post_init__(self) -> None:
-        self.deadline = time.monotonic() + self.seconds
-
-    def remaining(self) -> float:
-        """Time left for this stage."""
-        return max(0.0, self.deadline - time.monotonic())
-
-
 def write_json(path: Path, value: object) -> None:
     """Write a durable machine-readable checkpoint."""
     path.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
@@ -78,12 +63,12 @@ def context(artifacts: Path, feedback: str) -> str:
 def generate(prompt: str, artifacts: Path, max_turns: int, attempts: int,
              timeout: int) -> agent_runner.Attempt:
     """Recover generation in fresh sessions without splitting the target work queue."""
-    budget = Budget(timeout)
+    deadline = time.monotonic() + timeout
     result = agent_runner.Attempt()
     remaining_turns = max_turns
     feedback = 'Initial generation.'
     for number in range(1, attempts + 1):
-        if budget.remaining() <= 0 or remaining_turns <= 0:
+        if time.monotonic() >= deadline or remaining_turns <= 0:
             break
         command = [
             'npx', '--yes', f'@anthropic-ai/claude-code@{CLAUDE_VERSION}', '--print',
@@ -94,7 +79,7 @@ def generate(prompt: str, artifacts: Path, max_turns: int, attempts: int,
         started = time.monotonic()
         result = agent_runner.run_agent(
             command, prompt + context(artifacts, feedback), artifacts / f'generate-{number}',
-            min(900, budget.remaining()), 'claude')
+            min(900, deadline - time.monotonic()), 'claude')
         print(json.dumps({'stage': 'generate', 'attempt': number, 'reason': result.reason,
                           'exit_status': result.returncode, 'successful': result.successful}),
               flush=True)
@@ -140,11 +125,6 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
     if bazel_wrapper.exists():
         prompt += (f'\nFor every Bazel command, use this executable: {bazel_wrapper}. '
                    'It keeps build writes in the permitted per-run cache.\n')
-    environment_options = []
-    for name, value in build_environment.items():
-        environment_options.extend([
-            '-c', f'shell_environment_policy.set.{name}={json.dumps(value)}',
-        ])
     review_seconds = float(review_timeout)
     verification_seconds = float(verification_timeout)
     feedback = 'Review the full proposed change, including incomplete generation.'
@@ -156,7 +136,7 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
         started = time.monotonic()
         print(f'Starting independent review attempt {number}.', flush=True)
         result = agent_runner.run_agent(
-            agent_runner.codex_command(artifacts, schema, output)[:-1] + environment_options + ['-'],
+            agent_runner.codex_command(artifacts, schema, output, build_environment),
             prompt + context(artifacts, feedback), artifacts / f'review-{number}',
             min(900, review_seconds), 'codex')
         review_seconds -= time.monotonic() - started
@@ -180,7 +160,8 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
             checks.mkdir()
             started = time.monotonic()
             try:
-                reports = verification.verify(meta, checks, base_commit, int(verification_seconds))
+                reports = verification.verify(meta, checks, base_commit, int(verification_seconds),
+                                              build_environment)
             except (OSError, ValueError, RuntimeError, TimeoutError,
                     subprocess.CalledProcessError) as error:
                 run_summary.record(artifacts, f'Verification attempt {number}', 'failed',
@@ -234,7 +215,6 @@ def restore_handoff(artifacts: Path) -> str:
     verification.check_change_scope(list(manifest['files']))
     patch = artifacts / 'final.patch'
     if patch.stat().st_size:
-        verification.git('apply', '--check', str(patch))
         verification.git('apply', str(patch))
     if manifest['files'] != verification.fingerprint(verification.changed_files()):
         raise ValueError('Stage handoff contents differ from the saved changes')

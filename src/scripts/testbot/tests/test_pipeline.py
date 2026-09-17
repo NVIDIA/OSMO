@@ -75,10 +75,12 @@ class TestAgentProcess(unittest.TestCase):
             output = Path(temporary) / 'check.log'
             with mock.patch.dict(os.environ, {'NVIDIA_API_KEY': 'fixture-key'}):
                 verification.run_check(
-                    [sys.executable, '-c', 'import os; print("NVIDIA_API_KEY" in os.environ)'],
+                    [sys.executable, '-c', 'import os; print("NVIDIA_API_KEY" in os.environ); '
+                     'print(os.environ["XDG_CACHE_HOME"])'],
                     output, time.monotonic() + 5,
+                    env={'XDG_CACHE_HOME': temporary, 'NVIDIA_API_KEY': 'override-key'},
                 )
-            self.assertEqual(output.read_text(encoding='utf-8').strip(), 'False')
+            self.assertEqual(output.read_text(encoding='utf-8').splitlines(), ['False', temporary])
 
     def test_authentication_failure_is_not_retried(self):
         result = agent_runner.Attempt(reason='error', summary='Invalid API key')
@@ -171,8 +173,10 @@ class TestRecovery(RepositoryTest):
             Path('src/example.py').write_text('def add(a, b):\n    return a + b\n', encoding='utf-8')
             return agent_runner.Attempt(returncode=0, reason='turn.completed', successful=True)
 
-        def verify(meta, directory, base_commit, timeout):
+        def verify(meta, directory, base_commit, timeout, build_environment):
             del meta, base_commit, timeout
+            self.assertEqual(build_environment['BAZELISK_HOME'],
+                             str(self.artifacts / '.build-cache/bazelisk'))
             if len(prompts) == 1:
                 raise RuntimeError('regression test still skipped')
             (directory / 'coverage_report.json').write_text('[]', encoding='utf-8')
@@ -292,6 +296,10 @@ else:
             return real_agent([str(fake_npx), *command[1:]], *args, **kwargs)
 
         def run_check(command, *args, **kwargs):
+            self.assertEqual(kwargs['env']['BAZELISK_HOME'],
+                             str(output / '.build-cache/bazelisk'))
+            if command[1] == 'coverage':
+                self.assertIn('--nocache_test_results', command)
             return real_check([str(fake_bazel), *command[1:]], *args, **kwargs)
 
         with mock.patch.object(agent_runner, 'run_agent', side_effect=run_agent), \
@@ -486,8 +494,8 @@ class TestVerification(RepositoryTest):
         verification.git('commit', '-qm', 'fixture coverage')
         self.base = verification.git('rev-parse', 'HEAD').strip()
 
-        def run(command, output, deadline):
-            del deadline
+        def run(command, output, deadline, env=None):
+            del deadline, env
             if command[1] == 'query':
                 output.write_text('//src/tests:test_example\n', encoding='utf-8')
             else:

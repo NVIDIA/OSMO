@@ -90,8 +90,10 @@ read and edit the checkout, run checks, and maintain an external checkpoint;
 the harness owns retries, deadlines, original target metadata, final validation,
 and publication. Codex runs with workspace-write permissions and network access
 for build/test dependencies, without interactive approval prompts. Its Bazel
-and other build caches live under the run's `.build-cache` directory; that
-hidden cache is excluded from diagnostic artifact uploads. The API key
+and other build caches live under the run's `.build-cache` directory and are
+shared with final verification to reuse compiled outputs. Final Bazel coverage
+uses `--nocache_test_results` so tests still run again after review. The hidden
+cache is excluded from diagnostic artifact uploads. The API key
 is excluded from its tool subprocess environment and independent verification commands.
 
 Every run retains per-attempt prompts, JSONL streams, stderr, terminal outcomes,

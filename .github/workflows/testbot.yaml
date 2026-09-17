@@ -180,11 +180,10 @@ jobs:
         if: always()
         env:
           JOB_OUTCOME: ${{ job.status }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           PYTHONPATH=. python -m src.scripts.testbot.run_summary \
             --artifacts "$RUNNER_TEMP/testbot-targets" --stage selection \
-            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+            --outcome "$JOB_OUTCOME"
 
       - name: Preserve targets diagnostics and changes
         if: always()
@@ -225,7 +224,6 @@ jobs:
         run: cp "$RUNNER_TEMP/testbot-targets/targets_meta.json" "$RUNNER_TEMP/targets_meta.json"
 
       - name: Generate tests with recovery
-        id: pipeline
         run: |
           stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
           echo "::stop-commands::$stop_token"
@@ -249,11 +247,10 @@ jobs:
         if: always()
         env:
           JOB_OUTCOME: ${{ job.status }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           PYTHONPATH=. python -m src.scripts.testbot.run_summary \
             --artifacts "$RUNNER_TEMP/testbot" --stage generation \
-            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+            --outcome "$JOB_OUTCOME"
 
       - name: Preserve generation diagnostics and changes
         if: always()
@@ -292,7 +289,6 @@ jobs:
           path: ${{ runner.temp }}/testbot
 
       - name: Review, repair, and verify
-        id: pipeline
         run: |
           stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
           echo "::stop-commands::$stop_token"
@@ -309,11 +305,10 @@ jobs:
         if: always()
         env:
           JOB_OUTCOME: ${{ job.status }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
           PYTHONPATH=. python -m src.scripts.testbot.run_summary \
             --artifacts "$RUNNER_TEMP/testbot" --stage review \
-            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+            --outcome "$JOB_OUTCOME"
 
       - name: Preserve review diagnostics and changes
         if: always()

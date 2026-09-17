@@ -187,9 +187,10 @@ def reviewer_build_environment(artifacts: Path) -> dict[str, str]:
     }
 
 
-def codex_command(artifacts: Path, schema: Path, output: Path) -> list[str]:
+def codex_command(artifacts: Path, schema: Path, output: Path,
+                  build_environment: dict[str, str]) -> list[str]:
     """Use the NVIDIA Responses endpoint; credentials stay out of argv/config."""
-    return [
+    command = [
         'npx', '--yes', '@openai/codex@0.154.0',
         '-a', 'never', 'exec', '--ignore-user-config', '--ephemeral', '--json',
         '--sandbox', 'workspace-write', '--add-dir', str(artifacts),
@@ -205,5 +206,7 @@ def codex_command(artifacts: Path, schema: Path, output: Path) -> list[str]:
         '-c', 'sandbox_workspace_write.network_access=true',
         '-c', 'shell_environment_policy.exclude=["NVIDIA_API_KEY", "ANTHROPIC_API_KEY", '
               '"GH_TOKEN", "GITHUB_TOKEN"]',
-        '-',
     ]
+    for name, value in build_environment.items():
+        command.extend(['-c', f'shell_environment_policy.set.{name}={json.dumps(value)}'])
+    return command + ['-']
