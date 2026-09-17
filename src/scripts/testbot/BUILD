@@ -11,6 +11,7 @@ osmo_py_library(
         "TESTBOT_PROMPT.md",
         "TESTBOT_RULES.md",
         "TESTBOT_REVIEW_PROMPT.md",
+        "TESTBOT_RESPOND_PROMPT.md",
     ],
     visibility = ["//visibility:public"],
 )

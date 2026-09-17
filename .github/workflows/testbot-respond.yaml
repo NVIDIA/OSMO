@@ -14,8 +14,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Responds to /testbot commands in review comments on AI-generated PRs.
-# Delegates fixes to Claude Code CLI and posts inline replies.
 name: Testbot - Respond to Reviews
 
 on:
@@ -23,92 +21,97 @@ on:
     types: [created]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: testbot-respond-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   respond:
     environment: testbot-respond
-    # Label gate + fork rejection. Author association is checked per-thread in
-    # respond.py, not here — a bot comment event must still let the workflow run
-    # so it can process pending /testbot threads from repo members.
     if: >-
       contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 20
-    runs-on: ubuntu-latest
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.comment.user.type != 'Bot' &&
+      github.event.comment.user.login != 'svc-osmo-ci' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
-      - name: Checkout PR branch
+      - name: Checkout trusted harness
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.14.7'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: src/ui/package.json
-
-      - name: Install UI dependencies
-        working-directory: src/ui
-        run: pnpm install --frozen-lockfile
-
-      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
-      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
-      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
-      # Install bazelisk directly from the asset URL to bypass the broken path.
-      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
-      # so we pin the SHA256 we observed and verify before sudo-installing.
-      - name: Install Bazelisk
+      - name: Prepare review requests
+        id: prepare
         env:
-          BAZELISK_VERSION: v1.27.0
-          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
-            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
-          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
-          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
-          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-        with:
-          bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
-          repository-cache: true
-
-      - name: Configure git
-        run: |
-          git config user.name "testbot[bot]"
-          git config user.email "testbot[bot]@users.noreply.github.com"
-
-      - name: Respond to review comments
-        run: |
-          PYTHONPATH=src/scripts python -m testbot.respond \
-            --pr-number ${{ github.event.pull_request.number }} \
-            --trigger-phrase /testbot \
-            --max-responses 10 \
-            --max-turns 200 \
-            --timeout 900 \
-            --model aws/anthropic/bedrock-claude-opus-5
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
-          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
-          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
-          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/testbot-harness/src/scripts"
+          cp -R src/scripts/testbot "$RUNNER_TEMP/testbot-harness/src/scripts/"
+          PYTHONPATH="$RUNNER_TEMP/testbot-harness" \
+            python "$RUNNER_TEMP/testbot-harness/src/scripts/testbot/respond.py" \
+              --stage prepare --pr-number "$PR_NUMBER" \
+              --request "$RUNNER_TEMP/testbot-response-request.json" \
+              --artifacts "$RUNNER_TEMP/testbot-respond"
+
+      - name: Setup agents and build tools
+        if: steps.prepare.outputs.has_work == 'true'
+        uses: ./.github/actions/testbot-setup
+        with:
+          build-tools: 'true'
+          reviewer-sandbox: 'true'
+
+      - name: Checkout requested PR revision
+        if: steps.prepare.outputs.has_work == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ steps.prepare.outputs.head_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
+
+      - name: Apply and verify changes
+        id: apply
+        if: steps.prepare.outputs.has_work == 'true'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
+        run: |
+          PYTHONPATH="$RUNNER_TEMP/testbot-harness" \
+            python "$RUNNER_TEMP/testbot-harness/src/scripts/testbot/respond.py" \
+              --stage apply --pr-number "$PR_NUMBER" \
+              --request "$RUNNER_TEMP/testbot-response-request.json" \
+              --artifacts "$RUNNER_TEMP/testbot-respond"
+
+      - name: Publish changes and replies
+        if: always() && contains(fromJSON('["success","failure"]'), steps.apply.outcome)
+        env:
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          TESTBOT_APPLY_OUTCOME: ${{ steps.apply.outcome }}
+        run: |
+          PYTHONPATH="$RUNNER_TEMP/testbot-harness" \
+            python "$RUNNER_TEMP/testbot-harness/src/scripts/testbot/respond.py" \
+              --stage publish --pr-number "$PR_NUMBER" \
+              --request "$RUNNER_TEMP/testbot-response-request.json" \
+              --artifacts "$RUNNER_TEMP/testbot-respond"
+
+      - name: Upload diagnostics
+        if: always() && steps.prepare.outputs.has_work == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: testbot-respond-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/testbot-respond/
+          if-no-files-found: ignore
+          retention-days: 14
