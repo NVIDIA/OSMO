@@ -224,3 +224,10 @@ _ADVANCED = [
     )
     for t in _ADVANCED
 ]
+
+oetf_scenario_test(
+    name = "mcp-workflow",
+    src = "mcp_workflow.py",
+    extra_deps = ["//test/oetf:mcp_probe"],
+    tags = ["mcp", "kind"],
+)

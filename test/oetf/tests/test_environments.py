@@ -255,6 +255,12 @@ environments:
 class TestResolveEnvironment(unittest.TestCase):
     """resolve_environment lookup by name."""
 
+    def test_canonical_kind_allows_mcp_and_keeps_auth_lifecycle_opt_in(self):
+        env = resolve_environment("kind", [environments.CANONICAL_PATH])
+
+        self.assertNotIn("mcp", env.exclude_tags)
+        self.assertIn("auth", env.exclude_tags)
+
     def test_known_env(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = _write(tmpdir, "canonical.yaml", CANONICAL_YAML)

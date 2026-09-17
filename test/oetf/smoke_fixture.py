@@ -28,6 +28,7 @@ from src.lib.utils.client import RequestMethod
 from src.lib.utils.osmo_errors import OSMOError
 from test.oetf import reporter
 from test.oetf.fixture_base import OetfFixture
+from test.oetf.mcp_probe import McpProbe
 from test.oetf.osmo_cli import login_cli_to, resolve_osmo_cli
 
 
@@ -327,6 +328,10 @@ class SmokeFixture(OetfFixture):
     Each method returns a chainable probe builder; terminate with .expect_* to
     run + assert.
     """
+
+    def mcp(self) -> McpProbe:
+        """Create a fresh MCP probe for this environment."""
+        return McpProbe(self, self.config.url)
 
     def http(self, method: str, endpoint: str) -> HttpProbe:
         return HttpProbe(self, method, endpoint)

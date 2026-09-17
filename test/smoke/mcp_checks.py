@@ -106,16 +106,6 @@ class McpChecks(SmokeFixture):
     def _base_url(self):
         return self.config.url.rstrip("/")
 
-    def _protected_resource_metadata(self):
-        """Fetch the public RFC 9728 document. No authentication required."""
-        response = requests.get(
-            f"{self._base_url()}/.well-known/oauth-protected-resource/mcp",
-            timeout=10,
-            allow_redirects=False,
-        )
-        self.assertEqual(response.status_code, 200, response.text)
-        return response.json()
-
     def _mcp_access_token(self):
         """Return the caller token, or skip: only MCP's own proxy issues one.
 
@@ -171,66 +161,8 @@ class McpChecks(SmokeFixture):
         return structured_content
 
     def test_public_discovery_surface(self):
-        """The unauthenticated surface clients rely on to bootstrap OAuth.
-
-        Needs no caller token, which is the point: a client discovers how to
-        authenticate before it can.
-        """
-        base_url = self._base_url()
-        unauthenticated_response = requests.post(
-            f"{base_url}/mcp",
-            headers=dict(_MCP_ACCEPT_HEADERS),
-            json={
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "tools/list",
-                "params": {},
-            },
-            timeout=10,
-            allow_redirects=False,
-        )
-        self.assertEqual(unauthenticated_response.status_code, 401)
-        self.assertTrue(
-            unauthenticated_response.headers.get(
-                "www-authenticate", ""
-            ).startswith("Bearer resource_metadata=")
-        )
-
-        metadata = self._protected_resource_metadata()
-        self.assertEqual(metadata.get("resource"), f"{base_url}/mcp")
-        self.assertTrue(
-            metadata.get("authorization_servers"),
-            "protected-resource metadata advertises no authorization server.",
-        )
-
-        # FastMCP owns the OAuth surface, so it must advertise its endpoints
-        # under /mcp rather than on the shared Gateway root.
-        authorization_metadata = requests.get(
-            f"{base_url}/.well-known/oauth-authorization-server/mcp",
-            timeout=10,
-            allow_redirects=False,
-        )
-        self.assertEqual(
-            authorization_metadata.status_code,
-            200,
-            authorization_metadata.text,
-        )
-        self.assertEqual(
-            authorization_metadata.json().get("authorization_endpoint"),
-            f"{base_url}/mcp/authorize",
-        )
-
-        # The /mcp prefix route publishes the container root, so the health
-        # endpoints are carved out ahead of it.
-        for path in ("/mcp/health", "/mcp/health/live"):
-            health = requests.get(
-                f"{base_url}{path}", timeout=10, allow_redirects=False
-            )
-            self.assertEqual(
-                health.status_code,
-                404,
-                f"{path} is reachable from the internet.",
-            )
+        """Clients discover OAuth before they have a caller token."""
+        self.mcp().expect_discovery()
 
     def test_catalog_profile_and_credential_parity(self):
         self._mcp_access_token()

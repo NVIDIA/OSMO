@@ -84,6 +84,15 @@ def _run_tests(args: argparse.Namespace, deployed_env: EnvironmentConfig) -> int
     # by construction.
     cmd.extend(["--url", deployed_env.url])
     test_environment = os.environ.copy()
+    if deployed_env.type == "kind" and not args.build_local:
+        # The released quick-start chart does not provide the MCP service.
+        # Preserve any caller filters while excluding that unavailable surface.
+        tag_filters = ""
+        for argument in getattr(args, "bazel_arg", []):
+            if argument.startswith("--test_tag_filters="):
+                tag_filters = argument.partition("=")[2]
+        tag_filters = ",".join(filter(None, (tag_filters, "-mcp")))
+        cmd.append(f"--bazel-arg=--test_tag_filters={tag_filters}")
     if args.build_local and deployed_env.type == "kind":
         cluster_name = args.cluster_name or deployed_env.cluster_name or "osmo"
         token_result = subprocess.run(

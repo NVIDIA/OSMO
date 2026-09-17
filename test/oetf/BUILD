@@ -172,10 +172,17 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "mcp_probe",
+    srcs = ["mcp_probe.py"],
+    deps = [requirement("requests")],
+)
+
+osmo_py_library(
     name = "smoke_fixture",
     srcs = ["smoke_fixture.py"],
     deps = [
         ":fixture_base",
+        ":mcp_probe",
         ":osmo_cli",
         "//src/lib/utils:client",
         "//src/lib/utils:osmo_errors",

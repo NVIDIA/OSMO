@@ -80,10 +80,15 @@ bazel run //test/oetf:teardown
 ```
 
 After `oetf:deploy`, the dashboard is reachable at
-`http://quick-start.osmo/` and tests run with:
+`http://quick-start.osmo/` for the released quick-start chart, or
+`http://127.0.0.1/` with `--build-local`. Use the deployment URL for tests:
 
 ```bash
-bazel run //test/oetf:run -- --env kind --tags kind
+bazel run //test/oetf:run -- --env kind --tags kind \
+  --bazel-arg=--test_tag_filters=-mcp
+# For a source-built deployment, set OSMO_ACCESS_TOKEN to its admin API token:
+bazel run //test/oetf:run -- --env kind --url http://127.0.0.1 \
+  --auth-method token --tags kind
 ```
 
 ### Deploy + run (one-shot)
@@ -92,7 +97,7 @@ CI / agent / "is-OSMO-broken" check: deploy → run → teardown in one
 command. Cluster is always destroyed at the end (pass or fail).
 
 ```bash
-# Smoke + 3 self-contained scenarios on a fresh KIND
+# Smoke and self-contained scenarios on a fresh KIND
 bazel run //test/oetf:deploy_and_run -- --env kind --tags kind
 
 # With locally-built images
@@ -888,6 +893,38 @@ flowchart LR
     RUN -->|"HTTP / CLI / WS probes"| PODS
     TEARDOWN -->|"kind delete cluster"| Cluster
 ```
+
+
+### MCP coverage in the source-build gate
+
+`--build-local` enables MCP with embedded Dex at the loopback Gateway origin.
+The Local KIND Deployment CI gate requires both `//test/smoke:mcp-kind` and
+`//test/scenarios:mcp-workflow` to report passing results:
+
+- Public OAuth discovery and anonymous access rejection.
+- Fresh client registration, consent, Dex login, and S256 PKCE token exchange;
+  authenticated initialization, tool catalog, profile, health, pool search,
+  and workflow validation.
+- Rejection of invalid and absent bearers, plus a fresh Dex ID token that is
+  first proven valid at the Gateway API.
+- One workflow submitted through MCP, followed by completion and log checks.
+
+The auth tests read the embedded admin password from the `osmo` namespace
+using the explicit `KUBECONFIG` and its current `kind-*` context. They require
+no pre-issued MCP token and fail if MCP or its auth path is unavailable.
+Use the existing deployment's OETF API token for workflow polling:
+
+```bash
+KUBECONFIG=/path/to/kind-kubeconfig bazel run //test/oetf:run -- \
+  --env kind --url http://127.0.0.1 --auth-method token --tags mcp \
+  --target-pattern //test/smoke:mcp-kind,//test/scenarios:mcp-workflow
+```
+
+`OSMO_ACCESS_TOKEN` supplies that API token; `deploy_and_run` obtains it
+automatically. With the released quick-start chart, `deploy_and_run` excludes
+MCP tests because that chart does not enable MCP; standalone `run` needs
+`--bazel-arg=--test_tag_filters=-mcp`. The separate `auth` lifecycle suite
+remains opt-in.
 
 ### User journey: iterating on a service with `--build-local`
 
