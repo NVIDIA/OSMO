@@ -47,14 +47,8 @@
 {{- end -}}
 {{- end -}}
 {{- if has "identity" $names -}}
-{{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
-{{- if $identity.enabled -}}
-{{- range $token := $identity.tokens -}}
-{{- if hasKey $token "managedSecret" -}}
-{{- $secrets = append $secrets (dict "name" $token.managedSecret.name "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "token") "optional_keys" (list "previous-token")) -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
+{{- range (include "osmo.bootstrap.managedTokens" . | fromJsonArray) -}}
+{{- $secrets = append $secrets (dict "name" .secretName "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "token") "optional_keys" (list "previous-token")) -}}
 {{- end -}}
 {{- end -}}
 {{- if has "service-auth" $names -}}

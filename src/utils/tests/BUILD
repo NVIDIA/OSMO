@@ -23,7 +23,7 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 osmo_py_test(
     name = "test_bootstrap",
     srcs = ["test_bootstrap.py"],
-    deps = ["//src/utils:bootstrap_lib", requirement("kubernetes")],
+    deps = ["//src/utils:bootstrap_lib", "//src/utils:identity_bootstrap_lib", requirement("kubernetes")],
 )
 
 osmo_py_test(

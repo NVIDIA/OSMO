@@ -16,7 +16,7 @@ from unittest import mock
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
-from src.utils import bootstrap
+from src.utils import bootstrap, identity_bootstrap
 
 
 def configuration(initialization_id: str = '') -> bootstrap.Configuration:
@@ -98,6 +98,61 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(
             bootstrap.initialization_mode(configuration(), {'root': {}}), 'adopt'
         )
+
+    def test_legacy_tokens_require_migration_before_strict_adoption(self) -> None:
+        for manager in ('osmo-backend-token-bootstrap', 'osmo-embedded-dex-bootstrap'):
+            with self.subTest(manager=manager):
+                retained = secret(b't' * 43)
+                retained.metadata.name = 'root'
+                retained.metadata.resource_version = '1'
+                retained.metadata.labels['app.kubernetes.io/managed-by'] = manager
+                retained.type = 'Opaque'
+                retained.data = {'token': retained.data['key']}
+                before = copy.deepcopy(retained.data)
+                self.runtime.configuration = dataclasses.replace(
+                    configuration(),
+                    steps=['identity'],
+                    secrets=[
+                        bootstrap.SecretSpec(
+                            'root', 'identity', 'osmo-identity-bootstrap', ['token']
+                        )
+                    ],
+                )
+                self.core.read_namespaced_secret.return_value = retained
+                self.core.read_namespaced_config_map.side_effect = ApiException(
+                    status=404
+                )
+                with self.assertRaisesRegex(
+                    bootstrap.BootstrapError, 'unexpected ownership'
+                ):
+                    self.runtime.begin()
+
+                def patch(name, namespace, body, retained=retained):
+                    del name, namespace
+                    self.assertEqual(body[0]['value'], retained.metadata.uid)
+                    retained.metadata.labels['app.kubernetes.io/managed-by'] = body[2][
+                        'value'
+                    ]
+                    retained.metadata.resource_version = '2'
+
+                self.core.patch_namespaced_secret.side_effect = patch
+                identity_bootstrap.migrate_tokens(
+                    self.core,
+                    namespace='namespace',
+                    release_name='release',
+                    token_specs=(
+                        identity_bootstrap.TokenSpec('identity', 'primary', 'root'),
+                    ),
+                )
+                self.core.create_namespaced_config_map.side_effect = (
+                    lambda *args, **_kw: args[1]
+                )
+                self.runtime.begin()
+                self.assertEqual(self.runtime.state['mode'], 'adopt')
+                self.assertEqual(
+                    self.runtime.state['adopted'], {'root': retained.metadata.uid}
+                )
+                self.assertEqual(retained.data, before)
 
     def test_adoption_plus_new_identity_is_rejected(self) -> None:
         changed = dataclasses.replace(

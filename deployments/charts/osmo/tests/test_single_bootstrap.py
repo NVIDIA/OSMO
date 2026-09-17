@@ -122,8 +122,8 @@ class SingleBootstrapTests(unittest.TestCase):
                 jobs = bootstrap_jobs(resources)
                 self.assertEqual(
                     len([item for item in resources if item['kind'] == 'Job']),
-                    int(mask != 0),
-                    'Unexpected legacy bootstrap Job or hook',
+                    int(mask != 0) + int(bool(mask & 2)),
+                    'Unexpected bootstrap or migration Job',
                 )
                 self.assertEqual(len(jobs), int(mask != 0))
                 if not jobs:
@@ -363,6 +363,39 @@ class SingleBootstrapTests(unittest.TestCase):
             configurations.append(configuration)
         self.assertNotEqual(configurations[0]['record'], configurations[1]['record'])
 
+    def test_long_consumer_names_have_unique_resources_and_permissions(self) -> None:
+        for length in (40, 47):
+            resources = render(1, ['--set-string', 'fullnameOverride=' + 'x' * length])
+            identities = [(item['kind'], item['metadata'].get('namespace', ''),
+                           item['metadata']['name']) for item in resources]
+            self.assertEqual(len(identities), len(set(identities)))
+            by_name = {(item['kind'], item['metadata']['name']): item for item in resources}
+            gates = []
+            for resource in resources:
+                if resource['kind'] != 'Deployment':
+                    continue
+                pod = resource['spec']['template']['spec']
+                gate = next((item for item in pod.get('initContainers', [])
+                             if item['name'] == 'bootstrap-credentials'), None)
+                if not gate:
+                    continue
+                name = next(volume['configMap']['name'] for volume in pod['volumes']
+                            if volume['name'] == 'bootstrap-gate-config')
+                gates.append(name)
+                self.assertLessEqual(len(name), 63)
+                self.assertIn(('ConfigMap', name), by_name)
+                binding = by_name['RoleBinding', name]
+                self.assertEqual(binding['roleRef']['name'], name)
+                self.assertEqual(binding['subjects'][0]['name'], pod['serviceAccountName'])
+                mappings = json.loads(next(item['value'] for item in gate['env']
+                                           if item['name'] == 'OSMO_BOOTSTRAP_FILES'))
+                allowed = {secret for rule in by_name['Role', name]['rules']
+                           if rule['resources'] == ['secrets']
+                           for secret in rule['resourceNames']}
+                self.assertEqual(allowed, {item['secret'] for item in mappings})
+            self.assertGreater(len(gates), 1)
+            self.assertEqual(len(gates), len(set(gates)))
+
     def test_gate_populates_the_actual_application_volume(self) -> None:
         resources = render(31)
         for resource in resources:
@@ -438,7 +471,9 @@ class BootstrapInputValidationTest(unittest.TestCase):
                 jobs = bootstrap_jobs(resources)
                 self.assertEqual(len(jobs), int(bool(mask)))
                 hooks = [item for item in resources if item['kind'] == 'Job'
-                         and 'helm.sh/hook' in item['metadata'].get('annotations', {})]
+                         and 'helm.sh/hook' in item['metadata'].get('annotations', {})
+                         and item['metadata']['labels'].get('app.kubernetes.io/component')
+                         == 'identity-bootstrap']
                 self.assertEqual(len(hooks), 2)
                 self.assertEqual(
                     {hook['metadata']['annotations']['helm.sh/hook'] for hook in hooks},
@@ -474,6 +509,47 @@ class BootstrapInputValidationTest(unittest.TestCase):
                     self.assertFalse(any('dex' in secret['name'] for secret in configuration['secrets']))
                     self.assertFalse(any('dex' in name or 'oauth2-proxy' in name
                                          for name in configuration['consumers']))
+
+    def test_token_migration_has_separate_hooks_and_exact_permissions(self) -> None:
+        for mask in range(32):
+            resources = render(mask)
+            migrations = [item for item in resources if item['kind'] == 'Job'
+                          and item['metadata'].get('labels', {}).get(
+                              'app.kubernetes.io/component') == 'identity-token-migration']
+            self.assertEqual(len(migrations), int(bool(mask & 2)))
+            if not migrations:
+                continue
+            job = migrations[0]
+            annotations = job['metadata']['annotations']
+            self.assertEqual(annotations['helm.sh/hook'], 'pre-install,pre-upgrade')
+            self.assertEqual(annotations['helm.sh/hook-weight'], '-30')
+            self.assertNotIn('hook-failed', annotations['helm.sh/hook-delete-policy'])
+            self.assertEqual(job['spec']['backoffLimit'], 0)
+            self.assertGreater(job['spec']['activeDeadlineSeconds'], 0)
+            pod = job['spec']['template']['spec']
+            self.assertNotIn('initContainers', pod)
+            self.assertFalse(pod['automountServiceAccountToken'])
+            self.assertEqual([volume['name'] for volume in pod['volumes']], ['kubernetes-api'])
+            arguments = pod['containers'][0]['args']
+            self.assertIn('--migrate-tokens-only', arguments)
+            self.assertIn('backend-operator-default/primary=osmo-backend-token', arguments)
+            self.assertNotIn('--password', arguments)
+            role = next(item for item in resources if item['kind'] == 'Role'
+                        and item['metadata']['name'] == job['metadata']['name'])
+            self.assertEqual(role['rules'], [{'apiGroups': [''], 'resources': ['secrets'],
+                                            'resourceNames': ['osmo-backend-token'],
+                                            'verbs': ['get', 'patch']}])
+        for options in (
+            ['--set', 'authentication.bootstrap.tokenMigration.enabled=false'],
+        ):
+            resources = render(31, options)
+            self.assertFalse(any(item['metadata'].get('labels', {}).get(
+                'app.kubernetes.io/component') == 'identity-token-migration'
+                for item in resources))
+        enabled = bootstrap_jobs(render(31))[0]
+        disabled = bootstrap_jobs(render(31, [
+            '--set', 'authentication.bootstrap.tokenMigration.enabled=false']))[0]
+        self.assertEqual(enabled, disabled)
 
     def test_node_selector_requires_string_values(self) -> None:
         for value in ('1', 'true', 'null'):

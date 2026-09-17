@@ -1,11 +1,7 @@
 {{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
 {{/* SPDX-License-Identifier: Apache-2.0 */}}
 
-{{- define "osmo.bootstrap.identity" -}}
-{{- $phase := .phase -}}
-{{- $root := .root -}}
-{{- with .root -}}
-{{- if .Values.planes.control.enabled }}
+{{- define "osmo.bootstrap.managedTokens" -}}
 {{- $managedTokens := list -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
 {{- if $identity.enabled -}}
@@ -16,6 +12,15 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- toJson $managedTokens -}}
+{{- end -}}
+
+{{- define "osmo.bootstrap.identity" -}}
+{{- $phase := .phase -}}
+{{- $root := .root -}}
+{{- with .root -}}
+{{- if .Values.planes.control.enabled }}
+{{- $managedTokens := include "osmo.bootstrap.managedTokens" . | fromJsonArray -}}
 {{- if $managedTokens -}}
 {{- $bootstrap := .Values.authentication.bootstrap -}}
 deadline: {{ $bootstrap.activeDeadlineSeconds }}

@@ -1,6 +1,60 @@
 # Single bootstrap Job verification
 
-## Current scope: OSMO bootstrap only
+## Separate legacy-token migration
+
+The current revision keeps one ordinary OSMO bootstrap Job and adds a separate
+`pre-install,pre-upgrade` token migration hook. Dex, database migrations, and
+explicit rotations retain their independent lifecycles. The hook is controlled by
+`authentication.bootstrap.tokenMigration.enabled` and selects only managed tokens
+of enabled identities. Its RBAC allows only named-Secret `get,patch` operations.
+
+ARM64 runtime built and executed for this revision:
+`osmo.local/service@sha256:e09fe0784c8437e5915663cf29536ee50eecfac2dcb318e0707786816f5220b6`.
+Tests ran on disposable context `kind-osmo-bootstrap`; each case owned a separate
+namespace. The baseline chart/image references below remain unchanged.
+
+### Validation
+
+- Full chart shell suite and all 32 enable combinations passed. Assertions cover
+  migration hooks/RBAC, compute-only exclusion, Dex independence, and stable
+  ordinary Job identity when migration is disabled.
+- All 27 focused `bazel coverage --config=ci` targets passed with Helm 3.16.2,
+  including affected runtime, coordinator, identity, TLS, MEK, deployment, OETF,
+  semantic chart, and Pylint targets.
+- Unit tests verify metadata/data preservation, inventory prevalidation, UID and
+  resourceVersion preconditions, conflict retries and bounds, replacement rejection,
+  partial retry, strict coordinator adoption, and migration-only CLI dispatch.
+- Three fail-on-bad checks reproduced the intended regressions: a no-op migrator
+  fails strict legacy adoption; removing the migration-only argument fails the
+  chart contract; restoring the old gate names collides for long consumer names.
+- Fresh installation, both legacy-owner upgrades with current/previous-token
+  authentication, independent Dex refresh, migration failure/partial retry,
+  repeat/disabled migration, Flux migration/storage recovery, unavailable-storage
+  retry, and crash-after-token-creation retry passed on the pinned runtime.
+  Credential bytes and Secret UIDs were preserved. Hook failures kept the prior
+  ordinary Job unchanged; recovery produced the expected replacement.
+
+The new retry fixture initially reached successful recovery but failed while
+setting a missing values mapping for its final disabled-migration assertion. The
+fixture now creates that mapping explicitly; the entire case passed on rerun.
+No production runtime change was required for that fixture correction.
+
+The independent reviewer checked the entire PR and approved after reviewing the
+final source and test evidence. Their long-consumer-name collision finding was
+fixed by hashing the full consumer name with its bootstrap generation. Their
+hooks-disabled migration prerequisite is documented in the chart README.
+
+Local receipts:
+
+- `/private/tmp/osmo-token-migration-coverage.log`
+- `/private/tmp/osmo-token-migration-chart-shell.log`
+- `/private/tmp/osmo-token-migration-mutations.log`
+- `/private/tmp/osmo-token-migration-kind.log`
+- `/private/tmp/osmo-token-migration-kind-retry-flux.log`
+- `/private/tmp/osmo-bootstrap-evidence/migration-first-batch/`
+- `/private/tmp/osmo-bootstrap-evidence/migration-final/`
+
+## OSMO-only scope before legacy-token migration
 
 Dex uses the original upstream chart 0.24.1 and retains its existing credential
 and configuration-refresh Helm hooks. Only managed OSMO access tokens move out of
@@ -13,7 +67,7 @@ values. A semantic regression check verifies separate Dex hooks with every OSMO
 step enabled and with all OSMO steps disabled; removing the post-hook config
 refresh argument in a temporary chart copy makes that check fail.
 
-Current ARM64 runtime:
+ARM64 runtime before legacy-token migration:
 `osmo.local/service@sha256:58c37383131db47a704cf6f78344e1c4c6c89d9f431187bdfbaecc2f9b6402f4`.
 
 The full chart shell suite and four focused Bazel targets for coordinator,

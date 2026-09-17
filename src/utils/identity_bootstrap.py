@@ -24,6 +24,7 @@ import dataclasses
 import hashlib
 import logging
 import secrets
+import sys
 import time
 
 import bcrypt
@@ -249,6 +250,55 @@ def _require_identity_owned(
     ):
         raise BootstrapError(f'{name} is not owned by this release')
     return manager != _IDENTITY_MANAGED_BY
+
+
+def migrate_tokens(
+    api: kubernetes_client.CoreV1Api,
+    *,
+    namespace: str,
+    release_name: str,
+    token_specs: tuple[TokenSpec, ...],
+) -> None:
+    """Normalize legacy token ownership without creating or replacing credentials."""
+    snapshots = {}
+    for specification in token_specs:
+        name = specification.secret_name
+        secret = _read_secret(api, namespace, name)
+        if secret is None:
+            continue
+        _require_identity_owned(secret, release_name)
+        _validate_token(name, _decode(secret))
+        if not secret.metadata.uid or not secret.metadata.resource_version:
+            raise BootstrapError(f'{name} has no Kubernetes object identity')
+        snapshots[name] = secret.metadata.uid
+
+    # Validate the complete inventory before writing; interruption during the
+    # per-object CAS loop is safe to retry because canonical objects are no-ops.
+    for name, expected_uid in snapshots.items():
+        for _ in range(_MAX_RECONCILE_ATTEMPTS):
+            secret = _read_secret(api, namespace, name)
+            if secret is None or secret.metadata.uid != expected_uid:
+                raise BootstrapError(f'{name} was removed or replaced during token migration')
+            legacy = _require_identity_owned(secret, release_name)
+            _validate_token(name, _decode(secret))
+            if not legacy:
+                break
+            patch = [
+                {'op': 'test', 'path': '/metadata/uid', 'value': expected_uid},
+                {'op': 'test', 'path': '/metadata/resourceVersion',
+                 'value': secret.metadata.resource_version},
+                {'op': 'replace', 'path': '/metadata/labels/app.kubernetes.io~1managed-by',
+                 'value': _IDENTITY_MANAGED_BY},
+            ]
+            try:
+                api.patch_namespaced_secret(name, namespace, patch)
+                break
+            except kubernetes_exceptions.ApiException as error:
+                if error.status in (409, 422):
+                    continue
+                raise BootstrapError(f'Unable to migrate token Secret {name}') from error
+        else:
+            raise BootstrapError(f'Unable to migrate token Secret {name} after concurrent updates')
 
 
 def _reconcile_identity_secret(
@@ -805,6 +855,7 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
         description='Reconcile retained bootstrap identity credentials.')
     parser.add_argument('--namespace', required=True)
     parser.add_argument('--release-name', required=True)
+    parser.add_argument('--migrate-tokens-only', action='store_true')
     parser.add_argument('--admin-secret-name')
     parser.add_argument('--oauth-secret-name')
     parser.add_argument(
@@ -828,7 +879,17 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument('--oauth-pod-selector')
     parser.add_argument(
         '--restart-timeout-seconds', type=_positive_integer, default=120)
-    return parser.parse_args(arguments)
+    parsed = parser.parse_args(arguments)
+    if parsed.migrate_tokens_only:
+        allowed = {'--namespace', '--release-name', '--token', '--migrate-tokens-only'}
+        supplied = sys.argv[1:] if arguments is None else arguments
+        if not parsed.token_specs or any(
+            argument.startswith('--') and argument.split('=', 1)[0] not in allowed
+            for argument in supplied
+        ):
+            parser.error('--migrate-tokens-only requires tokens and permits only '
+                         '--namespace, --release-name, and --token')
+    return parsed
 
 
 def main() -> None:
@@ -856,6 +917,11 @@ def main() -> None:
                 '--dex-hash-secret-name is required for a unified Dex config rollout')
         kubernetes_config.load_incluster_config()
         api = kubernetes_client.CoreV1Api(BoundedApiClient())
+        if getattr(arguments, 'migrate_tokens_only', False):
+            migrate_tokens(api, namespace=arguments.namespace, release_name=arguments.release_name,
+                           token_specs=token_specs)
+            logging.info('Managed token ownership migration completed')
+            return
         if unified:
             result = reconcile_identities(
                 api,

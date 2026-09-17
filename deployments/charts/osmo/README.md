@@ -1067,6 +1067,33 @@ install and upgrade, including declarative Helm or Argo CD reconciliation.
 Helm rollback changes declarations but does not roll credential bytes back.
 Helm uninstall does not delete the API-created Secrets.
 
+### Legacy managed-token migration
+
+A separate `pre-install,pre-upgrade` Job runs before the ordinary OSMO bootstrap
+Job. It changes only the manager label of valid, release-owned managed token
+Secrets from `osmo-backend-token-bootstrap` or `osmo-embedded-dex-bootstrap` to
+`osmo-identity-bootstrap`. Secret identities, current and previous token bytes,
+and other metadata are preserved. Missing Secrets and already migrated Secrets
+require no writes. The migration does not generate credentials or change Dex.
+
+`authentication.bootstrap.tokenMigration.enabled` defaults to `true`. The hook
+renders only for the control plane with at least one enabled identity containing
+a managed token. Existing-token references and disabled identities are excluded.
+Set the flag to `false` once migration is unnecessary; doing so does not replace
+the ordinary bootstrap Job. Strict bootstrap ownership validation still rejects
+unmigrated legacy Secrets when this hook is disabled.
+Upgrades using Helm `--no-hooks` or controllers that disable hooks must complete
+this metadata migration before strict bootstrap adoption; legacy Secrets otherwise
+fail ownership validation.
+
+The hook validates all selected existing Secrets before patching any labels. A
+foreign owner, malformed token, or concurrent replacement fails the upgrade before
+new bootstrap resources are applied. Collect logs from the retained failed
+`identity-token-migration` Job, correct the cause, and retry Helm or reconcile the
+GitOps release. The next hook replaces the failed hook and safely finishes partial
+migration. Successful hooks are deleted. Existing token-format validation is
+unchanged; the migration accepts the same token format as the identity reconciler.
+
 Retrieve a credential only in a private terminal. For example:
 
 ```bash

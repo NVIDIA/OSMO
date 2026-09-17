@@ -210,6 +210,9 @@ authentication:
   # Bootstrap identities are keyed maps so values overlays can append users,
   # backend operators, and credentials without replacing chart defaults.
   bootstrap:
+    # Normalize supported legacy token ownership before OSMO bootstrap inventories it.
+    tokenMigration:
+      enabled: true
     activeDeadlineSeconds: 300
     resources:
       requests:

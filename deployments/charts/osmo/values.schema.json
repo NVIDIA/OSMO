@@ -164,6 +164,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "tokenMigration": { "$ref": "#/definitions/enabledBlock" },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
         "resources": { "type": "object" },
         "identities": {

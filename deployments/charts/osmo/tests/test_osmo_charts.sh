@@ -1476,7 +1476,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 17
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 18
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -6387,7 +6387,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 25
+        "type: RuntimeDefault" 26
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \
@@ -6708,6 +6708,8 @@ MCP_INVALID_VALUES
         "compute-only-osmo-backend-worker"
     require_no_deployment "$TEST_DIRECTORY/compute-only.yaml" \
         "compute-only-osmo-api"
+    require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
+        "identity-token-migration"
     require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
 

@@ -26,7 +26,7 @@
 {{- $annotations := $deployment.spec.template.metadata.annotations | default dict -}}
 {{- $_ := set $annotations "osmo.nvidia.com/bootstrap-generation" $configuration.generation -}}
 {{- $_ := set $deployment.spec.template.metadata "annotations" $annotations -}}
-{{- $name := printf "%s-bootstrap-%s" ($deployment.metadata.name | trunc 40 | trimSuffix "-") ($configuration.generation | trunc 10) -}}
+{{- $name := printf "%s-bootstrap-%s" ($deployment.metadata.name | trunc 40 | trimSuffix "-") (toJson (list $deployment.metadata.name $configuration.generation) | sha256sum | trunc 10) -}}
 {{- $secrets := dict -}}
 {{- range (concat $configuration.secrets (.rotationSecrets | default list)) -}}{{- $_ := set $secrets .name . -}}{{- end -}}
 {{- $volumes := list -}}

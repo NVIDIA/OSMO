@@ -296,10 +296,30 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             ]
         )
         names.append('osmo-admin-token')
+        for name, manager in (
+            ('osmo-admin-token', 'osmo-embedded-dex-bootstrap'),
+            ('osmo-backend-token', 'osmo-backend-token-bootstrap'),
+        ):
+            self.kube(
+                [
+                    'label',
+                    'secret',
+                    name,
+                    f'app.kubernetes.io/managed-by={manager}',
+                    '--overwrite',
+                ]
+            )
         before = self.secret_identities(names)
         self.values['bootstrap']['initializationId'] = ''
         self.install(self.values)
         self.assertEqual(self.record()['mode'], 'adopt')
+        for name in ('osmo-admin-token', 'osmo-backend-token'):
+            self.assertEqual(
+                self.kube_json(['get', 'secret', name])['metadata']['labels'][
+                    'app.kubernetes.io/managed-by'
+                ],
+                'osmo-identity-bootstrap',
+            )
         tokens = self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
         with self.port_forward('service/osmo-gateway', 80, self.port):
             for key in ('token', 'previous-token'):
@@ -322,6 +342,117 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                     )
         self.assert_identities_preserved(before)
         self.assert_sequence()
+        self.authenticate()
+
+    def test_token_migration_failure_retry(self) -> None:
+        self.install(self.values)
+        before = self.secret_identities(list(self.record()['committed']))
+        original = self.require_bootstrap_job()['metadata']['uid']
+        tokens = ('osmo-admin-token', 'osmo-backend-token')
+        for name in tokens:
+            self.kube(
+                [
+                    'label',
+                    'secret',
+                    name,
+                    'app.kubernetes.io/managed-by=osmo-backend-token-bootstrap',
+                    '--overwrite',
+                ]
+            )
+        self.kube(
+            [
+                'label',
+                'secret',
+                tokens[1],
+                'app.kubernetes.io/managed-by=foreign-owner',
+                '--overwrite',
+            ]
+        )
+        self.values['bootstrap']['attempt'] = 'migration-retry'
+
+        def failed_hook() -> None:
+            with self.installing(self.values) as process:
+                self.wait_for(
+                    lambda: process.poll() is not None, 'migration hook failure'
+                )
+                self.assertNotEqual(process.returncode, 0)
+            self.assertEqual(self.require_bootstrap_job()['metadata']['uid'], original)
+            self.assert_identities_preserved(before)
+            migration = [
+                job
+                for job in self.jobs()
+                if job['metadata'].get('labels', {}).get('app.kubernetes.io/component')
+                == 'identity-token-migration'
+            ]
+            self.assertEqual(len(migration), 1)
+            self.assertTrue(
+                any(
+                    item['type'] == 'Failed' and item['status'] == 'True'
+                    for item in migration[0]['status']['conditions']
+                )
+            )
+
+        failed_hook()
+        self.assertEqual(
+            self.kube_json(['get', 'secret', tokens[0]])['metadata']['labels'][
+                'app.kubernetes.io/managed-by'
+            ],
+            'osmo-backend-token-bootstrap',
+        )
+        self.kube(
+            [
+                'label',
+                'secret',
+                tokens[1],
+                'app.kubernetes.io/managed-by=osmo-embedded-dex-bootstrap',
+                '--overwrite',
+            ]
+        )
+        template = self.chart_path() / 'templates/identity-token-migration.yaml'
+        original_template = template.read_text()
+        script = (
+            'import subprocess,sys; args=sys.argv[1:]; '
+            "first=args.index('--token'); "
+            "subprocess.run(['identity-bootstrap']+args[:first+2],check=True); "
+            "sys.exit('injected termination after first token migration')"
+        )
+        template.write_text(
+            original_template.replace(
+                'command: [identity-bootstrap]',
+                'command: '
+                + json.dumps(['/opt/osmo-python/bin/python3.14', '-c', script]),
+            )
+        )
+        try:
+            failed_hook()
+            self.assertEqual(
+                self.kube_json(['get', 'secret', tokens[0]])['metadata']['labels'][
+                    'app.kubernetes.io/managed-by'
+                ],
+                'osmo-identity-bootstrap',
+            )
+            self.assertEqual(
+                self.kube_json(['get', 'secret', tokens[1]])['metadata']['labels'][
+                    'app.kubernetes.io/managed-by'
+                ],
+                'osmo-embedded-dex-bootstrap',
+            )
+        finally:
+            template.write_text(original_template)
+        self.install(self.values)
+        self.assert_sequence()
+        self.assert_identities_preserved(before)
+        replacement = self.require_bootstrap_job()['metadata']['uid']
+        self.assertNotEqual(original, replacement)
+        self.install(self.values)
+        self.values.setdefault('authentication', {}).setdefault('bootstrap', {})[
+            'tokenMigration'
+        ] = {
+            'enabled': False
+        }
+        self.install(self.values)
+        self.assertEqual(self.require_bootstrap_job()['metadata']['uid'], replacement)
+        self.assert_identities_preserved(before)
         self.authenticate()
 
     def test_bootstrap_legacy_rotation_upgrade(self) -> None:
@@ -690,6 +821,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                 )
                 unchanged = self.secret_identities(['osmo-internal-tls-ca'])
                 with self.installing(self.values) as process:
+
                     def finished(current: subprocess.Popen = process) -> bool:
                         return current.poll() is not None
 
@@ -1040,6 +1172,72 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.wait_flux_ready()
         self.assertEqual(self.require_bootstrap_job()['metadata']['uid'], original)
         before = self.secret_identities(list(self.record()['committed']))
+        self.kube(
+            [
+                'label',
+                'secret',
+                'osmo-backend-token',
+                'app.kubernetes.io/managed-by=foreign-owner',
+                '--overwrite',
+            ]
+        )
+        self.values['bootstrap']['attempt'] = 'flux-migration-failure'
+        self.kube(
+            [
+                'patch',
+                'helmrelease',
+                self.release,
+                '--type=merge',
+                '-p',
+                json.dumps({'spec': {'values': self.values, 'timeout': '90s'}}),
+            ]
+        )
+
+        def migration_failed() -> bool:
+            release = self.kube_json(['get', 'helmrelease', self.release])
+            return any(
+                condition['type'] == 'Released'
+                and condition['status'] == 'False'
+                and condition.get('reason') == 'UpgradeFailed'
+                and condition.get('observedGeneration')
+                == release['metadata']['generation']
+                for condition in release.get('status', {}).get('conditions', [])
+            )
+
+        self.wait_for(
+            migration_failed, 'Flux records migration hook failure', timeout=180
+        )
+        self.assertEqual(self.require_bootstrap_job()['metadata']['uid'], original)
+        self.assert_identities_preserved(before)
+        self.kube(
+            [
+                'label',
+                'secret',
+                'osmo-backend-token',
+                'app.kubernetes.io/managed-by=osmo-backend-token-bootstrap',
+                '--overwrite',
+            ]
+        )
+        self.values['bootstrap']['attempt'] = 'flux-migration-retry'
+        self.kube(
+            [
+                'patch',
+                'helmrelease',
+                self.release,
+                '--type=merge',
+                '-p',
+                json.dumps({'spec': {'values': self.values, 'timeout': '140m'}}),
+            ]
+        )
+        self.wait_flux_ready()
+        self.assert_identities_preserved(before)
+        self.assertEqual(
+            self.kube_json(['get', 'secret', 'osmo-backend-token'])['metadata'][
+                'labels'
+            ]['app.kubernetes.io/managed-by'],
+            'osmo-identity-bootstrap',
+        )
+        original = self.assert_sequence()['metadata']['uid']
         self.values['rustfs'] = {'replicaCount': 0}
         self.values['embeddedDependencies'] = {
             'objectStorage': {'bootstrap': {'backoffLimit': 0}}

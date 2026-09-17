@@ -1,0 +1,108 @@
+{{/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. */}}
+{{/* SPDX-License-Identifier: Apache-2.0 */}}
+{{- $tokens := include "osmo.bootstrap.managedTokens" . | fromJsonArray -}}
+{{- if and .Values.planes.control.enabled .Values.authentication.bootstrap.tokenMigration.enabled $tokens -}}
+{{- $name := include "osmo.component.fullname" (dict "root" . "suffix" "identity-token-migration") -}}
+{{- $bootstrap := .Values.authentication.bootstrap -}}
+{{- $supportHooks := dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-weight" "-31" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" -}}
+{{- $jobHooks := dict "helm.sh/hook" "pre-install,pre-upgrade" "helm.sh/hook-weight" "-30" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "identity-token-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $supportHooks) | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $supportHooks) | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: [secrets]
+  resourceNames:
+  {{- range $tokens }}
+  - {{ .secretName | quote }}
+  {{- end }}
+  verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $supportHooks) | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "osmo.component.labels" (dict "root" . "component" "identity-token-migration") | nindent 4 }}
+  annotations:
+    {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $jobHooks) | nindent 4 }}
+spec:
+  activeDeadlineSeconds: {{ $bootstrap.activeDeadlineSeconds }}
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.component.selectorLabels" (dict "root" . "component" "identity-token-migration") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
+      {{- with (include "osmo.pod.affinity" (dict "root" . "component" .Values.services.api)) }}
+      affinity:
+        {{- . | nindent 8 }}
+      {{- end }}
+      {{- with (include "osmo.pod.nodeSelector" (dict "root" . "component" .Values.services.api)) }}
+      nodeSelector:
+        {{- . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- include "osmo.pod.tolerations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+      containers:
+      - name: migrate-tokens
+        image: {{ include "osmo.component.image" (dict "root" . "component" .Values.services.api) | quote }}
+        imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
+        command: [identity-bootstrap]
+        args:
+        - --migrate-tokens-only
+        - --namespace
+        - {{ .Release.Namespace | quote }}
+        - --release-name
+        - {{ .Release.Name | quote }}
+        {{- range $tokens }}
+        - --token
+        - {{ printf "%s/%s=%s" .identityID .tokenName .secretName | quote }}
+        {{- end }}
+        securityContext:
+          {{- include "osmo.bootstrap.securityContext" . | nindent 10 }}
+        resources:
+          {{- toYaml $bootstrap.resources | nindent 10 }}
+        volumeMounts:
+        - name: kubernetes-api
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+      volumes:
+        {{- include "osmo.bootstrap.apiVolume" . | nindent 8 }}
+{{- end }}
