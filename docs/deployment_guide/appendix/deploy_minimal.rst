@@ -32,6 +32,8 @@ For a local KIND cluster, follow :ref:`quickstart`. For production, use
 Embedded Dex uses memory-only sessions and signing keys and is intended for
 development and evaluation.
 
+.. _deploy_minimal_prerequisites:
+
 Prerequisites
 =============
 
