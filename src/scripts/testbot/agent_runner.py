@@ -136,7 +136,7 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                         break
                     if time.monotonic() >= next_progress:
                         elapsed = int(time.monotonic() - started)
-                        print(f'{backend} session running: {elapsed}s elapsed; '
+                        print(f'Agent session running: {elapsed}s elapsed; '
                               f'logs in {directory}', flush=True)
                         next_progress = time.monotonic() + 60
                     compact_failed.wait(timeout=0.1)
@@ -189,7 +189,7 @@ def reviewer_build_environment(artifacts: Path) -> dict[str, str]:
     }
 
 
-def codex_command(artifacts: Path, schema: Path, output: Path,
+def agent_command(artifacts: Path, schema: Path, output: Path,
                   build_environment: dict[str, str], *,
                   model: str = 'azure/openai/gpt-6-astra',
                   allow_github: bool = False) -> list[str]:

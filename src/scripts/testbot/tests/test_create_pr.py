@@ -701,7 +701,7 @@ class TestScanSuspectedBugs(unittest.TestCase):
         self.assertIn("off-by-one month", result[0])
 
     def test_unittest_skip_reason_string_detected(self):
-        # PR #1046 regression: Claude wrote the marker as the skip
+        # PR #1046 regression: the agent wrote the marker as the skip
         # decorator's reason string instead of a sibling comment. The
         # scanner must catch this form so the PR body's "Suspected
         # bugs" section reflects the signal.

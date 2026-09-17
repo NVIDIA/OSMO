@@ -1,6 +1,6 @@
 # Testbot: AI-Powered Test Generation
 
-Testbot analyzes coverage gaps, generates tests using Claude Code, recovers interrupted generation, reviews and repairs the changes with an independent Codex session, verifies the final diff, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
+Testbot analyzes coverage gaps, generates tests with an agent, recovers interrupted generation, reviews and repairs the changes with an independent review session, verifies the final diff, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
 
 ## Architecture
 
@@ -21,8 +21,8 @@ selects no targets, the remaining jobs are skipped. Each job summarizes its own
 results: selected files, generation attempts, review/check outcomes and coverage,
 or the published PR link. Job status and logs show live progress.
 
-`pipeline.py` supervises Claude Code 2.1.116 generation and independent Codex
-0.154.0 review. Failed compaction, timeouts, context limits, or missing results
+`pipeline.py` supervises generation and independent review agents. Failed
+compaction, timeouts, context limits, or missing results
 can restart an agent with fresh context, preserving edits and a checkpoint.
 Authentication/configuration failures stop retries. The original targets remain
 the work queue; the reviewer can finish incomplete generation, fix source bugs,
@@ -38,7 +38,7 @@ afterward. Failed final checks feed the next review attempt.
 | Generation/review runner job | 75 minutes |
 
 CLI flags can override stage budgets. Scheduled runs queue behind active work.
-Codex uses `azure/openai/gpt-6-astra` at
+The review and response agents use `azure/openai/gpt-6-astra` at
 `https://inference-api.nvidia.com/v1`, authenticated with `NVIDIA_API_KEY`
 (the workflow falls back to `NVIDIA_NIM_KEY`).
 
@@ -62,7 +62,7 @@ summaries. Re-running a failed job reuses its successful upstream handoff; dry
 runs complete verification and restoration without creating a PR.
 
 The shared setup action installs Ubuntu 24.04 `bubblewrap` and its AppArmor
-profile and probes the sandbox before selection and review. Codex uses
+profile and probes the sandbox before selection and review. The reviewer uses
 workspace-write permissions with network access for dependencies. Its build
 cache is shared with final verification, excluded from artifact uploads, and
 uses `--nocache_test_results` to rerun tests. API keys are excluded from reviewer
@@ -76,7 +76,7 @@ authentication. See the permissions table below and `TESTBOT_REVIEW_PROMPT.md`.
 /testbot comment → respond.py
   ├─ fetch all thread comments (GraphQL)
   ├─ filter: trigger phrase, author, dedup
-  ├─ Codex CLI: read files, apply fix, run tests
+  ├─ Agent CLI: read files, apply fix, run tests
   ├─ respond.py: git commit + push
   ├─ structured reply via --output-schema
   └─ post inline reply to each thread
@@ -85,7 +85,7 @@ authentication. See the permissions table below and `TESTBOT_REVIEW_PROMPT.md`.
 | Feature | Description |
 |---------|-------------|
 | **Trigger** | Comment starting with `/testbot` on any PR with the `ai-generated` label |
-| **Thread context** | Full conversation history (all nested comments) passed to Codex |
+| **Thread context** | Full conversation history (all nested comments) passed to the agent |
 | **Structured output** | `--output-schema` returns per-thread replies and commit message |
 | **Safety** | Repo-member-only access, crash recovery, push retry |
 | **Dedup** | Skips threads where the bot already replied and is awaiting human follow-up |
@@ -155,7 +155,7 @@ Then post a new `/testbot` comment with clearer instructions.
 |-------|---------|-------------|
 | `max_targets` | `3` | Files to target per run |
 | `max_uncovered` | `500` | Uncovered lines cap per target (0 = no cap) |
-| `max_turns` | `400` | Claude Code agent turns |
+| `max_turns` | `400` | Generation agent turns |
 | `timeout_minutes` | `75` | Maximum minutes per generation/review job |
 | `model` | `aws/anthropic/bedrock-claude-opus-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
@@ -175,7 +175,7 @@ notification. Direct channel IDs are also accepted.
 | Arg | Default | Description |
 |-----|---------|-------------|
 | `--max-responses` | `10` | Max threads to address per trigger |
-| `--timeout` | `1800` | Codex session timeout in seconds (workflow) |
+| `--timeout` | `1800` | Agent session timeout in seconds (workflow) |
 | `--model` | `azure/openai/gpt-6-astra` | LLM model |
 
 ### Coverage target selection
@@ -241,19 +241,19 @@ can see *why* a file was chosen.
 
 ```text
 src/scripts/testbot/
-├── agent_runner.py            # CLI processes, failure detection, NVIDIA Codex configuration
+├── agent_runner.py            # CLI processes, failure detection, inference configuration
 ├── pipeline.py                # Recovery, stage handoffs, and independent review
 ├── run_summary.py             # Attempt history and Actions job summaries
 ├── verification.py            # Harness checks and verified-content manifest
 ├── TESTBOT_REVIEW_PROMPT.md    # Independent review/repair contract
 ├── coverage_targets.py         # Codecov API client + filtering helpers
 ├── criticality_scorer.py       # Stage 1: heuristic shortlist (fan-in × churn × tier × coverage gap)
-├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets
+├── select_targets_agent.py     # Stage 2: Agent that picks the best test targets
 ├── SELECT_TARGETS_PROMPT.md    # System prompt for the Stage-2 picker
 ├── verify_coverage.py          # LCOV → per-range coverage report (used by generator + harness)
 ├── create_pr.py                # Branch, commit, push, open PR with agent summaries
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
-├── respond.py                  # Review response: Codex CLI + GitHub API
+├── respond.py                  # Review response: agent CLI + GitHub API
 ├── TESTBOT_RULES.md            # Shared test quality rules and conventions
 ├── TESTBOT_PROMPT.md           # Prompt for generate workflow (coverage targets)
 ├── TESTBOT_RESPOND_PROMPT.md   # Prompt for respond workflow (review feedback)

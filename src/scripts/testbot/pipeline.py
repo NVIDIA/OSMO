@@ -12,7 +12,7 @@ import time
 from src.scripts.testbot import agent_runner, coverage_targets, run_summary, verification
 
 
-CLAUDE_VERSION = '2.1.116'
+GENERATOR_CLI_VERSION = '2.1.116'
 ALLOWED_TOOLS = (
     'Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),'
     'Bash(bazel test *),Bash(bazel build *),Bash(bazel coverage *),Bash(bazel query *),'
@@ -70,7 +70,7 @@ def generate(prompt: str, artifacts: Path, max_turns: int, attempts: int,
         if time.monotonic() >= deadline or remaining_turns <= 0:
             break
         command = [
-            'npx', '--yes', f'@anthropic-ai/claude-code@{CLAUDE_VERSION}', '--print',
+            'npx', '--yes', f'@anthropic-ai/claude-code@{GENERATOR_CLI_VERSION}', '--print',
             '--model', os.environ['ANTHROPIC_MODEL'], '--output-format', 'stream-json',
             '--verbose', '--allowedTools', ALLOWED_TOOLS, '--max-turns', str(remaining_turns),
         ]
@@ -115,7 +115,7 @@ def review_decision(output: Path) -> dict:
 
 def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commit: str,
                       attempts: int, review_timeout: int, verification_timeout: int) -> None:
-    """Always use independent Codex context; allow repairs after failed validation."""
+    """Always use independent agent context; allow repairs after failed validation."""
     schema = artifacts / 'review_schema.json'
     write_json(schema, REVIEW_SCHEMA)
     build_environment = agent_runner.reviewer_build_environment(artifacts)
@@ -134,7 +134,7 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
         started = time.monotonic()
         print(f'Starting independent review attempt {number}.', flush=True)
         result = agent_runner.run_agent(
-            agent_runner.codex_command(artifacts, schema, output, build_environment),
+            agent_runner.agent_command(artifacts, schema, output, build_environment),
             prompt + context(artifacts, feedback), artifacts / f'review-{number}',
             min(900, review_seconds), 'codex')
         review_seconds -= time.monotonic() - started

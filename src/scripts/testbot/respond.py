@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
-"""Respond to PR review comments by delegating fixes to Codex CLI.
+"""Respond to PR review comments by delegating fixes to the agent CLI.
 
 Fetches unresolved review threads containing a trigger phrase, runs a
-single Codex CLI session to apply all fixes, then posts per-comment
+single agent CLI session to apply all fixes, then posts per-comment
 inline replies.
 
 Usage:
@@ -110,7 +110,7 @@ MAX_COMMIT_MESSAGE_LENGTH = 500
 
 
 def sanitize_commit_message(message: str) -> str:
-    """Sanitize a commit message from Codex's output.
+    """Sanitize a commit message from the agent's output.
 
     Enforces testbot: prefix, strips git trailers that could fake
     attribution, and caps length.
@@ -199,7 +199,7 @@ def filter_actionable(
     """Filter threads to actionable ones, logging each skip reason.
 
     A thread is actionable if ANY non-bot comment contains the trigger
-    phrase. The full thread history is preserved for Codex's context.
+    phrase. The full thread history is preserved for the agent's context.
     The reply_comment_id is set to the LAST comment with the trigger
     (the one that should receive the inline reply).
     """
@@ -278,9 +278,9 @@ def filter_actionable(
 
 
 def build_prompt(threads: list[dict], pr_number: int) -> str:
-    """Build a single prompt with all actionable threads for Codex.
+    """Build a single prompt with all actionable threads for the agent.
 
-    Each thread includes the full conversation history so Codex
+    Each thread includes the full conversation history so the agent
     understands the context (original comment + follow-up replies).
     """
     lines = [
@@ -301,36 +301,36 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
     return "\n".join(lines)
 
 
-def run_codex(
+def run_agent(
     prompt: str,
     model: str = "azure/openai/gpt-6-astra",
     timeout: int = 720,
 ) -> dict:
-    """Run one Codex session and adapt its final JSON to the existing reply flow."""
+    """Run one agent session and adapt its final JSON to the existing reply flow."""
     with tempfile.TemporaryDirectory(prefix="testbot-respond-") as directory:
         artifacts = Path(directory)
         schema, output = artifacts / "schema.json", artifacts / "response.json"
         schema.write_text(REPLY_SCHEMA, encoding="utf-8")
-        command = agent_runner.codex_command(
+        command = agent_runner.agent_command(
             artifacts, schema, output, agent_runner.reviewer_build_environment(artifacts),
             model=model, allow_github=True)
         result = agent_runner.run_agent(command, prompt, artifacts / "session", timeout, "codex")
         if result.reason == "timeout":
             return {"is_error": True, "subtype": "timeout"}
         if not result.successful:
-            logger.error("Codex failed: %s: %s", result.reason, result.summary)
+            logger.error("Agent failed: %s: %s", result.reason, result.summary)
             return {}
         try:
             parsed = json.loads(output.read_text(encoding="utf-8"))
             if isinstance(parsed, dict):
                 return {"structured_output": parsed, "result": result.summary}
         except (OSError, ValueError) as error:
-            logger.error("Failed to read Codex JSON output: %s", error)
+            logger.error("Failed to read agent JSON output: %s", error)
         return {}
 
 
 def _extract_replies(agent_output: dict) -> dict[str, str]:
-    """Extract per-comment replies from Codex output with tiered fallback.
+    """Extract per-comment replies from agent output with tiered fallback.
 
     Returns a dict mapping comment_id (str) to reply text.
     """
@@ -368,7 +368,7 @@ def _extract_replies(agent_output: dict) -> dict[str, str]:
         except (ValueError, json.JSONDecodeError):
             pass
 
-    logger.warning("No per-thread replies found in Codex output")
+    logger.warning("No per-thread replies found in agent output")
     return {}
 
 
@@ -444,16 +444,16 @@ def reply_to_comment(
 
 
 def main() -> None:
-    """Fetch actionable review threads, delegate to Codex, post replies."""
+    """Fetch actionable review threads, delegate to the agent, post replies."""
     parser = argparse.ArgumentParser(
-        description="Respond to PR review comments via Codex CLI.",
+        description="Respond to PR review comments via the agent CLI.",
     )
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--trigger-phrase", default="/testbot")
     parser.add_argument("--max-responses", type=int, default=10,
                         help="Max threads to address per trigger (default: 10)")
     parser.add_argument("--timeout", type=int, default=720,
-                        help="Codex CLI timeout in seconds (default: 720)")
+                        help="Agent CLI timeout in seconds (default: 720)")
     parser.add_argument("--model", default="azure/openai/gpt-6-astra",
                         help="LLM model name (default: azure/openai/gpt-6-astra)")
     args = parser.parse_args()
@@ -468,7 +468,7 @@ def main() -> None:
         logger.info("No actionable comments on PR #%d", args.pr_number)
         return
 
-    logger.info("=== Actionable threads to send to Codex ===")
+    logger.info("=== Actionable threads to send to the agent ===")
     for thread in actionable:
         logger.info(
             "  reply_comment_id=%s author=%s path=%s line=%s trigger=%s",
@@ -483,13 +483,13 @@ def main() -> None:
     ).stdout.strip()
 
     prompt = build_prompt(actionable, args.pr_number)
-    logger.info("Running Codex for %d comment(s)...", len(actionable))
-    agent_output = run_codex(
+    logger.info("Running the agent for %d comment(s)...", len(actionable))
+    agent_output = run_agent(
         prompt, model=args.model, timeout=args.timeout,
     )
 
     if not agent_output:
-        logger.error("Codex failed — discarding any partial changes")
+        logger.error("Agent failed — discarding any partial changes")
         discard_changes()
         for comment in actionable:
             reply_to_comment(
@@ -507,7 +507,7 @@ def main() -> None:
     if subtype in ("timeout", "error_max_turns"):
         reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
         turns_used = agent_output.get("num_turns", "?")
-        logger.warning("Codex %s after %s turns — discarding partial changes", reason, turns_used)
+        logger.warning("Agent %s after %s turns — discarding partial changes", reason, turns_used)
         discard_changes()
         status_msg = (
             f"I {reason} after {turns_used} turns. "
@@ -518,9 +518,9 @@ def main() -> None:
             reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
         return
 
-    logger.info("Codex output keys: %s", list(agent_output.keys()))
+    logger.info("Agent output keys: %s", list(agent_output.keys()))
     logger.info(
-        "Codex diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
+        "Agent diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
         agent_output.get("num_turns"),
         agent_output.get("stop_reason"),
         agent_output.get("terminal_reason"),
@@ -551,7 +551,7 @@ def main() -> None:
     else:
         logger.info("No file modifications detected")
 
-    # When push fails, Codex's per-thread replies describe work that wasn't
+    # When push fails, the agent's per-thread replies describe work that wasn't
     # applied — discard them so we don't mislead the reviewer.
     if modified_files and not push_succeeded:
         per_thread_replies = {}

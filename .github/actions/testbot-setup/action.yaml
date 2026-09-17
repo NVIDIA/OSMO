@@ -58,7 +58,7 @@ runs:
             io_bazel_rules_go: src/runtime/go.mod
             bazel_gazelle: src/runtime/go.sum
 
-    - name: Install Codex sandbox prerequisites
+    - name: Install agent sandbox prerequisites
       if: inputs.reviewer-sandbox == 'true'
       shell: bash
       run: |
@@ -73,11 +73,11 @@ runs:
         fi
         sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
 
-    - name: Check Codex sandbox file access
+    - name: Check agent sandbox file access
       if: inputs.reviewer-sandbox == 'true'
       shell: bash
       run: |
         npx --yes @openai/codex@0.154.0 sandbox \
           -c 'sandbox_mode="workspace-write"' \
           -c sandbox_workspace_write.network_access=true -- \
-          python3 -c 'import pathlib,tempfile; pathlib.Path("AGENTS.md").read_text(); f=tempfile.TemporaryFile(dir="."); f.write(b"sandbox write works"); f.close(); print("Codex sandbox read/write passed")'
+          python3 -c 'import pathlib,tempfile; pathlib.Path("AGENTS.md").read_text(); f=tempfile.TemporaryFile(dir="."); f.write(b"sandbox write works"); f.close(); print("Agent sandbox read/write passed")'

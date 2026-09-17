@@ -29,7 +29,7 @@ on:
         description: 'Max uncovered lines per target (0 = no cap)'
         default: '500'
       max_turns:
-        description: 'Max Claude Code agent turns'
+        description: 'Max generation agent turns'
         default: '400'
       timeout_minutes:
         description: 'Maximum minutes for each pipeline job'

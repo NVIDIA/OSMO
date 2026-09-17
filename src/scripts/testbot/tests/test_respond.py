@@ -14,7 +14,7 @@ from src.scripts.testbot.respond import (
     _has_trigger,
     build_prompt,
     filter_actionable,
-    run_codex,
+    run_agent,
     sanitize_commit_message,
 )
 
@@ -254,7 +254,7 @@ class TestExtractReplies(unittest.TestCase):
     """Tests for _extract_replies tiered fallback."""
 
     def test_tier1_structured_output(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [
                     {"comment_id": "123", "reply": "Added edge case tests."},
@@ -262,57 +262,57 @@ class TestExtractReplies(unittest.TestCase):
                 ],
             },
         }
-        result = _extract_replies(claude_output)
+        result = _extract_replies(agent_output)
         self.assertEqual(len(result), 2)
         self.assertEqual(result["123"], "Added edge case tests.")
         self.assertEqual(result["456"], "Fixed the assertion.")
 
     def test_tier1_empty_replies_falls_through(self):
-        claude_output: dict[str, Any] = {"structured_output": {"replies": []}}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output: dict[str, Any] = {"structured_output": {"replies": []}}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier1_not_dict_falls_through(self):
-        claude_output = {"structured_output": "not a dict", "result": ""}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"structured_output": "not a dict", "result": ""}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier2_json_in_result_text(self):
         data = json.dumps({
             "replies": [{"comment_id": "789", "reply": "Done."}],
         })
-        claude_output = {"result": f"Here is the output: {data}"}
-        result = _extract_replies(claude_output)
+        agent_output = {"result": f"Here is the output: {data}"}
+        result = _extract_replies(agent_output)
         self.assertEqual(result["789"], "Done.")
 
     def test_tier2_no_replies_key(self):
-        claude_output = {"result": '{"other_key": "value"}'}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": '{"other_key": "value"}'}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier2_malformed_json(self):
-        claude_output = {"result": "this is {not valid json"}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": "this is {not valid json"}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_skips_entries_without_comment_id(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [{"reply": "no comment id"}],
             },
         }
-        self.assertEqual(_extract_replies(claude_output), {})
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_skips_entries_without_reply(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [{"comment_id": "123", "reply": ""}],
             },
         }
-        self.assertEqual(_extract_replies(claude_output), {})
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_empty_output(self):
         self.assertEqual(_extract_replies({}), {})
 
     def test_no_result_no_structured(self):
-        claude_output = {"result": ""}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": ""}
+        self.assertEqual(_extract_replies(agent_output), {})
 
 
 class TestBuildPrompt(unittest.TestCase):
@@ -351,8 +351,8 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertIn("PR #857", prompt)
 
 
-class TestRunCodex(unittest.TestCase):
-    """Adapt Codex output to the existing response flow."""
+class TestRunAgent(unittest.TestCase):
+    """Adapt agent output to the existing response flow."""
 
     def setUp(self):
         self.output: str | None = json.dumps({"commit_message": "testbot: fix tests", "replies": []})
@@ -371,14 +371,14 @@ class TestRunCodex(unittest.TestCase):
         return self.result
 
     def test_successful_run_preserves_response_shape(self):
-        result = run_codex("test prompt")
+        result = run_agent("test prompt")
         self.assertEqual(result, {"structured_output": json.loads(self.output or ""),
                                   "result": "Tests updated"})
         self.agent.assert_called_once()
         self.assertIn('model="azure/openai/gpt-6-astra"', self.agent.call_args.args[0])
 
     def test_model_timeout_schema_and_github_access(self):
-        run_codex("test prompt", model="custom/model", timeout=45)
+        run_agent("test prompt", model="custom/model", timeout=45)
         command, prompt, _, timeout, backend = self.agent.call_args.args
         self.assertIn('model="custom/model"', command)
         self.assertEqual((prompt, timeout, backend), ("test prompt", 45, "codex"))
@@ -394,19 +394,19 @@ class TestRunCodex(unittest.TestCase):
 
     def test_timeout_returns_existing_marker(self):
         self.result = agent_runner.Attempt(reason="timeout")
-        self.assertEqual(run_codex("test"), {"is_error": True, "subtype": "timeout"})
+        self.assertEqual(run_agent("test"), {"is_error": True, "subtype": "timeout"})
 
     def test_failed_process_never_returns_final_message(self):
         for result in (agent_runner.Attempt(returncode=1), agent_runner.Attempt(returncode=0)):
             with self.subTest(result=result):
                 self.result = result
-                self.assertEqual(run_codex("test"), {})
+                self.assertEqual(run_agent("test"), {})
 
     def test_missing_or_malformed_final_message_returns_empty(self):
         for output in (None, "not json", "[]"):
             with self.subTest(output=output):
                 self.output = output
-                self.assertEqual(run_codex("test"), {})
+                self.assertEqual(run_agent("test"), {})
 
 
 class TestSanitizeCommitMessage(unittest.TestCase):
