@@ -43,7 +43,7 @@ Install the tested KAI Scheduler release using ``helm``:
 .. code-block:: bash
 
   helm upgrade --install kai-scheduler \
-    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
     --namespace kai-scheduler \
     --create-namespace \
     --wait \
@@ -57,8 +57,7 @@ Install the GPU Operator
 =========================
 
 The `NVIDIA GPU Operator <https://github.com/NVIDIA/gpu-operator>`_ is required
-for GPU workloads to be discovered and scheduled. Skip this section for a
-CPU-only backend.
+for GPU workloads to be discovered and scheduled.
 
 .. code-block:: bash
 

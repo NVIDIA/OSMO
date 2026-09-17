@@ -17,9 +17,9 @@
 
 .. _deploy_backend:
 
-=======================
-Deploy Backend Operator
-=======================
+======================
+Deploy Compute Backend
+======================
 
 Install the unified ``osmo`` Helm chart with its compute-only profile to
 connect a Kubernetes cluster to an existing OSMO control plane. The release
@@ -31,8 +31,8 @@ Prerequisites
 
 Before continuing:
 
-* Deploy an OSMO control plane and log in with an administrator account.
-* Install :ref:`OSMO CLI <cli_install>`, ``kubectl``, Helm, and ``jq``.
+* Deploy an OSMO control plane.
+* Install ``kubectl``, Helm, ``jq``, and OpenSSL.
 * Install :ref:`KAI Scheduler <installing_kai>` in the compute cluster.
 * Make the control-plane URL reachable from the compute cluster.
 * Provide enough CPU, memory, and storage for the compute-plane Pods and the
@@ -47,11 +47,11 @@ separate namespace:
    $ export CONTROL_CONTEXT=<control-context>
    $ export CONTROL_NAMESPACE=osmo
    $ export COMPUTE_CONTEXT=<compute-context>
-   $ export COMPUTE_NAMESPACE=osmo-compute
+   $ export COMPUTE_NAMESPACE=osmo-gb200-01
    $ export WORKLOAD_NAMESPACE=osmo-workflows
-   $ export BACKEND_NAME=default
 
-Use the same backend name and workload namespace in every step.
+This guide uses ``gb200-01`` as the backend name. Use the same backend name and
+workload namespace in every step.
 
 Configure the control plane
 ---------------------------
@@ -68,14 +68,11 @@ following into the complete values used to manage your control-plane release:
      service:
        service_base_url: https://osmo.example.com
      backends:
-       default:
+       gb200-01:
          k8s_namespace: osmo-workflows
      pools:
        default:
-         backend: default
-
-If ``BACKEND_NAME`` is not ``default``, use that name as the key under
-``backends`` and as the pool's ``backend`` value.
+         backend: gb200-01
 
 .. _provision_backend_secret:
 
@@ -87,34 +84,41 @@ Secret in the control-plane namespace. The commands do not print the token:
 
 .. code-block:: bash
 
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
-   $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
-       create secret generic osmo-backend-token \
-       --from-file=token="$TOKEN_FILE"
-   $ rm -f "$TOKEN_FILE"
+   $ (
+       set -o pipefail
+       TOKEN_FILE=$(mktemp)
+       chmod 600 "$TOKEN_FILE"
+       trap 'rm -f -- "$TOKEN_FILE"' EXIT
+       trap 'exit 1' HUP INT TERM
+       if ! openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" ||
+           [ ! -s "$TOKEN_FILE" ]; then
+         echo "Failed to generate backend token" >&2
+         exit 1
+       fi
+       kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+         create secret generic osmo-gb200-01-backend-token \
+         --from-file=token="$TOKEN_FILE"
+     )
 
 For production, provision the same Secret through your approved secret
-manager. Then add a bootstrap identity to the control-plane values. Setting
-``managedSecret: null`` disables the chart's default generated credential so
-this identity uses only the user-managed Secret:
+manager. As a best practice, use a different token for each backend so that
+each credential can be rotated or revoked independently. Then add a bootstrap
+identity that references the user-managed Secret to the control-plane values:
 
 .. code-block:: yaml
 
    authentication:
      bootstrap:
        identities:
-         backend-operator-default:
+         backend-operator-gb200-01:
            enabled: true
-           username: backend-operator-default
+           username: backend-operator-gb200-01
            roles:
            - osmo-backend
            tokens:
              primary:
-               managedSecret: null
                existingSecret:
-                 name: osmo-backend-token
+                 name: osmo-gb200-01-backend-token
                  key: token
 
 Apply the updated control-plane release before installing the compute plane.
@@ -128,9 +132,9 @@ it:
    $ kubectl --context "$COMPUTE_CONTEXT" create namespace "$COMPUTE_NAMESPACE" \
        --dry-run=client -o yaml | kubectl --context "$COMPUTE_CONTEXT" apply -f -
    $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
-       get secret osmo-backend-token -o json \
+       get secret osmo-gb200-01-backend-token -o json \
      | jq --arg namespace "$COMPUTE_NAMESPACE" \
-         '.metadata = {"name":"osmo-backend-token","namespace":$namespace}' \
+         '.metadata = {"name":"osmo-gb200-01-backend-token","namespace":$namespace}' \
      | kubectl --context "$COMPUTE_CONTEXT" apply --server-side -f -
 
 Prepare compute-plane values
@@ -144,11 +148,12 @@ control-plane URL that compute-cluster Pods can reach:
    externalUrl: https://osmo.example.com
 
    compute:
+     backendName: gb200-01
      workloadNamespace:
        name: osmo-workflows
        create: true
      authentication:
-       existingSecret: osmo-backend-token
+       existingSecret: osmo-gb200-01-backend-token
        tokenKey: token
 
 If you manage the workload namespace separately, create it before deployment
@@ -165,7 +170,7 @@ Deploy the compute plane
 ------------------------
 
 Pull the chart so the compute profile always matches the selected chart
-version, then validate and install it:
+version, then install it:
 
 .. code-block:: bash
 
@@ -173,17 +178,12 @@ version, then validate and install it:
    $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
    $ helm repo update osmo
    $ helm pull osmo/osmo --version "$OSMO_CHART_VERSION" \
-       --untar --untardir /tmp/osmo-chart
-   $ helm lint /tmp/osmo-chart/osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-compute.yaml \
-       --values osmo-compute-values.yaml \
-       --set-string compute.backendName="$BACKEND_NAME"
-   $ helm --kube-context "$COMPUTE_CONTEXT" upgrade --install osmo-compute \
-       /tmp/osmo-chart/osmo \
+       --untar
+   $ helm --kube-context "$COMPUTE_CONTEXT" upgrade --install osmo-gb200-01 \
+       ./osmo \
        --namespace "$COMPUTE_NAMESPACE" \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-compute.yaml \
+       --values osmo/profiles/compute-plane.yaml \
        --values osmo-compute-values.yaml \
-       --set-string compute.backendName="$BACKEND_NAME" \
        --wait --timeout 10m
 
 .. _configure_pool:
@@ -191,22 +191,27 @@ version, then validate and install it:
 Verify the backend
 ------------------
 
-Wait for both compute Deployments and confirm that the backend, pool, and
-cluster resources are online:
+Confirm that the backend listener and worker Deployments are available:
 
 .. code-block:: bash
 
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
-       get deployments
-   $ osmo config show BACKEND "$BACKEND_NAME"
-   $ osmo pool list
-   $ osmo resource list --pool default
+       rollout status deployment \
+       --selector app.kubernetes.io/instance=osmo-gb200-01 \
+       --timeout 10m
+   $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
+       get deployments,pods \
+       --selector app.kubernetes.io/instance=osmo-gb200-01
 
-The backend output must show ``"online": true``. Finally, submit a small CPU
-workflow to prove that scheduling and execution work end to end:
+An authenticated OSMO CLI is not required to deploy the backend. Optionally,
+use it to confirm that the backend and pool are online and submit a small CPU
+workflow for end-to-end verification:
 
 .. code-block:: bash
 
+   $ osmo config show BACKEND gb200-01
+   $ osmo pool list
+   $ osmo resource list --pool default
    $ osmo workflow submit cookbook/tutorials/hello_world.yaml --pool default
 
 Rotate the backend credential
@@ -249,10 +254,26 @@ decoded credential:
 
 .. code-block:: bash
 
-   $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
-       get secret osmo-backend-token -o jsonpath='{.data.token}' | sha256sum
-   $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
-       get secret osmo-backend-token -o jsonpath='{.data.token}' | sha256sum
+   $ (
+       token=$(kubectl --context "$CONTROL_CONTEXT" \
+         --namespace "$CONTROL_NAMESPACE" \
+         get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
+       if [ -z "$token" ]; then
+         echo "Control-plane Secret has no token data" >&2
+         exit 1
+       fi
+       printf '%s' "$token" | sha256sum
+     )
+   $ (
+       token=$(kubectl --context "$COMPUTE_CONTEXT" \
+         --namespace "$COMPUTE_NAMESPACE" \
+         get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
+       if [ -z "$token" ]; then
+         echo "Compute-plane Secret has no token data" >&2
+         exit 1
+       fi
+       printf '%s' "$token" | sha256sum
+     )
 
 If the hashes differ, repeat the Secret-copy step and restart the backend
 listener and worker.

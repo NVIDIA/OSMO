@@ -15,7 +15,7 @@ values after a base overlay so that the environment values take precedence.
 | `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an external OIDC client and Secret with role assignments for production, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
-| `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
+| `compute-plane.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` in environment-specific values |
 
 The default values are the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
