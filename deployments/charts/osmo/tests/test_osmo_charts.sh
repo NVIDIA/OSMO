@@ -1276,6 +1276,10 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/self-contained-api.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
+        "osmo-dex" >"$TEST_DIRECTORY/self-contained-dex.yaml"
+    require_contains "$TEST_DIRECTORY/self-contained-dex.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         "osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'secretName: osmo-embedded-dex-oauth'
@@ -1331,6 +1335,12 @@ test_control_umbrella() {
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "app.kubernetes.io/instance: osmo"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "app.kubernetes.io/component: gateway-envoy"
+    require_contains \
+        "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
+        "port: 8080"
     require_contains \
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "port: 9000"
@@ -1493,6 +1503,10 @@ test_control_umbrella() {
         "client: nvcr.io/nvidia/osmo/client:6.3.1"
     require_occurrences "$TEST_DIRECTORY/self-contained-config.yaml" \
         "osmo.nvidia.com/node-pool: compute" 3
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "service_base_url: http://osmo-gateway.osmo.svc:80"
+    require_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
+        "k8s_namespace: osmo-workflows"
     require_not_contains "$TEST_DIRECTORY/self-contained-config.yaml" \
         "development_auth"
     require_contains "$TEST_DIRECTORY/self-contained.yaml" \
@@ -1504,7 +1518,7 @@ test_control_umbrella() {
         osmo-ui \
         >"$TEST_DIRECTORY/self-contained-ui.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-listener.yaml" \
-        "http://osmo-gateway:80"
+        "http://osmo-gateway.osmo.svc:80"
     require_contains "$TEST_DIRECTORY/self-contained-listener.yaml" \
         "app.kubernetes.io/component: backend-listener"
     require_not_contains "$TEST_DIRECTORY/self-contained.yaml" \
@@ -2567,7 +2581,7 @@ INVALID_DEX_MCP
         "kubernetes.io/metadata.name: portable-osmo"
     require_occurrences \
         "$TEST_DIRECTORY/portable-self-contained-workflow-network-policy.yaml" \
-        "app.kubernetes.io/instance: portable-self-contained" 2
+        "app.kubernetes.io/instance: portable-self-contained" 3
 
     helm package "$charts_copy/osmo" --destination "$TEST_DIRECTORY" >/dev/null
     tar -tzf "$TEST_DIRECTORY/osmo-0.1.0.tgz" >"$TEST_DIRECTORY/osmo-package.txt"
@@ -3898,7 +3912,18 @@ EOF
         ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-default-internal-workflow-url-config.yaml" \
-        "service_base_url: http://osmo-gateway:80"
+        "service_base_url: http://osmo-gateway.default.svc:80"
+
+    helm_template tls-internal-workflow-url "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set gateway.envoy.ssl.enabled=true \
+        --set gateway.envoy.service.port=8443 \
+        >"$TEST_DIRECTORY/osmo-tls-internal-workflow-url.yaml"
+    resource_document "$TEST_DIRECTORY/osmo-tls-internal-workflow-url.yaml" \
+        ConfigMap osmo-api-config \
+        >"$TEST_DIRECTORY/osmo-tls-internal-workflow-url-config.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-tls-internal-workflow-url-config.yaml" \
+        "service_base_url: https://osmo-gateway.default.svc:8443"
 
     helm_template internal-workflow-url "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \

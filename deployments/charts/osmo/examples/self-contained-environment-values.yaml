@@ -23,6 +23,11 @@ secrets:
       nodeSelector:
         osmo.nvidia.com/node-pool: control-plane
 
+# Keep the evaluation-only embedded identity provider on platform nodes.
+dex:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
 # Place the built-in workflow Pod templates on compute nodes. Apply the same
 # selector to any additional workflow Pod templates you create.
 configuration:

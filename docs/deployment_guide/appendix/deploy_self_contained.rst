@@ -22,10 +22,10 @@ Self-contained Deployment
 ===========================
 
 A self-contained deployment runs the OSMO control plane, compute plane, and
-stateful dependencies in one non-cloud Kubernetes cluster. It is intended for
-edge sites, labs, and other environments that must keep the complete OSMO stack
-local while retaining data and service availability across Pod or node
-failures.
+stateful dependencies in one Kubernetes cluster. It is intended for edge
+sites, labs, and evaluation environments that must keep the complete OSMO
+stack together while retaining data and service availability across Pod or
+node failures.
 
 Choose this deployment model when you need more durability and availability
 than the :ref:`Quickstart <quickstart>` can provide and the independently
@@ -58,7 +58,8 @@ The cluster must provide:
 * Kubernetes 1.30 or newer;
 * at least four nodes labeled
   ``osmo.nvidia.com/node-pool=control-plane``, with enough failure-domain
-  capacity for three PostgreSQL Pods, three Valkey Pods, and four RustFS Pods;
+  and aggregate CPU capacity for three PostgreSQL Pods, three Valkey Pods,
+  four RustFS Pods, and the OSMO services;
 * at least one node labeled ``osmo.nvidia.com/node-pool=compute`` for workflow
   Pods;
 * a default dynamic ``StorageClass`` backed by durable storage;
@@ -83,7 +84,8 @@ not need to be Kubernetes control-plane nodes.
 .. code-block:: bash
 
    kubectl label node \
-     <platform-node-1> <platform-node-2> <platform-node-3> <platform-node-4> \
+     <platform-node-1> <platform-node-2> \
+     <platform-node-3> <platform-node-4> \
      osmo.nvidia.com/node-pool=control-plane
    kubectl label node <compute-node-1> \
      osmo.nvidia.com/node-pool=compute
@@ -93,44 +95,62 @@ The profile creates three 20 GiB PostgreSQL volumes and four 100 GiB RustFS
 volumes in addition to persistent Valkey storage. Account for storage-provider
 overhead, backups, and the resources requested by concurrent workflows.
 
-Identity and edge requirements
-------------------------------
+Identity, Secrets, and edge requirements
+----------------------------------------
 
-Register a confidential browser client and a public device-flow CLI client with
-an identity provider reachable by users and the OSMO gateway. The provider can
-run inside or outside the cluster. Its tokens must contain an array-valued
-``roles`` claim and the audience expected by OSMO. Assign trusted operators the
-``osmo-admin`` role and workflow users the ``osmo-user`` role.
+For a simple test or evaluation, keep the chart defaults. The chart bootstraps
+retained Kubernetes Secrets and an embedded Dex identity with a generated
+administrator password. Embedded Dex uses volatile memory storage and is not
+suitable for production. Production deployments must configure an external
+identity provider by following :doc:`authentication/identity_provider_setup`.
 
-Prepare these non-secret OIDC values before installation:
+If you manage the master encryption key, service authentication, or dependency
+credentials yourself, configure them before installation as described in
+:ref:`deploy_service_other_secrets`.
 
-* the issuer URL, browser client ID, browser authorization and logout
-  endpoints, audience, and JWKS URL;
-* the CLI client ID, device authorization endpoint, and token endpoint;
-* the identity-provider host reachable from the gateway;
-* the token claim that contains the user name; and
-* the public HTTPS URL for OSMO.
-
-The profile creates a ``ClusterIP`` gateway. Configure an operator-managed edge
-to terminate public TLS and route the public URL to the ``osmo-gateway`` Service
-on port 80. Validate the edge and the CNI's NetworkPolicy enforcement before
-exposing OSMO to users.
+The profile creates a ``ClusterIP`` gateway. For local evaluation, use the
+port-forward described later. For production, configure an operator-managed
+edge to terminate public TLS and route the public URL to the ``osmo-gateway``
+Service on port 80. Validate the edge and the CNI's NetworkPolicy enforcement
+before exposing OSMO to users.
 
 Install cluster dependencies
 ============================
 
-Install KAI Scheduler v0.12.10 for OSMO workflow scheduling:
+Create ``kai-selectors.yaml`` to keep KAI Scheduler on platform nodes:
+
+.. code-block:: yaml
+
+   global:
+     nodeSelector:
+       osmo.nvidia.com/node-pool: control-plane
+     affinity:
+       nodeAffinity:
+         requiredDuringSchedulingIgnoredDuringExecution:
+           nodeSelectorTerms:
+           - matchExpressions:
+             - key: osmo.nvidia.com/node-pool
+               operator: In
+               values:
+               - control-plane
+     tolerations: []
+
+Install KAI Scheduler v0.12.10 using the same release artifact and values-file
+workflow as :ref:`the compute deployment guide <installing_kai>`:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.12.10 \
-     --create-namespace -n kai-scheduler \
-     --set-string 'global.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
-     --wait
+     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
+     --namespace kai-scheduler \
+     --create-namespace \
+     --values kai-selectors.yaml
+   kubectl wait --for=condition=Available \
+     config.kai.scheduler/kai-config --timeout=10m
+   kubectl wait --for=condition=Available \
+     schedulingshard/default --timeout=10m
+   kubectl --namespace kai-scheduler wait --for=condition=Available \
+     deployment --all --timeout=10m
 
 Install CloudNativePG chart 0.29.0. The operator manages the PostgreSQL cluster
 created by the OSMO release:
@@ -147,70 +167,48 @@ created by the OSMO release:
      --wait \
      --timeout 10m
 
-Create the OAuth Secret
-=======================
+Install OSMO
+============
 
-Create the release namespace. Prepare a file that contains the OIDC client
-Secret, then generate an exact 32-byte cookie Secret and create the OAuth
-Secret. Using files keeps both values out of Helm values and shell arguments.
-``head`` writes the requested number of random bytes without adding a trailing
-newline:
+Use the self-contained profile and its shipped environment overlay unchanged.
+Create ``self-contained-site-values.yaml`` for the settings that differ in your
+environment:
+
+.. code-block:: yaml
+
+   externalUrl: http://127.0.0.1:8080
+
+   compute:
+     workflowNetworkPolicy:
+       clusterCIDRs:
+       - <pod-cidr>
+       - <service-cidr>
+
+Use ``http://127.0.0.1:8080`` for the local evaluation path, or set
+``externalUrl`` to the public HTTPS URL for an operator-managed edge. The
+``clusterCIDRs`` list must cover every IPv4 Pod and Service CIDR used by the
+cluster. Omit duplicate entries when both networks are covered by one CIDR.
+
+The shipped environment overlay places OSMO services, bootstrap Jobs, embedded
+Dex, PostgreSQL, Valkey, and RustFS on ``control-plane`` nodes. It places the
+built-in workflow Pod templates on ``compute`` nodes. Add matching overrides to
+the site values file only if your cluster uses different labels. Retain the
+compute-node selector in any additional or replacement workflow Pod templates.
+
+The command below uses Helm 4's ``--wait=legacy`` strategy because its default
+watcher can leave the release ``pending-install`` after operator-managed custom
+resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
    kubectl create namespace osmo
-   OAUTH_COOKIE_SECRET_FILE="$(mktemp)"
-   head -c 32 /dev/urandom > "${OAUTH_COOKIE_SECRET_FILE}"
-   kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
-     --from-file=client_secret=/secure/path/oidc-client-secret \
-     --from-file="cookie_secret=${OAUTH_COOKIE_SECRET_FILE}"
-   rm "${OAUTH_COOKIE_SECRET_FILE}"
-
-Install OSMO
-============
-
-Helm profiles are values overlays, not a ``profile`` setting. The environment
-overlay below is the file supplied with the chart. Before installing, replace:
-
-* ``externalUrl`` with the public HTTPS URL for OSMO;
-* every example identity-provider URL, host, client ID, audience, and claim;
-* ``clusterCIDRs`` with every IPv4 Pod and Service CIDR used by the cluster; and
-* node-selector keys or values only if you used labels other than those shown
-  in :ref:`the prerequisites <self_contained_prerequisites>`.
-
-Keep the ``cluster: idp`` value unless you also define a different Envoy cluster
-for the identity provider. Keep all environment-specific values separate from
-the production profile so that upgrades can reuse them.
-
-The ``clusterCIDRs`` list must cover every IPv4 Pod and Service CIDR used by the
-cluster. Add entries when the cluster uses more than one CIDR.
-
-The dependency commands place KAI Scheduler and the PostgreSQL operator on
-nodes with the ``control-plane`` label. The example environment overlay applies
-the same selector to OSMO services and bootstrap Jobs, PostgreSQL, Valkey, and
-RustFS. It also adds the ``compute`` selector to the default workflow Pod
-templates. If you add pool-specific Pod templates or replace the default
-templates, retain the compute-node selector so workflows do not run on OSMO
-platform nodes.
-
-Review the complete environment overlay before copying it:
-
-.. literalinclude:: ../../../deployments/charts/osmo/examples/self-contained-environment-values.yaml
-   :language: yaml
-   :start-after: SPDX-License-Identifier: Apache-2.0
-
-.. code-block:: bash
-
-   cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
-     self-contained-environment-values.yaml
-   # Replace the example values described above.
-
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
-     --values self-contained-environment-values.yaml \
-     --wait \
+     --values deployments/charts/osmo/examples/self-contained-environment-values.yaml \
+     --values self-contained-site-values.yaml \
+     --wait=legacy \
      --wait-for-jobs \
      --timeout 30m
 
@@ -224,12 +222,63 @@ retained master encryption key.
 Validate the deployment
 =======================
 
-Verify the public edge and log in through the configured identity provider:
+Confirm that the OSMO Deployments, stateful dependencies, and PostgreSQL
+cluster are ready:
 
 .. code-block:: bash
 
-   curl --fail https://osmo.edge.example.com/api/version
-   osmo login https://osmo.edge.example.com --method=code
+   kubectl --namespace osmo wait --for=condition=Available \
+     deployment --all --timeout=10m
+   kubectl --namespace osmo rollout status \
+     statefulset/osmo-valkey --timeout=10m
+   kubectl --namespace osmo rollout status \
+     statefulset/osmo-rustfs --timeout=10m
+   kubectl --namespace osmo wait --for=condition=Ready \
+     cluster/osmo-pg --timeout=10m
+   kubectl --namespace osmo get pods,services,pvc,jobs
+   kubectl --namespace kai-scheduler get schedulingshard,deployments
+
+For the local evaluation path, start a port-forward in a separate terminal:
+
+.. code-block:: bash
+
+   kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
+
+The chart bootstraps an OSMO access token for the ``admin`` identity. Use a
+protected temporary file so the token does not appear in terminal output or
+shell history:
+
+.. code-block:: bash
+
+   umask 077
+   OSMO_TOKEN_FILE="$(mktemp)"
+   trap 'rm -f -- "${OSMO_TOKEN_FILE}"' EXIT INT TERM
+   kubectl --namespace osmo get secret osmo-admin-token \
+     --output jsonpath='{.data.token}' \
+     | base64 --decode > "${OSMO_TOKEN_FILE}"
+   osmo login http://127.0.0.1:8080 \
+     --method=token \
+     --token-file="${OSMO_TOKEN_FILE}"
+   rm -f -- "${OSMO_TOKEN_FILE}"
+   trap - EXIT INT TERM
+
+To use the browser UI, retrieve the embedded-Dex password in a private terminal:
+
+.. code-block:: bash
+
+   kubectl --namespace osmo get secret osmo-embedded-dex-admin \
+     --output jsonpath='{.data.password}' | base64 --decode
+   printf '\n'
+
+Visit ``http://127.0.0.1:8080`` and sign in as ``admin@osmo.local`` with that
+password. Embedded Dex is for testing and evaluation; use the configured
+external IdP and public HTTPS URL in production.
+
+Verify the API and submit the short CPU workflow:
+
+.. code-block:: bash
+
+   curl --fail http://127.0.0.1:8080/api/version
    osmo profile set pool default
    osmo workflow submit deployments/workflows/verify-hello.yaml \
      --pool default \
@@ -262,13 +311,19 @@ Common causes include:
 * A ``Pending`` PostgreSQL, Valkey, or RustFS PVC means the default
   ``StorageClass`` is absent, lacks capacity, or cannot bind on an eligible
   node.
-* Unschedulable PostgreSQL or RustFS Pods usually mean fewer than four eligible
-  nodes are available or required hostname anti-affinity cannot be satisfied.
+* Unschedulable PostgreSQL or RustFS Pods usually mean fewer than four platform
+  nodes are available, CPU is exhausted, or required hostname
+  anti-affinity cannot be satisfied. Inspect Pod events for ``Insufficient
+  cpu`` before adding replicas or increasing node size.
 * A workflow that remains queued usually means KAI Scheduler is not Ready or no
   eligible node has the requested CPU, memory, GPU, or ephemeral storage.
-* An OAuth redirect loop or rejected token usually means the public URL, issuer,
-  audience, JWKS URL, client Secret, redirect URI, or role claim is inconsistent
-  between OSMO and the identity provider.
+* If Helm 4 reports an operator custom resource as ``InProgress`` after its
+  Ready or Available condition is true, use the documented explicit
+  ``kubectl wait`` checks and Helm's ``--wait=legacy`` strategy.
+* An OAuth redirect loop or rejected token usually means ``externalUrl`` does
+  not exactly match the URL used by the browser and CLI. With an external IdP,
+  also check the issuer, audience, JWKS URL, client Secret, redirect URI, and
+  role claim.
 * ``ImagePullBackOff`` means the image registry, tag, credentials, proxy, or
   mirror configuration is incorrect.
 * A missing retained backend token, master encryption key, or stateful-service
@@ -302,15 +357,17 @@ Upgrade and recovery
 Before an upgrade, back up PostgreSQL, RustFS, Valkey, and all retained
 credential Secrets. Keep the master encryption key with the database backup.
 Review the rendered change, then reuse the installed profile and environment
-values:
+values. The command uses Helm 4; with Helm 3, replace ``--wait=legacy`` with
+``--wait``:
 
 .. code-block:: bash
 
    helm upgrade osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
-     --values self-contained-environment-values.yaml \
-     --wait \
+     --values deployments/charts/osmo/examples/self-contained-environment-values.yaml \
+     --values self-contained-site-values.yaml \
+     --wait=legacy \
      --wait-for-jobs \
      --timeout 30m
 

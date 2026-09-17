@@ -147,7 +147,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "osmo.compute.serviceUrl" -}}
 {{- if .Values.planes.control.enabled -}}
-{{- printf "http://%s:%v" (include "osmo.gateway.fullname" .) .Values.gateway.envoy.service.port -}}
+{{- printf "%s://%s.%s.svc:%v" (ternary "https" "http" .Values.gateway.envoy.ssl.enabled) (include "osmo.gateway.fullname" .) .Release.Namespace .Values.gateway.envoy.service.port -}}
 {{- else -}}
 {{- required "externalUrl is required when the compute plane connects to an external control plane" (.Values.externalUrl | trimSuffix "/") -}}
 {{- end -}}

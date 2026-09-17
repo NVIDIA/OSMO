@@ -393,29 +393,7 @@ helm upgrade --install osmo deployments/charts/osmo \
 ```
 
 The first installation bootstraps the retained `osmo-master-encryption-key` and
-`osmo-service-auth` Secrets without rendering key material. As soon as it
-succeeds, disable both Secret-creation steps in
-`self-contained-environment-values.yaml` and apply the mandatory cleanup
-transaction:
-
-```yaml
-secrets:
-  masterEncryptionKey:
-    bootstrap:
-      enabled: false
-  serviceAuth:
-    bootstrap:
-      enabled: false
-```
-
-```bash
-helm upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --values deployments/charts/osmo/profiles/self-contained.yaml \
-  --values self-contained-environment-values.yaml \
-  --wait \
-  --timeout 140m
-```
+`osmo-service-auth` Secrets without rendering key material.
 
 The profile deploys these stateful services:
 
