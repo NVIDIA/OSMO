@@ -126,6 +126,7 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                 drain = threading.Thread(target=consume, args=(process.stdout, log), daemon=True)
                 drain.start()
                 interrupted = ''
+                next_progress = time.monotonic() + 60
                 while process.poll() is None:
                     if compact_failed.is_set():
                         interrupted = 'compaction_failed'
@@ -133,6 +134,11 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                     if time.monotonic() - started >= timeout:
                         interrupted = 'timeout'
                         break
+                    if time.monotonic() >= next_progress:
+                        elapsed = int(time.monotonic() - started)
+                        print(f'{backend} session running: {elapsed}s elapsed; '
+                              f'logs in {directory}', flush=True)
+                        next_progress = time.monotonic() + 60
                     compact_failed.wait(timeout=0.1)
                 stop_process_group(process)
                 drain.join(timeout=5)

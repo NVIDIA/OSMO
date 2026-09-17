@@ -216,7 +216,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 ### Testbot (`scripts/testbot/`)
 
-AI-powered test generation with bounded Claude Code recovery, independent Codex review and source repair, and harness-enforced verification before PR creation. Review responses use Claude Code CLI. See `scripts/testbot/README.md` for details.
+AI-powered test generation with bounded Claude Code recovery, independent Codex review and source repair, and harness-enforced verification before PR creation. Separate Actions jobs expose stage progress and transfer checked patches; job summaries report attempts and outcomes. Review responses use Claude Code CLI. See `scripts/testbot/README.md` for details.
 
 ### Tests
 

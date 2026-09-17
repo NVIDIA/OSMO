@@ -52,6 +52,7 @@ osmo_py_test(
         "//:.python-version",
         "//:MODULE.bazel",
         "//.github/workflows:workflows",
+        "//.github/actions/testbot-setup:action.yaml",
     ],
 )
 

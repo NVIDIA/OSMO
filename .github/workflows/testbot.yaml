@@ -38,7 +38,7 @@ on:
         # wiping most of the exploration state mid-run.
         default: '400'
       timeout_minutes:
-        description: 'Workflow timeout in minutes'
+        description: 'Maximum minutes for each pipeline job'
         default: '75'
       model:
         description: 'LLM model name on NVIDIA gateway'
@@ -64,8 +64,8 @@ on:
         default: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: testbot
@@ -73,6 +73,7 @@ concurrency:
 
 jobs:
   preflight:
+    name: Preflight
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.open-testbot-prs.outputs.should_run }}
@@ -115,75 +116,25 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           FORCE_RUN: ${{ inputs.force_run || 'false' }}
 
-  generate-tests:
+  select-targets:
+    name: Pick targets
     needs: preflight
     if: needs.preflight.outputs.should_run == 'true'
     environment: nim-env
-    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
           fetch-depth: 0
-          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Set up runtimes and check reviewer sandbox early
+        uses: ./.github/actions/testbot-setup
         with:
-          python-version: '3.14.7'
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: src/ui/package.json
-
-      - name: Install UI dependencies
-        working-directory: src/ui
-        run: pnpm install --frozen-lockfile
-
-      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
-      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
-      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
-      # Install bazelisk directly from the asset URL to bypass the broken path.
-      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
-      # so we pin the SHA256 we observed and verify before sudo-installing.
-      - name: Install Bazelisk
-        env:
-          BAZELISK_VERSION: v1.27.0
-          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
-            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
-          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
-          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
-          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-        with:
-          bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
-          repository-cache: true
-          external-cache: |
-            manifest:
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
-
-      - name: Configure git
-        run: |
-          git config user.name "testbot[bot]"
-          git config user.email "testbot[bot]@users.noreply.github.com"
+          reviewer-sandbox: 'true'
 
       # Two-stage target selection: a heuristic scorer narrows the candidate
       # pool to ~20 critical-but-undertested files (using fan-in, churn, and
@@ -196,13 +147,14 @@ jobs:
           # criticality_scorer logs the ranked shortlist itself; we just
           # dump the JSON in a foldable group so reviewers can see the full
           # per-signal breakdown when debugging a pick.
+          mkdir -p "$RUNNER_TEMP/testbot-targets"
           PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
             --shortlist-size 20 \
             --max-uncovered ${{ inputs.max_uncovered || '500' }} \
-            --output "$RUNNER_TEMP/shortlist.json"
+            --output "$RUNNER_TEMP/testbot-targets/shortlist.json"
           echo "::group::Shortlist JSON (full per-signal breakdown)"
-          cat "$RUNNER_TEMP/shortlist.json"
+          cat "$RUNNER_TEMP/testbot-targets/shortlist.json"
           echo "::endgroup::"
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -210,12 +162,12 @@ jobs:
       - name: Pick targets via subagent (Stage 2)
         run: |
           PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
-            --shortlist "$RUNNER_TEMP/shortlist.json" \
+            --shortlist "$RUNNER_TEMP/testbot-targets/shortlist.json" \
             --max-targets ${{ inputs.max_targets || '3' }} \
-            --output "$RUNNER_TEMP/targets.txt" \
-            --meta-output "$RUNNER_TEMP/targets_meta.json"
+            --output "$RUNNER_TEMP/testbot-targets/targets.txt" \
+            --meta-output "$RUNNER_TEMP/testbot-targets/targets_meta.json"
           echo "::group::Selected targets"
-          cat "$RUNNER_TEMP/targets.txt"
+          cat "$RUNNER_TEMP/testbot-targets/targets.txt"
           echo "::endgroup::"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
@@ -224,18 +176,63 @@ jobs:
           DISABLE_PROMPT_CACHING: "1"
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      # Recovery retains the working tree, starts fresh conversations, and
-      # reserves independent Codex review plus deterministic verification.
-      - name: Generate, review, and verify tests
+      - name: Summarize selection
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot-targets" --stage selection \
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+
+      - name: Preserve targets diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-targets-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot-targets/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  generate-tests:
+    name: Generate tests
+    needs: select-targets
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up build tools
+        uses: ./.github/actions/testbot-setup
+        with:
+          build-tools: 'true'
+
+      - name: Download targets handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-targets-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot-targets
+
+      - name: Stage generator coverage metadata
+        run: cp "$RUNNER_TEMP/testbot-targets/targets_meta.json" "$RUNNER_TEMP/targets_meta.json"
+
+      - name: Generate tests with recovery
         id: pipeline
         run: |
-          # Agent text in an exception must not become a workflow command.
           stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
           echo "::stop-commands::$stop_token"
           set +e
-          PYTHONPATH=. python src/scripts/testbot/pipeline.py \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            --artifacts "$RUNNER_TEMP/testbot" \
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage generate --artifacts "$RUNNER_TEMP/testbot" \
+            --targets-meta "$RUNNER_TEMP/testbot-targets/targets_meta.json" \
             --max-turns "$MAX_TURNS"
           status=$?
           echo "::$stop_token::"
@@ -244,25 +241,123 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-5' }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
           MAX_TURNS: ${{ inputs.max_turns || '400' }}
           DISABLE_PROMPT_CACHING: "1"
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      - name: Preserve testbot diagnostics and changes
+      - name: Summarize generation
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage generation \
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+
+      - name: Preserve generation diagnostics and changes
         if: always()
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
-          name: testbot-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/testbot/
-            ${{ runner.temp }}/shortlist.json
-            ${{ runner.temp }}/targets_meta.json
+          name: testbot-generation-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot/
+          overwrite: true
           if-no-files-found: warn
           retention-days: 14
 
+  review-tests:
+    name: Review, repair, and verify
+    needs: generate-tests
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up build tools and reviewer sandbox
+        uses: ./.github/actions/testbot-setup
+        with:
+          build-tools: 'true'
+          reviewer-sandbox: 'true'
+
+      - name: Download generation handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-generation-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot
+
+      - name: Review, repair, and verify
+        id: pipeline
+        run: |
+          stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          echo "::stop-commands::$stop_token"
+          set +e
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage review --artifacts "$RUNNER_TEMP/testbot"
+          status=$?
+          echo "::$stop_token::"
+          exit "$status"
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
+
+      - name: Summarize review
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage review \
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+
+      - name: Preserve review diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    name: Publish PR or finish dry run
+    needs: review-tests
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Set up publication runtime
+        uses: ./.github/actions/testbot-setup
+
+      - name: Download review handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot
+
+      - name: Restore and check the verified changes
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage restore --artifacts "$RUNNER_TEMP/testbot"
+
       - name: Create PR
-        if: steps.pipeline.outcome == 'success' && inputs.dry_run != true
+        if: inputs.dry_run != true
         run: |
           # No targets is a successful no-op. Every published change must
           # exactly match the independently verified content manifest.
@@ -300,3 +395,13 @@ jobs:
           # to #osmo-code-reviews and the workflow_dispatch input
           # default mirrors that.
           TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}
+
+      - name: Summarize publish
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage publish \
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"

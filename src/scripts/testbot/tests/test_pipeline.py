@@ -12,7 +12,7 @@ import time
 import unittest
 from unittest import mock
 
-from src.scripts.testbot import agent_runner, pipeline, verification
+from src.scripts.testbot import agent_runner, pipeline, run_summary, verification
 
 
 class TestAgentProcess(unittest.TestCase):
@@ -208,7 +208,7 @@ class TestRecovery(RepositoryTest):
         self.assertFalse((self.artifacts / 'verified_changes.json').exists())
 
 
-    def test_full_pipeline_recovers_and_publishes_only_repaired_verified_content(self):
+    def test_separate_jobs_recover_and_publish_only_repaired_verified_content(self):
         """Use real agent processes and real regression execution through fake CLIs."""
         tools = self.artifacts / 'tools'
         tools.mkdir()
@@ -300,7 +300,15 @@ else:
                 'pipeline.py', '--targets-meta', str(meta_path), '--artifacts', str(output),
                 '--generation-timeout', '30', '--review-timeout', '30',
                 '--verification-timeout', '30']):
+            # Each stage runs in a separate clean checkout, as on Actions runners.
+            sys.argv.extend(['--stage', 'generate'])
             pipeline.main()
+            for stage in ('review', 'restore'):
+                checkout = self.artifacts / f'{stage}-checkout'
+                subprocess.run(['git', 'clone', '-q', str(self.repo), str(checkout)], check=True)
+                os.chdir(checkout)
+                sys.argv = ['pipeline.py', '--stage', stage, '--artifacts', str(output)]
+                pipeline.main()
         self.assertEqual((self.artifacts / 'generation-count').read_text(encoding='utf-8'), '2')
         self.assertNotIn('unittest.skip', Path('src/tests/test_example.py').read_text(encoding='utf-8'))
         self.assertEqual(verification.load_verified_changes(output / 'verified_changes.json'),
@@ -309,6 +317,96 @@ else:
         self.assertIn('replaced/deleted', (output / 'coverage_report.md').read_text(encoding='utf-8'))
         self.assertTrue((output / 'generate-1.patch').is_file())
         self.assertTrue((output / 'final.patch').is_file())
+        summary = run_summary.render(output, 'publish', 'success', True)
+        self.assertIn('Generation attempt 1', summary)
+        self.assertIn('compaction_failed', summary)
+        self.assertIn('Verification attempt 1', summary)
+        self.assertIn('Final verification completed', summary)
+        self.assertIn('Dry run', summary)
+
+
+class TestHandoff(RepositoryTest):
+    """Cross-runner patch reconstruction must preserve the checked content."""
+
+    def clean_checkout(self):
+        """Create a different checkout at the recorded base commit."""
+        checkout = self.artifacts / 'next-runner'
+        subprocess.run(['git', 'clone', '-q', str(self.repo), str(checkout)], check=True)
+        os.chdir(checkout)
+
+    def test_handoff_preserves_binary_new_deleted_files_and_modes(self):
+        Path('src/example.py').unlink()
+        new_file = Path('src/tests/test_binary.py')
+        new_file.write_bytes(b'\0binary fixture\xff')
+        new_file.chmod(0o755)
+        pipeline.save_handoff(self.artifacts, self.base)
+        expected = verification.fingerprint(verification.changed_files())
+        self.clean_checkout()
+        self.assertEqual(pipeline.restore_handoff(self.artifacts), self.base)
+        self.assertEqual(verification.fingerprint(verification.changed_files()), expected)
+
+    def test_wrong_base_rejected_before_applying_changes(self):
+        Path('src/example.py').write_text('modified\n', encoding='utf-8')
+        pipeline.save_handoff(self.artifacts, 'different-commit')
+        self.clean_checkout()
+        with self.assertRaisesRegex(ValueError, 'baseline differs'):
+            pipeline.restore_handoff(self.artifacts)
+        self.assertFalse(verification.changed_files())
+
+    def test_harness_patch_rejected_before_application(self):
+        scripts = Path('src/scripts/testbot')
+        scripts.mkdir(parents=True)
+        (scripts / 'pipeline.py').write_text('unreviewed harness edit', encoding='utf-8')
+        pipeline.save_handoff(self.artifacts, self.base)
+        self.clean_checkout()
+        with self.assertRaisesRegex(ValueError, 'outside test/source repair scope'):
+            pipeline.restore_handoff(self.artifacts)
+        self.assertFalse(verification.changed_files())
+
+    def test_altered_patch_cannot_be_published(self):
+        Path('src/example.py').write_text('reviewed\n', encoding='utf-8')
+        pipeline.save_handoff(self.artifacts, self.base)
+        patch = self.artifacts / 'final.patch'
+        patch.write_text(patch.read_text(encoding='utf-8').replace('+reviewed', '+tampered'),
+                         encoding='utf-8')
+        self.clean_checkout()
+        with self.assertRaisesRegex(ValueError, 'contents differ'):
+            pipeline.restore_handoff(self.artifacts)
+
+    def test_missing_manifest_cannot_restore_for_publication(self):
+        Path('src/example.py').write_text('unverified\n', encoding='utf-8')
+        pipeline.save_handoff(self.artifacts, self.base)
+        self.clean_checkout()
+        with mock.patch.object(sys, 'argv', ['pipeline.py', '--stage', 'restore',
+                                            '--artifacts', str(self.artifacts)]), \
+                self.assertRaises(FileNotFoundError):
+            pipeline.main()
+
+    def test_no_targets_passes_through_all_stages_without_agents(self):
+        metadata = self.artifacts / 'empty.json'
+        pipeline.write_json(metadata, [])
+        output = self.artifacts / 'empty-run'
+        with mock.patch.object(agent_runner, 'run_agent') as run:
+            for stage in ('generate', 'review', 'restore'):
+                with mock.patch.object(sys, 'argv', ['pipeline.py', '--stage', stage,
+                        '--artifacts', str(output), '--targets-meta', str(metadata)]):
+                    pipeline.main()
+            run.assert_not_called()
+        self.assertTrue((output / 'skipped.json').exists())
+
+    def test_missing_records_never_claim_verification_success(self):
+        summary = run_summary.render(self.artifacts, 'review', 'failure', False)
+        self.assertIn('publication is blocked', summary)
+        self.assertNotIn('Final verification completed', summary)
+
+    def test_summary_escapes_model_text_and_retains_failed_attempts(self):
+        run_summary.record(self.artifacts, 'Review attempt 1', 'failed', time.monotonic(),
+                           '<script>bad</script>|injected\nrow')
+        summary = run_summary.render(self.artifacts, 'review', 'failure', False)
+        self.assertIn('Review attempt 1', summary)
+        self.assertIn('failed', summary)
+        self.assertNotIn('<script>', summary)
+        self.assertIn('&#124;', summary)
 
 
 class TestVerification(RepositoryTest):

@@ -6,14 +6,39 @@ Testbot analyzes coverage gaps, generates tests using Claude Code, recovers inte
 
 ### Test Generation (`testbot.yaml`)
 
-```text
-Codecov + git history → criticality scorer → target picker
-  → Claude generation (bounded fresh-session recovery)
-  → test-only generator guardrails
-  → independent Codex review and repair (source fixes allowed)
-  → harness tests, style checks, and coverage
-  → verified content manifest → PR creation
+GitHub Actions displays five connected jobs, each with its own status and logs:
+
+```mermaid
+flowchart LR
+    A[Preflight] --> B[Pick targets]
+    B --> C[Generate tests]
+    C --> D[Review, repair, and verify]
+    D --> E[Publish PR or finish dry run]
 ```
+
+Selection combines Codecov coverage with code importance and git history.
+Generation and review retain their own recovery loops inside the corresponding
+job. Each job writes a run-summary table with actual attempt outcomes, elapsed
+time, recovery reasons, selected targets, and measured coverage. Summaries are
+available after the job finishes; job status and logs show live progress.
+
+Jobs transfer patches, metadata, and checkpoints through separate artifacts.
+`pipeline.py --stage generate` produces the generation handoff; `--stage review`
+restores it on a clean checkout at the same commit, then reviews and verifies it.
+`--stage restore` reconstructs the final changes and checks the verification
+manifest before publication, including in dry runs. New files, binary changes,
+deletions, and executable modes survive the transfer. An incomplete generator
+result remains eligible for review and is reported as incomplete in its summary.
+Infrastructure failures block dependent jobs. Re-running failed jobs reuses the
+successful upstream artifact; re-running an upstream job replaces its own artifact.
+
+The shared setup action installs the system `bubblewrap` package and its AppArmor
+profile on Ubuntu 24.04, following the [Codex sandbox prerequisites](https://learn.chatgpt.com/docs/sandboxing#prerequisites).
+A sandboxed read/write probe runs before target selection and again before review,
+so a broken sandbox fails before spending time on generation or model retries.
+AppArmor and Codex workspace restrictions remain enabled. Agent jobs use read-only
+GitHub permissions and do not retain checkout credentials; write credentials are
+limited to the publication job.
 
 The target picker preserves the original coverage work queue. Generation stays
 in one session until it succeeds or fails; there are no fixed file/range batches.
@@ -27,7 +52,8 @@ in one session until it succeeds or fails; there are no fixed file/range batches
   budget and 30-minute deadline across attempts. Each agent attempt has a
   15-minute timeout. Review shares 20 minutes; independent verification shares
   15 minutes, including any repair iterations. CLI flags can override stage
-  budgets. The workflow timeout defaults to 75 minutes and later scheduled runs
+  budgets. The generation/review jobs each default to a 75-minute runner timeout;
+  the shared agent/check budgets above still bound the work. Later scheduled runs
   queue instead of canceling an active recovery/review.
 - A separate Codex 0.154.0 `exec` session uses
   `azure/openai/gpt-6-astra` through the NVIDIA Responses API at
@@ -64,7 +90,7 @@ is excluded from its tool subprocess environment and independent verification co
 
 Every run retains per-attempt prompts, JSONL streams, stderr, terminal outcomes,
 checkpoints, generated patches (including untracked files), verification logs,
-coverage reports, and the final review summary in a GitHub Actions artifact for
+coverage reports, and the final review summary in per-stage GitHub Actions artifacts for
 14 days. This includes failures and dry runs. Dry runs execute review and final
 verification but skip PR creation.
 
@@ -154,7 +180,7 @@ Then post a new `/testbot` comment with clearer instructions.
 | `max_targets` | `3` | Files to target per run |
 | `max_uncovered` | `500` | Uncovered lines cap per target (0 = no cap) |
 | `max_turns` | `400` | Claude Code agent turns |
-| `timeout_minutes` | `75` | Workflow timeout |
+| `timeout_minutes` | `75` | Maximum minutes per generation/review job |
 | `model` | `aws/anthropic/bedrock-claude-opus-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
@@ -241,7 +267,8 @@ can see *why* a file was chosen.
 ```text
 src/scripts/testbot/
 ├── agent_runner.py            # CLI processes, failure detection, NVIDIA Codex configuration
-├── pipeline.py                # Bounded recovery and independent review orchestration
+├── pipeline.py                # Recovery, stage handoffs, and independent review
+├── run_summary.py             # Attempt history and Actions job summaries
 ├── verification.py            # Harness checks and verified-content manifest
 ├── TESTBOT_REVIEW_PROMPT.md    # Independent review/repair contract
 ├── coverage_targets.py         # Codecov API client + filtering helpers

@@ -64,10 +64,19 @@ def retain_generated_tests() -> None:
                 Path(name).unlink()
 
 
+def check_change_scope(paths: list[str]) -> None:
+    """Keep workflow and harness code out of agent patches transferred between jobs."""
+    for name in paths:
+        if (not name.startswith('src/') or '..' in Path(name).parts
+                or name.startswith('src/scripts/testbot/')):
+            raise ValueError(f'Change is outside test/source repair scope: {name}')
+
+
 def load_verified_changes(path: Path) -> list[str]:
     """Reject stale approval if anything changed after independent verification."""
     manifest = json.loads(path.read_text(encoding='utf-8'))
     paths = changed_files()
+    check_change_scope(paths)
     if (manifest.get('verified') is not True
             or manifest.get('base_commit') != git('rev-parse', 'HEAD').strip()
             or manifest.get('files') != fingerprint(paths)):
@@ -134,6 +143,7 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int) ->
     """Re-run tests after the reviewer edits, then record actual coverage."""
     deadline = time.monotonic() + timeout
     paths = changed_files()
+    check_change_scope(paths)
     before = fingerprint(paths)
     if not paths:
         raise ValueError('No changes remain after review')
