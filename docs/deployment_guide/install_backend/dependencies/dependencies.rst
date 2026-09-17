@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -38,39 +38,27 @@ OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI w
 
 For more information on the scheduler, see :ref:`scheduler`.
 
-Create a file called ``kai-selectors.yaml`` with node selectors / tolerations to specify which
-nodes the KAI scheduler should run on.
-
-.. code-block:: yaml
-
-  global:
-    # Modify the node selectors and tolerations to match your cluster
-    nodeSelector: {}
-    tolerations: []
-
-  scheduler:
-    additionalArgs:
-    - --default-staleness-grace-period=-1s  # Disable stalegangeviction
-    - --update-pod-eviction-condition=true  # Enable OSMO to read preemption conditions
-
-Next, install KAI using ``helm``
+Install the tested KAI Scheduler release using ``helm``:
 
 .. code-block:: bash
 
-  helm fetch oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler --version <insert-chart-version>
-  helm upgrade --install kai-scheduler kai-scheduler-<insert-chart-version>.tgz \
-    --create-namespace -n kai-scheduler \
-    --values kai-selectors.yaml
+  helm upgrade --install kai-scheduler \
+    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+    --namespace kai-scheduler \
+    --create-namespace \
+    --wait \
+    --timeout 10m
 
 .. note::
-   Replace ``<insert-chart-version>`` with the actual chart version.
-   OSMO supports up to date chart versions.
-   For more information on the chart version, refer to the `official KAI scheduler release notes <https://github.com/NVIDIA/kai-scheduler/releases>`__.
+   For newer compatible versions, refer to the
+   `official KAI Scheduler release notes <https://github.com/NVIDIA/kai-scheduler/releases>`__.
 
 Install the GPU Operator
 =========================
 
-The `NVIDIA GPU-Operator <https://github.com/NVIDIA/gpu-operator>`_ is required for GPU workloads to be discovered and scheduled on the Kubernetes cluster.
+The `NVIDIA GPU Operator <https://github.com/NVIDIA/gpu-operator>`_ is required
+for GPU workloads to be discovered and scheduled. Skip this section for a
+CPU-only backend.
 
 .. code-block:: bash
 
@@ -81,4 +69,3 @@ The `NVIDIA GPU-Operator <https://github.com/NVIDIA/gpu-operator>`_ is required 
 .. note::
 
    For optional observability components such as Grafana, Prometheus, and Kubernetes Dashboard, see :ref:`adding_observability`.
-

@@ -17,289 +17,262 @@
 
 .. _deploy_backend:
 
-================================================
+=======================
 Deploy Backend Operator
-================================================
+=======================
 
-Deploying the backend operator will register your compute backend with OSMO, making its resources available for running workflows. Follow these steps to deploy and connect your backend to OSMO.
+Install the unified ``osmo`` Helm chart with its compute-only profile to
+connect a Kubernetes cluster to an existing OSMO control plane. The release
+contains the backend listener and worker but no control-plane services or
+databases.
 
-.. admonition:: Prerequisites
-  :class: important
+Prerequisites
+-------------
 
-  - Install :ref:`OSMO CLI <cli_install>` before you begin
-  - Replace ``osmo.example.com`` with your domain name in the commands below
+Before continuing:
+
+* Deploy an OSMO control plane and log in with an administrator account.
+* Install :ref:`OSMO CLI <cli_install>`, ``kubectl``, Helm, and ``jq``.
+* Install :ref:`KAI Scheduler <installing_kai>` in the compute cluster.
+* Make the control-plane URL reachable from the compute cluster.
+* Provide enough CPU, memory, and storage for the compute-plane Pods and the
+  workflows you intend to run. GPU workloads also require GPU nodes and the
+  NVIDIA GPU Operator.
+
+The examples use one context for each cluster and keep workflow Pods in a
+separate namespace:
+
+.. code-block:: bash
+
+   $ export CONTROL_CONTEXT=<control-context>
+   $ export CONTROL_NAMESPACE=osmo
+   $ export COMPUTE_CONTEXT=<compute-context>
+   $ export COMPUTE_NAMESPACE=osmo-compute
+   $ export WORKLOAD_NAMESPACE=osmo-workflows
+   $ export BACKEND_NAME=default
+
+Use the same backend name and workload namespace in every step.
+
+Configure the control plane
+---------------------------
+
+The control plane must define the backend before the compute plane connects.
+Its ``k8s_namespace`` must exactly match the compute chart's workload
+namespace, at least one pool must reference the backend, and workflow Pods
+must be able to reach ``configuration.service.service_base_url``. Merge the
+following into the complete values used to manage your control-plane release:
+
+.. code-block:: yaml
+
+   configuration:
+     service:
+       service_base_url: https://osmo.example.com
+     backends:
+       default:
+         k8s_namespace: osmo-workflows
+     pools:
+       default:
+         backend: default
+
+If ``BACKEND_NAME`` is not ``default``, use that name as the key under
+``backends`` and as the pool's ``backend`` value.
 
 .. _provision_backend_secret:
 
-Step 1: Provision Backend Bootstrap Secret
--------------------------------------------
+Provision the backend credential
+--------------------------------
 
-Provision the backend bootstrap credential as a Kubernetes Secret. This flow
-does not log in to OSMO or call the user or access-token APIs.
-
-Generate a 43-character credential into a protected temporary file and create
-the control-plane Secret:
+Generate a backend credential into a protected temporary file and create its
+Secret in the control-plane namespace. The commands do not print the token:
 
 .. code-block:: bash
 
    $ TOKEN_FILE=$(mktemp)
    $ chmod 600 "$TOKEN_FILE"
    $ openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE"
-   $ kubectl --context <control-context> create secret generic osmo-backend-token-default \
-       --namespace <control-namespace> \
+   $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+       create secret generic osmo-backend-token \
        --from-file=token="$TOKEN_FILE"
    $ rm -f "$TOKEN_FILE"
 
-Configure the control-plane service chart to consume the Secret:
+For production, provision the same Secret through your approved secret
+manager. Then add a bootstrap identity to the control-plane values. Setting
+``managedSecret: null`` disables the chart's default generated credential so
+this identity uses only the user-managed Secret:
 
 .. code-block:: yaml
 
-   services:
-     backendApiTokens:
-       enabled: true
-       credentials:
-       - name: default
-         existingSecret:
-           name: osmo-backend-token-default
+   authentication:
+     bootstrap:
+       identities:
+         backend-operator-default:
+           enabled: true
+           username: backend-operator-default
+           roles:
+           - osmo-backend
+           tokens:
+             primary:
+               managedSecret: null
+               existingSecret:
+                 name: osmo-backend-token
+                 key: token
 
-.. note::
+Apply the updated control-plane release before installing the compute plane.
+Keep all existing control-plane values in that Helm upgrade.
 
-  For production, materialize the Secret through your approved external-secret
-  integration instead of generating it on an administrator workstation.
-
-For single-cluster development, the service chart can generate the Secret on
-the initial install:
-
-.. code-block:: yaml
-
-   services:
-     backendApiTokens:
-       enabled: true
-       credentials:
-       - name: default
-         managedSecret:
-           name: osmo-backend-token-default
-
-The backend operator can consume that Secret directly when it runs in the same
-namespace. A pre-install kubectl hook generates the credential inside Kubernetes; the
-token is not included in Helm output or release state. A pre-upgrade hook
-preserves and validates it, and fails rather than replacing a missing Secret.
-The Secret persists independently of Helm uninstall and rollback. This mode
-does not synchronize the token to another cluster, so use ``existingSecret``
-with an external secret manager for production and multi-cluster deployments.
-Managed credentials must be configured during the initial install. Add later
-credentials by provisioning them explicitly and using ``existingSecret``.
-Chart-bootstrap Secrets persist after Helm uninstall; delete them explicitly
-when they are no longer needed.
-
-.. tip::
-
-  The service always maps this credential to the ``osmo-backend`` role. The
-  role cannot be changed through Helm values or Secret data.
-
-.. seealso::
-
-  Personal access tokens and other service-account tokens continue to use the
-  OSMO token APIs. This Secret contract is specific to backend bootstrap.
-
-
-Step 2: Create K8s Namespaces and Secrets
-------------------------------------------------
-
-Create Kubernetes namespaces and secrets necessary for the backend deployment.
-
-.. code-block:: bash
-  :substitutions:
-
-    # Create namespaces for osmo operator and osmo workflows
-    $ kubectl --context <compute-context> create namespace osmo-operator
-    $ kubectl --context <compute-context> create namespace osmo-workflows
-
-    # Stream the bootstrap Secret to the compute cluster without printing it.
-    $ kubectl --context <control-context> get secret osmo-backend-token-default \
-        --namespace <control-namespace> -o json \
-      | jq '.metadata = {"name":"osmo-backend-token-default","namespace":"osmo-operator"}' \
-      | kubectl --context <compute-context> apply --server-side -f -
-
-
-Step 3: Deploy Backend Operator
--------------------------------
-
-Deploy the backend operator to the backend kubernetes cluster.
-
-Prepare the ``backend_operator_values.yaml`` file:
-
-.. dropdown:: ``backend_operator_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 2, 6
-
-    global:
-      osmoImageTag: <insert-osmo-image-tag>  # REQUIRED: Update with OSMO image tag
-      serviceUrl: https://osmo.example.com
-      agentNamespace: osmo-operator
-      backendNamespace: osmo-workflows
-      backendName: default  # REQUIRED: Update with your backend name
-      accountTokenSecret: osmo-backend-token-default
-      loginMethod: token
-
-      services:
-        backendListener:
-          resources:
-            requests:
-                cpu: "1"
-                memory: "1Gi"
-            limits:
-                memory: "1Gi"
-        backendWorker:
-          resources:
-            requests:
-                cpu: "1"
-                memory: "1Gi"
-            limits:
-                memory: "1Gi"
-
-.. note::
-
-   If you plan to use group templates that create ConfigMaps, CRDs, or other Kubernetes objects,
-   you must grant the backend worker permission for those resource kinds via
-   ``services.backendWorker.extraRBACRules``. See :ref:`group_template_permissions` for details and examples.
-
-Deploy the backend operator:
+Copy the Secret to the compute release namespace without decoding or printing
+it:
 
 .. code-block:: bash
 
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ kubectl --context "$COMPUTE_CONTEXT" create namespace "$COMPUTE_NAMESPACE" \
+       --dry-run=client -o yaml | kubectl --context "$COMPUTE_CONTEXT" apply -f -
+   $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+       get secret osmo-backend-token -o json \
+     | jq --arg namespace "$COMPUTE_NAMESPACE" \
+         '.metadata = {"name":"osmo-backend-token","namespace":$namespace}' \
+     | kubectl --context "$COMPUTE_CONTEXT" apply --server-side -f -
 
-   $ helm repo update
-
-   $ helm upgrade --install osmo-operator osmo/backend-operator \
-     -f ./backend_operator_values.yaml \
-     --version <insert-chart-version> \
-     --namespace osmo-operator \
-     --kube-context <compute-context>
-
-Step 4: Validate Deployment
+Prepare compute-plane values
 ----------------------------
 
-Use the OSMO CLI to validate the backend configuration
+Create ``osmo-compute-values.yaml``. Replace ``osmo.example.com`` with the
+control-plane URL that compute-cluster Pods can reach:
+
+.. code-block:: yaml
+
+   externalUrl: https://osmo.example.com
+
+   compute:
+     workloadNamespace:
+       name: osmo-workflows
+       create: true
+     authentication:
+       existingSecret: osmo-backend-token
+       tokenKey: token
+
+If you manage the workload namespace separately, create it before deployment
+and set ``create: false``.
+
+.. note::
+
+   Group templates that create ConfigMaps, custom resources, or other
+   Kubernetes objects need corresponding permissions under
+   ``services.backendWorker.extraRBACRules``. See
+   :ref:`group_template_permissions`.
+
+Deploy the compute plane
+------------------------
+
+Pull the chart so the compute profile always matches the selected chart
+version, then validate and install it:
 
 .. code-block:: bash
-  :substitutions:
 
-  $ export BACKEND_NAME=default  # Update with your backend name
-
-  $ osmo config show BACKEND $BACKEND_NAME
-
-Alternatively, visit http://osmo.example.com/api/configs/backend in your browser.
-
-Ensure the backend is online (see the highlighted line in the JSON output):
-
-.. code-block:: json
-  :emphasize-lines: 25
-
-  {
-    "backends": [
-        {
-            "name": "default",
-            "description": "Default backend",
-            "version": "6.0.0",
-            "k8s_uid": "6bae3562-6d32-4ff1-9317-09dd973c17a2",
-            "k8s_namespace": "osmo-workflows",
-            "dashboard_url": "",
-            "grafana_url": "",
-            "tests": [],
-            "scheduler_settings": {
-                "scheduler_type": "kai",
-                "scheduler_name": "kai-scheduler",
-                "scheduler_timeout": 30
-            },
-            "node_conditions": {
-                "rules": null,
-                "prefix": "osmo.example.com/"
-            },
-            "last_heartbeat": "2025-11-15T02:35:17.957569",
-            "created_date": "2025-09-03T19:48:21.969688",
-            "router_address": "wss://osmo.example.com",
-            "online": true
-        }
-    ]
-  }
-
-.. seealso::
-
-  See :ref:`backend_config` for more information
+   $ export OSMO_CHART_VERSION=<chart-version>
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm repo update osmo
+   $ helm pull osmo/osmo --version "$OSMO_CHART_VERSION" \
+       --untar --untardir /tmp/osmo-chart
+   $ helm lint /tmp/osmo-chart/osmo \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-compute.yaml \
+       --values osmo-compute-values.yaml \
+       --set-string compute.backendName="$BACKEND_NAME"
+   $ helm --kube-context "$COMPUTE_CONTEXT" upgrade --install osmo-compute \
+       /tmp/osmo-chart/osmo \
+       --namespace "$COMPUTE_NAMESPACE" \
+       --values /tmp/osmo-chart/osmo/profiles/split-plane-compute.yaml \
+       --values osmo-compute-values.yaml \
+       --set-string compute.backendName="$BACKEND_NAME" \
+       --wait --timeout 10m
 
 .. _configure_pool:
 
-Step 5: Default Pool Is Ready
-------------------------------
+Verify the backend
+------------------
 
-The Helm chart ships with a default pool wired to a backend named ``default``. If your backend is named ``default`` (as used throughout this guide), the default pool will automatically link to it as soon as the backend shows as online in the previous step — no additional configuration is needed.
-
-Verify:
+Wait for both compute Deployments and confirm that the backend, pool, and
+cluster resources are online:
 
 .. code-block:: bash
 
-  $ osmo pool list
-  Pool      Description    Status    GPU [#]
-                                   Quota Used   Quota Limit   Total Usage   Total Capacity
-  =============================================================================================
-  default   Default pool   ONLINE    N/A          N/A           0             24
-  =============================================================================================
-                                                                0             24
+   $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
+       get deployments
+   $ osmo config show BACKEND "$BACKEND_NAME"
+   $ osmo pool list
+   $ osmo resource list --pool default
 
-If the pool shows ``OFFLINE``, wait a few seconds for the backend heartbeat or re-check Step 4.
+The backend output must show ``"online": true``. Finally, submit a small CPU
+workflow to prove that scheduling and execution work end to end:
 
-If you chose a different backend name, update the default pool in ``osmo_values.yaml`` to point at it:
+.. code-block:: bash
 
-.. code-block:: yaml
+   $ osmo workflow submit cookbook/tutorials/hello_world.yaml --pool default
 
-  services:
-    configs:
-      pools:
-        default:
-          backend: <your-backend-name>
+Rotate the backend credential
+-----------------------------
 
-Re-apply with ``helm upgrade``. To add additional pools or platforms, see :ref:`advanced_pool_configuration`.
-
-
-Rotate the Backend Bootstrap Secret
------------------------------------
-
-Use an overlap window so every API replica and backend operator can move to the
-new credential without losing registration:
+Use an overlap window so the control and compute planes can change credentials
+without losing registration:
 
 1. Update the control-plane Secret so ``token`` contains the new value and
    ``previous-token`` contains the old value.
 2. Wait for every API replica to accept both credentials.
 3. Replace ``token`` in the compute-plane Secret with the new value.
-4. Restart both the backend-listener and backend-worker Deployments and verify
-   that they reconnect.
+4. Restart the backend-listener and backend-worker Deployments and verify that
+   they reconnect.
 5. Remove ``previous-token`` from the control-plane Secret.
-6. Verify the old credential is rejected by every API replica.
-
-Kubernetes updates projected Secret directories automatically. Explicitly
-restart the backend Deployments because an established WebSocket may otherwise
-continue running without rereading the credential file.
+6. Verify that the old credential is rejected by every API replica.
 
 Troubleshooting
 ---------------
 
-Backend Authentication Error
+Unknown backend
+~~~~~~~~~~~~~~~
+
+If the backend listener reports that the backend is not configured, add the
+exact value of ``compute.backendName`` under ``configuration.backends`` in the
+control-plane values and apply the control-plane release.
+
+Namespace mismatch
+~~~~~~~~~~~~~~~~~~
+
+If registration reports a namespace mismatch, make
+``configuration.backends.<backend-name>.k8s_namespace`` identical to
+``compute.workloadNamespace.name`` and apply the control-plane release.
+
+Backend authentication error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Verify that the control- and compute-plane Secrets have identical ``token``
-data without printing the decoded credential:
+Verify that both Secrets contain identical token data without printing the
+decoded credential:
 
 .. code-block:: bash
 
-   $ kubectl --context <control-context> get secret osmo-backend-token-default \
-       -n <control-namespace> -o jsonpath='{.data.token}' | sha256sum
-   $ kubectl --context <compute-context> get secret osmo-backend-token-default \
-       -n osmo-operator -o jsonpath='{.data.token}' | sha256sum
+   $ kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+       get secret osmo-backend-token -o jsonpath='{.data.token}' | sha256sum
+   $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
+       get secret osmo-backend-token -o jsonpath='{.data.token}' | sha256sum
 
-If the hashes differ, repeat the Secret-transfer step and restart the backend
+If the hashes differ, repeat the Secret-copy step and restart the backend
 listener and worker.
+
+Connection errors
+~~~~~~~~~~~~~~~~~
+
+From a compute-cluster Pod, verify DNS, TLS trust, firewall rules, and access
+to ``externalUrl``. The listener requires a persistent WebSocket connection to
+the OSMO gateway.
+
+Workflow remains pending or validation rejects its resources
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check ``osmo resource list --pool <pool>`` and the workflow events. Account for
+the CPU and memory requested by OSMO sidecars as well as the user container.
+Confirm that KAI Scheduler is running and that the cluster has a node with
+enough available capacity for the complete workflow Pod.
+
+.. seealso::
+
+   See :ref:`backend_config` for backend configuration options and
+   :ref:`advanced_pool_configuration` for additional pools and platforms.
