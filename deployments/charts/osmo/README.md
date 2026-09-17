@@ -57,7 +57,7 @@ kubectl config use-context kind-osmo
 kubectl get storageclass
 
 helm upgrade --install kai-scheduler \
-  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
   --namespace kai-scheduler \
   --create-namespace \
   --wait \

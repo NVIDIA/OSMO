@@ -231,7 +231,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     zones                       = var.availability_zones
     auto_scaling_enabled        = true
     vnet_subnet_id              = azurerm_subnet.private[0].id
-    max_pods                    = 30
+    max_pods                    = 20
     os_disk_size_gb             = 50
   }
 

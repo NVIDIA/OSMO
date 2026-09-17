@@ -50,7 +50,7 @@ Select the deployment model that fits your needs and environment.
           one non-cloud Kubernetes cluster for edge and local environments.
 
       .. grid-item-card:: :octicon:`server` Single-plane Deployment
-          :link: ../appendix/deploy_minimal
+          :link: ../appendix/deploy_single_plane
           :link-type: doc
           :class-card: tool-card
 

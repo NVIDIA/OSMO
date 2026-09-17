@@ -91,13 +91,13 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "Instance type for AKS node pool"
   type        = string
-  default     = "Standard_D2s_v3"
+  default     = "Standard_D4s_v3"
 }
 
 variable "node_group_min_size" {
   description = "Minimum number of nodes in AKS node pool"
   type        = number
-  default     = 1
+  default     = 3
 }
 
 variable "node_group_max_size" {

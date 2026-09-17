@@ -1615,6 +1615,7 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string imageTag=single-plane-test-tag \
         >"$TEST_DIRECTORY/single-plane-azure.yaml"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
@@ -1669,6 +1670,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "failureThreshold: 60"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         'azure.workload.identity/use: "true"'
@@ -1706,6 +1709,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "cpu: '{{USER_CPU}}'"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "cpu: 100m"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "default_platform: cpu"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "- default_gpu_user"
@@ -1717,6 +1722,10 @@ test_control_umbrella() {
         "azure://osmoazure/osmo-workflows/logs"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "azure://osmoazure/osmo-workflows/apps"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "init: nvcr.io/nvidia/osmo/init-container:single-plane-test-tag"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "client: nvcr.io/nvidia/osmo/client:single-plane-test-tag"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "secretName: osmo-object-storage"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \

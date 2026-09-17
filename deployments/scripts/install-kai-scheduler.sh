@@ -29,7 +29,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-KAI_VERSION="${KAI_VERSION:-0.14.0}"
+KAI_VERSION="${KAI_VERSION:-0.12.10}"
 KAI_NAMESPACE="${KAI_NAMESPACE:-kai-scheduler}"
 KAI_RELEASE="${KAI_RELEASE:-kai-scheduler}"
 KAI_CHART_URL="https://github.com/NVIDIA/KAI-Scheduler/releases/download/v${KAI_VERSION}/kai-scheduler-v${KAI_VERSION}.tgz"
@@ -46,10 +46,13 @@ main() {
     # bare CRDs left behind by `helm uninstall` are orphans, not a working
     # scheduler — re-install rather than skip.
     if crd_present podgroups.scheduling.run.ai && helm_chart_installed kai-scheduler; then
-        log_warning "KAI Scheduler already installed (CRD podgroups.scheduling.run.ai present) — skipping"
         local existing
         existing=$(helm_chart_release_info kai-scheduler)
-        [[ -n "$existing" ]] && log_info "Detected existing release: $existing"
+        if [[ "$existing" != "\"chart\":\"kai-scheduler-v${KAI_VERSION}\"" ]]; then
+            log_error "Detected $existing, but OSMO requires KAI Scheduler v${KAI_VERSION}"
+            return 1
+        fi
+        log_warning "KAI Scheduler v${KAI_VERSION} already installed — skipping"
         return 0
     fi
 

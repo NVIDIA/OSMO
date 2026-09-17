@@ -57,13 +57,9 @@ TF_CLUSTER_NAME="${TF_CLUSTER_NAME:-osmo-cluster}"
 TF_REGION="${TF_REGION:-East US 2}"
 TF_ENVIRONMENT="${TF_ENVIRONMENT:-dev}"
 TF_PROJECT_NAME="${TF_PROJECT_NAME:-osmo}"
-# Pin to AKS 1.33.x — the most recent minor with Ubuntu 22.04 + containerd 1.7.x
-# defaults, validated against GPU Operator v25.10.1 and KAI Scheduler v0.14.0.
-# AKS 1.34+ on Ubuntu 24.04 nodes ships containerd 2.x which the current
-# NVIDIA toolchain in install-gpu-operator.sh has not been validated against.
-# AKS 1.32 and older are LTS-only as of 2026-03-31 and cannot be used to
-# create new standard-tier clusters.
-TF_K8S_VERSION="${TF_K8S_VERSION:-1.33.11}"
+# Use a minor so AKS selects a currently supported patch. Pinning a patch
+# eventually fails as Azure prunes patch releases or restricts a minor to LTS.
+TF_K8S_VERSION="${TF_K8S_VERSION:-1.35}"
 
 # GPU node-pool inputs (used by azure_generate_tfvars to render gpu_min/gpu_max
 # + gpu_vm_size). Empty TF_GPU_COUNT + TF_GPU_NODE_POOL_ENABLED=false means
@@ -320,8 +316,8 @@ availability_zones = ["1", "2"]
 
 # AKS Configuration
 kubernetes_version                  = "$TF_K8S_VERSION"
-node_instance_type                  = "Standard_D2s_v3"
-node_group_min_size                 = 1
+node_instance_type                  = "Standard_D4s_v3"
+node_group_min_size                 = 3
 node_group_max_size                 = 5
 node_group_desired_size             = 3
 aks_private_cluster_enabled         = false

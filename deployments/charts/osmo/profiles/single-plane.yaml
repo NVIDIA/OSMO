@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Development-oriented converged profile. Layer a site-specific values file
-# after this profile to provide external service connections and a public URL.
+# Single-plane converged profile for one cluster running both OSMO planes with
+# external PostgreSQL, Valkey, and object storage. Layer site-specific values
+# after this profile to provide connection endpoints and a reachable OSMO URL.
 planes:
   control:
     enabled: true
@@ -12,8 +13,6 @@ planes:
 fullnameOverride: osmo
 
 imageTag: latest
-runtimeImage:
-  tag: latest
 
 embeddedDependencies:
   postgresql:
@@ -80,6 +79,9 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -96,6 +98,9 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -128,6 +133,9 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -144,6 +152,9 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -170,6 +181,9 @@ services:
     replicas: 1
     image:
       pullPolicy: IfNotPresent
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -182,6 +196,9 @@ services:
     replicas: 1
     image:
       pullPolicy: IfNotPresent
+    startupProbe:
+      spec:
+        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -245,6 +262,15 @@ monitoring:
 
 configuration:
   podTemplates:
+    default_ctrl:
+      spec:
+        containers:
+        - name: osmo-ctrl
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 1Gi
     # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
     # and injects the NVIDIA RuntimeClass. The default CPU platform omits the
     # key; the built-in GPU platform adds it through default_gpu_user.
