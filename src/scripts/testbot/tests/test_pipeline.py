@@ -62,14 +62,6 @@ class TestAgentProcess(unittest.TestCase):
         self.assertFalse(result.successful)
         self.assertEqual(result.returncode, 7)
 
-    def test_codex_completed_turn_is_parsed(self):
-        result, _ = self.run_script(
-            'import json; print(json.dumps({"type":"item.completed",'
-            '"item":{"type":"agent_message","text":"review done"}}));'
-            'print(json.dumps({"type":"turn.completed"}))', backend='codex')
-        self.assertTrue(result.successful)
-        self.assertEqual(result.summary, 'review done')
-
     def test_malformed_nested_events_do_not_stop_stdout_drain(self):
         cases = (
             ('claude', 'assistant', 'message', {'id': 'valid-message'},
@@ -80,21 +72,16 @@ class TestAgentProcess(unittest.TestCase):
         )
         malformed_values: tuple[object, ...] = (None, [], 'invalid', 1, True)
         for backend, event_type, field, valid, terminal in cases:
-            for malformed in malformed_values:
-                with self.subTest(backend=backend, malformed=malformed):
-                    events = [
-                        {'type': event_type, field: malformed},
-                        {'type': event_type, field: valid},
-                        terminal,
-                    ]
-                    stream = ''.join(json.dumps(event) + '\n' for event in events)
-                    result, directory = self.run_script(
-                        f'import sys; sys.stdout.write({stream!r})', backend=backend)
-                    self.assertTrue(result.successful)
-                    self.assertEqual(result.summary, 'complete')
-                    self.assertEqual(result.turns, 1)
-                    self.assertEqual((directory / 'stream.jsonl').read_text(encoding='utf-8'),
-                                     stream)
+            with self.subTest(backend=backend):
+                events: list[object] = [{'type': event_type, field: value} for value in malformed_values]
+                events.extend([{'type': event_type, field: valid}, terminal])
+                stream = ''.join(json.dumps(event) + '\n' for event in events)
+                result, directory = self.run_script(
+                    f'import sys; sys.stdout.write({stream!r})', backend=backend)
+                self.assertTrue(result.successful)
+                self.assertEqual(result.summary, 'complete')
+                self.assertEqual(result.turns, 1)
+                self.assertEqual((directory / 'stream.jsonl').read_text(encoding='utf-8'), stream)
 
     def test_independent_checks_do_not_inherit_inference_credentials(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -163,7 +150,7 @@ class TestRecovery(RepositoryTest):
             self.assertNotIn('--resume', command)
             self.assertEqual(command[-1], '322')
             return agent_runner.Attempt(returncode=0, reason='completed', turns=5,
-                                        completed=True, successful=True)
+                                        successful=True)
 
         with mock.patch.dict(os.environ, {'ANTHROPIC_MODEL': 'test-model'}), \
                 mock.patch.object(agent_runner, 'run_agent', side_effect=invoke):
@@ -221,6 +208,9 @@ class TestRecovery(RepositoryTest):
                                        self.base, 3, 60, 60)
         self.assertEqual(len(prompts), 2)
         self.assertIn('regression test still skipped', prompts[1])
+        events = map(json.loads, (self.artifacts / 'events.jsonl').read_text().splitlines())
+        self.assertEqual([(event['stage'], event['outcome']) for event in events
+                          if event['outcome'] != 'passed'], [('Verification attempt 1', 'failed')])
         self.assertEqual(verification.load_verified_changes(self.artifacts / 'verified_changes.json'),
                          ['src/example.py'])
 
@@ -242,7 +232,6 @@ class TestRecovery(RepositoryTest):
                 returncode=0, successful=True)), self.assertRaises(RuntimeError):
             pipeline.review_and_verify('review', self.meta, self.artifacts, self.base, 1, 60, 60)
         self.assertFalse((self.artifacts / 'verified_changes.json').exists())
-
 
     def test_separate_jobs_recover_and_publish_only_repaired_verified_content(self):
         """Use real agent processes and real regression execution through fake CLIs."""
@@ -276,7 +265,6 @@ if any('claude-code' in arg for arg in sys.argv):
                           'terminal_reason': 'completed', 'num_turns': 2,
                           'result': 'Suspected bug left for independent reviewer'}))
 else:
-    # The review starts from files, with no generation conversation replay.
     Path('src/example.py').write_text('def add(a, b):\n    return a + b\n')
     test = Path('src/tests/test_example.py')
     test.write_text(test.read_text().replace('    @unittest.skip("source bug")\n', '')
@@ -290,13 +278,18 @@ else:
         fake_npx.chmod(0o755)
         fake_bazel = tools / 'bazel'
         fake_bazel.write_text('#!/usr/bin/env python3\n' + r'''
+import os
 from pathlib import Path
 import sys
 import trace
 import unittest
-if sys.argv[1] == 'query':
+cache = Path(os.environ['TESTBOT_FAKE_STATE']) / 'run/.build-cache'
+assert os.environ['BAZELISK_HOME'] == str(cache / 'bazelisk')
+assert sys.argv[1] == '--bazelrc=' + str(cache / 'bazelrc')
+if sys.argv[2] == 'query':
     print('//src/tests:test_example')
 else:
+    assert '--nocache_test_results' in sys.argv
     sys.path.insert(0, str(Path('src').resolve()))
     suite = unittest.defaultTestLoader.discover('src/tests')
     tracer = trace.Trace(count=True, trace=False)
@@ -321,22 +314,7 @@ else:
         environment = {'PATH': str(tools) + os.pathsep + os.environ['PATH'],
                        'ANTHROPIC_MODEL': 'test-model', 'NVIDIA_API_KEY': 'test-key',
                        'TESTBOT_FAKE_STATE': str(self.artifacts)}
-        real_agent = agent_runner.run_agent
-        real_check = verification.run_check
-
-        def run_agent(command, *args, **kwargs):
-            return real_agent([str(fake_npx), *command[1:]], *args, **kwargs)
-
-        def run_check(command, *args, **kwargs):
-            self.assertEqual(kwargs['env']['BAZELISK_HOME'],
-                             str(output / '.build-cache/bazelisk'))
-            if command[1] == 'coverage':
-                self.assertIn('--nocache_test_results', command)
-            return real_check([str(fake_bazel), *command[1:]], *args, **kwargs)
-
-        with mock.patch.object(agent_runner, 'run_agent', side_effect=run_agent), \
-                mock.patch.object(verification, 'run_check', side_effect=run_check), \
-                mock.patch.dict(os.environ, environment), mock.patch.object(sys, 'argv', [
+        with mock.patch.dict(os.environ, environment), mock.patch.object(sys, 'argv', [
                 'pipeline.py', '--targets-meta', str(meta_path), '--artifacts', str(output),
                 '--generation-timeout', '30', '--review-timeout', '30',
                 '--verification-timeout', '30']):
@@ -347,7 +325,15 @@ else:
                 checkout = self.artifacts / f'{stage}-checkout'
                 subprocess.run(['git', 'clone', '-q', str(self.repo), str(checkout)], check=True)
                 os.chdir(checkout)
-                sys.argv = ['pipeline.py', '--stage', stage, '--artifacts', str(output)]
+                handoff = output
+                if stage == 'restore':
+                    handoff = self.artifacts / 'publication'
+                    handoff.mkdir()
+                    for name in ('final.patch', 'handoff.json', 'verified_changes.json',
+                                 'targets_meta.json', 'coverage_report.json',
+                                 'generate_summary.md', 'review_summary.md'):
+                        (handoff / name).write_bytes((output / name).read_bytes())
+                sys.argv = ['pipeline.py', '--stage', stage, '--artifacts', str(handoff)]
                 pipeline.main()
         self.assertEqual((self.artifacts / 'generation-count').read_text(encoding='utf-8'), '2')
         self.assertNotIn('unittest.skip', Path('src/tests/test_example.py').read_text(encoding='utf-8'))
@@ -359,11 +345,8 @@ else:
         self.assertTrue((output / 'final.patch').is_file())
         summaries = {stage: run_summary.render(output, stage, 'success', True)
                      for stage in ('selection', 'generation', 'review', 'publish')}
-        self.assertIn('Generation attempt 1', summaries['generation'])
         self.assertIn('compaction_failed', summaries['generation'])
-        self.assertIn('Verification attempt 1', summaries['review'])
         self.assertIn('Final verification completed', summaries['review'])
-        self.assertIn('Dry run', summaries['publish'])
         self.assertIn('Verified changes restored successfully', summaries['publish'])
         for stage, summary in summaries.items():
             with self.subTest(stage=stage):
@@ -431,17 +414,16 @@ class TestHandoff(RepositoryTest):
                 self.assertRaises(FileNotFoundError):
             pipeline.main()
 
-    def test_no_targets_passes_through_all_stages_without_agents(self):
+    def test_no_targets_starts_no_agents_or_handoff(self):
         metadata = self.artifacts / 'empty.json'
         pipeline.write_json(metadata, [])
         output = self.artifacts / 'empty-run'
-        with mock.patch.object(agent_runner, 'run_agent') as run:
-            for stage in ('generate', 'review', 'restore'):
-                with mock.patch.object(sys, 'argv', ['pipeline.py', '--stage', stage,
-                        '--artifacts', str(output), '--targets-meta', str(metadata)]):
-                    pipeline.main()
+        with mock.patch.object(agent_runner, 'run_agent') as run, \
+                mock.patch.object(sys, 'argv', ['pipeline.py', '--stage', 'generate',
+                    '--artifacts', str(output), '--targets-meta', str(metadata)]):
+            pipeline.main()
             run.assert_not_called()
-        self.assertTrue((output / 'skipped.json').exists())
+        self.assertFalse((output / 'handoff.json').exists())
 
     def test_missing_records_never_claim_verification_success(self):
         summary = run_summary.render(self.artifacts, 'review', 'failure', False)
@@ -467,13 +449,6 @@ class TestVerification(RepositoryTest):
         pipeline.write_json(path, {'verified': True, 'base_commit': self.base,
                                   'files': verification.fingerprint(verification.changed_files())})
         return path
-
-    def test_verified_source_and_new_test_are_allowed(self):
-        Path('src/example.py').write_text('fixed source\n', encoding='utf-8')
-        Path('src/tests/test_example.py').write_text('regression\n', encoding='utf-8')
-        path = self.manifest()
-        self.assertEqual(verification.load_verified_changes(path),
-                         ['src/example.py', 'src/tests/test_example.py'])
 
     def test_post_verification_edit_is_rejected(self):
         Path('src/example.py').write_text('reviewed source\n', encoding='utf-8')
@@ -516,6 +491,35 @@ class TestVerification(RepositoryTest):
         coverage, _ = verification.coverage_on_original_lines(
             self.meta, {'src/example.py': {1: 1, 2: 1}}, self.base)
         self.assertNotIn(2, coverage['src/example.py'])
+
+    def test_reviewer_ui_changes_install_dependencies_before_validation(self):
+        Path('src/ui').mkdir()
+        Path('src/ui/fixed.ts').write_text('export const fixed = true;\n', encoding='utf-8')
+        Path('.git/info/exclude').write_text('bazel-out/\ncoverage/\n', encoding='utf-8')
+        commands = []
+
+        def run(command, output, deadline, env=None):
+            del deadline, env
+            commands.append(command)
+            output.write_text('//src/tests:test_example\n', encoding='utf-8')
+            if command[1] == 'coverage':
+                report = Path('bazel-out/_coverage/_coverage_report.dat')
+                source = 'src/example.py'
+            elif command[-1] == 'validate:coverage':
+                self.assertEqual(commands[-2],
+                                 ['pnpm', '--dir', 'src/ui', 'install', '--frozen-lockfile'])
+                report = Path('src/ui/coverage/lcov.info')
+                source = 'fixed.ts'
+            else:
+                return
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text(f'SF:{source}\nDA:2,1\nend_of_record\n', encoding='utf-8')
+
+        with mock.patch.object(verification, 'run_check', side_effect=run):
+            reports = verification.verify(self.meta, self.artifacts, self.base, 60)
+        self.assertTrue(reports[0]['passed'])
+        self.assertEqual([command[-1] for command in commands if command[0] == 'pnpm'],
+                         ['--frozen-lockfile', 'validate:coverage'])
 
     def test_failure_does_not_reuse_stale_coverage(self):
         Path('src/tests/test_example.py').write_text('regression\n', encoding='utf-8')

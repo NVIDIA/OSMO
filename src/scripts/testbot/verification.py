@@ -199,6 +199,8 @@ def verify(meta: list[dict], artifacts: Path, base_commit: str, timeout: int,
         coverage.update(verify_coverage.parse_lcov(lcov))
         (artifacts / 'bazel-coverage.dat').write_bytes(lcov.read_bytes())
     if ui:
+        run_check(['pnpm', '--dir', 'src/ui', 'install', '--frozen-lockfile'],
+                  artifacts / 'ui-install.log', deadline, env=build_environment)
         lcov = Path('src/ui/coverage/lcov.info')
         lcov.unlink(missing_ok=True)
         run_check(['pnpm', '--dir', 'src/ui', 'validate:coverage'],

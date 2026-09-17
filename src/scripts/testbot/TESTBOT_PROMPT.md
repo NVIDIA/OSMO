@@ -8,15 +8,9 @@ below from `src/scripts/testbot/TESTBOT_RULES.md`.
 
 ## Primary Objective
 
-Cover the specific uncovered source lines listed for each target. A run that
-adds passing tests which fail to move the *listed* uncovered lines is a
-**failed run**, even when every test passes — past runs have written 20
-tests and moved Codecov by 3 lines because the tests landed on already-
-covered behavior.
-
-Treat `Uncovered ranges:` as the work queue. Every test you add must
-actually execute lines in one of the listed ranges, and you must prove it
-with `bazel coverage` before declaring done.
+Cover the specific `Uncovered ranges:` listed for each target. Every added
+test must execute a listed range; prove this with coverage before declaring
+done. Passing tests alone do not establish coverage gain.
 
 ## Coverage Targets
 
@@ -78,15 +72,11 @@ The targets are appended below this prompt. For each target you receive:
 
 ### 3. Verify locally
 
-8. Run the test and verify code style per TESTBOT_RULES.md. If the test
-   fails, follow the bug-detection steps in TESTBOT_RULES.md.
+8. Run tests and style checks per TESTBOT_RULES.md; follow its bug-detection
+   steps for failures. Before UI checks, install dependencies with
+   `pnpm --dir src/ui install --frozen-lockfile`.
 
 ### 4. Coverage self-check loop (MANDATORY — do not skip)
-
-This is the step previous runs have routinely skipped. The harness will
-run the same check independently after you finish, and the PR description
-will show whichever number is real. Don't ship work the harness will
-shame you for.
 
 9. Run `bazel coverage` for the test target(s) you touched. Use a
    package-level roll-up so multiple test targets on the same package
@@ -97,33 +87,24 @@ shame you for.
    The combined LCOV report lands at
    `bazel-out/_coverage/_coverage_report.dat`. Whichever target you ran,
    confirm the file exists (`Read` it) before moving on — a missing file
-   usually means `bazel coverage` reported no test targets.
+   usually means `bazel coverage` reported no test targets. For UI targets,
+   run `pnpm --dir src/ui validate:coverage`; use a copy of
+   `src/ui/coverage/lcov.info` with `SF:` paths normalized relative to the repo.
 
-10. Compute coverage gain against the listed uncovered ranges. The picker
-    persists its per-target metadata for this exact purpose:
+10. Compute coverage gain using the absolute path supplied as **Original target
+    metadata** in the harness context. Replace the placeholder below with that
+    path (and use the normalized UI LCOV copy for UI targets):
     ```bash
     python src/scripts/testbot/verify_coverage.py \
-      --targets-meta "$RUNNER_TEMP/targets_meta.json" \
+      --targets-meta "<original-target-metadata-path>" \
       --lcov bazel-out/_coverage/_coverage_report.dat \
       --json-output "$RUNNER_TEMP/coverage_self_check.json" \
       --markdown-output "$RUNNER_TEMP/coverage_self_check.md"
     ```
-    Run this command **directly** — do not `ls`/`find` against
-    `$RUNNER_TEMP` to verify the meta file first. The path is outside
-    Claude Code's `ls` sandbox and the workflow already staged the file
-    before this prompt ran. (runs/26791499822 lost 4 turns groping in
-    `/tmp`, got blocked, and dropped the verifier as a result.) Your
-    `Bash(python *)` permission passes the path straight through to the
-    Python subprocess, which can read `$RUNNER_TEMP` just fine.
-
-    To inspect the resulting JSON, first resolve the env var (the
-    `Read` tool doesn't shell-expand):
-    ```bash
-    python3 -c 'import os; print(os.environ["RUNNER_TEMP"])'
-    ```
-    then `Read <resolved>/coverage_self_check.json` with the absolute
-    path. Each target has a `hit_fraction` (0.0–1.0) and a
-    `still_uncovered_ranges` list.
+    Run the verifier directly; Python can read the supplied metadata path.
+    Read the output JSON using its resolved absolute path (`Read` does not
+    expand environment variables). Inspect each target's `hit_fraction` and
+    `still_uncovered_ranges`.
 
 11. **Iterate until the gap closes.** A target passes when
     `hit_fraction >= 0.70`. If you're below, return to step 5 and add
@@ -161,7 +142,6 @@ shame you for.
       still uncovered: lines 88-89 (defensive — `_ = err` after constant
       string compile)
     ```
-    This is what the human will read first when the PR opens.
 
 14. Move to the next target.
 
@@ -175,10 +155,8 @@ shame you for.
 - **No git or gh commands**: Do NOT run `git`, `gh`, or any commands that
   modify version control state. The harness script handles branch
   creation, committing, pushing, and PR creation.
-- **No gaming the verifier**: don't change the picker's
-  `uncovered_ranges` list to shrink the gap, and don't paste a fake
-  `$RUNNER_TEMP/targets_meta.json`. The harness re-runs the verifier
-  against the unmodified meta and posts the truth to the PR.
+- **Preserve target metadata**: do not alter the supplied metadata or its
+  `uncovered_ranges`. The harness verifies against the original targets.
 
 ## Recovery checkpoints
 

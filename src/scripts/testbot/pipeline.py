@@ -3,7 +3,6 @@
 """Recover test generation, independently review/repair, then verify the diff."""
 
 import argparse
-import dataclasses
 import json
 import os
 from pathlib import Path
@@ -92,7 +91,6 @@ def generate(prompt: str, artifacts: Path, max_turns: int, attempts: int,
         if result.successful or not result.recoverable:
             break
         feedback = f'Previous generation stopped: {result.reason}. {result.summary}'
-    write_json(artifacts / 'generation.json', dataclasses.asdict(result))
     (artifacts / 'generate_summary.md').write_text(result.summary, encoding='utf-8')
     return result
 
@@ -140,41 +138,32 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
             prompt + context(artifacts, feedback), artifacts / f'review-{number}',
             min(900, review_seconds), 'codex')
         review_seconds -= time.monotonic() - started
-        review_started = started
+        stage = f'Review attempt {number}'
         verification.save_patch(artifacts / f'review-{number}.patch')
         if not result.successful:
             feedback = f'Reviewer process failed: {result.reason}. {result.summary}'
-            run_summary.record(artifacts, f'Review attempt {number}', 'failed',
-                               review_started, feedback)
+            run_summary.record(artifacts, stage, 'failed', started, feedback)
             if not result.recoverable:
                 break
             continue
         try:
             decision = review_decision(output)
-            run_summary.record(artifacts, f'Review attempt {number}', 'passed',
-                               review_started, decision['summary'])
-            # Frozen metadata is retained in memory, independent of agent edits.
             if json.loads((artifacts / 'targets_meta.json').read_text(encoding='utf-8')) != meta:
                 raise ValueError('An agent modified the original target metadata')
+            run_summary.record(artifacts, stage, 'passed', started, decision['summary'])
+            stage = f'Verification attempt {number}'
+            started = time.monotonic()
             checks = artifacts / f'verify-{number}'
             checks.mkdir()
-            started = time.monotonic()
             try:
                 reports = verification.verify(meta, checks, base_commit, int(verification_seconds),
                                               build_environment)
-            except (OSError, ValueError, RuntimeError, TimeoutError,
-                    subprocess.CalledProcessError) as error:
-                run_summary.record(artifacts, f'Verification attempt {number}', 'failed',
-                                   started, str(error))
-                raise
             finally:
                 verification_seconds -= time.monotonic() - started
             exceptions = {entry['file_path']: entry['reason']
                           for entry in decision['coverage_exceptions']}
             if any(not report['passed'] and report['file_path'] not in exceptions for report in reports):
                 raise ValueError(f'Coverage goal missed without reviewed explanation; see {checks}')
-            run_summary.record(artifacts, f'Verification attempt {number}', 'passed',
-                               started, 'Tests, style, BUILD wiring, and fresh coverage checked')
             for name in ('coverage_report.json', 'coverage_report.md'):
                 (artifacts / name).write_bytes((checks / name).read_bytes())
             summary = decision['summary']
@@ -186,13 +175,13 @@ def review_and_verify(prompt: str, meta: list[dict], artifacts: Path, base_commi
                 'verified': True, 'base_commit': base_commit,
                 'files': verification.fingerprint(verification.changed_files()),
             })
+            run_summary.record(artifacts, stage, 'passed', started,
+                               'Tests, style, BUILD wiring, and fresh coverage checked')
             return
         except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.CalledProcessError) as error:
-            feedback = f'Independent review/verification failed: {error}'
+            feedback = f'{stage} failed: {error}'
             print(feedback[:2000], flush=True)
-            run_summary.record(artifacts, f'Review cycle {number}', 'incomplete',
-                               review_started, str(error))
-            (artifacts / f'verification-failure-{number}.txt').write_text(feedback, encoding='utf-8')
+            run_summary.record(artifacts, stage, 'failed', started, str(error))
     raise RuntimeError(f'Review/verification did not complete within its recovery budget. {feedback}')
 
 
@@ -233,7 +222,7 @@ def save_handoff(artifacts: Path, base_commit: str) -> None:
 def main() -> None:
     """Run in a clean CI checkout; keep artifacts outside the repository."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', choices=('all', 'generate', 'review', 'restore'), default='all')
+    parser.add_argument('--stage', choices=('generate', 'review', 'restore'), required=True)
     parser.add_argument('--targets-meta', type=Path)
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--max-turns', type=positive, default=400)
@@ -250,11 +239,10 @@ def main() -> None:
     artifacts.mkdir(parents=True, exist_ok=True)
     if args.stage in ('review', 'restore'):
         base_commit = restore_handoff(artifacts)
-        meta = json.loads((artifacts / 'targets_meta.json').read_text(encoding='utf-8'))
         if args.stage == 'restore':
-            if not (artifacts / 'skipped.json').exists():
-                verification.load_verified_changes(artifacts / 'verified_changes.json')
+            verification.load_verified_changes(artifacts / 'verified_changes.json')
             return
+        meta = json.loads((artifacts / 'targets_meta.json').read_text(encoding='utf-8'))
     else:
         if any(artifacts.iterdir()):
             raise ValueError('Use an empty artifact directory for each pipeline run')
@@ -266,23 +254,23 @@ def main() -> None:
             raise ValueError('Target metadata must be a list')
         write_json(artifacts / 'targets_meta.json', meta)
     if not meta:
-        write_json(artifacts / 'skipped.json', {'reason': 'No targets selected'})
-        save_handoff(artifacts, base_commit)
+        if args.stage == 'review':
+            raise ValueError('Review requires selected targets')
         return
     for target in meta:
         path = Path(target['file_path'])
         if path.is_absolute() or '..' in path.parts or not path.is_file():
             raise ValueError(f'Invalid target path: {path}')
-    if args.stage in ('all', 'review') and not os.environ.get('NVIDIA_API_KEY'):
+    if args.stage == 'review' and not os.environ.get('NVIDIA_API_KEY'):
         raise ValueError('NVIDIA_API_KEY is required for independent review')
     scripts = Path(__file__).parent
     targets = coverage_targets.format_targets(meta)
     try:
-        if args.stage in ('all', 'generate'):
+        if args.stage == 'generate':
             prompt = (scripts / 'TESTBOT_PROMPT.md').read_text(encoding='utf-8') + '\n' + (
                 scripts / 'TESTBOT_RULES.md').read_text(encoding='utf-8') + '\nCoverage targets:\n' + targets
             generate(prompt, artifacts, args.max_turns, args.attempts, args.generation_timeout)
-        if args.stage in ('all', 'review'):
+        else:
             review_prompt = (scripts / 'TESTBOT_REVIEW_PROMPT.md').read_text(encoding='utf-8') + '\n' + targets
             review_and_verify(review_prompt, meta, artifacts, base_commit, args.attempts,
                               args.review_timeout, args.verification_timeout)

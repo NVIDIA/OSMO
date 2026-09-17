@@ -51,7 +51,7 @@ def selection_summary(artifacts: Path) -> list[str]:
         return ['No target selection was recorded.']
     targets = json.loads(metadata.read_text(encoding='utf-8'))
     if not targets:
-        return ['No targets selected; this run has no changes to publish.']
+        return ['No targets selected; downstream jobs skipped.']
     lines = ['### Selected targets', '',
              '| File | Starting coverage | Uncovered lines |', '|---|---:|---:|']
     for target in targets:
@@ -65,8 +65,6 @@ def selection_summary(artifacts: Path) -> list[str]:
 def render(artifacts: Path, stage: str, outcome: str, dry_run: bool, pr_url: str = '') -> str:
     """Summarize this stage's results without repeating upstream job summaries."""
     lines = [f'## Testbot: {stage}', '', f'Job result: **{cell(outcome)}**', '']
-    if (artifacts / 'skipped.json').exists():
-        return '\n'.join(lines + ['No targets selected; nothing to process in this stage.', ''])
     if stage == 'selection':
         lines.extend(selection_summary(artifacts))
     elif stage in ('generation', 'review'):

@@ -22,7 +22,6 @@ class Attempt:
     summary: str = ''
     turns: int = 0
     compaction_failures: int = 0
-    completed: bool = False
     successful: bool = False
 
     @property
@@ -58,11 +57,7 @@ def stop_process_group(process: subprocess.Popen) -> None:
 
 def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
               backend: str, env: dict[str, str] | None = None) -> Attempt:
-    """Capture streams and stop failed compaction immediately, preserving files.
-
-    Every call starts a fresh process/session. The caller supplies recovery
-    context from disk rather than resuming an overflowing conversation.
-    """
+    """Run a fresh session; retain logs and edits when stopping failed compaction."""
     directory.mkdir(parents=True, exist_ok=True)
     prompt_path = directory / 'prompt.md'
     prompt_path.write_text(prompt, encoding='utf-8')
@@ -95,7 +90,6 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                         if message_id:
                             assistant_ids.add(message_id)
                     if event.get('type') == 'result':
-                        attempt.completed = True
                         attempt.reason = str(event.get('terminal_reason') or event.get('subtype', 'error'))
                         attempt.summary = str(event.get('result', event.get('errors', '')))
                         attempt.turns = int(event.get('num_turns', 0))
@@ -113,7 +107,6 @@ def run_agent(command: list[str], prompt: str, directory: Path, timeout: float,
                         if item.get('type') == 'agent_message':
                             attempt.summary = item.get('text', '')
                     if kind in ('turn.completed', 'turn.failed'):
-                        attempt.completed = True
                         attempt.successful = kind == 'turn.completed'
                         attempt.reason = str(kind)
                         attempt.turns += 1
@@ -191,6 +184,8 @@ def reviewer_build_environment(artifacts: Path) -> dict[str, str]:
         'PATH': str(tools) + os.pathsep + os.environ.get('PATH', ''),
         'BAZELISK_HOME': str(cache / 'bazelisk'),
         'XDG_CACHE_HOME': str(cache / 'xdg'),
+        'XDG_STATE_HOME': str(cache / 'state'),
+        'npm_config_store_dir': str(cache / 'pnpm-store'),
     }
 
 

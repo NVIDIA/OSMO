@@ -14,8 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Testbot: analyzes coverage gaps, generates tests via Claude Code,
-# validates them, and opens a PR for human review. Runs hourly on weekdays.
+# Generate, review, and verify tests before publication.
 name: Testbot
 
 on:
@@ -31,11 +30,6 @@ on:
         default: '500'
       max_turns:
         description: 'Max Claude Code agent turns'
-        # Matches the schedule-trigger fallback below. Scales with
-        # max_targets — the generator runs the full read/write/verify
-        # loop per target, and runs/26536045087 hit max_turns at 101/100
-        # on a single target after Claude's context auto-compacted,
-        # wiping most of the exploration state mid-run.
         default: '400'
       timeout_minutes:
         description: 'Maximum minutes for each pipeline job'
@@ -51,15 +45,15 @@ on:
         description: 'Slack channel for review request (empty = no notification)'
         default: '#osmo-code-reviews'
       force_run:
-        description: 'Bypass the open-PR preflight (useful when testing workflow changes from a branch)'
+        description: 'Bypass the open-PR preflight'
         type: boolean
         default: false
       force_create_pr:
-        description: 'Bypass create_pr.py has_unapproved_testbot_pr check (useful for branch verification when an unapproved testbot PR already exists)'
+        description: 'Allow publication while another testbot PR awaits review'
         type: boolean
         default: false
       skip_slack:
-        description: 'Skip the Slack review request even when the channel/token are configured (useful for ad-hoc dispatches)'
+        description: 'Skip the Slack review request'
         type: boolean
         default: false
 
@@ -82,9 +76,6 @@ jobs:
         id: open-testbot-prs
         run: |
           set -euo pipefail
-          # workflow_dispatch force_run bypass — useful when verifying
-          # testbot changes from a feature branch without waiting for
-          # all open ai-generated PRs to be approved/merged.
           if [[ "$FORCE_RUN" == "true" ]]; then
             echo "force_run=true; bypassing open-PR preflight check."
             echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -123,6 +114,8 @@ jobs:
     environment: nim-env
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      has_targets: ${{ steps.pick-targets.outputs.has_targets }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -136,17 +129,8 @@ jobs:
         with:
           reviewer-sandbox: 'true'
 
-      # Two-stage target selection: a heuristic scorer narrows the candidate
-      # pool to ~20 critical-but-undertested files (using fan-in, churn, and
-      # path-tier signals), then a small Claude subagent reads each candidate
-      # and picks the 1-3 best test targets by ROI.
       - name: Score criticality (Stage 1)
         run: |
-          # PYTHONPATH=. so the namespace-package import
-          # `from src.scripts.testbot.coverage_targets import ...` resolves.
-          # criticality_scorer logs the ranked shortlist itself; we just
-          # dump the JSON in a foldable group so reviewers can see the full
-          # per-signal breakdown when debugging a pick.
           mkdir -p "$RUNNER_TEMP/testbot-targets"
           PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
@@ -160,6 +144,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Pick targets via subagent (Stage 2)
+        id: pick-targets
         run: |
           PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
             --shortlist "$RUNNER_TEMP/testbot-targets/shortlist.json" \
@@ -169,6 +154,7 @@ jobs:
           echo "::group::Selected targets"
           cat "$RUNNER_TEMP/testbot-targets/targets.txt"
           echo "::endgroup::"
+          jq -r '"has_targets=\(length > 0)"' "$RUNNER_TEMP/testbot-targets/targets_meta.json" >> "$GITHUB_OUTPUT"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
@@ -198,6 +184,7 @@ jobs:
   generate-tests:
     name: Generate tests
     needs: select-targets
+    if: needs.select-targets.outputs.has_targets == 'true'
     environment: nim-env
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
@@ -219,9 +206,6 @@ jobs:
         with:
           name: testbot-targets-${{ github.run_id }}
           path: ${{ runner.temp }}/testbot-targets
-
-      - name: Stage generator coverage metadata
-        run: cp "$RUNNER_TEMP/testbot-targets/targets_meta.json" "$RUNNER_TEMP/targets_meta.json"
 
       - name: Generate tests with recovery
         run: |
@@ -320,6 +304,22 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Preserve publication inputs
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-publication-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/testbot/final.patch
+            ${{ runner.temp }}/testbot/handoff.json
+            ${{ runner.temp }}/testbot/verified_changes.json
+            ${{ runner.temp }}/testbot/targets_meta.json
+            ${{ runner.temp }}/testbot/coverage_report.json
+            ${{ runner.temp }}/testbot/generate_summary.md
+            ${{ runner.temp }}/testbot/review_summary.md
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     name: Publish PR or finish dry run
     needs: review-tests
@@ -339,12 +339,14 @@ jobs:
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
 
       - name: Set up publication runtime
-        uses: ./.github/actions/testbot-setup
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14.7'
 
       - name: Download review handoff
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: testbot-review-${{ github.run_id }}
+          name: testbot-publication-${{ github.run_id }}
           path: ${{ runner.temp }}/testbot
 
       - name: Restore and check the verified changes
@@ -356,11 +358,8 @@ jobs:
         id: create-pr
         if: inputs.dry_run != true
         run: |
-          # No targets is a successful no-op. Every published change must
-          # exactly match the independently verified content manifest.
-          if [[ -f "$RUNNER_TEMP/testbot/skipped.json" ]]; then
-            exit 0
-          fi
+          git config user.name "testbot[bot]"
+          git config user.email "testbot[bot]@users.noreply.github.com"
           gh auth setup-git --hostname github.com
           PYTHONPATH=. python -m src.scripts.testbot.create_pr \
             --targets-meta "$RUNNER_TEMP/testbot/targets_meta.json" \
@@ -370,28 +369,11 @@ jobs:
             --verified-changes "$RUNNER_TEMP/testbot/verified_changes.json"
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
-          # FORCE_CREATE_PR bypasses the create_pr.py script-level guard
-          # against stacking on top of an already-open ai-generated PR.
-          # Pairs with force_run (which bypasses the *job-level*
-          # preflight) for end-to-end branch verification when an
-          # unapproved testbot PR is already open.
           FORCE_CREATE_PR: ${{ inputs.force_create_pr || 'false' }}
-          # SKIP_SLACK uses the same env-var pattern as FORCE_CREATE_PR
-          # (script checks the string at runtime). The earlier YAML-
-          # expression form `inputs.skip_slack && '' || <secret>`
-          # didn't work because GHA expressions treat empty string as
-          # falsy: `'' || X` collapses to `X`, so the secret always
-          # reached create_pr.py. Run #26870328623 verified that
-          # failure mode — Slack still posted despite skip_slack=true.
+          # A flag avoids empty-string expressions falling back to the secret.
           SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          # workflow_dispatch override wins when present. For schedule
-          # triggers inputs.slack_channel is null, so we fall back to
-          # the org/repo var. The literal #osmo-slack-test is the
-          # safety-net default for forks / dev repos where the var
-          # isn't set — prod has vars.TESTBOT_SLACK_CHANNEL configured
-          # to #osmo-code-reviews and the workflow_dispatch input
-          # default mirrors that.
+          # Only null uses defaults; an empty channel disables notification.
           TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}
 
       - name: Summarize publish

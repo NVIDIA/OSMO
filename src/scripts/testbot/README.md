@@ -16,91 +16,59 @@ flowchart LR
     D --> E[Publish PR or finish dry run]
 ```
 
-Selection combines Codecov coverage with code importance and git history.
-Generation and review retain their own recovery loops inside the corresponding
-job. Summaries show only results owned by that stage:
+Selection combines Codecov coverage, code importance, and git history. If it
+selects no targets, the remaining jobs are skipped. Each job summarizes its own
+results: selected files, generation attempts, review/check outcomes and coverage,
+or the published PR link. Job status and logs show live progress.
 
-- **Pick targets:** selected files, starting coverage, and uncovered line counts.
-- **Generate tests:** generation attempts, elapsed time, and recovery reasons.
-- **Review, repair, and verify:** review and verification attempts, repairs, and measured coverage.
-- **Publish:** the generated PR link, dry-run result, or publication failure.
+`pipeline.py` supervises Claude Code 2.1.116 generation and independent Codex
+0.154.0 review. Failed compaction, timeouts, context limits, or missing results
+can restart an agent with fresh context, preserving edits and a checkpoint.
+Authentication/configuration failures stop retries. The original targets remain
+the work queue; the reviewer can finish incomplete generation, fix source bugs,
+and enable skipped regressions after proving they fail before the fix and pass
+afterward. Failed final checks feed the next review attempt.
 
-Summaries are available after the job finishes; job status and logs show live
-progress. Full attempt history remains in the artifacts passed between jobs.
+| Default budget | Limit |
+|---|---|
+| Attempts per agent stage | 3 |
+| Generation, shared across attempts | 400 turns / 30 minutes |
+| Review / independent verification | 20 / 15 minutes, including retries |
+| Each agent attempt | 15 minutes |
+| Generation/review runner job | 75 minutes |
 
-Jobs transfer patches, metadata, and checkpoints through separate artifacts.
-`pipeline.py --stage generate` produces the generation handoff; `--stage review`
-restores it on a clean checkout at the same commit, then reviews and verifies it.
-`--stage restore` reconstructs the final changes and checks the verification
-manifest before publication, including in dry runs. New files, binary changes,
-deletions, and executable modes survive the transfer. An incomplete generator
-result remains eligible for review and is reported as incomplete in its summary.
-Infrastructure failures block dependent jobs. Re-running failed jobs reuses the
-successful upstream artifact; re-running an upstream job replaces its own artifact.
+CLI flags can override stage budgets. Scheduled runs queue behind active work.
+Codex uses `azure/openai/gpt-6-astra` at
+`https://inference-api.nvidia.com/v1`, authenticated with `NVIDIA_API_KEY`
+(the workflow falls back to `NVIDIA_NIM_KEY`).
 
-The shared setup action installs the system `bubblewrap` package and its AppArmor
-profile on Ubuntu 24.04, following the [Codex sandbox prerequisites](https://learn.chatgpt.com/docs/sandboxing#prerequisites).
-A sandboxed read/write probe runs before target selection and again before review,
-so a broken sandbox fails before spending time on generation or model retries.
-AppArmor and Codex workspace restrictions remain enabled. Agent jobs use read-only
-GitHub permissions and do not retain checkout credentials; write credentials are
-limited to the publication job.
+The reviewer must return a valid structured decision with `ready=true` and no
+remaining work. `verification.py` then checks Bazel tests/style/BUILD registration
+and fresh coverage for selected and changed packages, including reverse-dependent
+tests for source fixes. UI changes use `pnpm validate:coverage`; UI dependencies
+are installed when needed. Coverage below the 70% listed-line goal requires a
+reviewed explanation. Source fixes map coverage to unchanged original lines;
+replaced/deleted lines count as uncovered. Missing coverage or failed checks
+block publication.
 
-The target picker preserves the original coverage work queue. Generation stays
-in one session until it succeeds or fails; there are no fixed file/range batches.
-`pipeline.py` supervises both agents using `agent_runner.py`:
+Stage handoffs carry patches and content fingerprints. `--stage review` restores
+generation's changes on the same clean baseline; `--stage restore` checks the
+final verified files before publication, including in dry runs. Standalone
+`create_pr.py` without a verified manifest remains limited to test changes.
+Generation/review diagnostic artifacts retain prompts, streams, errors,
+checkpoints, patches, and check results for 14 days, including failures and dry
+runs. Publication downloads only the verified patch, manifests, metadata, and
+summaries. Re-running a failed job reuses its successful upstream handoff; dry
+runs complete verification and restoration without creating a PR.
 
-- Generation uses Claude Code 2.1.116. Compaction failure interrupts the process
-  immediately. Timeouts, context limits, missing results, and operational errors
-  can restart in a fresh session, retaining working-tree edits and a concise
-  on-disk checkpoint. Authentication/configuration errors are not blindly retried.
-- Recovery is bounded to three attempts per stage. Generation shares a 400-turn
-  budget and 30-minute deadline across attempts. Each agent attempt has a
-  15-minute timeout. Review shares 20 minutes; independent verification shares
-  15 minutes, including any repair iterations. CLI flags can override stage
-  budgets. The generation/review jobs each default to a 75-minute runner timeout;
-  the shared agent/check budgets above still bound the work. Later scheduled runs
-  queue instead of canceling an active recovery/review.
-- A separate Codex 0.154.0 `exec` session uses
-  `azure/openai/gpt-6-astra` through the NVIDIA Responses API at
-  `https://inference-api.nvidia.com/v1`. `NVIDIA_API_KEY` supplies authentication;
-  the workflow uses the matching secret, falling back to `NVIDIA_NIM_KEY`.
-  The reviewer can improve tests, fix necessary source bugs, and enable skipped
-  regression tests. It must reproduce suspected bugs and verify the fix. It
-  cannot publish changes; GitHub credentials are provided only to the PR step.
-- A zero CLI exit code is insufficient: generation checks `is_error` and the
-  terminal reason, while review requires a completed turn, a valid structured
-  decision, `ready=true`, and no remaining work. A failed generation can be
-  salvaged by the reviewer, which must finish and independently verify the full
-  original work queue. Failed final checks feed the next fresh review session.
-- `verification.py` runs Bazel tests/style checks/coverage for selected and changed
-  packages; source fixes also include reverse-dependent tests. Changed test
-  files must be registered in BUILD. UI changes use `pnpm validate:coverage`.
-  Missing or stale coverage and failing checks block publication. Targets below
-  the 70% coverage goal require an explicit reviewer-assessed explanation in the
-  PR body. Source fixes can shift lines: unchanged lines are mapped to the
-  original coordinates, while replaced/deleted original lines conservatively
-  count as uncovered; the report calls out this limitation.
-- PR creation accepts production fixes only through the verified manifest and
-  rejects any file-content or baseline change after verification. Standalone
-  `create_pr.py` without that manifest keeps its existing test-only behavior.
-
-`TESTBOT_REVIEW_PROMPT.md` defines the independent review contract. Agents can
-read and edit the checkout, run checks, and maintain an external checkpoint;
-the harness owns retries, deadlines, original target metadata, final validation,
-and publication. Codex runs with workspace-write permissions and network access
-for build/test dependencies, without interactive approval prompts. Its Bazel
-and other build caches live under the run's `.build-cache` directory and are
-shared with final verification to reuse compiled outputs. Final Bazel coverage
-uses `--nocache_test_results` so tests still run again after review. The hidden
-cache is excluded from diagnostic artifact uploads. The API key
-is excluded from its tool subprocess environment and independent verification commands.
-
-Every run retains per-attempt prompts, JSONL streams, stderr, terminal outcomes,
-checkpoints, generated patches (including untracked files), verification logs,
-coverage reports, and the final review summary in per-stage GitHub Actions artifacts for
-14 days. This includes failures and dry runs. Dry runs execute review and final
-verification but skip PR creation.
+The shared setup action installs Ubuntu 24.04 `bubblewrap` and its AppArmor
+profile and probes the sandbox before selection and review. Codex uses
+workspace-write permissions with network access for dependencies. Its build
+cache is shared with final verification, excluded from artifact uploads, and
+uses `--nocache_test_results` to rerun tests. API keys are excluded from reviewer
+tool subprocesses and verification commands. Agent jobs have read-only GitHub
+permissions and no stored checkout credentials; only Create PR receives write
+authentication. See the permissions table below and `TESTBOT_REVIEW_PROMPT.md`.
 
 ### Review Response (`testbot-respond.yaml`)
 

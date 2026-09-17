@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 name: Set up Testbot
-description: Install shared runtimes, optional build tools, and the Codex sandbox prerequisites.
+description: Install agent runtimes, build tools, and sandbox prerequisites.
 inputs:
   build-tools:
-    description: Install Bazel and UI dependencies
+    description: Install Bazel and pnpm
     default: 'false'
   reviewer-sandbox:
     description: Configure and check the sandbox before starting AI work
@@ -28,18 +28,7 @@ runs:
       with:
         package_json_file: src/ui/package.json
 
-    - name: Install UI dependencies
-      if: inputs.build-tools == 'true'
-      working-directory: src/ui
-      shell: bash
-      run: pnpm install --frozen-lockfile
-
-    # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
-    # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
-    # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
-    # Install bazelisk directly from the asset URL to bypass the broken path.
-    # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
-    # so we pin the SHA256 we observed and verify before sudo-installing.
+    # Bypass unreliable release-list discovery; verify the pinned binary.
     - name: Install Bazelisk
       if: inputs.build-tools == 'true'
       env:
@@ -69,18 +58,11 @@ runs:
             io_bazel_rules_go: src/runtime/go.mod
             bazel_gazelle: src/runtime/go.sum
 
-    - name: Configure git
-      shell: bash
-      run: |
-        git config user.name "testbot[bot]"
-        git config user.email "testbot[bot]@users.noreply.github.com"
-
     - name: Install Codex sandbox prerequisites
       if: inputs.reviewer-sandbox == 'true'
       shell: bash
       run: |
-        # Ubuntu 24.04 needs the system bwrap AppArmor profile to create
-        # sandbox namespaces. Keep AppArmor and Codex's sandbox enabled.
+        # Ubuntu 24.04 requires the bwrap AppArmor profile for namespaces.
         # https://learn.chatgpt.com/docs/sandboxing#prerequisites
         sudo apt-get update -qq
         sudo apt-get install -y bubblewrap apparmor-profiles apparmor-utils
