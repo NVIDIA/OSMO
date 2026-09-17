@@ -5,6 +5,7 @@
 # pylint: disable=protected-access
 
 import base64
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -50,6 +51,15 @@ class McpProbeTest(unittest.TestCase):
 
     def setUp(self):
         self.probe = mcp_probe.McpProbe(self, _BASE)
+
+    @contextmanager
+    def _expect_sanitized_failure(self):
+        try:
+            yield
+        except AssertionError:
+            self.assertNotIn(_SECRET, traceback.format_exc())
+        else:
+            self.fail("Expected sanitized failure")
 
     def _browser(self, responses):
         session = mock.MagicMock(spec=requests.sessions.Session)
@@ -193,23 +203,11 @@ class McpProbeTest(unittest.TestCase):
             )),
         ):
             session = self._browser([response])
-            rendered = ""
-            try:
+            with self._expect_sanitized_failure():
                 self.probe._authorize(_BASE + "/mcp/authorize", "state")
-            except AssertionError:
-                rendered = traceback.format_exc()
-            else:
-                self.fail("Expected sanitized malformed OAuth URL failure")
-            self.assertNotIn(_SECRET, rendered)
             self.assertEqual(session.request.call_count, 1)
-        rendered = ""
-        try:
+        with self._expect_sanitized_failure():
             mcp_probe.McpProbe(self, malformed_url)
-        except AssertionError:
-            rendered = traceback.format_exc()
-        else:
-            self.fail("Expected sanitized malformed base URL failure")
-        self.assertNotIn(_SECRET, rendered)
 
     def test_oauth_callback_requires_exact_url_one_code_and_original_state(self):
         for location in (
@@ -276,30 +274,21 @@ class McpProbeTest(unittest.TestCase):
         self.assertNotIn(_SECRET, repr(self.probe))
 
     def test_transport_and_subprocess_errors_suppress_credential_details(self):
-        rendered = ""
-        with mock.patch.object(
-            mcp_probe.requests, "request", side_effect=requests.ConnectionError(_SECRET),
+        with (
+            mock.patch.object(
+                mcp_probe.requests, "request", side_effect=requests.ConnectionError(_SECRET),
+            ),
+            self._expect_sanitized_failure(),
         ):
-            try:
-                self.probe.raw_request("tools/list", {}, token=_SECRET)
-            except AssertionError:
-                rendered = traceback.format_exc()
-            else:
-                self.fail("Expected sanitized HTTP failure")
-        self.assertNotIn(_SECRET, rendered)
+            self.probe.raw_request("tools/list", {}, token=_SECRET)
         with (
             mock.patch.dict(os.environ, {"KUBECONFIG": "/tmp/example-kubeconfig"}),
             mock.patch.object(mcp_probe.subprocess, "run", side_effect=subprocess.TimeoutExpired(
                 ["kubectl"], timeout=30, output=_SECRET,
             )),
+            self._expect_sanitized_failure(),
         ):
-            try:
-                self.probe._admin_password()
-            except AssertionError:
-                rendered = traceback.format_exc()
-            else:
-                self.fail("Expected sanitized credential failure")
-        self.assertNotIn(_SECRET, rendered)
+            self.probe._admin_password()
 
     def test_rpc_rejects_malformed_or_error_results_without_echoing_payloads(self):
         for payload in (

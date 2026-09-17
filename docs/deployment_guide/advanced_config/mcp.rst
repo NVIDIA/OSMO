@@ -35,55 +35,39 @@ to :ref:`getting_started_mcp` for client setup. See
 Embedded Dex Quickstart
 =======================
 
-The unified chart's default development deployment can enable MCP with one
-setting:
+Add ``--set services.mcp.enabled=true`` to the unified chart's quickstart
+install or upgrade. When upgrading, use ``--reset-then-reuse-values`` to merge
+existing overrides with new chart defaults. Connect a Streamable HTTP client
+to ``<externalUrl>/mcp`` (default ``http://127.0.0.1/mcp``), approve the client,
+and sign in with the UI's Dex account. HTTP is limited to loopback origins;
+other public hosts require HTTPS.
 
-.. code-block:: bash
+With ``authentication.provider: embeddedDex`` and MCP's ``oidc.configUrl``
+unset, the chart registers the confidential ``osmo-mcp`` client and generates
+the retained ``osmo-embedded-dex-mcp`` Secret outside Helm values. Override the
+client ID with ``authentication.embeddedDex.mcpClientId``. MCP uses the
+release's Valkey and in-cluster Dex and Gateway endpoints. Keep Kubernetes
+Service links enabled on the MCP Pod (``enableServiceLinks: true``) so it can
+validate the in-cluster HTTP Gateway address.
 
-   helm upgrade --install osmo deployments/charts/osmo \
-     --namespace osmo --create-namespace \
-     --set services.mcp.enabled=true \
-     --wait --wait-for-jobs --timeout 20m
+Dex access tokens are opaque. MCP instead verifies the signed ID token's
+issuer and MCP client audience, then forwards it to the Gateway for normal
+identity, role, and pool checks. Client consent is required; the external
+provider's delegated API scope is not.
 
-Use the chart quickstart prerequisites. Add ``--reset-then-reuse-values`` when
-upgrading to merge existing overrides with the new chart defaults. Connect a
-Streamable HTTP MCP client to
-``http://127.0.0.1/mcp``, approve the client, and sign in with the same embedded
-Dex account used for the UI. A different ``externalUrl`` produces the matching
-``<externalUrl>/mcp`` endpoint. HTTP is supported only for local loopback
-origins; use HTTPS for any other public hostname.
-
-When ``authentication.provider`` is ``embeddedDex`` and MCP's
-``oidc.configUrl`` is unset, the chart registers ``osmo-mcp`` as a confidential
-Dex client and generates a retained ``osmo-embedded-dex-mcp`` Secret. The
-bootstrap job manages this credential; it is never stored in Helm values.
-The client ID is configurable through
-``authentication.embeddedDex.mcpClientId``. MCP uses the release's Valkey and
-in-cluster Dex and Gateway endpoints, so it does not call its public loopback
-address from inside the pod. Keep Kubernetes Service links enabled on the MCP
-Pod (``enableServiceLinks: true``) so it can validate the in-cluster HTTP
-Gateway address.
-
-Dex issues opaque access tokens. MCP verifies the signed ID token instead,
-checking its issuer and MCP client audience, then forwards that verified token
-to the Gateway. The Gateway applies the same OSMO identity, role, and pool
-permissions as other clients. The external provider's delegated API scope is
-not needed for embedded Dex. Authentication and client consent remain required.
-
-Generated credentials survive Helm upgrades and uninstall. Deleting the MCP
-credential Secret and reconciling the release creates a new secret and
-restarts its Dex and MCP consumers; users must sign in again. Embedded Dex
-stores sessions and signing keys in memory and is intended for development
-and evaluation only.
-
-To use a separately managed identity provider only for MCP, set
-``services.mcp.oidcProxy.oidc.configUrl``, configure a matching Gateway JWT
-provider, and supply the remaining explicit settings below. Leave
-``authentication.provider`` set to ``embeddedDex`` to keep browser and CLI
-login on embedded Dex.
+Generated credentials survive upgrades and uninstall. Deleting the MCP Secret
+and upgrading regenerates it and restarts Dex and MCP; users must sign in
+again. Embedded Dex keeps sessions and signing keys in memory and is intended
+for development and evaluation only.
 
 External OIDC Prerequisites
 ===========================
+
+For MCP-only external OIDC, configure
+``services.mcp.oidcProxy.oidc.configUrl`` and the matching Gateway JWT entry
+below. Leave ``authentication.provider: embeddedDex`` to keep browser and CLI
+login on Dex. Use ``authentication.provider: externalOidc`` and
+``authentication.externalOidc`` only for release-wide provider changes.
 
 Before enabling MCP:
 
@@ -91,13 +75,7 @@ Before enabling MCP:
   reach. Set ``services.mcp.resourceUrl`` to that origin plus the exact
   ``/mcp`` path; the chart derives the outbound Gateway origin from it.
 * In the unified ``osmo`` chart, enable ``planes.control.enabled``.
-  Gateway Envoy, OAuth2 Proxy, and authorization are mandatory and cannot be
-  disabled. MCP can use its own operator-managed OIDC provider while browser
-  and CLI login remain on embedded Dex. Setting
-  ``authentication.provider: externalOidc`` switches browser and CLI login for
-  the entire release; configure ``authentication.externalOidc`` for that option.
-  Supply the public HTTPS endpoint and confidential application for external
-  MCP OIDC.
+  Gateway Envoy, OAuth2 Proxy, and authorization are mandatory.
 * Configure a matching identity-provider JWT entry under
   ``gateway.envoy.jwt.providers`` or ``gateway.envoy.jwt.additionalProviders``
   and role mappings for the upstream API token. The chart adds the MCP
@@ -256,9 +234,8 @@ exchanges that code and its Proof Key for Code Exchange (PKCE) verifier at
 
 For external OIDC, FastMCP requests the full delegated scope plus
 ``openid profile email offline_access`` upstream. Embedded Dex uses only those
-standard OIDC scopes and advertises ``openid`` to MCP clients. The client
-discovers its required scope without
-manual configuration. ``offline_access`` allows session refresh without
+standard OIDC scopes and advertises ``openid`` to MCP clients. Clients discover
+their scope automatically. ``offline_access`` allows session refresh without
 granting additional OSMO permissions. Proxy access tokens default to 600
 seconds; ``refreshTokenTtlSeconds`` is a fallback when the upstream provider
 omits refresh-token expiry.
@@ -292,8 +269,7 @@ Check that the resource and issuer use the configured MCP URL,
 ``client_id_metadata_document_supported`` is ``true``, and
 ``registration_endpoint`` points to ``/mcp/register``. External OIDC advertises
 the delegated API scope; embedded Dex advertises ``openid``. Complete a fresh
-login
-and run the read-only verification in :ref:`getting_started_mcp`.
+login and run the read-only verification in :ref:`getting_started_mcp`.
 Also confirm that a restricted user's tool call is denied when its API action
 or target pool is outside that user's permissions.
 

@@ -476,8 +476,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
             redis_client.aclose.assert_awaited_once()
 
     async def test_embedded_dex_uses_internal_endpoints_and_public_identity(self) -> None:
-        async with _dex_runtime() as runtime:
-            provider = runtime.provider
+        async with _dex_provider() as provider:
             verifier = provider._token_validator  # pylint: disable=protected-access
             assert isinstance(verifier, JWTVerifier)
             self.assertEqual(verifier.issuer, 'http://127.0.0.1:30080/dex')
@@ -496,14 +495,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 provider._extra_authorize_params,  # pylint: disable=protected-access
                 {'scope': 'openid profile email offline_access'},
             )
-            application = server.create_application(server.create_mcp_server(provider))
-            async with (
-                application.router.lifespan_context(application),
-                httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app=application),
-                    base_url='http://127.0.0.1:30080',
-                ) as client,
-            ):
+            async with _dex_client(provider) as client:
                 metadata = (await client.get(
                     '/.well-known/oauth-authorization-server',
                 )).json()
@@ -521,13 +513,12 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
         configuration = _dex_discovery()
         configuration.issuer = 'https://another.example/dex'
         with self.assertRaisesRegex(ValueError, 'does not match its public issuer'):
-            async with _dex_runtime(configuration=configuration):
+            async with _dex_provider(configuration=configuration):
                 self.fail('incorrect issuer must fail startup')
 
     async def test_embedded_dex_relays_only_valid_signed_id_tokens(self) -> None:
         keys = RSAKeyPair.generate()
-        async with _dex_runtime() as runtime:
-            provider = runtime.provider
+        async with _dex_provider() as provider:
             verifier = provider._token_validator  # pylint: disable=protected-access
             with mock.patch.object(
                 verifier, '_get_verification_key',
@@ -559,8 +550,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(access.scopes, [])
                         else:
                             self.assertIsNone(access)
-                # A valid Dex token is insufficient without the MCP resource
-                # token and its server-side session mapping.
+                # Raw Dex tokens cannot replace an MCP session token.
                 valid_identity_token = keys.create_token(
                     issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
                 )
@@ -579,22 +569,14 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
         identity_token = keys.create_token(
             issuer='http://127.0.0.1:30080/dex', audience='osmo-mcp',
         )
-        async with _dex_runtime() as runtime:
-            provider = runtime.provider
+        async with _dex_provider() as provider:
             bearer = await _store_dex_session(provider, _dex_token_set(identity_token))
-            application = server.create_application(server.create_mcp_server(provider))
             with mock.patch.object(
                 provider._token_validator,  # pylint: disable=protected-access
                 '_get_verification_key',
                 new=mock.AsyncMock(return_value=keys.public_key),
             ):
-                async with (
-                    application.router.lifespan_context(application),
-                    httpx.AsyncClient(
-                        transport=httpx.ASGITransport(app=application),
-                        base_url='http://127.0.0.1:30080',
-                    ) as client,
-                ):
+                async with _dex_client(provider) as client:
                     for token, expected_status in ((bearer, 200), (identity_token, 401)):
                         response = await client.post(
                             '/mcp',
@@ -617,8 +599,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_embedded_dex_refresh_relays_the_new_id_token(self) -> None:
         keys = RSAKeyPair.generate()
-        async with _dex_runtime() as runtime:
-            provider = runtime.provider
+        async with _dex_provider() as provider:
             refreshed_identity = keys.create_token(
                 issuer='http://127.0.0.1:30080/dex',
                 audience='osmo-mcp',
@@ -669,14 +650,11 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_embedded_dex_explicit_refresh_preserves_identity_claims(self) -> None:
         keys = RSAKeyPair.generate()
-        async with _dex_runtime() as runtime:
-            provider = runtime.provider
-            application = server.create_application(server.create_mcp_server(provider))
+        async with _dex_provider() as provider:
 
             async def dex_refresh(**parameters: object) -> dict[str, object]:
                 granted_scopes = str(parameters.get('scope', '')).split()
-                # Dex includes identity claims only when their OIDC scopes
-                # remain in the refresh request, and omits scope in the response.
+                # Dex requires identity scopes on refresh and omits the response scope.
                 claims = {}
                 if 'profile' in granted_scopes:
                     claims['name'] = 'admin'
@@ -705,13 +683,7 @@ class MCPAuthRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     provider, '_upstream_oauth_client', return_value=oauth_context,
                 ),
             ):
-                async with (
-                    application.router.lifespan_context(application),
-                    httpx.AsyncClient(
-                        transport=httpx.ASGITransport(app=application),
-                        base_url='http://127.0.0.1:30080',
-                    ) as client,
-                ):
+                async with _dex_client(provider) as client:
                     registered = await client.post('/register', json={
                         'redirect_uris': ['http://127.0.0.1:33749/callback'],
                         'grant_types': ['authorization_code', 'refresh_token'],
@@ -811,10 +783,10 @@ def _dex_discovery() -> OIDCConfiguration:
 
 
 @contextlib.asynccontextmanager
-async def _dex_runtime(
+async def _dex_provider(
     *,
     configuration: OIDCConfiguration | None = None,
-) -> AsyncIterator[auth.MCPAuthRuntime]:
+) -> AsyncIterator[OIDCProxy]:
     with (
         _secret_file(_TEST_CLIENT_SECRET) as secret_file,
         mock.patch.object(auth.redis_asyncio.Redis, 'from_url', return_value=mock.AsyncMock()),
@@ -834,9 +806,22 @@ async def _dex_runtime(
         runtime = auth.create_auth_runtime(_dex_config(oidc_client_secret_file=secret_file))
         runtime.provider.get_routes('/mcp')
         try:
-            yield runtime
+            yield runtime.provider
         finally:
             await runtime.aclose()
+
+
+@contextlib.asynccontextmanager
+async def _dex_client(provider: OIDCProxy) -> AsyncIterator[httpx.AsyncClient]:
+    application = server.create_application(server.create_mcp_server(provider))
+    async with (
+        application.router.lifespan_context(application),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application),
+            base_url='http://127.0.0.1:30080',
+        ) as client,
+    ):
+        yield client
 
 
 def _dex_token_set(identity_token: str | None) -> UpstreamTokenSet:

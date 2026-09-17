@@ -536,22 +536,16 @@ EOF
 test_gateway_jwt_audiences() {
     local chart=$1
     local audience_case audience_settings disabled_expected enabled_expected
-    local mcp_enabled audience_expected provider_index audience
+    local mcp_enabled audience_expected provider_index
     local audiences=()
     while IFS='|' read -r audience_case audience_settings disabled_expected enabled_expected; do
         cat >"$TEST_DIRECTORY/jwt-audience-values.json" <<EOF
 {
   "gateway": {"envoy": {"jwt": {"providers": [
-    {
-      "issuer": "https://issuer.example.com",
-      "jwks_uri": "https://issuer.example.com/keys",
-      "cluster": "idp"$audience_settings
-    },
-    {
-      "issuer": "other-issuer",
-      "jwks_uri": "https://issuer.example.com/keys",
-      "cluster": "idp"
-    }
+    {"issuer": "https://issuer.example.com",
+     "jwks_uri": "https://issuer.example.com/keys", "cluster": "idp"$audience_settings},
+    {"issuer": "other-issuer",
+     "jwks_uri": "https://issuer.example.com/keys", "cluster": "idp"}
   ]}}}
 }
 EOF
@@ -581,15 +575,11 @@ EOF
                 fi
                 if [[ -n "$audience_expected" ]]; then
                     IFS=',' read -r -a audiences <<<"$audience_expected"
-                    {
-                        printf 'audiences:\n'
-                        for audience in "${audiences[@]}"; do
-                            printf -- '- "%s"\n' "$audience"
-                        done
-                    } >"$TEST_DIRECTORY/jwt-audiences-expected.txt"
+                    printf 'audiences:\n'
+                    printf -- '- "%s"\n' "${audiences[@]}"
                 else
-                    printf 'audiences: []\n' >"$TEST_DIRECTORY/jwt-audiences-expected.txt"
-                fi
+                    printf 'audiences: []\n'
+                fi >"$TEST_DIRECTORY/jwt-audiences-expected.txt"
                 cmp -s "$TEST_DIRECTORY/jwt-audiences-expected.txt" \
                     "$TEST_DIRECTORY/jwt-audiences-actual.txt" || \
                     fail "unexpected JWT audiences for $audience_case (MCP=$mcp_enabled, provider=$provider_index)"

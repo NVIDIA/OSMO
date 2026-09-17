@@ -18,8 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 import base64
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 import dataclasses
+from functools import partial
 from typing import Literal, cast
 from urllib import parse
 
@@ -114,14 +115,11 @@ class _EmbeddedDexOIDCProxy(OIDCProxy):
         })
 
     def _uses_alternate_verification(self) -> bool:
-        # FastMCP normally replaces a verified ID token with the upstream
-        # access token. Dex's access token is opaque; OSMO Gateway authenticates
-        # the signed ID token, so retain the verifier's token and claims.
+        # Relay the signed ID token; Dex access tokens are opaque.
         return False
 
     def _prepare_scopes_for_upstream_refresh(self, scopes: list[str]) -> list[str]:
-        # MCP clients request openid, while Dex needs the original upstream
-        # scopes to retain the name and email claims when it refreshes tokens.
+        # Dex needs profile/email scopes again to retain identity claims on refresh.
         return list(dict.fromkeys((*scopes, *_UPSTREAM_OIDC_SCOPES)))
 
 
@@ -292,47 +290,42 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     )
     mcp_url = config.resource_url
     requested_scope = config.auth_scope
-    embedded = config.oidc_provider == 'embeddedDex'
     upstream_scope = ' '.join(dict.fromkeys((requested_scope, *_UPSTREAM_OIDC_SCOPES)))
-    provider_options: dict[str, object] = {
-        'config_url': config.oidc_config_url,
-        'client_id': config.oidc_client_id,
-        'client_secret': client_secret,
-        # base_url publishes authorize, token, register, consent and the
-        # callback under /mcp instead of on the shared gateway root;
-        # resource_base_url keeps the RFC 9728 resource named /mcp, not
-        # /mcp/mcp. The path-scoped issuer is what the protected-resource
-        # document points clients at for RFC 8414 discovery.
-        'base_url': mcp_url,
-        'resource_base_url': mcp_url.removesuffix('/mcp'),
-        'issuer_url': mcp_url,
-        'redirect_path': '/auth/callback',
-        'allowed_client_redirect_uris': list(LOOPBACK_REDIRECT_URIS),
-        'client_storage': encrypted_store,
-        'token_endpoint_auth_method': 'client_secret_post',
-        'require_authorization_consent': True,
-        'forward_resource': False,
-        'extra_authorize_params': {'scope': upstream_scope},
-        'fallback_refresh_token_expiry_seconds': config.refresh_token_ttl_seconds,
-        'fastmcp_access_token_expiry_seconds': config.access_token_ttl_seconds,
-        'token_expiry_threshold_seconds': 30,
-        'timeout_seconds': config.upstream_timeout_seconds,
-        'enable_cimd': True,
-    }
-    provider: OIDCProxy
-    if embedded:
-        provider = _EmbeddedDexOIDCProxy(
+    provider_factory: Callable[..., OIDCProxy]
+    if config.oidc_provider == 'embeddedDex':
+        provider_factory = partial(
+            _EmbeddedDexOIDCProxy,
             public_issuer=mcp_url.removesuffix('/mcp') + '/dex',
             verify_id_token=True,
-            **provider_options,
         )
     else:
-        provider = _OSMOOIDCProxy(
+        provider_factory = partial(
+            _OSMOOIDCProxy,
             access_token_issuer=config.oidc_access_token_issuer or '',
             access_token_audience=mcp_url,
             required_scopes=[config.oidc_access_token_required_scope],
-            **provider_options,
         )
+    provider = provider_factory(
+        config_url=config.oidc_config_url,
+        client_id=config.oidc_client_id,
+        client_secret=client_secret,
+        # Keep OAuth endpoints under /mcp and the protected resource at /mcp.
+        base_url=mcp_url,
+        resource_base_url=mcp_url.removesuffix('/mcp'),
+        issuer_url=mcp_url,
+        redirect_path='/auth/callback',
+        allowed_client_redirect_uris=list(LOOPBACK_REDIRECT_URIS),
+        client_storage=encrypted_store,
+        token_endpoint_auth_method='client_secret_post',
+        require_authorization_consent=True,
+        forward_resource=False,
+        extra_authorize_params={'scope': upstream_scope},
+        fallback_refresh_token_expiry_seconds=config.refresh_token_ttl_seconds,
+        fastmcp_access_token_expiry_seconds=config.access_token_ttl_seconds,
+        token_expiry_threshold_seconds=30,
+        timeout_seconds=config.upstream_timeout_seconds,
+        enable_cimd=True,
+    )
     # Entra returns the short `scp` claim that the verifier enforces, while MCP
     # clients must discover and request the full API scope URI.
     provider.update_default_scopes([requested_scope])
@@ -393,15 +386,10 @@ def _oauth_url(
         _ = parsed.port
     except ValueError as error:
         raise ValueError('OAuth URL contains an invalid port') from error
+    if allow_http_loopback and parsed.hostname in {'localhost', '127.0.0.1', '::1'}:
+        allow_http = True
     if (
-        (parsed.scheme != 'https' and not (
-            parsed.scheme == 'http' and (
-                allow_http or (
-                    allow_http_loopback
-                    and parsed.hostname in {'localhost', '127.0.0.1', '::1'}
-                )
-            )
-        ))
+        parsed.scheme not in ({'https', 'http'} if allow_http else {'https'})
         or not parsed.hostname
         or any(ord(character) <= 0x20 or ord(character) == 0x7F for character in value)
         or '\\' in value

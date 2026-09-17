@@ -143,14 +143,9 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local + --use-local-registry: build OSMO services,
-          # workflow runtime images, and web-ui from PR source; push to a host-side
-          # `registry:2` container. KIND nodes pull from it on-demand. Replaces `kind
-          # load docker-image` which duplicates each image into every node's
-          # containerd content store, which exhausts the hosted runner disk.
-          # With registry mode each KIND node only pulls images its pods actually
-          # schedule (1-2 nodes per image under the chart's node_group
-          # selectors), dropping the multiplier from 6x to 1-2x.
+          # Build services, workflow runtime, and web-ui from PR source.
+          # Nodes pull from a local registry on demand, avoiding the disk cost
+          # of loading every image into all six KIND nodes.
           #
           # web-ui IS built and pushed: ingress-nginx has a hard
           # `wait-for-web-ui` init container that polls osmo-ui:80, so
@@ -202,8 +197,7 @@ jobs:
               --build-local --use-local-registry \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
-          # Required MCP targets must run and pass in this invocation. An
-          # excluded, renamed, skipped, or missing target cannot pass the gate.
+          # Fail if either required MCP target is absent, skipped, or failed.
           jq -e '
             .results as $results |
             ["//test/smoke:mcp-kind", "//test/scenarios:mcp-workflow"] |

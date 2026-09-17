@@ -193,69 +193,43 @@ class TestBuildAndLoad(unittest.TestCase):
         self.assertEqual(len(calls), 4)
         self.assertFalse(any(c[:2] == ["kind", "load"] for c in calls))
 
-    def test_runtime_images_retag_before_kind_load_and_cleanup(self):
+    def test_runtime_tags_and_cleanup_with_and_without_kind_load(self):
         with patch("platform.system", return_value="Linux"):
             specs = local_images.select_images(
                 local_images.image_specs("x86_64"), "init-container,client",
             )
-        calls: list[list[str]] = []
-        with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
-            local_images.build_and_load(specs, cluster_name="osmo", arch="x86_64")
-
-        for short_name, loaded_tag in (
-            ("init-container", "init_image_x86_64:latest"),
-            ("client", "cli_image_amd64:latest"),
-        ):
-            with self.subTest(image=short_name):
-                tag = f"osmo.local/{short_name}:latest-x86_64"
-                retag = ["docker", "tag", loaded_tag, tag]
-                kind_load = ["kind", "load", "docker-image", tag, "--name", "osmo"]
-                self.assertIn(retag, calls)
-                self.assertIn(kind_load, calls)
-                self.assertLess(calls.index(retag), calls.index(kind_load))
-                for cleanup_tag in (loaded_tag, tag):
-                    cleanup = ["docker", "rmi", "-f", cleanup_tag]
-                    self.assertIn(cleanup, calls)
-                    self.assertLess(calls.index(kind_load), calls.index(cleanup))
-
-    def test_skip_kind_load_keeps_normalized_runtime_tags(self):
-        with patch("platform.system", return_value="Linux"):
-            specs = local_images.select_images(
-                local_images.image_specs("x86_64"), "init-container,client",
-            )
-        calls: list[list[str]] = []
-        with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
-            local_images.build_and_load(
-                specs, cluster_name="osmo", arch="x86_64", skip_kind_load=True,
-            )
-        self.assertIn([
-            "docker", "tag", "init_image_x86_64:latest",
-            "osmo.local/init-container:latest-x86_64",
-        ], calls)
-        self.assertIn([
-            "docker", "tag", "cli_image_amd64:latest", "osmo.local/client:latest-x86_64",
-        ], calls)
-        self.assertFalse(any(call[0] == "kind" or call[1] == "rmi" for call in calls))
-
-
-class TestBuildAndPushToRegistry(unittest.TestCase):
-    """Default source builds publish workflow images under the chart's names."""
+        for skip_kind_load in (False, True):
+            with self.subTest(skip_kind_load=skip_kind_load):
+                calls: list[list[str]] = []
+                with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
+                    local_images.build_and_load(
+                        specs, cluster_name="osmo", arch="x86_64", skip_kind_load=skip_kind_load,
+                    )
+                for short_name, loaded_tag in (
+                    ("init-container", "init_image_x86_64:latest"),
+                    ("client", "cli_image_amd64:latest"),
+                ):
+                    tag = f"osmo.local/{short_name}:latest-x86_64"
+                    retag = ["docker", "tag", loaded_tag, tag]
+                    self.assertIn(retag, calls)
+                    if skip_kind_load:
+                        self.assertFalse(any(call[0] == "kind" or call[1] == "rmi"
+                                             for call in calls))
+                        continue
+                    kind_load = ["kind", "load", "docker-image", tag, "--name", "osmo"]
+                    self.assertIn(kind_load, calls)
+                    self.assertLess(calls.index(retag), calls.index(kind_load))
+                    for cleanup_tag in (loaded_tag, tag):
+                        cleanup = ["docker", "rmi", "-f", cleanup_tag]
+                        self.assertIn(cleanup, calls)
+                        self.assertLess(calls.index(kind_load), calls.index(cleanup))
 
     def test_all_images_publish_runtime_images_from_actual_loader_tags(self):
         with patch("platform.system", return_value="Linux"):
             specs = local_images.select_images(local_images.image_specs("x86_64"), "all")
         calls: list[list[str]] = []
 
-        def fake_run(args, **_kwargs):
-            calls.append(list(args))
-            if "cquery" in args:
-                return _FakeCompleted(stdout="".join(
-                    f'/fake/bazel-bin/{spec.bazel_target.split(":")[-1]}/tarball.tar\n'
-                    for spec in specs
-                ))
-            return _FakeCompleted()
-
-        with patch("subprocess.run", side_effect=fake_run):
+        with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
             local_images.build_and_push_to_registry(specs, arch="x86_64")
 
         self.assertIn("//src/runtime:init_image_load_x86_64", calls[0])
@@ -301,8 +275,6 @@ class TestSelectImages(unittest.TestCase):
         with patch("platform.system", return_value="Darwin"):
             selected = local_images.select_images(specs, "all")
         names = {spec.short_name for spec in selected}
-        self.assertNotIn("init-container", names)
-        self.assertNotIn("client", names)
         self.assertEqual(names, {
             "service", "agent", "mcp", "logger", "worker", "delayed-job-monitor",
             "router", "authz-sidecar", "backend-listener", "backend-worker",

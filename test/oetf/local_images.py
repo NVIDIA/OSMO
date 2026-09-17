@@ -58,11 +58,7 @@ def _t(tmpl: str, arch: HostArch) -> str:
 
 
 def image_specs(arch: HostArch) -> List[ImageSpec]:
-    """Return service and workflow images with the tags quick-start expects.
-
-    Service loaders already use ``osmo.local/<image>:latest-<arch>``. The two
-    workflow images need their existing OCI loader tags normalized first.
-    """
+    """Return chart tags and OCI loader tags for service and workflow images."""
     cli_arch = "amd64" if arch == "x86_64" else arch
     return [
         ImageSpec(
@@ -156,12 +152,9 @@ RUNTIME_IMAGE_NAMES = frozenset({"init-container", "client"})
 
 
 def select_images(specs: List[ImageSpec], selector: str) -> List[ImageSpec]:
-    """Filter images by short_name, including workflow images only on Linux.
+    """Filter by short_name; include workflow images only on Linux.
 
-    ``"all"`` preserves service-only builds on non-Linux hosts. Explicit
-    unsupported runtime images or unknown names raise ``RuntimeError``.
-    The CLI packager uses a native PyInstaller bootloader, so a target
-    ``--platforms`` flag alone cannot make it cross-compile from macOS.
+    The workflow CLI's native PyInstaller bootloader cannot cross-compile.
     """
     can_build_runtime = platform.system() == "Linux"
     if selector == "all":

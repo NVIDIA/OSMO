@@ -41,13 +41,10 @@ and requires the exact DNS SAN configured in authentication.externalOidc.jwksHos
 
 {{- if .Values.services.mcp.enabled }}
 
-MCP endpoint:
-
-  {{ include "osmo.mcp.resourceUrl" . }}
+MCP endpoint: {{ include "osmo.mcp.resourceUrl" . }}
 {{- if eq (include "osmo.mcp.embeddedDex" .) "true" }}
-
-Connect a Streamable HTTP MCP client to this URL and sign in with a local Dex
-account. The release manages the MCP client registration and credential Secret.
+Use a Streamable HTTP client and sign in with a local Dex account.
+The release manages MCP client credentials.
 {{- end }}
 {{- end }}
 

@@ -51,10 +51,8 @@ class _LoginForm(HTMLParser):
 class McpProbe:
     """Exercise a deployed MCP endpoint without logging credential payloads.
 
-    Authentication always performs a fresh OAuth flow. Credentials are read
-    only from the explicit KUBECONFIG's current KIND context, in namespace osmo.
-    This class deliberately keeps the default object repr: tokens and passwords
-    must never appear in assertion output or a generated dataclass repr.
+    Fresh OAuth login reads credentials from the explicit KIND KUBECONFIG.
+    Keep the default repr to avoid exposing credentials in assertion output.
     """
 
     def __init__(self, fixture: unittest.TestCase, base_url: str) -> None:

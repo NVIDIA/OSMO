@@ -172,43 +172,6 @@ Repeat the query until the workflow status is `COMPLETED`.
 The workflow runs a small Alpine container, so completion validates CPU
 scheduling and backend status reporting.
 
-### Enable MCP
-
-With the default embedded Dex provider, enable the optional MCP endpoint on
-installation with `--set services.mcp.enabled=true`, or on an existing quickstart:
-
-```bash
-helm upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --reset-then-reuse-values \
-  --set services.mcp.enabled=true \
-  --wait \
-  --wait-for-jobs \
-  --timeout 20m
-```
-
-The upgrade flag merges your existing overrides with the new chart defaults.
-
-Connect a Streamable HTTP MCP client to `http://127.0.0.1/mcp` (or your configured
-`externalUrl` followed by `/mcp`). Approve the client and sign in with the same
-Dex account used for the UI. The chart registers a dedicated confidential Dex
-client, generates the retained `osmo-embedded-dex-mcp` Secret, and uses the
-release's Valkey for OAuth state. No separate identity-provider application or
-manual client-secret setup is needed. MCP stays disabled unless requested.
-
-For local HTTP, use `127.0.0.1` or `localhost`; other public origins
-require HTTPS. MCP uses in-cluster Dex and Gateway connections so the public
-loopback URL works from a local client. Dex ID tokens are checked for the MCP
-client audience and relayed through the Gateway's normal identity and role
-checks. MCP grants no additional API or pool permissions.
-
-The secret is retained across upgrades and uninstall. As with other generated
-credentials, deleting it and upgrading regenerates it; existing MCP sessions
-then require sign-in again. Set `services.mcp.oidcProxy.oidc.configUrl` and the
-other explicit MCP OIDC settings to use an external provider instead. See the
-[MCP deployment guide](../../../docs/deployment_guide/advanced_config/mcp.rst)
-for external OIDC and production configuration.
-
 ### Troubleshooting and cleanup
 
 If installation does not become ready, inspect pods, recent events, and the
@@ -260,10 +223,21 @@ long-lived environments.
 
 ## MCP
 
-Enable MCP on a control-plane release with a public HTTPS Gateway,
-identity-provider JWT validation, and semantic authorization. MCP uses the
-`mcp` image and mandatory in-process OIDC authentication. The development
-quickstart leaves it disabled.
+MCP is disabled by default. Add `--set services.mcp.enabled=true` when
+installing, or upgrade an existing quickstart:
+
+```bash
+helm upgrade osmo deployments/charts/osmo \
+  --namespace osmo --reset-then-reuse-values --set services.mcp.enabled=true \
+  --wait --wait-for-jobs --timeout 20m
+```
+
+`--reset-then-reuse-values` merges existing overrides with new chart defaults.
+Connect a Streamable HTTP client to `<externalUrl>/mcp` (default
+`http://127.0.0.1/mcp`), approve the client, and sign in with the UI's Dex account.
+HTTP is limited to loopback origins; other public hosts require HTTPS.
+The chart manages the Dex client, retained `osmo-embedded-dex-mcp` Secret,
+and Valkey OAuth state. Gateway identity, role, and pool checks still apply.
 Use the standard component image fields to select a compatible published image.
 
 Follow the [MCP deployment guide](../../../docs/deployment_guide/advanced_config/mcp.rst)
@@ -275,8 +249,9 @@ This chart uses its existing dependency and credential conventions:
 - Enable `planes.control.enabled`. Gateway authentication and authorization
   are mandatory. Embedded Dex is the default identity provider; select
   `authentication.provider: externalOidc` and configure
-  `authentication.externalOidc` to use an operator-managed provider.
-  Configure the MCP upstream token's matching JWT entry under
+  `authentication.externalOidc` to change browser and CLI login release-wide.
+  For MCP-only external OIDC, set `services.mcp.oidcProxy.oidc.configUrl` and
+  configure its matching JWT entry under
   `gateway.envoy.jwt.providers` or `gateway.envoy.jwt.additionalProviders`.
 - Redis connection settings follow `embeddedDependencies.valkey` or
   `externalDependencies.valkey`; the password is mounted from
@@ -284,7 +259,7 @@ This chart uses its existing dependency and credential conventions:
   `externalDependencies.valkey.tls.caExistingSecret` using `caKey` and sets
   `SSL_CERT_FILE`. Supply a complete trust bundle, including the public roots
   needed for OIDC HTTPS connections.
-- Use `services.mcp.oidcProxy.existingSecret` for the OIDC client secret.
+- For external OIDC, use `services.mcp.oidcProxy.existingSecret` for its client secret.
   Change its `rolloutNonce` after rotating that Secret to restart MCP.
   Other injected files use `services.mcp.extraVolumeMounts` with
   `services.mcp.pod.extraVolumes`.
