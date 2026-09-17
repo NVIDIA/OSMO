@@ -95,6 +95,7 @@ runs:
       if: inputs.reviewer-sandbox == 'true'
       shell: bash
       run: |
-        npx --yes @openai/codex@0.154.0 sandbox linux --full-auto \
+        npx --yes @openai/codex@0.154.0 sandbox \
+          -c 'sandbox_mode="workspace-write"' \
           -c sandbox_workspace_write.network_access=true -- \
           python3 -c 'import pathlib,tempfile; pathlib.Path("AGENTS.md").read_text(); f=tempfile.TemporaryFile(dir="."); f.write(b"sandbox write works"); f.close(); print("Codex sandbox read/write passed")'
