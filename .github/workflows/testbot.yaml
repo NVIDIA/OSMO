@@ -19,7 +19,7 @@ name: Testbot
 
 on:
   schedule:
-    - cron: '0 * * * 1-5'  # Weekdays hourly
+    - cron: '0 */2 * * 1-5'  # Every two hours on weekdays
   workflow_dispatch:
     inputs:
       max_targets:

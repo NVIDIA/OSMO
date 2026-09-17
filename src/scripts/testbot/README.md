@@ -119,7 +119,7 @@ gh workflow run testbot.yaml --ref <branch> \
 
 ### Schedule
 
-Runs automatically every hour on weekdays. A cheap preflight job lists open
+Runs automatically every two hours on weekdays. A cheap preflight job lists open
 testbot PRs first; generation is skipped while any open testbot PR is still
 unapproved, and proceeds when there are no open testbot PRs or all open testbot
 PRs are approved.
