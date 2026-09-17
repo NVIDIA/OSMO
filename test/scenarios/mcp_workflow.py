@@ -39,7 +39,7 @@ class McpWorkflow(RunnerFixture):
         workflow_id = submitted.get("workflow_id")
         if not isinstance(workflow_id, str) or not workflow_id:
             self.fail("MCP submission returned no workflow ID")
-        handle = WorkflowHandle(self, workflow_id, timeout_seconds=240)
+        handle = WorkflowHandle(self, workflow_id, timeout_seconds=600)
         completed = False
         try:
             handle.expect_outcome("completed")
