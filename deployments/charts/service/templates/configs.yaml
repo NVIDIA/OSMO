@@ -61,10 +61,8 @@ data:
       {{- end }}
       {{- toYaml $backends | nindent 6 }}
     {{- end }}
-    {{- if $cfg.backendTests }}
     backend_tests:
-      {{- toYaml $cfg.backendTests | nindent 6 }}
-    {{- end }}
+      {{- toYaml ($cfg.backendTests | default dict) | nindent 6 }}
     {{- if $cfg.groupTemplates }}
     group_templates:
       {{- toYaml $cfg.groupTemplates | nindent 6 }}
