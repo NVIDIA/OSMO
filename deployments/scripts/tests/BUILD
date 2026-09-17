@@ -14,19 +14,43 @@ sh_test(
 )
 
 sh_test(
-    name = "test_unified_deploy",
-    size = "small",
-    srcs = ["test_unified_deploy.sh"],
+    name = "test_backend_token_generation",
+    srcs = ["test_backend_token_generation.sh"],
     data = [
-        "test_unified_deploy.py",
-        "//deployments:scripts/lib/deploy.py",
-        "//deployments:scripts/deploy-osmo-single-plane.sh",
-        "//deployments:scripts/single-plane-aws.yaml",
-        "//deployments:scripts/aws/terraform.sh",
-        "//deployments:scripts/install-gpu-operator.sh",
-        "//deployments:aws_terraform_example",
         "//deployments:scripts/common.sh",
-        "//deployments/charts:osmo",
+        "//deployments:scripts/deploy-k8s.sh",
+    ],
+)
+
+sh_test(
+    name = "test_private_azure_backend_token",
+    srcs = ["test_private_azure_backend_token.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-k8s.sh",
+    ],
+)
+
+sh_test(
+    name = "test_mek_generation_guard",
+    srcs = ["test_mek_generation_guard.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-k8s.sh",
+    ],
+)
+
+sh_test(
+    name = "test_helm_render_path",
+    srcs = ["test_helm_render_path.sh"],
+    size = "small",
+    data = [
+        "//ci/deployment-test:azure-overrides.yaml",
+        "//ci/deployment-test:fixtures/minio-storage-values.yaml",
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-k8s.sh",
+        "//deployments:values/backend-operator.yaml",
+        "//deployments:values/service.yaml",
     ],
 )
 
@@ -57,6 +81,7 @@ sh_test(
     srcs = ["test_verify.sh"],
     data = [
         "//deployments:scripts/common.sh",
+        "//deployments:scripts/deploy-osmo-minimal.sh",
         "//deployments:scripts/verify.sh",
         "//deployments:workflows/verify-hello.yaml",
         "//deployments:workflows/verify-object-storage.yaml",

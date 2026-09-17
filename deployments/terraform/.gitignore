@@ -12,7 +12,7 @@
 # Provider dependency lock file — local to each `terraform init`
 .terraform.lock.hcl
 
-# Auto-generated tfvars from deploy-osmo.sh
+# Auto-generated tfvars from deploy-osmo-minimal.sh
 # (real users supply their own terraform.tfvars; the deploy script regenerates
 # this file from --flag inputs, so tracking it would create churn)
 **/terraform.tfvars

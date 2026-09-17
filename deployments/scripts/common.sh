@@ -95,12 +95,96 @@ validate_password() {
     return 0
 }
 
+# Wait for pods to be ready
+wait_for_pods() {
+    local namespace=$1
+    local timeout=${2:-300}
+    local label_selector=${3:-""}
+    local kubectl_cmd=${4:-"kubectl"}
+
+    log_info "Waiting for pods in namespace '$namespace' to be ready..."
+
+    local selector_arg=""
+    if [[ -n "$label_selector" ]]; then
+        selector_arg="-l $label_selector"
+    fi
+
+    local start_time=$(date +%s)
+    while true; do
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+
+        if [[ $elapsed -ge $timeout ]]; then
+            log_error "Timeout waiting for pods in namespace '$namespace'"
+            $kubectl_cmd get pods -n $namespace $selector_arg
+            return 1
+        fi
+
+        local pod_output=$($kubectl_cmd get pods -n $namespace $selector_arg --no-headers 2>/dev/null || echo "")
+        local not_ready=$(echo "$pod_output" | grep -v "Running\|Completed\|^$" | wc -l | tr -d '[:space:]' || echo "0")
+        not_ready="${not_ready:-0}"
+        if [[ "$not_ready" =~ ^[0-9]+$ ]] && [[ "$not_ready" -eq 0 ]]; then
+            local running=$(echo "$pod_output" | grep "Running" | wc -l | tr -d '[:space:]' || echo "0")
+            running="${running:-0}"
+            if [[ "$running" =~ ^[0-9]+$ ]] && [[ "$running" -gt 0 ]]; then
+                log_success "All pods in namespace '$namespace' are ready"
+                return 0
+            fi
+        fi
+
+        echo -n "."
+        sleep 10
+    done
+}
+
+# Export infrastructure outputs to environment
+export_outputs() {
+    local provider="$1"
+    local outputs_file="$2"
+
+    if [[ -f "$outputs_file" ]]; then
+        source "$outputs_file"
+        log_success "Loaded infrastructure outputs from $outputs_file"
+    else
+        log_error "Outputs file not found: $outputs_file"
+        return 1
+    fi
+}
+
+# Local-port defaults for the watchdog port-forwards. Override via env when
+# something else is already on the standard port.
+export OSMO_API_PORT="${OSMO_API_PORT:-9000}"
+export OSMO_UI_PORT="${OSMO_UI_PORT:-3000}"
+
+# Resolve the OSMO API Service name to port-forward against. When the chart's
+# Envoy gateway (services.gateway.enabled) is rendered, an `osmo-gateway`
+# Service exists and is the correct entry point — it injects auth headers and
+# routes to osmo-service/router/ui. When the gateway is disabled, fall back to
+# osmo-service directly.
+#
+# Args: <namespace> [kubectl-binary]
+# Output: service name on stdout
+resolve_osmo_api_service() {
+    local ns="${1:-osmo-minimal}"
+    local kubectl_bin="${2:-kubectl}"
+    # 6.3 chart names the gateway Service `osmo-gateway`. Older / partial
+    # builds may have called it `osmo-gateway-envoy`; check both, fall back to
+    # the direct service.
+    if $kubectl_bin get svc osmo-gateway -n "$ns" &>/dev/null; then
+        echo "osmo-gateway"
+    elif $kubectl_bin get svc osmo-gateway-envoy -n "$ns" &>/dev/null; then
+        echo "osmo-gateway-envoy"
+    else
+        echo "osmo-service"
+    fi
+}
+
 # Install the osmo CLI from GitHub if missing. Idempotent.
 #
 # Env knobs:
 #   OSMO_CLI_REF     — pin to a release tag from github.com/NVIDIA/OSMO/releases.
 #                      Discover available tags with
-#                      `deploy-osmo.sh --list-chart-versions`.
+#                      `deploy-osmo-minimal.sh --list-chart-versions`.
 #                      When set to a non-"main" value, download the matching
 #                      Linux/macOS installer directly from
 #                      github.com/NVIDIA/OSMO/releases/download/<ref>/ instead
@@ -211,7 +295,7 @@ install_osmo_cli_if_missing() {
 
 # Detection helpers used by install-* scripts to skip on existing installs.
 # All accept overrides via $KUBECTL / $HELM env so the wrappers compose with
-# the caller may supply private-cluster kubectl/helm wrappers.
+# provider-specific run_kubectl / run_helm in deploy-k8s.sh.
 
 # Returns 0 if a CRD with the given name exists.
 crd_present() {
@@ -232,3 +316,11 @@ helm_chart_release_info() {
         | grep -oE "\"chart\":\"$1[^\"]*\"" \
         | head -1 || true
 }
+
+# Returns 0 if the named microk8s addon is enabled. Safe to call where
+# microk8s isn't installed.
+microk8s_addon_enabled() {
+    command -v microk8s &>/dev/null \
+        && microk8s status --addon "$1" 2>/dev/null | grep -q "enabled"
+}
+

@@ -13,8 +13,6 @@ planes:
 fullnameOverride: ''
 
 embeddedDependencies:
-  dex:
-    enabled: false
   postgresql:
     enabled: false
   valkey:
@@ -29,6 +27,9 @@ secrets:
     generate: false
   objectStorage:
     generate: false
+  backendApiTokens:
+    enabled: false
+    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

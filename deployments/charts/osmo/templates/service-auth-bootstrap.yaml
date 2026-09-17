@@ -12,7 +12,6 @@
 {{- if $serviceAuth.bootstrap.enabled }}
 {{- $secretName := required "secrets.serviceAuth.existingSecret.name is required during bootstrap" $serviceAuth.existingSecret.name -}}
 {{- $secretKey := required "secrets.serviceAuth.existingSecret.key is required during bootstrap" $serviceAuth.existingSecret.key -}}
-{{- $nodeSelector := mergeOverwrite (deepCopy .Values.podDefaults.nodeSelector) $serviceAuth.bootstrap.nodeSelector -}}
 {{- $bootstrapInputs := dict
       "chartVersion" .Chart.Version
       "chartAppVersion" .Chart.AppVersion
@@ -25,7 +24,7 @@
       "imagePullPolicy" (include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api))
       "imagePullSecrets" (include "osmo.component.imagePullSecrets" .)
       "activeDeadlineSeconds" $serviceAuth.bootstrap.activeDeadlineSeconds
-      "nodeSelector" $nodeSelector
+      "nodeSelector" $serviceAuth.bootstrap.nodeSelector
       "tolerations" $serviceAuth.bootstrap.tolerations
       "resources" $serviceAuth.bootstrap.resources
       "secretName" $secretName
@@ -109,7 +108,7 @@ spec:
       serviceAccountName: {{ $name }}
       automountServiceAccountToken: false
       {{- include "osmo.component.imagePullSecrets" . | nindent 6 }}
-      {{- with $nodeSelector }}
+      {{- with $serviceAuth.bootstrap.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

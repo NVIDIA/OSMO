@@ -110,10 +110,9 @@ inside the bearer-token handling boundary. None may log the authorization
 value. The only intentional persistence is FastMCP's encrypted upstream-token
 state in Redis.
 
-The Kubernetes `/health` and `/health/live` endpoints report process health.
-The `/health/ready` endpoint also checks Redis connectivity with a two-second
-timeout. The separate `osmo_health` tool probes caller-bound Gateway
-authentication and OSMO profile access.
+The Kubernetes `/health`, `/health/live`, and `/health/ready` endpoints report
+process health; they do not check Redis connectivity. The separate `osmo_health`
+tool probes caller-bound Gateway authentication and OSMO profile access.
 
 ## Code organization
 

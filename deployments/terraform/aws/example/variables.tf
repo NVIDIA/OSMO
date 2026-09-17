@@ -89,20 +89,6 @@ variable "kubernetes_version" {
   default     = "1.30"
 }
 
-# Preserve the existing example defaults. The single-plane installer explicitly
-# selects AL2023 AMIs for new clusters running current EKS versions.
-variable "node_ami_type" {
-  description = "AMI type for CPU nodes"
-  type        = string
-  default     = "AL2_x86_64"
-}
-
-variable "gpu_ami_type" {
-  description = "AMI type for GPU nodes"
-  type        = string
-  default     = "AL2_x86_64_GPU"
-}
-
 variable "node_instance_types" {
   description = "List of instance types for EKS node group"
   type        = list(string)
@@ -189,7 +175,7 @@ variable "rds_username" {
 }
 
 variable "rds_password" {
-  description = "RDS master password — required, no default. Pass via --postgres-password to deploy-osmo.sh or set TF_VAR_rds_password."
+  description = "RDS master password — required, no default. Pass via --postgres-password to deploy-osmo-minimal.sh or set TF_VAR_rds_password."
   type        = string
   sensitive   = true
 }
@@ -250,7 +236,7 @@ variable "redis_snapshot_retention_limit" {
 }
 
 variable "redis_auth_token" {
-  description = "Auth token for Redis (password) — required, no default. Must be at least 16 characters. Pass via --redis-password to deploy-osmo.sh or set TF_VAR_redis_auth_token."
+  description = "Auth token for Redis (password) — required, no default. Must be at least 16 characters. Pass via --redis-password to deploy-osmo-minimal.sh or set TF_VAR_redis_auth_token."
   type        = string
   sensitive   = true
   validation {
@@ -325,7 +311,7 @@ variable "gpu_node_group_capacity_type" {
 
 # Optional S3 bucket for OSMO workflow data
 # When false, BYO an existing bucket via STORAGE_ENDPOINT/STORAGE_ACCESS_KEY_ID/
-# STORAGE_ACCESS_KEY env vars before running deploy-osmo.sh --storage-backend byo.
+# STORAGE_ACCESS_KEY env vars before running configure-storage.sh --backend byo.
 variable "s3_bucket_enabled" {
   description = "Provision an S3 bucket + IAM user for OSMO workflow data"
   type        = bool

@@ -3,17 +3,7 @@
 
 # Static Azure overlay for deploy-osmo-single-plane.sh. The generic single-plane
 # profile is applied first; dynamic, non-secret values are generated as JSON.
-externalUrl: http://127.0.0.1:9000
-authentication:
-  bootstrap:
-    identities:
-      admin:
-        tokens:
-          primary: null
-          cli:
-            existingSecret:
-              name: osmo-default-admin
-              key: password
+externalUrl: http://osmo-gateway
 compute:
   backendName: default
 services:
@@ -43,6 +33,9 @@ externalDependencies:
     authentication:
       type: sdkDefault
 secrets:
+  defaultAdmin:
+    existingSecret: osmo-default-admin
+    username: admin
   serviceAuth:
     managementMode: osmo
     bootstrap:
@@ -54,8 +47,6 @@ secrets:
   objectStorage:
     existingSecret: ''
 configuration:
-  service:
-    service_base_url: http://osmo-gateway.osmo.svc:80
   podTemplates:
     azure_workload_identity:
       metadata:

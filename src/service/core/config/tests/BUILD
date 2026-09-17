@@ -29,17 +29,6 @@ osmo_py_test(
 )
 
 osmo_py_test(
-    name = "test_helpers",
-    srcs = ["test_helpers.py"],
-    deps = [
-        "//src/lib/utils:osmo_errors",
-        "//src/service/core/config:config",
-        "//src/utils/connectors",
-        "//src/utils/job:job",
-    ],
-)
-
-osmo_py_test(
     name = "test_config_history",
     srcs = ["test_config_history.py"],
     deps = [

@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Backend operator values for the minimal deployment.
+#
+# Modeled on the canonical docs example:
+#   external/docs/deployment_guide/appendix/deploy_minimal.rst
+#
+# Consumed by deploy-osmo-minimal.sh via `helm install -f`. Cluster-specific
+# values (image registry/tag, NGC pull secret name, namespaces, serviceUrl)
+# are injected with `--set` at install time. Edit the rest of this file to
+# customize an operator deploy.
+
+global:
+  # osmoImageLocation + osmoImageTag injected via --set
+  # serviceUrl injected via --set (typically http://osmo-gateway.<ns>.svc.cluster.local)
+  agentNamespace: osmo-operator
+  backendNamespace: osmo-workflows
+  backendName: default
+  accountTokenSecret: osmo-operator-token
+  loginMethod: token
+
+services:
+  backendListener:
+    resources:
+      requests:
+        cpu: "125m"
+        memory: "128Mi"
+      limits:
+        cpu: "250m"
+        memory: "256Mi"
+  backendWorker:
+    resources:
+      requests:
+        cpu: "125m"
+        memory: "128Mi"
+      limits:
+        cpu: "250m"
+        memory: "256Mi"
+
+sidecars:
+  otel:
+    enabled: false
+
+# PodMonitor disabled to avoid CRD errors on clusters without prometheus-operator
+podMonitor:
+  enabled: false

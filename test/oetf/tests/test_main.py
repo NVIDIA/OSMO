@@ -18,43 +18,6 @@ from unittest import mock
 from test.oetf import main as oetf_main
 
 
-class ResolveEnvAuthTest(unittest.TestCase):
-    """Explicit token auth may use the standard token environment variable."""
-
-    def test_token_override_reads_osmo_access_token(self):
-        args = argparse.Namespace(
-            auth_method="token",
-            auth_token="",
-            auth_username="",
-            env="kind",
-            local_osmo="",
-            pool="",
-            url="",
-        )
-        environment = SimpleNamespace(
-            auth=SimpleNamespace(
-                strategy="dev", token_env="", username="testuser",
-            ),
-            exclude_tags=["auth"],
-            pool="default",
-            url="http://quick-start.osmo",
-        )
-
-        with mock.patch.object(
-            oetf_main, "resolve_environment", return_value=environment,
-        ), mock.patch.dict(
-            oetf_main.os.environ, {"OSMO_ACCESS_TOKEN": "managed-admin-token"},
-            clear=True,
-        ):
-            try:
-                resolved = oetf_main.resolve_env(args)
-            except SystemExit as error:
-                self.fail(f"explicit token auth ignored OSMO_ACCESS_TOKEN: {error}")
-
-        self.assertEqual(resolved["auth_method"], "token")
-        self.assertEqual(resolved["auth_token"], "managed-admin-token")
-
-
 class MainResultContractTest(unittest.TestCase):
     """The OETF wrapper fails closed when Bazel does not run its tests."""
 
@@ -196,8 +159,6 @@ class BuildBazelCommandTest(unittest.TestCase):
             "--test_env=KUBECONFIG=/runner/kind-kubeconfig",
             command,
         )
-        self.assertIn("--test_env=OETF_AUTH_TOKEN", command)
-        self.assertFalse(any("test-token" in argument for argument in command))
 
     @mock.patch.object(
         oetf_main,

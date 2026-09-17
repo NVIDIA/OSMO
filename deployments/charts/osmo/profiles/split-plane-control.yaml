@@ -10,9 +10,6 @@ planes:
 fullnameOverride: ''
 externalUrl: ''
 
-# Pin production installs to the chart application version.
-imageTag: ''
-
 embeddedDependencies:
   postgresql:
     enabled: false
@@ -20,12 +17,6 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-
-authentication:
-  bootstrap:
-    identities:
-      backend-operator-default:
-        enabled: false
 
 configuration:
   workflow:
@@ -169,15 +160,23 @@ gateway:
       maxUnavailable: 1
       unhealthyPodEvictionPolicy: AlwaysAllow
     service:
-      # Put the authenticated in-cluster gateway behind an operator-managed
-      # edge rather than provisioning a public load balancer.
+      # Keep the unauthenticated in-cluster gateway behind an operator-managed,
+      # authenticating edge rather than provisioning a public load balancer.
       type: ClusterIP
+    defaultIdentity:
+      user: ''
+      roles: ''
+      allowedPools: ''
     resources:
       requests:
         cpu: 200m
         memory: 128Mi
       limits:
         memory: 256Mi
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
   rateLimit:
     enabled: false
   tls:
@@ -232,6 +231,9 @@ secrets:
   objectStorage:
     generate: false
     existingSecret: osmo-object-storage
+  backendApiTokens:
+    enabled: false
+    credentials: []
   masterEncryptionKey:
     managementMode: external
     existingSecret:

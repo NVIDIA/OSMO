@@ -66,7 +66,6 @@ oetf_smoke_test(
     src = "oauth_cookie_kind.py",
     data = ["//deployments/charts:osmo"],
     extra_deps = [requirement("cryptography")],
-    size = "large",
+    size = "medium",
     tags = ["auth", "kind"],
-    timeout = "long",
 )

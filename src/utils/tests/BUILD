@@ -64,13 +64,3 @@ osmo_py_test(
         requirement("kubernetes"),
     ],
 )
-
-osmo_py_test(
-    name = "test_identity_bootstrap",
-    srcs = ["test_identity_bootstrap.py"],
-    deps = [
-        "//src/utils:identity_bootstrap_lib",
-        requirement("bcrypt"),
-        requirement("kubernetes"),
-    ],
-)

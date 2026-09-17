@@ -328,7 +328,7 @@ variable "gpu_driver" {
 
 # Optional Storage Account for OSMO workflow data — disabled by default.
 # When false, BYO an existing Storage Account by setting STORAGE_ACCOUNT and
-# STORAGE_KEY env vars before running deploy-osmo.sh --storage-backend azure-blob.
+# STORAGE_KEY env vars before running configure-storage.sh --backend azure-blob.
 variable "storage_account_enabled" {
   description = "Provision an Azure Storage Account for OSMO workflow data"
   type        = bool
@@ -349,7 +349,7 @@ variable "object_storage_workload_identity_enabled" {
 # Operator and any other ReadWriteMany PVC consumer needs this on AKS, where
 # the default `managed-csi` / `default` SCs are RWO-only. The StorageClass
 # manifest + default-SC swap are owned by the consumer, not osmo. Set via
-# --with-nfs-storage on deploy-osmo.sh.
+# --with-nfs-storage on deploy-osmo-minimal.sh.
 variable "nfs_storage_account_enabled" {
   description = "Provision a Premium FileStorage Azure Storage Account for downstream RWX workload consumers"
   type        = bool

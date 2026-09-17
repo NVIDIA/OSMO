@@ -5,32 +5,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Azure remains the no-argument CI entrypoint. AWS shares the unified installer.
-provider=azure
-arguments=()
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --provider)
-            [[ $# -ge 2 ]] || { echo '--provider requires azure or aws' >&2; exit 2; }
-            provider="$2"; shift 2 ;;
-        --provider=*) provider="${1#*=}"; shift ;;
-        *) arguments+=("$1"); shift ;;
-    esac
-done
-case "$provider" in
-    aws) exec python3 "$SCRIPT_DIR/lib/deploy.py" "${arguments[@]}" --provider aws --profile single-plane ;;
-    azure)
-        if [[ ${#arguments[@]} -gt 0 ]]; then
-            if [[ ${#arguments[@]} -eq 1 && "${arguments[0]}" == --help ]]; then
-                echo 'Usage: deploy-osmo-single-plane.sh [--provider azure|aws]'
-                echo 'Azure uses TF_* environment inputs; use --provider aws --help for AWS options.'
-                exit 0
-            fi
-            echo 'Azure uses TF_* environment inputs; unsupported arguments supplied (see --help).' >&2
-            exit 2
-        fi ;;
-    *) echo "Unsupported provider: $provider (choose azure or aws)" >&2; exit 2 ;;
-esac
 REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TERRAFORM_SOURCE_DIR="$REPOSITORY_ROOT/deployments/terraform/azure/example"
 TERRAFORM_VARS="$SCRIPT_DIR/azure/single-plane.tfvars"
@@ -168,7 +142,7 @@ kubectl create secret generic osmo-postgresql --namespace osmo \
 kubectl create secret generic osmo-valkey --namespace osmo \
     --from-file=redis-password="$SECRETS_DIR/redis-password" \
     --dry-run=client --output yaml | kubectl apply -f -
-# Preserve the existing token's Secret/key when selecting the bootstrap identity.
+# The chart calls this field password, but the service registers it as an access token.
 DEFAULT_ADMIN_SECRET="$(kubectl get secret osmo-default-admin --namespace osmo \
     --ignore-not-found --output name)"
 if [[ -z "$DEFAULT_ADMIN_SECRET" ]]; then
@@ -212,7 +186,6 @@ jq --null-input \
 
 # Install OSMO.
 # Register URL-based dependencies on fresh Helm installations as well.
-helm repo add osmo-dex https://charts.dexidp.io --force-update
 helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update
 helm repo add osmo-rustfs https://charts.rustfs.com --force-update
 helm dependency build "$CHART"

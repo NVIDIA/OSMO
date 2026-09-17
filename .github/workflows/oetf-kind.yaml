@@ -6,6 +6,7 @@ on:
     paths:
       - 'deployments/charts/**'
       - 'deployments/scripts/**'
+      - 'deployments/values/**'
       - 'test/oetf/**'
       - 'test/smoke/**'
       - 'test/scenarios/**'

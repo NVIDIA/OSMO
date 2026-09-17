@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in fragment that re-enables PodMonitor objects for clusters that have
+# the prometheus-operator CRDs (monitoring.coreos.com/v1) installed.
+#
+# deploy-osmo-minimal.sh auto-detects the CRDs and layers this on top of
+# values/service.yaml when present. To force enable/disable, set the
+# OSMO_POD_MONITOR_ENABLED env var to `true` or `false`.
+
+podMonitor:
+  enabled: true

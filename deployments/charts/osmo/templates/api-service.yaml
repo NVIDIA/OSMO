@@ -16,15 +16,9 @@
 # SPDX-License-Identifier: Apache-2.0
 {{- if .Values.services.api.enabled }}
 {{- $name := include "osmo.api.fullname" . }}
-{{- $bootstrapTokens := list }}
-{{- range $identityID, $identity := .Values.authentication.bootstrap.identities }}
-{{- if $identity.enabled }}
-{{- range $tokenName, $token := $identity.tokens }}
-{{- $secretName := "" }}
-{{- if hasKey $token "managedSecret" }}{{- $secretName = $token.managedSecret.name }}{{- else }}{{- $secretName = $token.existingSecret.name }}{{- end }}
-{{- $bootstrapTokens = append $bootstrapTokens (dict "identityID" $identityID "tokenName" $tokenName "secretName" $secretName) }}
-{{- end }}
-{{- end }}
+{{- $protectedPodAnnotations := dict }}
+{{- if .Values.secrets.backendApiTokens.enabled }}
+{{- $_ := set $protectedPodAnnotations "osmo.nvidia.com/backend-token-rollout" .Values.secrets.backendApiTokens.rolloutNonce }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -52,13 +46,11 @@ spec:
       labels:
         {{- include "osmo.pod.labels" (dict "root" . "component" .Values.services.api "componentName" "api") | nindent 8 }}
       annotations:
-        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api) | nindent 8 }}
+        {{- include "osmo.pod.annotations" (dict "root" . "component" .Values.services.api "protectedAnnotations" $protectedPodAnnotations) | nindent 8 }}
         {{- include "osmo.gateway.tlsRolloutAnnotations" . | nindent 8 }}
         {{- include "osmo.secrets.rolloutAnnotations" . | nindent 8 }}
         osmo.nvidia.com/config-checksum: {{ include (print $.Template.BasePath "/configs.yaml") . | sha256sum }}
-        {{- if $bootstrapTokens }}
-        osmo.nvidia.com/bootstrap-identities-checksum: {{ include (print $.Template.BasePath "/bootstrap-identities-config.yaml") . | sha256sum }}
-        {{- end }}
+        osmo.nvidia.com/default-admin-secret-rollout: {{ .Values.secrets.defaultAdmin.rolloutNonce | quote }}
     spec:
       automountServiceAccountToken: {{ .Values.services.api.serviceAccount.automountServiceAccountToken }}
       securityContext:
@@ -122,18 +114,20 @@ spec:
         - --postgres_user
         - {{ . }}
         {{- end }}
+        {{- if .Values.services.api.auth.enabled }}
         - --device_endpoint
-        - {{ include "osmo.authentication.deviceEndpoint" . | quote }}
+        - {{ .Values.services.api.auth.deviceEndpoint }}
         - --device_client_id
-        - {{ include "osmo.authentication.cliClientId" . | quote }}
+        - {{ .Values.services.api.auth.deviceClientId }}
         - --browser_endpoint
-        - {{ include "osmo.authentication.authorizationEndpoint" . | quote }}
+        - {{ .Values.services.api.auth.browserEndpoint }}
         - --browser_client_id
-        - {{ include "osmo.authentication.browserClientId" . | quote }}
+        - {{ .Values.services.api.auth.browserClientId }}
         - --token_endpoint
-        - {{ include "osmo.authentication.tokenEndpoint" . | quote }}
+        - {{ .Values.services.api.auth.tokenEndpoint }}
         - --logout_endpoint
-        - {{ include "osmo.authentication.logoutEndpoint" . | quote }}
+        - {{ .Values.services.api.auth.logoutEndpoint }}
+        {{- end }}
         {{- $serviceHostname := .Values.services.api.hostname | default (include "osmo.hostname" .) }}
         {{- if $serviceHostname }}
         - --service_hostname
@@ -155,11 +149,13 @@ spec:
         - --log_format
         - {{ .Values.logging.logFormat | default "text" }}
         {{- end }}
-        {{- if $bootstrapTokens }}
-        - --bootstrap_identity_config_file
-        - /etc/osmo/bootstrap-identities/config.json
-        - --bootstrap_token_directory
-        - /etc/osmo/bootstrap-tokens
+        {{- if .Values.secrets.defaultAdmin.existingSecret }}
+        - --default_admin_username
+        - {{ .Values.secrets.defaultAdmin.username | quote }}
+        {{- end }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
+        - --backend_token_directory
+        - /etc/osmo/backend-tokens
         {{- end }}
         {{- include "osmo.configuration.args" . | nindent 8 }}
         {{- include "osmo.secrets.serviceAuthArgs" . | nindent 8 }}
@@ -173,6 +169,13 @@ spec:
         {{- include "osmo.configuration.extraEnv" . | nindent 8 }}
         {{- include "osmo.component.extraEnv" .Values.services.api | nindent 8 }}
         {{- include "osmo.externalDependencies.connectionSecretEnv" . | nindent 8 }}
+        {{- if .Values.secrets.defaultAdmin.existingSecret }}
+        - name: OSMO_DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.defaultAdmin.existingSecret }}
+              key: {{ .Values.secrets.defaultAdmin.keys.password }}
+        {{- end }}
         imagePullPolicy: {{ include "osmo.component.imagePullPolicy" (dict "root" . "component" .Values.services.api) }}
         securityContext:
           {{- include "osmo.container.securityContext" (dict "root" . "component" .Values.services.api) | nindent 10 }}
@@ -188,13 +191,10 @@ spec:
           readOnly: true
         {{- end }}
         {{- include "osmo.secrets.serviceAuthVolumeMount" . | nindent 8 }}
-        {{- if $bootstrapTokens }}
-        - name: bootstrap-identities
-          mountPath: /etc/osmo/bootstrap-identities
-          readOnly: true
-        {{- range $index, $token := $bootstrapTokens }}
-        - name: bootstrap-token-{{ $index }}
-          mountPath: /etc/osmo/bootstrap-tokens/{{ $token.identityID }}/{{ $token.tokenName }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
+        {{- range .Values.secrets.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
+          mountPath: /etc/osmo/backend-tokens/{{ .name }}
           readOnly: true
         {{- end }}
         {{- end }}
@@ -228,14 +228,11 @@ spec:
         {{- include "osmo.secrets.serviceAuthVolume" . | nindent 8 }}
         {{- include "osmo.configuration.volumes" . | nindent 8 }}
         {{- include "osmo.externalDependencies.caVolumes" . | nindent 8 }}
-        {{- if $bootstrapTokens }}
-        - name: bootstrap-identities
-          configMap:
-            name: {{ include "osmo.component.fullname" (dict "root" . "suffix" "bootstrap-identities") }}
-        {{- range $index, $token := $bootstrapTokens }}
-        - name: bootstrap-token-{{ $index }}
+        {{- if .Values.secrets.backendApiTokens.enabled }}
+        {{- range .Values.secrets.backendApiTokens.credentials }}
+        - name: backend-token-{{ .name }}
           secret:
-            secretName: {{ $token.secretName }}
+            secretName: {{ include "osmo.backendApiTokenSecretName" . }}
         {{- end }}
         {{- end }}
 ---

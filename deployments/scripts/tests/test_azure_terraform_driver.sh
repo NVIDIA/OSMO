@@ -55,7 +55,7 @@ azure_terraform_apply "$test_directory/terraform" true -var-file=single-plane.tf
 
 : >"$command_log"
 legacy_outputs="$test_directory/legacy.env"
-azure_get_terraform_outputs "$test_directory/terraform" "$legacy_outputs"
+IS_PRIVATE_CLUSTER=false azure_get_terraform_outputs "$test_directory/terraform" "$legacy_outputs"
 grep -Fq 'export PROVIDER="azure"' "$legacy_outputs"
 grep -Fq 'export REDIS_PASSWORD="redis-secret"' "$legacy_outputs"
 if grep -Fq 'export POSTGRES_PASSWORD=' "$legacy_outputs"; then exit 1; fi

@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# GPU Operator values for MicroK8s with pre-installed NVIDIA driver.
+# Workaround for /dev/char symlink bug: https://github.com/NVIDIA/gpu-operator/issues/430
+validator:
+  driver:
+    env:
+      - name: DISABLE_DEV_CHAR_SYMLINK_CREATION
+        value: "true"

@@ -77,7 +77,7 @@ reachability_url="${OSMO_URL%/}${reachability_url_path}"
 if ! curl -fsS -o /dev/null --max-time "$OSMO_REACHABILITY_TIMEOUT_SECONDS" "$reachability_url"; then
     log_error "OSMO not reachable at $OSMO_URL"
     log_error "Reachability probe failed: $reachability_url"
-    log_error "Ensure port-forward is running (./port-forward.sh osmo 9000)"
+    log_error "Ensure port-forward is running (./port-forward.sh --watchdog osmo-service 9000)"
     log_error "or set OSMO_URL to a reachable endpoint."
     exit 1
 fi
@@ -113,7 +113,7 @@ log_success "Pool $POOL has resources"
 
 # Submit a workflow, poll until terminal state, dump logs on failure.
 # Polls every $POLL_INTERVAL seconds up to $timeout seconds. Terminal states
-# per OSMO: COMPLETED / FAILED (including FAILED_* reasons) / CANCELLED.
+# per OSMO: COMPLETED / FAILED / CANCELLED.
 run_workflow() {
     local spec="$1"
     local label="$2"
@@ -176,7 +176,7 @@ run_workflow() {
                 log_success "$label: COMPLETED"
                 return 0
                 ;;
-            FAILED|FAILED_*|CANCELLED)
+            FAILED|CANCELLED)
                 log_error "$label ended in $status"
                 echo "---- osmo workflow events $wf_id ----" >&2
                 osmo workflow events "$wf_id" >&2 || true
@@ -190,8 +190,6 @@ run_workflow() {
 
     log_error "$label did not reach a terminal state within ${timeout}s (last status: $status)"
     osmo workflow query "$wf_id" >&2 || true
-    osmo workflow events "$wf_id" >&2 || true
-    osmo workflow logs "$wf_id" >&2 || true
     return 1
 }
 

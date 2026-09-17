@@ -12,7 +12,7 @@ values after a base overlay so that the environment values take precedence.
 | File | Directly installable | Required environment input |
 | --- | --- | --- |
 | Chart defaults (`values.yaml`) | Yes, on a development cluster | KAI Scheduler, the CloudNativePG operator, and a default dynamic StorageClass installed separately |
-| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an external OIDC client and Secret with role assignments for production, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
+| `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an OIDC client and Secret with role assignments, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
 | `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
@@ -30,30 +30,31 @@ disabled. The quickstart generates its other application credentials and does
 not require an image-pull Secret to be created beforehand. Configure top-level
 `imagePullSecrets` only when using a registry that requires credentials.
 
-The self-contained profile is the converged path for environments that host
-OSMO and its stateful dependencies in Kubernetes. It uses chart-version OSMO
-images, production service defaults, a synchronous three-instance PostgreSQL
-Cluster, replicated fixed-primary Valkey, four-node distributed RustFS,
-semantic authorization, and network isolation. The profile creates and retains
-its workflow namespace. Embedded Dex uses volatile memory storage and is
-intended for development and evaluation only. Dex restarts invalidate active
-sessions and signing keys. Production deployments should use
-`authentication.provider: externalOidc`; the complete endpoint and
-existing-Secret contract belongs in an environment values file. Production
-operators must also provide and test backup and restore for the stateful
-volumes and retained Secrets.
+The self-contained profile is the production-converged path for environments
+that host OSMO and its stateful dependencies in Kubernetes. It uses chart-version
+OSMO images, production service defaults, a synchronous three-instance
+PostgreSQL Cluster, replicated fixed-primary Valkey, four-node distributed
+RustFS, OAuth2 authentication, semantic authorization, and network isolation.
+The profile creates and retains its workflow namespace. Register an OIDC client
+with an identity provider reachable by users and the OSMO gateway; the provider
+may run inside or outside Kubernetes. Its tokens must contain an array-valued
+`roles` claim; assign at least one trusted operator the external `osmo-admin`
+role before exposing the service. The split profiles contain example names and
+endpoints; copy them into an environment values file before installation.
+Production operators must also provide and test backup and restore for the
+stateful volumes.
 
 `single-plane.yaml` enables both planes with externally managed dependencies.
-It is not directly installable: layer it before a site-specific values file
-that supplies the required dependency locations, connection details, and public
-URL. It defaults to embedded Dex, or a site can deliberately select
-`authentication.provider: externalOidc` and supply the external IdP contract.
-Object storage defaults to static Secret authentication;
+It is provider-neutral and is not directly installable: layer it before a
+site-specific values file that supplies the required dependency locations and
+connection details. Object storage defaults to static Secret authentication;
 sites using a cloud SDK identity can set
 `externalDependencies.objectStorage.authentication.type: sdkDefault` instead.
-The gateway is a ClusterIP and the profile creates no Ingress or HTTPRoute.
-Authentication and authorization are mandatory for its control plane; sites
-configure public exposure and TLS through their environment-specific overlay.
+The profile requires JWT authentication and configures the OSMO service's local
+JWKS endpoint as its provider. Its gateway is a ClusterIP and it creates no
+Ingress or HTTPRoute. Sites can replace or extend the local provider and enable
+authorization and TLS through their environment-specific authentication
+overlay before exposing the gateway.
 For example:
 
 ```bash
@@ -61,12 +62,6 @@ helm upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
   --values single-plane-azure.yaml
 ```
-
-`split-plane-control.yaml` is the reusable HA control-plane base profile. It
-uses the chart application version for OSMO images, disables the compute plane
-and embedded stateful dependencies, and configures control-plane autoscaling,
-disruption budgets, and topology spreading. Layer site-specific dependency,
-identity-provider, public URL, and gateway values after it.
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

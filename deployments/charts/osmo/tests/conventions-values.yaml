@@ -37,14 +37,19 @@ embeddedDependencies:
         digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         pullPolicy: Always
 
-authentication:
-  bootstrap:
-    identities:
-      backend-operator-default:
-        tokens:
-          primary:
-            managedSecret:
-              name: convention-backend-token
+secrets:
+  backendApiTokens:
+    bootstrap:
+      image:
+        registry: registry.example.com
+        repository: conventions/backend-token-bootstrap
+        tag: ignored
+        digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        pullPolicy: Always
+    credentials:
+    - name: convention
+      managedSecret:
+        name: convention-backend-token
 services:
   api:
     extraEnv:

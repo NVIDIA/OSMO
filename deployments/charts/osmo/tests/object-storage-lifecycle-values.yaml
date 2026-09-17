@@ -21,11 +21,11 @@ services:
 
 gateway:
   envoy:
-    enabled: true
+    enabled: false
   oauth2Proxy:
-    enabled: true
+    enabled: false
   authz:
-    enabled: true
+    enabled: false
   rateLimit:
     enabled: false
 

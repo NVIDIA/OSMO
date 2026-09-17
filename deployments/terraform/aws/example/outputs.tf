@@ -202,7 +202,7 @@ output "alb_security_group_id" {
 }
 
 # Optional S3 bucket for OSMO workflow data
-# Read by deploy-osmo.sh --storage-backend s3 via `terraform output`
+# Read by configure-storage.sh --backend s3 via `terraform output`
 output "s3_bucket" {
   description = "Name of the OSMO workflow data S3 bucket (empty when disabled)"
   value       = var.s3_bucket_enabled ? aws_s3_bucket.osmo[0].id : ""

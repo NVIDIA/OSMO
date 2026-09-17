@@ -63,10 +63,6 @@ class MCPServiceConfig(
     gateway_url: pydantic.AnyHttpUrl = pydantic.Field(
         description='HTTPS origin of the same-deployment OSMO Gateway.',
         json_schema_extra={'env': 'OSMO_GATEWAY_URL'})
-    gateway_ca_file: str = pydantic.Field(
-        default='',
-        description='Optional PEM trust bundle for Gateway HTTPS connections.',
-        json_schema_extra={'env': 'OSMO_MCP_GATEWAY_CA_FILE'})
     request_timeout_seconds: int = pydantic.Field(
         default=10,
         ge=1,
@@ -95,8 +91,6 @@ class MCPServiceConfig(
 
 def create_mcp_server(
     auth_provider: AuthProvider | None = None,
-    *,
-    auth_runtime: auth.MCPAuthRuntime | None = None,
 ) -> FastMCP:
     """Create the stateless OSMO MCP protocol server."""
     server = protocol.OSMOFastMCP(
@@ -109,16 +103,10 @@ def create_mcp_server(
     async def health(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
         return JSONResponse({'status': 'ok'})
 
-    for health_path in ('/health', '/health/live'):
+    for health_path in ('/health', '/health/live', '/health/ready'):
         server.custom_route(
             health_path, methods=['GET'], include_in_schema=False,
         )(health)
-
-    @server.custom_route('/health/ready', methods=['GET'], include_in_schema=False)
-    async def readiness(request: Request) -> JSONResponse:  # pylint: disable=unused-argument
-        if auth_runtime is not None and await auth_runtime.is_ready():
-            return JSONResponse({'status': 'ok'})
-        return JSONResponse({'status': 'unavailable'}, status_code=503)
 
     return server
 
@@ -168,7 +156,6 @@ def create_runtime_application(
     )
     protocol_server = create_mcp_server(
         auth_runtime.provider if auth_runtime is not None else auth_provider,
-        auth_runtime=auth_runtime,
     )
     # FastMCP serves its browser consent page on this deployment's own origin,
     # and a same-origin form POST still carries an Origin header. Supplying any
@@ -190,7 +177,6 @@ def create_runtime_application(
             gateway_url=str(config.gateway_url),
             request_timeout_seconds=config.request_timeout_seconds,
             transport=http_transport,
-            gateway_ca_file=config.gateway_ca_file,
         ) as app_context:
             lifespan_application.state.mcp_app_context = app_context
             try:

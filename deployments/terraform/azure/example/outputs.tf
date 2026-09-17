@@ -229,7 +229,7 @@ output "gpu_node_pool_name" {
 }
 
 # Optional Storage Account for OSMO workflow data
-# Read by deploy-osmo.sh --storage-backend azure-blob via `terraform output`
+# Read by configure-storage.sh --backend azure-blob via `terraform output`
 output "storage_account" {
   description = "Name of the OSMO workflow data Storage Account (empty when disabled)"
   value       = var.storage_account_enabled ? azurerm_storage_account.osmo[0].name : ""

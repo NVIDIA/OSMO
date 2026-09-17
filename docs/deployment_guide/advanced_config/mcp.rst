@@ -41,18 +41,15 @@ Before enabling MCP:
   reach. Set ``services.mcp.resourceUrl`` to that origin plus the exact
   ``/mcp`` path; the chart derives the outbound Gateway origin from it.
 * In the unified ``osmo`` chart, enable ``planes.control.enabled``.
-  Gateway Envoy, OAuth2 Proxy, and authorization are mandatory and cannot be
-  disabled. The default provider is embedded Dex; use
-  ``authentication.provider: externalOidc`` and ``authentication.externalOidc``
-  for an operator-managed provider. The development quickstart does not
-  provision the public HTTPS endpoint or confidential application needed for MCP.
+  For either chart, keep ``gateway.envoy.enabled`` and
+  ``gateway.authz.enabled`` set to ``true``. The development quickstart does
+  not provision the public HTTPS endpoint or confidential application needed
+  for MCP.
 * Configure a matching identity-provider JWT entry under
-  ``gateway.envoy.jwt.providers`` or ``gateway.envoy.jwt.additionalProviders``
+  ``gateway.envoy.jwt.providers``
   and role mappings for the upstream API token. The chart adds the MCP
   audience to the explicit entry matching the configured issuer. Grant users
   the API actions and pool-scoped permissions required by their tools.
-  In the ``service`` chart, enable ``gateway.envoy.enabled`` and
-  ``gateway.authz.enabled``.
 * Provide shared Redis or Valkey storage and externally managed credentials.
   Keep MCP's ingress NetworkPolicy enforced by the cluster CNI; another policy
   selecting the same pod must not grant broader ingress.
@@ -143,18 +140,6 @@ Redis connection and password sources follow the selected chart:
        OIDC Secret. A mounted ``oidcProxy.redis.passwordFile`` is used only
        when ``existingSecret.name`` is unset and the OIDC client secret is
        also supplied as a mounted file.
-
-For private-CA Valkey TLS, the unified chart mounts
-``externalDependencies.valkey.tls.caExistingSecret`` using ``caKey`` and sets
-``SSL_CERT_FILE`` for MCP. Supply a complete PEM trust bundle, including the
-public roots needed for outbound OIDC HTTPS connections.
-
-Gateway requests use a separate, explicit TLS configuration and ignore
-``SSL_CERT_FILE``. For a private-CA Gateway, set the unified chart's
-``services.mcp.gatewayCaFile`` to a complete PEM trust bundle mounted through
-``services.mcp.extraVolumeMounts`` and ``services.mcp.pod.extraVolumes``.
-Certificate and hostname verification remain enabled. The selected MCP image
-must support this Gateway CA setting and Redis-backed readiness.
 
 Use ``services.mcp.oidcProxy.redis.dbNumber`` and ``keyPrefix`` to isolate
 proxy state from other Redis users. Replicas share the same storage and client
@@ -257,11 +242,9 @@ Operations and Rollback
 * Add ingress or Gateway rate limits to the public OAuth routes, especially
   ``POST /mcp/register`` and ``POST /mcp/token``. Choose a trusted client-IP
   source and limits that do not let one caller block all users' logins.
-* The unified chart's readiness probe uses ``/health/ready`` to check OAuth
-  Redis connectivity with a two-second deadline. It does not validate every
-  Redis permission, OAuth operation, or Gateway connection. ``/health`` and
-  ``/health/live`` report process health, so Redis outages do not trigger
-  liveness restarts. Tool failures alone do not make the pod unhealthy.
+* The ``/health``, ``/health/live``, and ``/health/ready`` endpoints report
+  process health. They do not validate Redis connectivity, OAuth operations,
+  or Gateway connections. Tool failures alone do not make the pod unhealthy.
 * After an identity-provider role assignment changes, have the user log out
   and sign in again to obtain updated claims.
 
@@ -270,10 +253,8 @@ Redis entries unusable, including DCR registrations. Users must sign in
 again; DCR clients may need to remove and re-add the MCP entry first. All
 replicas must use the new secret.
 
-For the unified chart, update
-``services.mcp.oidcProxy.existingSecret.rolloutNonce`` after rotating the
-MCP client Secret to restart its consumers. This is separate from the
-browser-OAuth Secret's rollout setting.
+Restart every MCP pod after rotating the client Secret so all replicas load
+the new value.
 
 To disable MCP, set ``services.mcp.enabled`` to ``false`` and redeploy.
 Clients lose the endpoint; other OSMO routes are unaffected.
@@ -294,8 +275,8 @@ Troubleshooting
        ``resourceUrl`` ends with the exact path ``/mcp``.
    * - Pod does not become ready
      - Inspect configuration and credential-file errors. Required files must
-       exist at the configured absolute paths. For ``/health/ready`` failures,
-       also check Redis connectivity, credentials, and TLS trust.
+       exist at the configured absolute paths. Process readiness alone does
+       not verify Redis connectivity, credentials, or TLS trust.
    * - Browser reports a redirect mismatch
      - Register the exact ``https://<osmo-host>/mcp/auth/callback`` URL on the
        confidential application's Web platform.

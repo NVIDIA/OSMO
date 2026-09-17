@@ -120,18 +120,9 @@ bash deployments/charts/service/tests/render-tests.sh
 
 | Chart | Purpose |
 |-------|---------|
-| `osmo/` | Unified chart with directly owned control-plane, gateway, and compute-plane templates; supports control-only, compute-only, and converged profiles. Control-plane releases use embedded Dex by default (memory-only, no Dex CRDs/RBAC/PVCs) or an explicit external OIDC provider. |
+| `osmo/` | Unified chart with directly owned control-plane, gateway, and compute-plane templates; supports control-only, compute-only, and converged profiles. |
 | `service/` | OSMO control-plane services, UI, gateway, and optional development dependencies. |
 | `backend-operator/` | Compute-plane backend listener, worker, test runner, RBAC, and scheduler integration. |
-
-### Deployment Scripts (`deployments/scripts/`)
-
-`deploy-osmo.sh` delegates converged installation to `lib/deploy.py`. Provider
-shell drivers own Terraform/host provisioning; the unified chart owns OSMO
-resources and embedded dependencies. `deploy-osmo-single-plane.sh` supports the
-Azure authenticated example and an AWS single-plane profile through the shared
-orchestrator. MicroK8s host bootstrap and the minimal wrapper have been removed.
-Installer regression tests: `bazel test //deployments/scripts/tests:all`.
 
 ### Python Libraries (`lib/`)
 
@@ -148,7 +139,6 @@ Installer regression tests: `bazel test //deployments/scripts/tests:all`.
 | `utils/job/` | `Task`, `FrontendJob`, `K8sObjectFactory`, `PodGroupTopologyBuilder` | Workflow execution framework. Task → K8s spec generation. Gang scheduling via PodGroup. Topology constraints. Backend job definitions. |
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
-| `utils/identity_bootstrap.py` | `PasswordSpec`, `TokenSpec` | Reconciles retained embedded-Dex passwords, OAuth credentials, and Secret-backed OSMO bootstrap tokens. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 
