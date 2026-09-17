@@ -1400,13 +1400,6 @@ class TestResourceSpecTokens(unittest.TestCase):
 
         self.assertEqual(tokens['USER_CACHE'], '4Gi')
 
-    # SUSPECTED BUG: src/utils/connectors/postgres.py:get_allocatable_tokens — the
-    # comment at line 1923 states "If user did not specify cache size, use the default
-    # variable", but line 1925 reads USER_CACHE from `mapping`, which only ever holds
-    # the freshly computed USER_* tokens. The caller's default_variables were copied
-    # into `final_tokens` at line 1903, so a USER_CACHE default can never be seen and
-    # the 90%-of-storage fallback always wins.
-    @unittest.skip('source bug — see comment above')
     def test_cache_size_falls_back_to_the_default_variable(self):
         spec = postgres.ResourceSpec(storage='10Gi')
 
@@ -1414,12 +1407,44 @@ class TestResourceSpecTokens(unittest.TestCase):
 
         self.assertEqual(tokens['USER_CACHE'], '2Gi')
 
+    def test_explicit_cache_size_wins_over_the_default_variable(self):
+        spec = postgres.ResourceSpec(storage='10Gi')
+
+        tokens = spec.get_allocatable_tokens({'USER_CACHE': '20%'}, task_cache_size='50%')
+
+        self.assertEqual(tokens['USER_CACHE'], '5Gi')
+
     def test_cache_size_defaults_to_ninety_percent_of_storage(self):
         spec = postgres.ResourceSpec(storage='10Gi')
 
         tokens = spec.get_allocatable_tokens({})
 
         self.assertEqual(tokens['USER_CACHE'], '9Gi')
+
+    def test_cache_size_is_derived_from_a_default_storage_variable(self):
+        spec = postgres.ResourceSpec(cpu=2)
+
+        tokens = spec.get_allocatable_tokens({'USER_STORAGE': '20Gi'})
+
+        self.assertEqual(tokens['USER_CACHE'], '18Gi')
+
+    def test_unit_tokens_are_derived_from_a_default_storage_variable(self):
+        spec = postgres.ResourceSpec(cpu=2)
+
+        tokens = spec.get_allocatable_tokens({'USER_STORAGE': '20Gi'})
+
+        self.assertEqual(tokens['USER_STORAGE_VAL'], '20')
+        self.assertEqual(tokens['USER_STORAGE_UNIT'], 'Gi')
+        self.assertEqual(tokens['USER_STORAGE_Mi'], 20 * 1024)
+
+    def test_unit_tokens_are_derived_from_a_default_memory_variable(self):
+        spec = postgres.ResourceSpec(cpu=2)
+
+        tokens = spec.get_allocatable_tokens({'USER_MEMORY': '4Gi'})
+
+        self.assertEqual(tokens['USER_MEMORY_VAL'], '4')
+        self.assertEqual(tokens['USER_MEMORY_UNIT'], 'Gi')
+        self.assertEqual(tokens['USER_MEMORY_Mi'], 4 * 1024)
 
 
 class TestBackendResourceAccounting(_ConfigMapTestCase):
