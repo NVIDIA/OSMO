@@ -143,13 +143,12 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local + --use-local-registry: build 10 OSMO service images
-          # + web-ui from PR source, push to a host-side `registry:2`
-          # container, KIND nodes pull from it on-demand. Replaces `kind
+          # --build-local + --use-local-registry: build OSMO services,
+          # workflow runtime images, and web-ui from PR source; push to a host-side
+          # `registry:2` container. KIND nodes pull from it on-demand. Replaces `kind
           # load docker-image` which duplicates each image into every node's
-          # containerd content store (6 nodes × 10 images = 60 image-copies
-          # — overruns hosted ubuntu-latest's 145 GB disk). With registry
-          # mode each KIND node only pulls images its pods actually
+          # containerd content store, which exhausts the hosted runner disk.
+          # With registry mode each KIND node only pulls images its pods actually
           # schedule (1-2 nodes per image under the chart's node_group
           # selectors), dropping the multiplier from 6x to 1-2x.
           #
@@ -163,9 +162,8 @@ jobs:
           #
           # Scenario set narrowed for PR-gate cost: smoke (api-checks +
           # websocket-checks, ~5s) covers service+router+logger HTTP/WS;
-          # templates + mount-validation (~6s) submit workflows so
-          # backend-listener / backend-worker / osmo_ctrl runtime get
-          # touched. workflow-labels exercises the label policy gate
+          # templates + mount-validation reject invalid workflow submissions.
+          # workflow-labels exercises the label policy gate
           # (off/warn/enforce), label-syntax validation, list filters, and a
           # labeled round-trip through the API. MCP smoke covers discovery,
           # real Dex OAuth, caller-bound tools, and token rejection; its one

@@ -837,11 +837,10 @@ The wrapper (`test/oetf/main.py`) is thin:
 - `oetf-smoke` / `oetf-scenario` — for wrapper tag filtering.
 - `kind` — applied to tests **verified to pass against
   `oetf:deploy --env kind`**. `oetf:run --env kind --tags kind` runs
-  this curated subset (currently 10 tests: 2 smoke probes + 4
-  submission-validation scenarios + 3 self-contained 3-file scenarios +
-  `serial-workflow-mounting`). Tests that require NVIDIA-only platforms,
-  registry credentials, or pre-existing data are intentionally not
-  tagged.
+  this curated subset. Source-built KIND includes MCP auth smoke and a
+  workflow round trip; the released chart excludes MCP as described below.
+  Tests that require NVIDIA-only platforms, registry credentials, or
+  pre-existing data are intentionally not tagged.
 - User-supplied `tags = [...]` on individual targets pass through for
   fine-grained filtering (`serial`, `router`, `load`, etc.).
 
@@ -898,7 +897,7 @@ flowchart LR
 ### MCP coverage in the source-build gate
 
 `--build-local` enables MCP with embedded Dex at the loopback Gateway origin.
-The Local KIND Deployment CI gate requires both `//test/smoke:mcp-kind` and
+The Linux Local KIND Deployment CI gate requires both `//test/smoke:mcp-kind` and
 `//test/scenarios:mcp-workflow` to report passing results:
 
 - Public OAuth discovery and anonymous access rejection.
@@ -932,10 +931,12 @@ remains opt-in.
 detect the existing cluster, do an incremental bazel rebuild, kind-load
 any changed image digests, and `kubectl rollout restart` the osmo
 deployments so running pods pick up the new images. No manual
-`kubectl rollout restart` step. Edits to either the 9 Python services *or*
-the web-ui (Next.js) are picked up by the same re-run — the 9-service bazel
-build and the UI docker buildx build run concurrently inside the pre-install
-hook.
+`kubectl rollout restart` step. The same re-run builds service images and
+the web-ui. On Linux, it also builds the workflow init-container and CLI
+images required for workflow round trips. Native macOS builds retain service
+and web-ui images; runtime-image selection requires a Linux builder. The
+Bazel image build and web-ui docker buildx build run concurrently inside the
+pre-install hook.
 
 To force a refresh without source-code changes (e.g., to pick up a chart
 upgrade), pass `--fresh` — that deletes the cluster first and runs the

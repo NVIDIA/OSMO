@@ -28,7 +28,7 @@ class TestImageSpecs(unittest.TestCase):
                 f"{spec.short_name} has unexpected tag {spec.docker_tag}",
             )
             self.assertTrue(
-                spec.bazel_target.endswith("_arm64"),
+                spec.bazel_target.endswith(("_arm64", "_arm64_load")),
                 f"{spec.short_name} has unexpected target {spec.bazel_target}",
             )
             self.assertTrue(
@@ -40,7 +40,7 @@ class TestImageSpecs(unittest.TestCase):
         specs = local_images.image_specs("x86_64")
         for spec in specs:
             self.assertTrue(spec.docker_tag.endswith(":latest-x86_64"))
-            self.assertTrue(spec.bazel_target.endswith("_x86_64"))
+            self.assertTrue(spec.bazel_target.endswith(("_x86_64", "_amd64_load")))
 
     def test_short_names_unique(self):
         specs = local_images.image_specs("arm64")
@@ -69,6 +69,23 @@ class TestImageSpecs(unittest.TestCase):
             mcp.docker_tag,
             "osmo.local/mcp:latest-arm64",
         )
+
+    def test_runtime_images_match_loader_and_chart_tags(self):
+        arches: list[local_images.HostArch] = ["arm64", "x86_64"]
+        for arch in arches:
+            with self.subTest(arch=arch):
+                specs = {spec.short_name: spec for spec in local_images.image_specs(arch)}
+                self.assertIn("init-container", specs)
+                self.assertIn("client", specs)
+                init = specs["init-container"]
+                self.assertEqual(init.bazel_target, f"//src/runtime:init_image_load_{arch}")
+                self.assertEqual(init.loaded_docker_tag, f"init_image_{arch}:latest")
+                self.assertEqual(init.docker_tag, f"osmo.local/init-container:latest-{arch}")
+                client = specs["client"]
+                cli_arch = "amd64" if arch == "x86_64" else arch
+                self.assertEqual(client.bazel_target, f"//src/cli:cli_image_{cli_arch}_load")
+                self.assertEqual(client.loaded_docker_tag, f"cli_image_{cli_arch}:latest")
+                self.assertEqual(client.docker_tag, f"osmo.local/client:latest-{arch}")
 
 
 class TestDetectArch(unittest.TestCase):
@@ -176,13 +193,98 @@ class TestBuildAndLoad(unittest.TestCase):
         self.assertEqual(len(calls), 4)
         self.assertFalse(any(c[:2] == ["kind", "load"] for c in calls))
 
+    def test_runtime_images_retag_before_kind_load_and_cleanup(self):
+        with patch("platform.system", return_value="Linux"):
+            specs = local_images.select_images(
+                local_images.image_specs("x86_64"), "init-container,client",
+            )
+        calls: list[list[str]] = []
+        with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
+            local_images.build_and_load(specs, cluster_name="osmo", arch="x86_64")
+
+        for short_name, loaded_tag in (
+            ("init-container", "init_image_x86_64:latest"),
+            ("client", "cli_image_amd64:latest"),
+        ):
+            with self.subTest(image=short_name):
+                tag = f"osmo.local/{short_name}:latest-x86_64"
+                retag = ["docker", "tag", loaded_tag, tag]
+                kind_load = ["kind", "load", "docker-image", tag, "--name", "osmo"]
+                self.assertIn(retag, calls)
+                self.assertIn(kind_load, calls)
+                self.assertLess(calls.index(retag), calls.index(kind_load))
+                for cleanup_tag in (loaded_tag, tag):
+                    cleanup = ["docker", "rmi", "-f", cleanup_tag]
+                    self.assertIn(cleanup, calls)
+                    self.assertLess(calls.index(kind_load), calls.index(cleanup))
+
+    def test_skip_kind_load_keeps_normalized_runtime_tags(self):
+        with patch("platform.system", return_value="Linux"):
+            specs = local_images.select_images(
+                local_images.image_specs("x86_64"), "init-container,client",
+            )
+        calls: list[list[str]] = []
+        with patch("subprocess.run", side_effect=self._fake_run(calls, specs)):
+            local_images.build_and_load(
+                specs, cluster_name="osmo", arch="x86_64", skip_kind_load=True,
+            )
+        self.assertIn([
+            "docker", "tag", "init_image_x86_64:latest",
+            "osmo.local/init-container:latest-x86_64",
+        ], calls)
+        self.assertIn([
+            "docker", "tag", "cli_image_amd64:latest", "osmo.local/client:latest-x86_64",
+        ], calls)
+        self.assertFalse(any(call[0] == "kind" or call[1] == "rmi" for call in calls))
+
+
+class TestBuildAndPushToRegistry(unittest.TestCase):
+    """Default source builds publish workflow images under the chart's names."""
+
+    def test_all_images_publish_runtime_images_from_actual_loader_tags(self):
+        with patch("platform.system", return_value="Linux"):
+            specs = local_images.select_images(local_images.image_specs("x86_64"), "all")
+        calls: list[list[str]] = []
+
+        def fake_run(args, **_kwargs):
+            calls.append(list(args))
+            if "cquery" in args:
+                return _FakeCompleted(stdout="".join(
+                    f'/fake/bazel-bin/{spec.bazel_target.split(":")[-1]}/tarball.tar\n'
+                    for spec in specs
+                ))
+            return _FakeCompleted()
+
+        with patch("subprocess.run", side_effect=fake_run):
+            local_images.build_and_push_to_registry(specs, arch="x86_64")
+
+        self.assertIn("//src/runtime:init_image_load_x86_64", calls[0])
+        self.assertIn("//src/cli:cli_image_amd64_load", calls[0])
+        for short_name, loaded_tag in (
+            ("service", "osmo.local/service:latest-x86_64"),
+            ("init-container", "init_image_x86_64:latest"),
+            ("client", "cli_image_amd64:latest"),
+        ):
+            with self.subTest(image=short_name):
+                registry_tag = f"localhost:5001/osmo/{short_name}:latest-x86_64"
+                retag = ["docker", "tag", loaded_tag, registry_tag]
+                push = ["docker", "push", registry_tag]
+                self.assertIn(retag, calls)
+                self.assertIn(push, calls)
+                self.assertLess(calls.index(retag), calls.index(push))
+                for cleanup_tag in (loaded_tag, registry_tag):
+                    cleanup = ["docker", "rmi", "-f", cleanup_tag]
+                    self.assertIn(cleanup, calls)
+                    self.assertLess(calls.index(push), calls.index(cleanup))
+
 
 class TestSelectImages(unittest.TestCase):
     """select_images filters by short_name and rejects unknown names."""
 
     def test_all_returns_full_list(self):
         specs = local_images.image_specs("arm64")
-        self.assertEqual(local_images.select_images(specs, "all"), specs)
+        with patch("platform.system", return_value="Linux"):
+            self.assertEqual(local_images.select_images(specs, "all"), specs)
 
     def test_subset_filters_by_short_name(self):
         specs = local_images.image_specs("arm64")
@@ -193,6 +295,26 @@ class TestSelectImages(unittest.TestCase):
         specs = local_images.image_specs("arm64")
         with self.assertRaisesRegex(RuntimeError, "bogus"):
             local_images.select_images(specs, "service,bogus")
+
+    def test_non_linux_default_keeps_service_images(self):
+        specs = local_images.image_specs("arm64")
+        with patch("platform.system", return_value="Darwin"):
+            selected = local_images.select_images(specs, "all")
+        names = {spec.short_name for spec in selected}
+        self.assertNotIn("init-container", names)
+        self.assertNotIn("client", names)
+        self.assertEqual(names, {
+            "service", "agent", "mcp", "logger", "worker", "delayed-job-monitor",
+            "router", "authz-sidecar", "backend-listener", "backend-worker",
+        })
+
+    def test_non_linux_explicit_runtime_image_requires_linux_builder(self):
+        specs = local_images.image_specs("arm64")
+        for selector in ("init-container", "client", "service,client"):
+            with self.subTest(selector=selector):
+                with patch("platform.system", return_value="Darwin"):
+                    with self.assertRaisesRegex(RuntimeError, "require a Linux builder"):
+                        local_images.select_images(specs, selector)
 
 
 class TestBuildAndLoadUi(unittest.TestCase):

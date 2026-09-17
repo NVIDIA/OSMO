@@ -8,14 +8,13 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 """
 
-# Build OSMO service images from local source and load them into a KIND cluster.
+# Build OSMO service and workflow images from local source for a KIND cluster.
 #
 # Used by ``oetf:deploy --build-local`` to bridge local code changes to a
 # local ``osmo/quick-start`` install:
 #
-#   1. For each service, run the Bazel ``*_image_load_<arch>`` target — this
-#      builds the OCI image and loads it into the host docker daemon with tag
-#      ``osmo.local/<service>:latest-<arch>``.
+#   1. Build the Bazel OCI image tarballs and load them into the host docker
+#      daemon, normalizing tags to ``osmo.local/<image>:latest-<arch>``.
 #   2. ``kind load docker-image`` each tag into the KIND cluster's nodes.
 #
 # After this runs, pass ``--image-location=osmo.local`` and
@@ -24,7 +23,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #
 # The web-ui build uses a separate docker buildx path (see build_and_load_ui)
 # because its Dockerfile is multi-stage Next.js, not bazel oci_image.
-# Out of scope: ``init-container`` + ``client`` (CLI) need a docker re-tag step.
+# Workflow images include a host-native CLI package and require a Linux builder.
 
 import concurrent.futures
 import dataclasses
@@ -51,6 +50,7 @@ class ImageSpec:
     short_name: str            # user-facing selector, e.g., 'service'
     bazel_target: str          # '//src/service/core:service_image_load_{arch}'
     docker_tag: str            # 'osmo.local/service:latest-{arch}'
+    loaded_docker_tag: str = ""  # OCI loader tag, when different from docker_tag
 
 
 def _t(tmpl: str, arch: HostArch) -> str:
@@ -58,12 +58,12 @@ def _t(tmpl: str, arch: HostArch) -> str:
 
 
 def image_specs(arch: HostArch) -> List[ImageSpec]:
-    """Return the set of OSMO images that build cleanly with oci_load + repo_tags.
+    """Return service and workflow images with the tags quick-start expects.
 
-    The 10 Python service images here all produce ``osmo.local/<svc>:latest-<arch>``
-    directly, matching the ``global.osmoImageLocation=osmo.local`` +
-    ``global.osmoImageTag=latest-<arch>`` overrides quick-start accepts.
+    Service loaders already use ``osmo.local/<image>:latest-<arch>``. The two
+    workflow images need their existing OCI loader tags normalized first.
     """
+    cli_arch = "amd64" if arch == "x86_64" else arch
     return [
         ImageSpec(
             "service",
@@ -116,6 +116,18 @@ def image_specs(arch: HostArch) -> List[ImageSpec]:
             _t("//src/operator:backend_worker_image_load_{arch}", arch),
             _t("osmo.local/backend-worker:latest-{arch}", arch),
         ),
+        ImageSpec(
+            "init-container",
+            _t("//src/runtime:init_image_load_{arch}", arch),
+            _t("osmo.local/init-container:latest-{arch}", arch),
+            _t("init_image_{arch}:latest", arch),
+        ),
+        ImageSpec(
+            "client",
+            f"//src/cli:cli_image_{cli_arch}_load",
+            _t("osmo.local/client:latest-{arch}", arch),
+            f"cli_image_{cli_arch}:latest",
+        ),
     ]
 
 
@@ -140,14 +152,21 @@ def _platforms_flag(arch: HostArch) -> str:
     return f"--platforms={LINUX_PLATFORM_PREFIX}{arch}"
 
 
-def select_images(specs: List[ImageSpec], selector: str) -> List[ImageSpec]:
-    """Filter ``specs`` by short_name; ``"all"`` means no filter.
+RUNTIME_IMAGE_NAMES = frozenset({"init-container", "client"})
 
-    Raises ``RuntimeError`` listing unknown names if ``selector`` references
-    short_names that aren't in ``specs``.
+
+def select_images(specs: List[ImageSpec], selector: str) -> List[ImageSpec]:
+    """Filter images by short_name, including workflow images only on Linux.
+
+    ``"all"`` preserves service-only builds on non-Linux hosts. Explicit
+    unsupported runtime images or unknown names raise ``RuntimeError``.
+    The CLI packager uses a native PyInstaller bootloader, so a target
+    ``--platforms`` flag alone cannot make it cross-compile from macOS.
     """
+    can_build_runtime = platform.system() == "Linux"
     if selector == "all":
-        return list(specs)
+        return [spec for spec in specs
+                if can_build_runtime or spec.short_name not in RUNTIME_IMAGE_NAMES]
     wanted = {s.strip() for s in selector.split(",") if s.strip()}
     available = {s.short_name for s in specs}
     missing = wanted - available
@@ -156,6 +175,11 @@ def select_images(specs: List[ImageSpec], selector: str) -> List[ImageSpec]:
         raise RuntimeError(
             f"Unknown image short_names: {sep.join(sorted(missing))}. "
             f"Available: {sep.join(sorted(available))}"
+        )
+    if not can_build_runtime and wanted & RUNTIME_IMAGE_NAMES:
+        raise RuntimeError(
+            "Workflow images init-container and client require a Linux builder. "
+            "Use a Linux host to build them, or select service images on this host."
         )
     return [s for s in specs if s.short_name in wanted]
 
@@ -184,8 +208,8 @@ def build_and_load(
 ) -> None:
     """Build each image via bazel and load it into the named KIND cluster.
 
-    Cross-compiles to ``linux/<arch>`` regardless of host OS (see
-    :func:`_platforms_flag`).
+    Service images target ``linux/<arch>`` regardless of host OS (see
+    :func:`_platforms_flag`); workflow images require a native Linux builder.
 
     Uses ``bazel build --output_groups=+tarball`` + ``docker load -i``
     instead of ``bazel run :<target>_image_load`` — the latter's runtime
@@ -224,6 +248,11 @@ def build_and_load(
     def _load_one(image: ImageSpec, tarball: str) -> None:
         logger.info("▶ docker load -i %s", tarball)
         subprocess.run(["docker", "load", "-i", tarball], check=True, cwd=workspace)
+        if image.loaded_docker_tag:
+            subprocess.run(
+                ["docker", "tag", image.loaded_docker_tag, image.docker_tag],
+                check=True, cwd=workspace,
+            )
         if skip_kind_load:
             return
         logger.info("▶ kind load %s → cluster '%s'", image.docker_tag, cluster_name)
@@ -234,14 +263,16 @@ def build_and_load(
         # Each KIND node now owns its own containerd copy; the host's docker
         # daemon copy and the on-disk tarball are redundant. Reclaim them.
         # On hosted CI (e.g. GHA ubuntu-latest 145 GB / volume) the
-        # 9 × 6-node duplication crowds out the runner mid-run without
+        # per-image, 6-node duplication crowds out the runner mid-run without
         # this intra-step cleanup. `|| true` is intentional — cleanup
         # failure must not break the build flow.
-        subprocess.run(
-            ["docker", "rmi", "-f", image.docker_tag],
-            check=False, cwd=workspace,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        for tag in (image.loaded_docker_tag, image.docker_tag):
+            if tag:
+                subprocess.run(
+                    ["docker", "rmi", "-f", tag],
+                    check=False, cwd=workspace,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
         try:
             tarball_abs = (
                 tarball if os.path.isabs(tarball) else os.path.join(workspace, tarball)
@@ -261,8 +292,8 @@ def build_and_load(
 #
 # The default build_and_load path uses `kind load docker-image` which copies
 # each image into every KIND node's separate containerd content store. With
-# the chart's 6-node profile and 9 service images that is 54 image-copies
-# of duplicated storage, which exhausts the disk on small CI runners
+# the chart's 6-node profile, every additional image adds 6 copies of
+# duplicated storage, which exhausts the disk on small CI runners
 # (e.g. GitHub Actions ubuntu-latest 145 GB).
 #
 # The registry path replaces `kind load` with a `docker push` to a host-
@@ -291,8 +322,8 @@ def build_and_push_to_registry(
     """Build each image via bazel, retag for the local registry, and docker push.
 
     Single bazel build (same as :func:`build_and_load`) materializes
-    tarballs, docker-loads each, retags from ``osmo.local/<svc>:tag`` to
-    ``localhost:5001/osmo/<svc>:tag``, and docker-pushes. The local
+    tarballs, docker-loads each, retags its OCI loader tag to the chart's
+    ``localhost:5001/osmo/<image>:tag``, and docker-pushes. The local
     ``registry:2`` container deduplicates layers across images, so the
     on-host registry storage is much smaller than the union of individual
     OCI tarballs would be.
@@ -319,15 +350,15 @@ def build_and_push_to_registry(
     tarball_paths = _tarball_paths(targets, platforms, workspace)
 
     def _push_one(image: ImageSpec, tarball: str) -> None:
-        # docker_tag is the bazel oci_load tag (osmo.local/<svc>:<arch-tag>).
+        loaded_tag = image.loaded_docker_tag or image.docker_tag
         registry_tag = image.docker_tag.replace(
             image_location(), LOCAL_REGISTRY_IMAGE_LOCATION,
         )
         logger.info("▶ docker load -i %s", tarball)
         subprocess.run(["docker", "load", "-i", tarball], check=True, cwd=workspace)
-        logger.info("▶ docker tag %s %s", image.docker_tag, registry_tag)
+        logger.info("▶ docker tag %s %s", loaded_tag, registry_tag)
         subprocess.run(
-            ["docker", "tag", image.docker_tag, registry_tag],
+            ["docker", "tag", loaded_tag, registry_tag],
             check=True, cwd=workspace,
         )
         logger.info("▶ docker push %s", registry_tag)
@@ -337,7 +368,7 @@ def build_and_push_to_registry(
         )
         # Reclaim host docker storage + bazel-out tarball — registry has
         # the layers now. `|| true`-style: cleanup must not break the run.
-        for tag in (image.docker_tag, registry_tag):
+        for tag in (loaded_tag, registry_tag):
             subprocess.run(
                 ["docker", "rmi", "-f", tag],
                 check=False, cwd=workspace,

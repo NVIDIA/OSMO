@@ -95,8 +95,8 @@ oetf_scenario_test(
 #   :workflow-labels-lifecycle (WorkflowLabelsLifecycle) — the heavy subset:
 #   runs labeled workflows to a terminal status (COMPLETED and FAILED) and
 #   asserts the labels survive the full run. Deliberately NOT tagged `kind` and
-#   NOT listed in oetf-kind.yaml — the PR gate runs only validation scenarios,
-#   not workflows to completion — so it runs against a real deployment.
+#   NOT listed in oetf-kind.yaml. The PR gate uses one MCP workflow round trip
+#   for completion coverage; label lifecycle coverage runs separately.
 oetf_scenario_test(
     name = "workflow-labels",
     src = "workflow_labels.py",

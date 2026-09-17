@@ -80,30 +80,27 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn('steps.identity.outputs', outputs['marker_artifact'])
         self.assertIn('steps.identity.outputs', outputs['producer_attempt'])
 
-    def test_existing_oetf_selection_uses_identical_query(self):
+    def test_azure_oetf_selection_preserves_nightly_exclusions(self):
         envs = environments.load_environments([
             str(ROOT / 'test/oetf/data/oetf.default.yaml'), str(CI / 'oetf-single-plane.yaml'),
         ])
-        old, new = envs['kind'], envs['azure-single-plane']
-        self.assertEqual(new.type, 'custom')
-        self.assertFalse(new.allow_deploy)
-        self.assertEqual(new.auth.strategy, 'token')
-        self.assertEqual(new.exclude_tags, old.exclude_tags)
-        queries = []
-        for env in (old, new):
-            with mock.patch.object(
-                oetf_main.subprocess, 'check_output',
-                return_value='//test/smoke:api-checks\n',
-            ) as query:
-                # The actual Bazel metadata query is also run outside this unit
-                # test, avoiding a nested Bazel invocation/deadlock in sh_test.
-                targets = oetf_main._resolve_targets_via_query(  # pylint: disable=protected-access
-                    'api,websocket,logger,task-env,negative', ','.join(env.exclude_tags),
-                )
-                self.assertTrue(targets)
-                queries.append(query.call_args.args[0])
-        self.assertEqual(queries[0], queries[1])
-        self.assertIn('(auth|mcp)', queries[1][2])
+        env = envs['azure-single-plane']
+        self.assertEqual(env.type, 'custom')
+        self.assertFalse(env.allow_deploy)
+        self.assertEqual(env.auth.strategy, 'token')
+        self.assertEqual(env.exclude_tags, ['auth', 'mcp'])
+        with mock.patch.object(
+            oetf_main.subprocess, 'check_output',
+            return_value='//test/smoke:api-checks\n',
+        ) as query:
+            # Source-built KIND enables MCP; this nightly profile does not.
+            targets = oetf_main._resolve_targets_via_query(  # pylint: disable=protected-access
+                'api,websocket,logger,task-env,negative', ','.join(env.exclude_tags),
+            )
+        self.assertEqual(targets, ['//test/smoke:api-checks'])
+        expression = query.call_args.args[0][2]
+        self.assertIn('(api|websocket|logger|task\\-env|negative)', expression)
+        self.assertIn('(auth|mcp)', expression)
 
 
 if __name__ == '__main__':
