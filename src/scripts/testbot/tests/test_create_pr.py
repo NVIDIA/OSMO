@@ -178,7 +178,9 @@ class TestPrCreationHelpers(unittest.TestCase):
             stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
         )
 
-        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+        with tempfile.NamedTemporaryFile() as step_output, \
+                patch.dict(os.environ, {"GITHUB_OUTPUT": step_output.name}), \
+                patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
                    return_value=False), \
                 patch("src.scripts.testbot.create_pr.get_changed_test_files",
                       return_value=["src/lib/tests/test_foo.py"]), \
@@ -197,6 +199,8 @@ class TestPrCreationHelpers(unittest.TestCase):
             enable_auto_merge_mock.return_value = True
 
             main()
+            self.assertEqual(step_output.read().decode("utf-8"),
+                             "pr_url=https://github.com/NVIDIA/OSMO/pull/123\n")
 
         enable_auto_merge_mock.assert_called_once_with(
             "https://github.com/NVIDIA/OSMO/pull/123",

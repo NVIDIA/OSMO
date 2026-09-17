@@ -18,9 +18,15 @@ flowchart LR
 
 Selection combines Codecov coverage with code importance and git history.
 Generation and review retain their own recovery loops inside the corresponding
-job. Each job writes a run-summary table with actual attempt outcomes, elapsed
-time, recovery reasons, selected targets, and measured coverage. Summaries are
-available after the job finishes; job status and logs show live progress.
+job. Summaries show only results owned by that stage:
+
+- **Pick targets:** selected files, starting coverage, and uncovered line counts.
+- **Generate tests:** generation attempts, elapsed time, and recovery reasons.
+- **Review, repair, and verify:** review and verification attempts, repairs, and measured coverage.
+- **Publish:** the generated PR link, dry-run result, or publication failure.
+
+Summaries are available after the job finishes; job status and logs show live
+progress. Full attempt history remains in the artifacts passed between jobs.
 
 Jobs transfer patches, metadata, and checkpoints through separate artifacts.
 `pipeline.py --stage generate` produces the generation handoff; `--stage review`

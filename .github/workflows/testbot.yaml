@@ -357,6 +357,7 @@ jobs:
             --stage restore --artifacts "$RUNNER_TEMP/testbot"
 
       - name: Create PR
+        id: create-pr
         if: inputs.dry_run != true
         run: |
           # No targets is a successful no-op. Every published change must
@@ -401,7 +402,8 @@ jobs:
         env:
           JOB_OUTCOME: ${{ job.status }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          TESTBOT_PR_URL: ${{ steps.create-pr.outputs.pr_url }}
         run: |
           PYTHONPATH=. python -m src.scripts.testbot.run_summary \
             --artifacts "$RUNNER_TEMP/testbot" --stage publish \
-            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN"
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN" --pr-url "$TESTBOT_PR_URL"

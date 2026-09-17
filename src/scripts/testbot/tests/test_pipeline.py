@@ -317,12 +317,21 @@ else:
         self.assertIn('replaced/deleted', (output / 'coverage_report.md').read_text(encoding='utf-8'))
         self.assertTrue((output / 'generate-1.patch').is_file())
         self.assertTrue((output / 'final.patch').is_file())
-        summary = run_summary.render(output, 'publish', 'success', True)
-        self.assertIn('Generation attempt 1', summary)
-        self.assertIn('compaction_failed', summary)
-        self.assertIn('Verification attempt 1', summary)
-        self.assertIn('Final verification completed', summary)
-        self.assertIn('Dry run', summary)
+        summaries = {stage: run_summary.render(output, stage, 'success', True)
+                     for stage in ('selection', 'generation', 'review', 'publish')}
+        self.assertIn('Generation attempt 1', summaries['generation'])
+        self.assertIn('compaction_failed', summaries['generation'])
+        self.assertIn('Verification attempt 1', summaries['review'])
+        self.assertIn('Final verification completed', summaries['review'])
+        self.assertIn('Dry run', summaries['publish'])
+        self.assertIn('Verified changes restored successfully', summaries['publish'])
+        for stage, summary in summaries.items():
+            with self.subTest(stage=stage):
+                self.assertEqual('Generation attempt 1' in summary, stage == 'generation')
+                self.assertEqual('Verification attempt 1' in summary, stage == 'review')
+                self.assertEqual('Selected targets' in summary, stage == 'selection')
+                self.assertEqual('Coverage gain' in summary, stage == 'review')
+                self.assertEqual('Dry run' in summary, stage == 'publish')
 
 
 class TestHandoff(RepositoryTest):
