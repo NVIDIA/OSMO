@@ -63,7 +63,7 @@ for development and evaluation only.
 External OIDC Prerequisites
 ===========================
 
-For MCP-only external OIDC, configure
+To use external OIDC only for MCP, configure
 ``services.mcp.oidcProxy.oidc.configUrl`` and the matching Gateway JWT entry
 below. Leave ``authentication.provider: embeddedDex`` to keep browser and CLI
 login on Dex. Use ``authentication.provider: externalOidc`` and
