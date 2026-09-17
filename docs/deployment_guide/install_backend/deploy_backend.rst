@@ -47,7 +47,7 @@ separate namespace:
    $ export CONTROL_CONTEXT=<control-context>
    $ export CONTROL_NAMESPACE=osmo
    $ export COMPUTE_CONTEXT=<compute-context>
-   $ export COMPUTE_NAMESPACE=osmo-gb200-01
+   $ export COMPUTE_NAMESPACE=osmo-compute
    $ export WORKLOAD_NAMESPACE=osmo-workflows
 
 This guide uses ``gb200-01`` as the backend name. Use the same backend name and
@@ -84,21 +84,18 @@ Secret in the control-plane namespace. The commands do not print the token:
 
 .. code-block:: bash
 
-   $ (
-       set -o pipefail
-       TOKEN_FILE=$(mktemp)
-       chmod 600 "$TOKEN_FILE"
-       trap 'rm -f -- "$TOKEN_FILE"' EXIT
-       trap 'exit 1' HUP INT TERM
-       if ! openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" ||
-           [ ! -s "$TOKEN_FILE" ]; then
-         echo "Failed to generate backend token" >&2
-         exit 1
-       fi
+   $ set -o pipefail
+   $ TOKEN_FILE=$(mktemp)
+   $ chmod 600 "$TOKEN_FILE"
+   $ if openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" &&
+       [ -s "$TOKEN_FILE" ]; then
        kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
          create secret generic osmo-gb200-01-backend-token \
          --from-file=token="$TOKEN_FILE"
-     )
+     else
+       echo "Failed to generate backend token" >&2
+     fi
+   $ rm -f -- "$TOKEN_FILE"
 
 For production, provision the same Secret through your approved secret
 manager. As a best practice, use a different token for each backend so that
@@ -179,10 +176,10 @@ version, then install it:
    $ helm repo update osmo
    $ helm pull osmo/osmo --version "$OSMO_CHART_VERSION" \
        --untar
-   $ helm --kube-context "$COMPUTE_CONTEXT" upgrade --install osmo-gb200-01 \
+   $ helm --kube-context "$COMPUTE_CONTEXT" upgrade --install osmo-compute \
        ./osmo \
        --namespace "$COMPUTE_NAMESPACE" \
-       --values osmo/profiles/compute-plane.yaml \
+       --values osmo/profiles/split-plane-compute.yaml \
        --values osmo-compute-values.yaml \
        --wait --timeout 10m
 
@@ -197,11 +194,11 @@ Confirm that the backend listener and worker Deployments are available:
 
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        rollout status deployment \
-       --selector app.kubernetes.io/instance=osmo-gb200-01 \
+       --selector app.kubernetes.io/instance=osmo-compute \
        --timeout 10m
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        get deployments,pods \
-       --selector app.kubernetes.io/instance=osmo-gb200-01
+       --selector app.kubernetes.io/instance=osmo-compute
 
 An authenticated OSMO CLI is not required to deploy the backend. Optionally,
 use it to confirm that the backend and pool are online and submit a small CPU
@@ -254,26 +251,24 @@ decoded credential:
 
 .. code-block:: bash
 
-   $ (
-       token=$(kubectl --context "$CONTROL_CONTEXT" \
-         --namespace "$CONTROL_NAMESPACE" \
-         get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
-       if [ -z "$token" ]; then
-         echo "Control-plane Secret has no token data" >&2
-         exit 1
-       fi
-       printf '%s' "$token" | sha256sum
-     )
-   $ (
-       token=$(kubectl --context "$COMPUTE_CONTEXT" \
-         --namespace "$COMPUTE_NAMESPACE" \
-         get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
-       if [ -z "$token" ]; then
-         echo "Compute-plane Secret has no token data" >&2
-         exit 1
-       fi
-       printf '%s' "$token" | sha256sum
-     )
+   $ CONTROL_TOKEN=$(kubectl --context "$CONTROL_CONTEXT" \
+       --namespace "$CONTROL_NAMESPACE" \
+       get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
+   $ if [ -n "$CONTROL_TOKEN" ]; then
+       printf '%s' "$CONTROL_TOKEN" | sha256sum
+     else
+       echo "Control-plane Secret has no token data" >&2
+     fi
+   $ unset CONTROL_TOKEN
+   $ COMPUTE_TOKEN=$(kubectl --context "$COMPUTE_CONTEXT" \
+       --namespace "$COMPUTE_NAMESPACE" \
+       get secret osmo-gb200-01-backend-token -o jsonpath='{.data.token}')
+   $ if [ -n "$COMPUTE_TOKEN" ]; then
+       printf '%s' "$COMPUTE_TOKEN" | sha256sum
+     else
+       echo "Compute-plane Secret has no token data" >&2
+     fi
+   $ unset COMPUTE_TOKEN
 
 If the hashes differ, repeat the Secret-copy step and restart the backend
 listener and worker.

@@ -38,7 +38,22 @@ OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI w
 
 For more information on the scheduler, see :ref:`scheduler`.
 
-Install the tested KAI Scheduler release using ``helm``:
+Create a file called ``kai-selectors.yaml`` with node selectors and tolerations
+that specify which nodes the KAI Scheduler should run on:
+
+.. code-block:: yaml
+
+  global:
+    # Modify the node selectors and tolerations to match your cluster
+    nodeSelector: {}
+    tolerations: []
+
+  scheduler:
+    additionalArgs:
+    - --default-staleness-grace-period=-1s  # Disable stale gang eviction
+    - --update-pod-eviction-condition=true  # Enable OSMO to read preemption conditions
+
+Next, install the tested KAI Scheduler release using ``helm``:
 
 .. code-block:: bash
 
@@ -46,6 +61,7 @@ Install the tested KAI Scheduler release using ``helm``:
     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
     --namespace kai-scheduler \
     --create-namespace \
+    --values kai-selectors.yaml \
     --wait \
     --timeout 10m
 

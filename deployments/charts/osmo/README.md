@@ -645,7 +645,7 @@ pre-install hooks run before the embedded database cluster exists.
 
 ## Install a split compute plane
 
-The `compute-plane.yaml` profile installs only the backend listener,
+The `split-plane-compute.yaml` profile installs only the backend listener,
 worker, and their Kubernetes access. It does not render control services,
 PostgreSQL, Valkey, RustFS, or credentials. Before installing, provision the
 referenced Secret in the compute release namespace. Its `token` key must contain
@@ -663,7 +663,7 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \
   --namespace osmo-compute \
   --create-namespace \
-  --values deployments/charts/osmo/profiles/compute-plane.yaml \
+  --values deployments/charts/osmo/profiles/split-plane-compute.yaml \
   --values <compute-values.yaml> \
   --wait \
   --timeout 10m
