@@ -210,9 +210,7 @@ templates. If you add pool-specific Pod templates or replace the default
 templates, retain the compute-node selector so workflows do not run on OSMO
 platform nodes.
 
-For charts containing PR #1414, apply :ref:`sequenced_bootstrap` to the install
-and upgrade commands in this guide: provide an initialization ID for a new
-installation and allow the longer bootstrap timeout.
+Use a unique, non-secret initialization ID for this fresh installation.
 
 Review the complete environment overlay before copying it:
 
@@ -228,16 +226,18 @@ Review the complete environment overlay before copying it:
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
+     --set-string bootstrap.initializationId=my-new-osmo-installation \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
      --values self-contained-environment-values.yaml \
      --wait \
      --wait-for-jobs \
-     --timeout 30m
+     --timeout 140m
 
 The chart uses its application version for OSMO images and the cluster's
 default ``StorageClass``. The self-contained profile enables the service-auth
-bootstrap Job, which creates the shared service identity during installation.
+step in the bootstrap Job, which creates the shared service identity during
+installation.
 The chart also creates the local database, cache, object storage, required
 buckets, workflow namespace, configuration, backend bootstrap credential, and
 retained master encryption key.
@@ -249,13 +249,14 @@ Apply them with the same profile and environment file:
 .. code-block:: bash
 
    helm upgrade osmo deployments/charts/osmo \
+     --set-string bootstrap.initializationId= \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
      --values self-contained-environment-values.yaml \
-     --wait --wait-for-jobs --timeout 30m
+     --wait --wait-for-jobs --timeout 140m
 
-For PR #1414 charts, also clear the initialization ID and use ``--timeout 140m``.
-Keep these cleanup settings in the environment file for subsequent upgrades.
+Keep the initialization ID empty and preserve these cleanup settings in the
+environment file for subsequent upgrades.
 
 Validate the deployment
 =======================
@@ -343,12 +344,13 @@ values:
 .. code-block:: bash
 
    helm upgrade osmo deployments/charts/osmo \
+     --set-string bootstrap.initializationId= \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
      --values self-contained-environment-values.yaml \
      --wait \
      --wait-for-jobs \
-     --timeout 30m
+     --timeout 140m
 
 Do not replace ``osmo-master-encryption-key``, ``osmo-backend-token``, or the
 stateful-service credentials while retaining their data. Embedded backup and

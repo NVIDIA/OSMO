@@ -285,13 +285,13 @@ workflow pods while retaining the public loopback URL for login. The scheduling
 overrides are specific to this cluster topology and are therefore not chart
 defaults.
 
-For a chart containing PR #1414, add the initialization ID and use the timeout
-from :ref:`sequenced_bootstrap` in the install command below.
+Use a unique, non-secret initialization ID for this fresh installation.
 
 .. code-block:: bash
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
+     --set-string bootstrap.initializationId=my-new-osmo-installation \
      --namespace osmo \
      --create-namespace \
      --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
@@ -302,7 +302,7 @@ from :ref:`sequenced_bootstrap` in the install command below.
      --set-string 'configuration.podTemplates.default_ctrl.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
      --wait \
      --wait-for-jobs \
-     --timeout 20m
+     --timeout 140m
 
 The chart creates managed administrator and backend tokens, embedded Dex
 password and OAuth credentials, the service signing identity, and the master

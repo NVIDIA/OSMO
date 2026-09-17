@@ -159,19 +159,17 @@ that the CloudNativePG operator is available:
        --api-versions postgresql.cnpg.io/v1 \
        --values osmo-values.yaml > /tmp/osmo-rendered.yaml
 
-For charts containing PR #1414, add
-``--set-string bootstrap.initializationId=my-new-osmo-installation`` to the
-initial install below and use ``--timeout 140m``. See
-:ref:`sequenced_bootstrap` for that version's lifecycle details.
-
-Install the service and wait for bootstrap and migration Jobs:
+Install the service and wait for bootstrap and migration Jobs. The
+initialization ID authorizes credential creation for this fresh install; use
+a unique, non-secret ID for each new installation:
 
 .. code-block:: bash
 
    $ helm upgrade --install osmo osmo/osmo --version <chart-version> \
        --namespace osmo --create-namespace \
        --values osmo-values.yaml \
-       --wait --wait-for-jobs --timeout 30m
+       --set-string bootstrap.initializationId=my-new-osmo-installation \
+       --wait --wait-for-jobs --timeout 140m
 
 .. _deployment_secrets_cleanup:
 
@@ -192,16 +190,16 @@ steps. Keep the generated Secrets and their default references:
        bootstrap:
          enabled: false
 
-Apply the saved values. For a chart containing PR #1414, also add
-``--set-string bootstrap.initializationId=`` and use ``--timeout 140m``.
-Remove the initialization ID from saved values if you added it there:
+Apply the saved values and clear the initialization ID. Remove it from saved
+values if you added it there:
 
 .. code-block:: bash
 
    $ helm upgrade osmo osmo/osmo --version <chart-version> \
        --namespace osmo \
        --values osmo-values.yaml \
-       --wait --wait-for-jobs --timeout 30m
+       --set-string bootstrap.initializationId= \
+       --wait --wait-for-jobs --timeout 140m
 
 For a Quickstart or minimal deployment installed from the repository with
 command-line settings, preserve those settings using ``--reuse-values``:
@@ -211,14 +209,14 @@ command-line settings, preserve those settings using ``--reuse-values``:
    helm upgrade osmo deployments/charts/osmo \
      --namespace osmo \
      --reuse-values \
+     --set-string bootstrap.initializationId= \
      --set secrets.masterEncryptionKey.bootstrap.enabled=false \
      --set secrets.serviceAuth.bootstrap.enabled=false \
-     --wait --wait-for-jobs --timeout 20m
+     --wait --wait-for-jobs --timeout 140m
 
-For charts containing PR #1414, also clear the initialization ID and use the
-longer timeout described above. Save the disabled flags for future upgrades.
-Other enabled bootstrap operations can still require Secret access. Back up
-retained Secrets with their database and storage data; never generate a new
+Save the disabled flags and leave the initialization ID empty for future
+upgrades. Other enabled bootstrap operations can still require Secret access.
+Back up retained Secrets with their database and storage data; never generate a new
 MEK for an existing database. Helm uninstall or rollback does not restore or
 rotate Secret contents.
 
@@ -860,16 +858,15 @@ with valid ``public_key`` and ``private_key`` JWK values. Set
 
 .. _sequenced_bootstrap:
 
-Charts containing PR #1414
-------------------------------
+Bootstrap Lifecycle
+-------------------
 
-`PR #1414 <https://github.com/NVIDIA/OSMO/pull/1414>`_ consolidates ordinary
-OSMO bootstrap into one Job, in this order: TLS, OSMO access tokens, service
-auth, MEK, and object-storage buckets, followed by consumer readiness checks.
-Dex passwords and OAuth credentials still use separate Helm hooks. The Job
+The chart runs OSMO bootstrap in one Job, in this order: TLS, OSMO access
+tokens, service auth, MEK, and object-storage buckets, followed by consumer
+readiness checks.
+Dex passwords and OAuth credentials use separate Helm hooks. The Job
 retains the per-step values above; disabled steps do not run. CA and MEK
-rotations and database migrations remain separate operations. Use this section
-only with a chart and matching images that include that change.
+rotations and database migrations remain separate operations.
 
 For an intentionally new installation, add a unique, non-secret ID to the
 initial Helm install command:
@@ -882,9 +879,9 @@ Use ``--wait --wait-for-jobs --timeout 140m`` for install and upgrade commands;
 this accommodates the default all-enabled bootstrap deadline. After successful
 initialization, remove the ID from saved values. With ``--reuse-values``, clear
 it explicitly using ``--set-string bootstrap.initializationId=`` during the
-cleanup upgrade in :ref:`deployment_secrets_cleanup`, and use the longer timeout.
+cleanup upgrade in :ref:`deployment_secrets_cleanup`.
 
-For an upgrade from the earlier chart, leave the ID empty and retain the
+When upgrading an existing installation, leave the ID empty and retain the
 existing credential declarations for the first upgrade. Bootstrap validates
 and adopts those credentials. Add new identity declarations in a later upgrade.
 Do not set a new initialization ID to repair a missing retained Secret.
@@ -893,7 +890,7 @@ Keep the runtime-owned ``<fullname>-bootstrap-state`` ConfigMap with the retaine
 Secrets. Missing, changed, or foreign credential identities fail closed;
 deleting a Secret is not a rotation procedure. Follow the chart's
 `bootstrap recovery instructions
-<https://github.com/NVIDIA/OSMO/blob/cd396d7ce387b66c7ac8f8b4146e65f6fac5383f/deployments/charts/osmo/README.md#one-bootstrap-job>`_
+<https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/osmo/README.md#one-bootstrap-job>`_
 for credential replacement, adoption, and recovery.
 
 If a bootstrap attempt fails, capture the Job logs and events, correct the
@@ -1033,12 +1030,10 @@ Common failures include:
   write each prefix. For workload identity, inspect the rendered ServiceAccount
   names and federation subjects.
 * **MEK bootstrap fails**: use it only with a new database. Correct the cause
-  and increment ``secrets.masterEncryptionKey.bootstrap.attempt`` to retry
-  (``bootstrap.attempt`` for charts containing PR #1414). Do not generate a
+  and increment ``bootstrap.attempt`` to retry. Do not generate a
   replacement for an installation with retained encrypted data.
 * **Service-auth bootstrap fails**: correct image pull or RBAC issues and
-  increment ``secrets.serviceAuth.bootstrap.attempt`` (``bootstrap.attempt``
-  for charts containing PR #1414). Do not replace the retained signing identity
+  increment ``bootstrap.attempt``. Do not replace the retained signing identity
   during an ordinary upgrade.
 * **Internal TLS bootstrap fails**: with generated TLS, restore any missing
   retained CA rather than enabling initial generation. With user-managed TLS,

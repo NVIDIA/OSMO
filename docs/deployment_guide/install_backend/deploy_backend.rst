@@ -61,9 +61,9 @@ this entry to the ``split-plane-control.yaml`` profile's environment overlay
 
 Apply the control-plane values and wait for its bootstrap to finish before
 transferring the generated Secret in Step 2. Token bytes do not appear in Helm
-values or rendered manifests. On an upgrade to a chart containing PR #1414,
-first adopt the existing credential declarations, then add new identities in a
-subsequent upgrade; see :ref:`sequenced_bootstrap`.
+values or rendered manifests. When adopting an existing installation, first
+adopt its credential declarations, then add new identities in a subsequent
+upgrade; see :ref:`sequenced_bootstrap`.
 
 If an external secret manager owns the token, replace the token declaration
 with ``existingSecret`` and materialize the same credential in both clusters:
@@ -331,9 +331,14 @@ Rotate the Backend Bootstrap Secret
 
 For externally managed tokens, use an overlap window so every API replica and
 backend operator can move to the new credential without losing registration.
-For chart-managed tokens on PR #1414 charts, follow the retained credential
+For tokens managed by the unified chart, follow the retained credential
 replacement procedure in :ref:`sequenced_bootstrap`; do not mutate or delete a
 protected Secret to force regeneration.
+
+For the standalone service chart, follow its
+`backend bootstrap authentication lifecycle
+<https://github.com/NVIDIA/OSMO/tree/main/deployments/charts/service#backend-api-token-settings>`_
+to transfer a managed token to external ownership before rotating it.
 
 For externally managed tokens:
 

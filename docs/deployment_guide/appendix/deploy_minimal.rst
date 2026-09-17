@@ -67,17 +67,17 @@ Choose the URL that the browser and CLI will use. This example uses a local
 port-forward. The chart creates the release and workflow namespaces and wires
 the backend to its managed token Secret in the release namespace.
 
-For a chart containing PR #1414, add the initialization ID and use the timeout
-in :ref:`sequenced_bootstrap`.
+Use a unique, non-secret initialization ID for this fresh installation.
 
 .. code-block:: bash
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
+     --set-string bootstrap.initializationId=my-new-osmo-installation \
      --namespace osmo \
      --create-namespace \
      --set-string externalUrl=http://127.0.0.1:9000 \
-     --wait --wait-for-jobs --timeout 20m
+     --wait --wait-for-jobs --timeout 140m
 
 After successful installation, complete
 :ref:`deployment_secrets_cleanup` to disable the install-only MEK and
