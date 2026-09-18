@@ -119,14 +119,13 @@ kubectl --namespace osmo get pods,pvc,services,jobs
 kubectl --namespace osmo get service osmo-gateway
 ```
 
-### Open the UI and use the CLI
+### Log in
 
 The gateway exposes the UI and API on NodePort `30080`, which the quickstart
-Kind configuration maps to host port `80`. Open the default URL in a browser:
+Kind configuration maps to host port `80`. Use that origin for the client:
 
 ```bash
-export OSMO_URL=http://127.0.0.1
-curl --fail "$OSMO_URL/api/version"
+OSMO_URL=http://127.0.0.1
 ```
 
 For another development cluster, set `externalUrl` to the exact URL that its
@@ -141,7 +140,7 @@ kubectl --namespace osmo \
 Use the same origin for the client:
 
 ```bash
-export OSMO_URL=http://127.0.0.1:8080
+OSMO_URL=http://127.0.0.1:8080
 ```
 
 The default embedded Dex account signs in as `admin@osmo.local` and appears in
@@ -157,12 +156,39 @@ kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin 
 printf '\n'
 ```
 
-Install the CLI if needed, sign in through the browser OIDC flow, and submit the
-canonical smoke workflow:
+Visit `$OSMO_URL` and sign in as `admin@osmo.local` with that password. Embedded
+Dex is for development and evaluation; use an external OIDC provider and a
+public HTTPS URL in production.
+
+For non-interactive validation, install the CLI if needed and read the generated
+administrator token into a protected temporary file without printing it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-osmo login "$OSMO_URL"
+umask 077
+OSMO_TOKEN_FILE="$(mktemp)"
+kubectl --namespace osmo get secret osmo-admin-token \
+  --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+rm -f -- "$OSMO_TOKEN_FILE"
+unset OSMO_TOKEN_FILE
+```
+
+### Verify the deployment
+
+Check the release, OSMO and KAI readiness, and the API before submitting both
+canonical CPU verification workflows:
+
+```bash
+helm status osmo --namespace osmo
+kubectl --namespace osmo wait --for=condition=Available \
+  deployment --all --timeout=10m
+kubectl --namespace kai-scheduler wait --for=condition=Available \
+  deployment --all --timeout=10m
+curl --fail "$OSMO_URL/api/version"
+osmo profile set pool default
+osmo pool list
+osmo resource list --pool default
 osmo workflow submit deployments/workflows/verify-hello.yaml \
   --pool default \
   --format-type json
@@ -173,9 +199,11 @@ OSMO_WORKFLOW_ID=<returned-workflow-id>
 osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 ```
 
-Repeat the query until the workflow status is `COMPLETED`.
-The workflow runs a small Alpine container, so completion validates CPU
-scheduling and backend status reporting.
+For each submission, set `OSMO_WORKFLOW_ID` to the returned workflow ID and
+repeat the query until its status is `COMPLETED`. A `FAILED`, `CANCELLED`, or
+timed-out workflow is a validation failure. The first workflow validates CPU
+scheduling and backend status reporting; the second also validates an object
+storage round trip between dependent tasks.
 
 ### Troubleshooting and cleanup
 

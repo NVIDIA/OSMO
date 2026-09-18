@@ -53,8 +53,7 @@ environment-specific placement settings:
     affinity: {}
     tolerations: []
 
-Install the tested KAI Scheduler release with the common values first and the
-environment values second:
+Install the tested KAI Scheduler release with the common values:
 
 .. code-block:: bash
 
@@ -64,7 +63,6 @@ environment values second:
     --namespace kai-scheduler \
     --create-namespace \
     --values deployments/charts/osmo/examples/kai-values.yaml \
-    --values kai-selectors.yaml \
     --wait \
     --timeout 10m
   kubectl --namespace kai-scheduler wait \
@@ -75,6 +73,10 @@ environment values second:
   kubectl --namespace kai-scheduler wait \
     --for=condition=Available \
     --timeout=10m deployment --all
+
+If you created ``kai-selectors.yaml``, add ``--values kai-selectors.yaml``
+after the common ``--values`` option so the environment settings take
+precedence.
 
 .. note::
    For newer compatible versions, refer to the
