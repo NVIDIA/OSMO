@@ -407,7 +407,10 @@ class PostgresConnector:
             connection.rollback()
             connection.set_session(autocommit=True)
             yield connection
-        finally:
+        except BaseException:
+            pool.putconn(connection, close=True)
+            raise
+        else:
             try:
                 connection.rollback()
                 connection.set_session(autocommit=False)

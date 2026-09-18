@@ -133,6 +133,7 @@ class _FakePool:
             raise self.closeall_error
 
 
+# pylint: disable=protected-access
 def _pooled_connector(pool: typing.Any, retries: int = 1,
                       minconn: int = 1, maxconn: int = 2) -> typing.Any:
     """Attach a fake pool to a PostgresConnector shell so no sockets are opened."""
@@ -146,6 +147,7 @@ def _pooled_connector(pool: typing.Any, retries: int = 1,
     connector._pool_lock = threading.Lock()
     connector._pool_semaphore = threading.Semaphore(maxconn)
     return connector
+# pylint: enable=protected-access
 
 
 def _ctrl_pool(requests: dict, platform_names: list) -> postgres.Pool:
@@ -1554,6 +1556,191 @@ class TestBackendResourceAccounting(_ConfigMapTestCase):
             backends=['backend-1'], pools=['pool-1'], platforms=['h100'])
 
         self.assertEqual(resources, [])
+
+
+class TestBackendResourceSnapshotJoin(_ConfigMapTestCase):
+    """Covers list_from_db query construction, pool/platform label grouping and
+    per-platform config fields (lines 2256, 2262, 2283, 2375)."""
+
+    def setUp(self) -> None:
+        self.connector = _connector()
+        self.pool = _ctrl_pool({'cpu': '1', 'memory': '2Gi', 'ephemeral-storage': '4Gi'},
+                               ['a100', 'h100'])
+        patcher = mock.patch.object(
+            postgres.PostgresConnector, 'get_instance', return_value=self.connector)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def install_resource_row(self, pool_platform_labels: list) -> None:
+        """Serve a single available resource row from the resources join."""
+        self.connector.execute_fetch_command = mock.Mock(return_value=[{
+            'name': 'node-1',
+            'backend': 'backend-1',
+            'available': True,
+            'taints': [],
+            'label_fields': '',
+            'allocatable_fields': ('"cpu"=>"8","memory"=>"16Gi",'
+                                   '"ephemeral-storage"=>"100Gi"'),
+            'usage_fields': ('"cpu"=>"0","memory"=>"0","ephemeral-storage"=>"0",'
+                             '"nvidia.com/gpu"=>"0"'),
+            'non_workflow_usage_fields': ('"cpu"=>"0","memory"=>"0",'
+                                          '"ephemeral-storage"=>"0","nvidia.com/gpu"=>"0"'),
+            'pool_platform_labels': pool_platform_labels,
+            'resource_type': 'SHARED',
+        }])
+
+    def test_snapshot_without_configured_pools_selects_no_pool_platform_rows(self):
+        self.install_snapshot({'backends': {'backend-1': {}}, 'pools': {}})
+
+        resources = postgres.BackendResource.list_from_db()
+
+        self.assertEqual(resources, [])
+        self.assertIn('WHERE FALSE', self.connector.execute_fetch_command.call_args.args[0])
+
+    def test_pool_platform_labels_are_grouped_per_pool(self):
+        self.install_snapshot({
+            'backends': {'backend-1': {}},
+            'pools': {'pool-1': {'backend': 'backend-1',
+                                 'platforms': {'a100': {}, 'h100': {}}}}})
+        self.install_resource_row(['pool-1/a100', 'pool-1/h100'])
+
+        with mock.patch.object(postgres, 'fetch_verbose_pool_config',
+                               return_value=postgres.VerbosePoolConfig(
+                                   pools={'pool-1': self.pool})):
+            resources = postgres.BackendResource.list_from_db()
+
+        self.assertEqual(resources[0].pool_platform_labels, {'pool-1': ['a100', 'h100']})
+
+    def test_empty_pool_platform_label_is_ignored(self):
+        self.install_snapshot({
+            'backends': {'backend-1': {}},
+            'pools': {'pool-1': {'backend': 'backend-1', 'platforms': {'a100': {}}}}})
+        self.install_resource_row(['', 'pool-1/a100'])
+
+        with mock.patch.object(postgres, 'fetch_verbose_pool_config',
+                               return_value=postgres.VerbosePoolConfig(
+                                   pools={'pool-1': self.pool})):
+            resources = postgres.BackendResource.list_from_db()
+
+        self.assertEqual(resources[0].pool_platform_labels, {'pool-1': ['a100']})
+
+    def test_every_referenced_platform_gets_its_own_config_fields(self):
+        self.install_snapshot({
+            'backends': {'backend-1': {}},
+            'pools': {'pool-1': {'backend': 'backend-1',
+                                 'platforms': {'a100': {}, 'h100': {}}}}})
+        self.install_resource_row(['pool-1/a100', 'pool-1/h100'])
+
+        with mock.patch.object(postgres, 'fetch_verbose_pool_config',
+                               return_value=postgres.VerbosePoolConfig(
+                                   pools={'pool-1': self.pool})):
+            resources = postgres.BackendResource.list_from_db()
+
+        config_fields = resources[0].config_fields or {}
+        self.assertEqual(sorted(config_fields['pool-1']), ['a100', 'h100'])
+
+
+class TestPoolPlatformResourceValidations(unittest.TestCase):
+    """Covers calculate_platforms_resource_validations (line 3592)."""
+
+    def test_platform_validations_are_resolved_for_the_named_platform(self):
+        platform_assertion = _assertion('LT', '1', '2')
+        pool = postgres.Pool(
+            backend='backend-1',
+            platforms={'gpu': postgres.Platform(resource_validations=['gpu-check'])})
+
+        with mock.patch.object(postgres.ResourceValidation, 'list_from_db',
+                               return_value={'gpu-check': [platform_assertion]}):
+            pool.calculate_platforms_resource_validations(_connector(), 'gpu')
+
+        self.assertEqual(pool.platforms['gpu'].parsed_resource_validations,
+                         [platform_assertion])
+
+
+class TestUekAndCredentialReads(unittest.TestCase):
+    """Covers the UEK accessors used by the secret manager and the credential
+    getters (lines 1476-1479, 1482-1485, 1488-1490, 1493-1495, 1505-1515,
+    1537-1545, 1549-1558)."""
+
+    def test_read_uek_returns_the_wrapper_stored_for_the_slot(self):
+        connector = _connector()
+        connector.execute_fetch_command = mock.Mock(
+            return_value=[types.SimpleNamespace(value='jwe-uek')])
+
+        self.assertEqual(connector.read_uek('alice', 'kid-1'), 'jwe-uek')
+        self.assertEqual(connector.execute_fetch_command.call_args.args[1], ('kid-1', 'alice'))
+
+    def test_read_current_kid_queries_the_current_slot(self):
+        connector = _connector()
+        connector.execute_fetch_command = mock.Mock(
+            return_value=[types.SimpleNamespace(value='kid-1')])
+
+        self.assertEqual(connector.read_current_kid('alice'), 'kid-1')
+        self.assertEqual(connector.execute_fetch_command.call_args.args[1], ('current', 'alice'))
+
+    def test_write_uek_reports_success_when_one_row_is_updated(self):
+        connector = _connector()
+        connector.execute_commit_command = mock.Mock(return_value=1)
+
+        self.assertTrue(connector.write_uek('alice', 'kid-1', 'new-jwe', 'old-jwe'))
+
+    def test_write_uek_reports_failure_when_the_stored_wrapper_changed(self):
+        connector = _connector()
+        connector.execute_commit_command = mock.Mock(return_value=0)
+
+        self.assertFalse(connector.write_uek('alice', 'kid-1', 'new-jwe', 'old-jwe'))
+
+    def test_add_user_inserts_the_encoded_keyring(self):
+        connector = _connector()
+
+        connector.add_user('alice', {'current': 'kid-1', 'kid-1': 'jwe-uek'})
+
+        self.assertEqual(connector.execute_commit_command.call_args.args[1],
+                         ('alice', '"current"=>"kid-1","kid-1"=>"jwe-uek"'))
+
+    def test_get_data_cred_builds_a_static_credential_for_the_profile(self):
+        connector = _connector()
+        connector.execute_fetch_command = mock.Mock(return_value=[types.SimpleNamespace(
+            payload='"access_key_id"=>"AKIA","access_key"=>"s3cret"',
+            user_name='alice', cred_name='s3')])
+
+        credential = connector.get_data_cred('alice', 's3://bucket')
+
+        self.assertEqual(credential.endpoint, 's3://bucket')
+        self.assertEqual(credential.access_key_id, 'AKIA')
+
+    def test_get_data_cred_without_a_matching_row_returns_none(self):
+        connector = _connector()
+
+        self.assertIsNone(connector.get_data_cred('alice', 's3://bucket'))
+
+    def test_get_generic_cred_returns_the_decrypted_payload(self):
+        connector = _connector()
+        connector.execute_fetch_command = mock.Mock(return_value=[types.SimpleNamespace(
+            payload='"token"=>"plaintext"', user_name='alice', cred_name='cred-1')])
+
+        self.assertEqual(connector.get_generic_cred('alice', 'cred-1'), {'token': 'plaintext'})
+
+    def test_get_generic_cred_without_a_matching_row_raises_credential_error(self):
+        connector = _connector()
+
+        with self.assertRaisesRegex(osmo_errors.OSMOCredentialError, 'cred-1'):
+            connector.get_generic_cred('alice', 'cred-1')
+
+    def test_get_registry_cred_normalizes_the_requested_registry_scope(self):
+        connector = _connector()
+        connector.execute_fetch_command = mock.Mock(return_value=[types.SimpleNamespace(
+            payload='"username"=>"alice"', user_name='alice', cred_name='nvcr')])
+
+        credential = connector.get_registry_cred('alice', 'https://nvcr.io/')
+
+        self.assertEqual(credential, {'username': 'alice'})
+        self.assertIn('nvcr.io', connector.execute_fetch_command.call_args.args[1])
+
+    def test_get_registry_cred_without_a_matching_row_returns_none(self):
+        connector = _connector()
+
+        self.assertIsNone(connector.get_registry_cred('alice', 'nvcr.io'))
 
 
 class TestBackendSnapshotReads(_ConfigMapTestCase):
