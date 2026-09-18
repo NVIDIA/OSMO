@@ -1629,6 +1629,7 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
+        --set-string imageTag=single-plane-test-tag \
         >"$TEST_DIRECTORY/single-plane-azure.yaml"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" "osmo-api"
     require_deployment "$TEST_DIRECTORY/single-plane-azure.yaml" \
@@ -1731,6 +1732,10 @@ test_control_umbrella() {
         "azure://osmoazure/osmo-workflows/logs"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "azure://osmoazure/osmo-workflows/apps"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "init: nvcr.io/nvidia/osmo/init-container:single-plane-test-tag"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "client: nvcr.io/nvidia/osmo/client:single-plane-test-tag"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "secretName: osmo-object-storage"
     require_not_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
@@ -1748,6 +1753,8 @@ test_control_umbrella() {
         "osmo-object-storage"
     require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
         "osmo-backend-token"
+    require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "backend-operator-default/primary=osmo-backend-token"
 
     helm_template generated-single-plane-azure "$charts_copy/osmo" \
         --namespace osmo \

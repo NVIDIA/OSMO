@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Development-oriented converged profile. Layer a site-specific values file
-# after this profile to provide external service connections and a public URL.
+# Single-plane converged profile for one cluster running both OSMO planes with
+# external PostgreSQL, Valkey, and object storage. Layer site-specific values
+# after this profile to provide connection endpoints and a reachable OSMO URL.
 planes:
   control:
     enabled: true
@@ -12,8 +13,6 @@ planes:
 fullnameOverride: osmo
 
 imageTag: latest
-runtimeImage:
-  tag: latest
 
 embeddedDependencies:
   postgresql:
@@ -22,16 +21,6 @@ embeddedDependencies:
     enabled: false
   objectStorage:
     enabled: false
-
-authentication:
-  bootstrap:
-    identities:
-      backend-operator-default:
-        tokens:
-          primary:
-            managedSecret: null
-            existingSecret:
-              name: osmo-backend-token
 
 secrets:
   postgresql:

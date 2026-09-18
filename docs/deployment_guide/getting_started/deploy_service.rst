@@ -74,6 +74,8 @@ The Secret manifests in this guide use ``stringData`` so their required keys
 are clear. Replace every placeholder before applying them, restrict access to
 the files, and never commit them to source control.
 
+.. _deploy_service_postgresql:
+
 Configure PostgreSQL Connection
 ===============================
 
@@ -145,6 +147,8 @@ Use ``sslMode: require`` and leave ``caExistingSecret`` empty only when the
 connection must be encrypted but no CA bundle is available. This does not
 authenticate the server; ``verify-full`` is preferred. For a server that does
 not use TLS, set ``tls.enabled: false``.
+
+.. _deploy_service_valkey:
 
 Configure Valkey Connection
 ===========================
