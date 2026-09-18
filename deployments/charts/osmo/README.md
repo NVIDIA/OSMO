@@ -1235,12 +1235,8 @@ kubectl --namespace "${OSMO_NAMESPACE}" scale deployment \
   "${OSMO_API_DEPLOYMENT}" --replicas=0
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
   "${OSMO_API_DEPLOYMENT}" --timeout=5m
-if kubectl --namespace "${OSMO_NAMESPACE}" get pods \
-  --selector "${OSMO_API_SELECTOR}" \
-  --output=name | grep -q .; then
-  echo "old API pods still exist; do not continue" >&2
-  exit 1
-fi
+test -z "$(kubectl --namespace "${OSMO_NAMESPACE}" get pods \
+  --selector "${OSMO_API_SELECTOR}" --output=name)"
 ```
 
 With writers stopped, pre-provision an empty Secret and authorize it for the
@@ -1281,18 +1277,11 @@ continue if any consumer is unavailable.
 
 ```bash
 OSMO_CONFIG_CONSUMER_SELECTOR="app.kubernetes.io/instance=${OSMO_RELEASE_NAME},app.kubernetes.io/component in (worker,logger,agent,gateway-authz)"
-for deployment in $(kubectl --namespace "${OSMO_NAMESPACE}" get deployment \
-  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --output=name); do
-  kubectl --namespace "${OSMO_NAMESPACE}" rollout status \
-    "${deployment}" --timeout=10m || exit 1
-done
-for resource in deployment horizontalpodautoscaler pod; do
-  if kubectl --namespace "${OSMO_NAMESPACE}" get "${resource}" \
-    --selector "${OSMO_API_SELECTOR}" --output=name | grep -q .; then
-    echo "API ${resource} still exists; do not enable submissions" >&2
-    exit 1
-  fi
-done
+kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
+  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --timeout=10m
+test -z "$(kubectl --namespace "${OSMO_NAMESPACE}" get \
+  deployment,horizontalpodautoscaler,pod \
+  --selector "${OSMO_API_SELECTOR}" --output=name)"
 ```
 
 Run a second chart sync with the exact same candidate ConfigMap and image
@@ -1512,6 +1501,9 @@ the runtime-owned installation ConfigMap together.
 - A new installation needs no initialization ID. Bootstrap creates missing
   OSMO-managed TLS Secrets and adopts valid existing owned Secrets. It rejects
   foreign-owned Secrets and never mutates externally managed credentials.
+- When first upgrading from process-local TLS with existing consumers, set
+  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` for the upgrade
+  that creates the retained generated Secrets, then remove the override.
 - After a failed ordinary Job, correct the cause and change `bootstrap.attempt`.
   Capture failure evidence and clean up a retained terminal Job after replacement,
   as described in [Retry and scheduling](#retry-and-scheduling).

@@ -220,7 +220,8 @@ resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
 
 The chart uses its application version for OSMO images and the cluster's
 default ``StorageClass``. The self-contained profile enables the service-auth
-bootstrap Job, which creates the shared service identity during installation.
+step in the shared bootstrap Job, which creates the service identity during
+installation.
 The chart also creates the local database, cache, object storage, required
 buckets, workflow namespace, configuration, backend bootstrap credential, and
 retained master encryption key.

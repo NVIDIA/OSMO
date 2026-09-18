@@ -591,7 +591,8 @@ class DeploymentTest(unittest.TestCase):
             chart = directory / 'osmo'
             shutil.copytree(ROOT / 'deployments/charts/osmo', chart,
                             ignore=shutil.ignore_patterns('charts', 'tmpcharts-*'))
-            (chart / 'Chart.yaml').write_text('apiVersion: v2\nname: osmo\nversion: 0.1.0\n')
+            metadata = (chart / 'Chart.yaml').read_text().split('\ndependencies:', 1)[0]
+            (chart / 'Chart.yaml').write_text(metadata)
             overrides = directory / 'values.json'
             # These inert defaults normally come from the Dex dependency.
             rendered_values = deploy.merge(values[0], {'dex': {
