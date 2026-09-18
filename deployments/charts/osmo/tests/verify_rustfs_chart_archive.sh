@@ -4,9 +4,9 @@
 
 set -euo pipefail
 
-EXPECTED_SHA256=c26cb094bc9735d01548ee540d018c1d88e2038bfd27ddc330770f5d525e63eb
+EXPECTED_SHA256=f11e9304fd4c3599ac365af9845ab4a2f99fab3edd30d0c8f89eb9428bcfb711
 CHART_DIRECTORY=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-ARCHIVE=${1:-"$CHART_DIRECTORY/charts/rustfs-1.0.0-rc.2.tgz"}
+ARCHIVE=${1:-"$CHART_DIRECTORY/charts/rustfs-1.0.0.tgz"}
 
 command -v sha256sum >/dev/null || {
     echo "ERROR: sha256sum is required to verify the RustFS chart archive" >&2

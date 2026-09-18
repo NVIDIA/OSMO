@@ -14,6 +14,18 @@ sh_test(
 )
 
 sh_test(
+    name = "test_install_kai_scheduler",
+    size = "small",
+    srcs = ["test_install_kai_scheduler.sh"],
+    data = [
+        "//deployments:scripts/common.sh",
+        "//deployments:scripts/install-kai-scheduler.sh",
+        "//deployments/charts:osmo",
+    ],
+    tags = ["requires-network"],
+)
+
+sh_test(
     name = "test_unified_deploy",
     size = "small",
     srcs = ["test_unified_deploy.sh"],

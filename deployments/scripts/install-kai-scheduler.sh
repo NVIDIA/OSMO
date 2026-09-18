@@ -29,10 +29,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-KAI_VERSION="${KAI_VERSION:-0.14.0}"
+KAI_VERSION="${KAI_VERSION:-0.15.3}"
 KAI_NAMESPACE="${KAI_NAMESPACE:-kai-scheduler}"
 KAI_RELEASE="${KAI_RELEASE:-kai-scheduler}"
 KAI_CHART_URL="https://github.com/NVIDIA/KAI-Scheduler/releases/download/v${KAI_VERSION}/kai-scheduler-v${KAI_VERSION}.tgz"
+KAI_VALUES_FILE="${KAI_VALUES_FILE:-$SCRIPT_DIR/../charts/osmo/examples/kai-values.yaml}"
 
 KUBECTL="${KUBECTL:-kubectl}"
 HELM="${HELM:-helm}"
@@ -59,6 +60,7 @@ main() {
 
     $HELM upgrade --install "$KAI_RELEASE" "$KAI_CHART_URL" \
         --namespace "$KAI_NAMESPACE" \
+        --values "$KAI_VALUES_FILE" \
         --wait --timeout "$KAI_HELM_TIMEOUT"
 
     log_success "KAI Scheduler v${KAI_VERSION} installed"

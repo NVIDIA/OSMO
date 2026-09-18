@@ -71,8 +71,11 @@ OETF_HELM_CHART_PATH = "OETF_HELM_CHART_PATH"
 # kai-scheduler is a soft dependency of osmo/quick-start — its pods have
 # schedulerName=kai-scheduler and won't schedule without it installed. Version
 # matches the one documented in the public deploy_local.html guide.
-KAI_SCHEDULER_CHART = "oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler"
-KAI_SCHEDULER_VERSION = "v0.12.10"
+KAI_SCHEDULER_VERSION = "0.15.3"
+KAI_SCHEDULER_CHART = (
+    "https://github.com/NVIDIA/KAI-Scheduler/releases/download/"
+    f"v{KAI_SCHEDULER_VERSION}/kai-scheduler-v{KAI_SCHEDULER_VERSION}.tgz"
+)
 KAI_SCHEDULER_NAMESPACE = "kai-scheduler"
 
 # metrics-server is a hidden dependency of osmo/quick-start: the chart creates
@@ -770,6 +773,9 @@ class KindAdapter:
         if self._helm_release_installed("kai-scheduler", KAI_SCHEDULER_NAMESPACE):
             logger.info("▶ kai-scheduler already installed — skipping")
             return
+        kai_values = os.path.join(
+            _local_osmo_chart_path(), "examples", "kai-values.yaml",
+        )
         # Note: intentionally not passing ``--wait`` here. kai-scheduler's
         # ``SchedulingShard`` custom resource can stay in the ``Reconciling``
         # phase for 10+ minutes on CPU-only hosts even after all pods are
@@ -782,11 +788,10 @@ class KindAdapter:
         self._run(
             [
                 "helm", "upgrade", "--install", "kai-scheduler",
-                KAI_SCHEDULER_CHART, "--version", KAI_SCHEDULER_VERSION,
+                KAI_SCHEDULER_CHART,
                 "--create-namespace", "-n", KAI_SCHEDULER_NAMESPACE,
+                "--values", kai_values,
                 "--set", "global.nodeSelector.node_group=kai-scheduler",
-                "--set", "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s",
-                "--set", "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true",
             ],
             "Installing kai-scheduler (without --wait; pod readiness checked separately)",
         )

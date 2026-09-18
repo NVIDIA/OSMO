@@ -487,7 +487,7 @@ require_clean_osmo_sources() {
     require_contains "$CHARTS_ROOT/osmo/Chart.lock" "name: dex"
     require_contains "$CHARTS_ROOT/osmo/Chart.lock" "version: 0.24.1"
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" "name: rustfs"
-    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'version: "1.0.0-rc.2"'
+    require_contains "$CHARTS_ROOT/osmo/Chart.yaml" 'version: "1.0.0"'
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
         "condition: embeddedDependencies.objectStorage.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
@@ -619,7 +619,7 @@ test_control_umbrella() {
     if ! compgen -G "$charts_copy/osmo/charts/dex-0.24.1.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/valkey-0.11.0.tgz" >/dev/null || \
         ! compgen -G "$charts_copy/osmo/charts/cluster-0.8.0.tgz" >/dev/null || \
-        ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz" >/dev/null; then
+        ! compgen -G "$charts_copy/osmo/charts/rustfs-1.0.0.tgz" >/dev/null; then
         helm dependency build "$charts_copy/osmo" >/dev/null
     fi
     local dex_archive_verifier="$charts_copy/osmo/tests/verify_dex_chart_archive.sh"
@@ -636,11 +636,11 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/altered-dex-archive.out" \
         "Dex chart archive SHA-256 mismatch:"
     local rustfs_archive_verifier="$charts_copy/osmo/tests/verify_rustfs_chart_archive.sh"
-    local rustfs_archive="$charts_copy/osmo/charts/rustfs-1.0.0-rc.2.tgz"
+    local rustfs_archive="$charts_copy/osmo/charts/rustfs-1.0.0.tgz"
     [[ -f "$rustfs_archive_verifier" ]] || \
         fail "RustFS chart archive verifier is required"
     bash "$rustfs_archive_verifier" "$rustfs_archive" >/dev/null
-    local altered_rustfs_archive="$TEST_DIRECTORY/altered-rustfs-1.0.0-rc.2.tgz"
+    local altered_rustfs_archive="$TEST_DIRECTORY/altered-rustfs-1.0.0.tgz"
     cp "$rustfs_archive" "$altered_rustfs_archive"
     printf 'altered archive\n' >>"$altered_rustfs_archive"
     if bash "$rustfs_archive_verifier" "$altered_rustfs_archive" \
@@ -2610,9 +2610,9 @@ INVALID_DEX_MCP
     fi
     if ! grep -Fq "osmo/charts/rustfs/Chart.yaml" \
         "$TEST_DIRECTORY/osmo-package.txt" && \
-        ! grep -Fq "osmo/charts/rustfs-1.0.0-rc.2.tgz" \
+        ! grep -Fq "osmo/charts/rustfs-1.0.0.tgz" \
         "$TEST_DIRECTORY/osmo-package.txt"; then
-        fail "packaged OSMO chart does not contain RustFS 1.0.0-rc.2"
+        fail "packaged OSMO chart does not contain RustFS 1.0.0"
     fi
     require_not_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/charts/backend-operator"
@@ -4513,7 +4513,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-rustfs-deployment.yaml" "cpu: 1"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-deployment.yaml" "memory: 2Gi"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-deployment.yaml" \
-        "rustfs/rustfs:1.0.0-rc.2@sha256:7d6d361c49c08d427250fb59aae5d78df83d644c3405d9ccf4b21cda0b0692d0"
+        "rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-deployment.yaml" \
         "busybox:stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
 

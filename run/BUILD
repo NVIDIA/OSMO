@@ -34,6 +34,7 @@ osmo_py_library(
         "host_ip.py",
         "localstack.py",
     ],
+    data = ["//deployments/charts:osmo"],
     deps = [
         requirement("pyyaml"),
         requirement("tqdm"),
