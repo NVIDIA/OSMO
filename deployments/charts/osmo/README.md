@@ -1234,9 +1234,10 @@ kubectl --namespace "${OSMO_NAMESPACE}" delete hpa \
 kubectl --namespace "${OSMO_NAMESPACE}" scale deployment \
   "${OSMO_API_DEPLOYMENT}" --replicas=0
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
-  "${OSMO_API_DEPLOYMENT}" --timeout=5m
-test -z "$(kubectl --namespace "${OSMO_NAMESPACE}" get pods \
-  --selector "${OSMO_API_SELECTOR}" --output=name)"
+  "${OSMO_API_DEPLOYMENT}" --timeout=5m &&
+OSMO_API_PODS="$(kubectl --namespace "${OSMO_NAMESPACE}" get pods \
+  --selector "${OSMO_API_SELECTOR}" --output=name)" &&
+test -z "${OSMO_API_PODS}"
 ```
 
 With writers stopped, pre-provision an empty Secret and authorize it for the
@@ -1278,10 +1279,11 @@ continue if any consumer is unavailable.
 ```bash
 OSMO_CONFIG_CONSUMER_SELECTOR="app.kubernetes.io/instance=${OSMO_RELEASE_NAME},app.kubernetes.io/component in (worker,logger,agent,gateway-authz)"
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
-  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --timeout=10m
-test -z "$(kubectl --namespace "${OSMO_NAMESPACE}" get \
+  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --timeout=10m &&
+OSMO_API_RESOURCES="$(kubectl --namespace "${OSMO_NAMESPACE}" get \
   deployment,horizontalpodautoscaler,pod \
-  --selector "${OSMO_API_SELECTOR}" --output=name)"
+  --selector "${OSMO_API_SELECTOR}" --output=name)" &&
+test -z "${OSMO_API_RESOURCES}"
 ```
 
 Run a second chart sync with the exact same candidate ConfigMap and image
