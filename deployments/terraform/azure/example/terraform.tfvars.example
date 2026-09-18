@@ -21,8 +21,8 @@ availability_zones = ["1", "2"]
 # Pin `<major>.<minor>` only; AKS picks the latest supported patch — a patch
 # pin eventually fails with K8sVersionNotSupported. See variables.tf.
 kubernetes_version              = "1.35"
-node_instance_type             = "Standard_D4s_v3"
-node_group_min_size            = 3
+node_instance_type             = "Standard_D2s_v3"  # Use Standard_D4s_v3 or higher for production
+node_group_min_size            = 1
 node_group_max_size            = 5
 node_group_desired_size        = 3
 aks_private_cluster_enabled    = true  # Set to false for public cluster

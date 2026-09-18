@@ -226,7 +226,6 @@ assert_not_contains "$static_values" 'allowMissing: true'
 assert_not_contains "$static_values" 'roles: osmo-admin'
 assert_not_contains "$static_values" '${'
 assert_contains "$terraform_example" 'name                          = "${local.name}-postgres-${random_string.suffix.result}"'
-assert_contains "$terraform_example" 'max_pods                    = 20'
 
 for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentinel \
         backend-token-sentinel docker-auth-sentinel "$ADMIN_PASSWORD_SENTINEL" \

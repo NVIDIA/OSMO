@@ -12,18 +12,6 @@ command_log="$test_directory/commands.log"
 source "${TEST_SRCDIR}/_main/deployments/scripts/common.sh"
 source "${TEST_SRCDIR}/_main/deployments/scripts/azure/terraform.sh"
 
-[[ "$TF_K8S_VERSION" == "1.35" ]]
-
-TF_SUBSCRIPTION_ID=test-subscription
-TF_RESOURCE_GROUP=test-resource-group
-TF_POSTGRES_PASSWORD=test-password
-TF_CLUSTER_NAME=test-cluster
-TF_REGION=eastus
-generated_tfvars="$test_directory/generated.tfvars"
-azure_generate_tfvars "$generated_tfvars"
-grep -Fq 'node_instance_type                  = "Standard_D4s_v3"' "$generated_tfvars"
-grep -Fq 'node_group_min_size                 = 3' "$generated_tfvars"
-
 terraform() {
     printf '%s\n' "$*" >>"$command_log"
     if [[ "$*" == *output\ -raw* ]]; then

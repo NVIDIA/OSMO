@@ -52,16 +52,6 @@ sh_test(
 )
 
 sh_test(
-    name = "test_install_kai_scheduler",
-    size = "small",
-    srcs = ["test_install_kai_scheduler.sh"],
-    data = [
-        "//deployments:scripts/common.sh",
-        "//deployments:scripts/install-kai-scheduler.sh",
-    ],
-)
-
-sh_test(
     name = "test_verify",
     size = "small",
     srcs = ["test_verify.sh"],

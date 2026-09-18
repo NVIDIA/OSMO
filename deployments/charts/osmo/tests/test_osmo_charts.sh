@@ -1670,8 +1670,6 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
-        "failureThreshold: 60"
-    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         'azure.workload.identity/use: "true"'
@@ -1709,8 +1707,6 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "cpu: '{{USER_CPU}}'"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
-        "cpu: 100m"
-    require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "default_platform: cpu"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "- default_gpu_user"
@@ -1743,6 +1739,8 @@ test_control_umbrella() {
         "osmo-object-storage"
     require_no_resource "$TEST_DIRECTORY/single-plane-azure.yaml" Secret \
         "osmo-backend-token"
+    require_contains "$TEST_DIRECTORY/single-plane-azure.yaml" \
+        "backend-operator-default/primary=osmo-backend-token"
 
     helm_template generated-single-plane-azure "$charts_copy/osmo" \
         --namespace osmo \

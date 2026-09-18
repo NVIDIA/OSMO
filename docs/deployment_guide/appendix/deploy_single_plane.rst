@@ -51,187 +51,48 @@ Prepare the following before installing OSMO:
 * Valkey or Redis 7 or newer.
 * One private object-storage container or bucket for workflow state, logs, and
   application bundles.
-* ``kubectl``, Helm, OpenSSL, ``jq``, and the OSMO CLI on the administrator
-  workstation.
+* ``kubectl``, Helm, and the OSMO CLI on the administrator workstation.
 
 The Kubernetes nodes and OSMO pods must be able to resolve and reach the three
 external services. Keep credentials in a secret manager or private files, not
 in values files or shell history.
 
-Azure Blob Storage must have account-level anonymous Blob access explicitly
-disabled, and every container must be private. For example, the authoritative
-Terraform resources must include both settings:
-
-.. code-block:: terraform
-
-   resource "azurerm_storage_account" "osmo" {
-     # ...
-     allow_nested_items_to_be_public = false
-   }
-
-   resource "azurerm_storage_container" "osmo_workflows" {
-     # ...
-     container_access_type = "private"
-   }
-
-After provisioning, verify the live resources. Accept only ``false`` for the
-account and no containers with a non-``None`` public-access setting:
-
-.. code-block:: bash
-
-   STORAGE_ACCOUNT_ID=$(az storage account show \
-     --resource-group <resource-group> \
-     --name <storage-account> \
-     --query id --output tsv)
-   test "$(az storage account show --ids "$STORAGE_ACCOUNT_ID" \
-     --query allowBlobPublicAccess --output tsv)" = false
-   test "$(az rest --method get \
-     --url "https://management.azure.com${STORAGE_ACCOUNT_ID}/blobServices/default/containers?api-version=2023-05-01" \
-     --query 'length(value[?properties.publicAccess != null])' \
-     --output tsv)" = 0
-
-Provision Azure infrastructure only
------------------------------------
-
-The repository helper supports an infrastructure-only mode. The following
-example provisions a CPU-only AKS cluster, PostgreSQL, Azure Managed Redis, and
-a private Blob container, but does not install OSMO. Use a private directory
-because Terraform state contains credentials. Install Azure CLI and Terraform
-before running this example.
-
-.. code-block:: bash
-
-   install -d -m 0700 "$HOME/.local/state/osmo/single-plane-azure"
-   export AZURE_TERRAFORM_DIR="$HOME/.local/state/osmo/single-plane-azure"
-   cp deployments/terraform/azure/example/*.tf "$AZURE_TERRAFORM_DIR/"
-
-   read -rsp 'PostgreSQL password: ' TF_POSTGRES_PASSWORD
-   printf '\n'
-   export TF_POSTGRES_PASSWORD
-
-   bash deployments/scripts/deploy-osmo.sh \
-     --provider azure \
-     --skip-osmo \
-     --no-gpu \
-     --non-interactive \
-     --subscription-id <subscription-id> \
-     --resource-group <existing-resource-group> \
-     --cluster-name <cluster-name> \
-     --region <azure-region> \
-     --storage-backend azure-blob
-   unset TF_POSTGRES_PASSWORD
-
-The example Terraform enables cluster autoscaling from three to five CPU nodes.
-Use the equivalent infrastructure workflow for another cloud or for existing
-services. The remaining steps are provider-independent except for the
-object-storage credential document and endpoint format.
-
 Install KAI Scheduler
 =====================
 
-Install the scheduler before OSMO:
+Install the tested scheduler release before OSMO, using the same flags as the
+standard :ref:`KAI Scheduler installation <installing_kai>`:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.12.10 \
-     --create-namespace \
+     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
      --namespace kai-scheduler \
+     --create-namespace \
+     --wait \
      --timeout 10m
-
-   kubectl wait --namespace kai-scheduler --for=condition=available \
-     deployment --all --timeout=10m
-   helm list --namespace kai-scheduler
-   kubectl get pods --namespace kai-scheduler
 
 Create the OSMO Secrets
 =======================
 
-Create the namespace and a private directory for temporary credential files:
+Create the namespace:
 
 .. code-block:: bash
 
    kubectl create namespace osmo
-   SECRET_DIRECTORY=$(mktemp -d)
-   chmod 700 "$SECRET_DIRECTORY"
-   trap 'rm -rf -- "$SECRET_DIRECTORY"' EXIT INT TERM
 
-PostgreSQL
-----------
+Follow the existing service deployment instructions to configure the required
+Secrets and their matching values:
 
-Create ``osmo-postgresql`` with keys named ``username`` and ``db-password``:
+* :ref:`PostgreSQL <deploy_service_postgresql>`
+* :ref:`Valkey or Redis <deploy_service_valkey>`
+* :ref:`Object storage <configure_storage_access>`
+* :ref:`Other Secrets <deploy_service_other_secrets>`
 
-.. code-block:: bash
-
-   printf '%s' '<postgres-username>' >"$SECRET_DIRECTORY/postgres-username"
-   printf '%s' '<postgres-password>' >"$SECRET_DIRECTORY/postgres-password"
-   chmod 600 "$SECRET_DIRECTORY"/postgres-*
-   kubectl create secret generic osmo-postgresql --namespace osmo \
-     --from-file=username="$SECRET_DIRECTORY/postgres-username" \
-     --from-file=db-password="$SECRET_DIRECTORY/postgres-password"
-
-Valkey or Redis
----------------
-
-Create ``osmo-valkey`` with the key ``redis-password``:
-
-.. code-block:: bash
-
-   printf '%s' '<valkey-or-redis-password>' >"$SECRET_DIRECTORY/redis-password"
-   chmod 600 "$SECRET_DIRECTORY/redis-password"
-   kubectl create secret generic osmo-valkey --namespace osmo \
-     --from-file=redis-password="$SECRET_DIRECTORY/redis-password"
-
-Object storage
---------------
-
-For static Azure Blob credentials, create a JSON document, which is also valid
-YAML, under the Secret key ``object-storage.yaml``. Use the full connection
-string as ``access_key``; ``access_key_id`` is a non-secret label.
-
-.. code-block:: bash
-
-   STORAGE_ACCOUNT=<storage-account>
-   printf '%s' '<azure-storage-connection-string>' \
-     >"$SECRET_DIRECTORY/storage-connection-string"
-   chmod 600 "$SECRET_DIRECTORY/storage-connection-string"
-   jq --null-input \
-     --arg access_key_id "$STORAGE_ACCOUNT" \
-     --rawfile access_key "$SECRET_DIRECTORY/storage-connection-string" \
-     '{access_key_id: $access_key_id, access_key: $access_key}' \
-     >"$SECRET_DIRECTORY/object-storage.yaml"
-   chmod 600 "$SECRET_DIRECTORY/object-storage.yaml"
-   kubectl create secret generic osmo-object-storage --namespace osmo \
-     --from-file=object-storage.yaml="$SECRET_DIRECTORY/object-storage.yaml"
-
-For Azure Workload Identity, do not create this Secret. Select
-``externalDependencies.objectStorage.authentication.type: sdkDefault`` and
-configure the API, worker, and workflow ServiceAccounts as described in
-:ref:`configure_storage_access`.
-
-Backend authentication
-----------------------
-
-The profile expects ``osmo-backend-token`` with key ``token``. Generate it
-independently of the API so the compute plane can authenticate during startup:
-
-.. code-block:: bash
-
-   openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' \
-     >"$SECRET_DIRECTORY/backend-token"
-   chmod 600 "$SECRET_DIRECTORY/backend-token"
-   kubectl create secret generic osmo-backend-token --namespace osmo \
-     --from-file=token="$SECRET_DIRECTORY/backend-token"
-
-The chart safely bootstraps the initial administrator credentials, master
-encryption key, and service signing identity into retained Kubernetes Secrets;
-their values never enter Helm release state. To use externally managed MEK or
-service-auth Secrets instead, create the exact Secret names and keys configured
-under ``secrets.masterEncryptionKey.existingSecret`` and
-``secrets.serviceAuth.existingSecret``, then leave their bootstrap Jobs
-disabled. See :ref:`authentication_authorization` for identity lifecycle and
-external IdP configuration.
+The chart automatically creates and populates the retained
+``osmo-backend-token`` Secret for the compute plane. Do not create that Secret
+manually. The example below also selects chart-managed master encryption and
+service-auth Secrets.
 
 Prepare the site values
 =======================
@@ -261,9 +122,9 @@ after ``profiles/single-plane.yaml``:
        authentication:
          type: static
        locations:
-         workflows: azure://<storage-account>/<container>/workflows
-         logs: azure://<storage-account>/<container>/logs
-         apps: azure://<storage-account>/<container>/apps
+         workflows: <scheme>://<bucket-or-container>/workflows
+         logs: <scheme>://<bucket-or-container>/logs
+         apps: <scheme>://<bucket-or-container>/apps
 
    secrets:
      objectStorage:
@@ -282,10 +143,6 @@ after ``profiles/single-plane.yaml``:
      service:
        service_base_url: http://osmo-gateway.osmo.svc:80
 
-Set PostgreSQL TLS to match the server. For ``sslMode: verify-full``, also
-create the CA Secret and set ``caExistingSecret`` and ``caKey``. Set Valkey TLS
-to ``false`` only when the trusted endpoint does not provide TLS.
-
 Install the unified chart
 =========================
 
@@ -296,32 +153,6 @@ a source checkout, build its dependencies and install the local unified chart:
 
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
-     --namespace osmo \
-     --values deployments/charts/osmo/profiles/single-plane.yaml \
-     --values single-plane-values.yaml \
-     --wait \
-     --wait-for-jobs \
-     --timeout 30m
-
-After both bootstrap Jobs succeed, disable them in
-``single-plane-values.yaml`` and apply one cleanup transaction. Retain the
-generated Secrets; they are required for upgrades and database recovery.
-
-.. code-block:: yaml
-
-   secrets:
-     masterEncryptionKey:
-       managementMode: osmo
-       bootstrap:
-         enabled: false
-     serviceAuth:
-       managementMode: osmo
-       bootstrap:
-         enabled: false
-
-.. code-block:: bash
-
-   helm upgrade osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/single-plane.yaml \
      --values single-plane-values.yaml \
@@ -358,7 +189,7 @@ a mode-0600 file without printing it, then use token login:
 
 .. code-block:: bash
 
-   ADMIN_TOKEN_FILE="$SECRET_DIRECTORY/admin-token"
+   ADMIN_TOKEN_FILE=$(mktemp)
    chmod 600 "$ADMIN_TOKEN_FILE"
    kubectl get secret osmo-admin-token --namespace osmo \
      --output jsonpath='{.data.token}' | base64 --decode >"$ADMIN_TOKEN_FILE"
@@ -410,8 +241,8 @@ Troubleshooting
 * **Valkey connection fails:** verify the endpoint, TLS port, Secret key
   ``redis-password``, and CA configuration.
 * **Object storage fails:** verify all three URI prefixes, the
-  ``object-storage.yaml`` credential document, provider permissions, and Blob
-  account/container privacy settings.
+  ``object-storage.yaml`` credential document, endpoint, and provider
+  permissions.
 * **Workflows remain pending:** verify KAI 0.12.10 is running, inspect
   ``osmo workflow events <workflow-name>``, and check node capacity with
   ``osmo resource list --pool default``.
@@ -429,7 +260,3 @@ the namespace or external database:
 
    helm uninstall osmo --namespace osmo --wait
    helm uninstall kai-scheduler --namespace kai-scheduler --wait
-
-Destroy cloud infrastructure only when its data is no longer needed. Reuse the
-same private Terraform directory and the same scoped cloud inputs used during
-provisioning.

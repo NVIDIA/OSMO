@@ -22,16 +22,6 @@ embeddedDependencies:
   objectStorage:
     enabled: false
 
-authentication:
-  bootstrap:
-    identities:
-      backend-operator-default:
-        tokens:
-          primary:
-            managedSecret: null
-            existingSecret:
-              name: osmo-backend-token
-
 secrets:
   postgresql:
     existingSecret: osmo-postgresql
@@ -79,9 +69,6 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -98,9 +85,6 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -133,9 +117,6 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -152,9 +133,6 @@ services:
       pullPolicy: IfNotPresent
     podDisruptionBudget:
       enabled: false
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -181,9 +159,6 @@ services:
     replicas: 1
     image:
       pullPolicy: IfNotPresent
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -196,9 +171,6 @@ services:
     replicas: 1
     image:
       pullPolicy: IfNotPresent
-    startupProbe:
-      spec:
-        failureThreshold: 60
     resources:
       requests:
         cpu: 100m
@@ -262,15 +234,6 @@ monitoring:
 
 configuration:
   podTemplates:
-    default_ctrl:
-      spec:
-        containers:
-        - name: osmo-ctrl
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-              ephemeral-storage: 1Gi
     # KAI treats even a zero-valued nvidia.com/gpu resource key as a GPU pod
     # and injects the NVIDIA RuntimeClass. The default CPU platform omits the
     # key; the built-in GPU platform adds it through default_gpu_user.
