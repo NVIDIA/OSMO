@@ -38,8 +38,8 @@ Select the deployment model that fits your needs and environment.
           :link-type: doc
           :class-card: tool-card
 
-          Run the complete OSMO control plane, compute plane, and a GPU
-          workflow on a local NVIDIA GPU workstation.
+          Run the complete OSMO control plane, compute plane, and CPU workflows
+          on a local workstation, with optional NVIDIA GPU verification.
 
       .. grid-item-card:: :octicon:`package` Self-contained Deployment
           :link: ../appendix/deploy_self_contained
@@ -62,8 +62,8 @@ Select the deployment model that fits your needs and environment.
           :link-type: doc
           :class-card: tool-card
 
-          Prepare infrastructure for control and compute planes deployed on
-          separate clusters.
+          Deploy production control and compute planes on separate clusters
+          with independently managed dependencies.
 
 Deployment Profile Comparison
 =============================

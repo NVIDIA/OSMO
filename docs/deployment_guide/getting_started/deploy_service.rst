@@ -59,7 +59,7 @@ OSMO deployment consists of several main components:
    :align: center
 
 Prerequisites
--------------
+=============
 
 The cluster must run Kubernetes 1.30 or newer. Install Helm 3.19 or newer,
 ``kubectl``, and Python 3, select the target cluster context, and confirm that
@@ -358,9 +358,21 @@ used by the release; with release name ``osmo`` they are ``osmo-api``,
 ``osmo-worker``, and ``osmo-workflow``.
 
 .. _deploy_service_other_secrets:
+.. _deploy_service_secret_ownership:
 
 Configure Other Secrets
 =======================
+
+Choose one owner for each credential Secret. In OSMO-managed mode, keep
+bootstrap enabled. OSMO reuses a valid managed Secret and recreates it if it is
+missing. Generated Secrets carry the
+``osmo.nvidia.com/credential-source`` annotation so their owner is visible.
+Deleting a credential remains an operator error: a replacement can invalidate
+retained data or disconnect consumers that still use the old credential.
+
+For maximum recovery robustness, provision the Secret from an external secret
+manager and select external management. Back up every credential together with
+the state it protects.
 
 MEK
 ---
@@ -386,9 +398,9 @@ state:
        bootstrap:
          enabled: true
 
-Back up that Secret after installation. Never replace it while retaining the
-database. After the first successful installation, set ``bootstrap.enabled``
-to ``false``.
+Back up that Secret after installation. Never intentionally replace it while
+retaining the database. Keep ``bootstrap.enabled: true`` so OSMO can validate
+and reconcile the managed Secret on subsequent releases.
 
 User-managed
 ^^^^^^^^^^^^
@@ -441,8 +453,9 @@ leaf Secret per service:
        generated:
          enabled: true
 
-Back up the retained TLS Secrets. Do not regenerate a missing CA for an
-existing installation; restore it.
+Back up the retained TLS Secrets. OSMO-managed mode recreates a missing CA, but
+the new CA invalidates existing leaf certificates and trust. Restore the
+original CA when continuity matters.
 
 User-managed
 ^^^^^^^^^^^^
@@ -530,8 +543,8 @@ installation:
        bootstrap:
          enabled: true
 
-Back up the Secret, then set ``bootstrap.enabled`` to ``false`` after the first
-successful installation.
+Back up the Secret after installation. Keep ``bootstrap.enabled: true`` so OSMO
+can validate and reconcile the managed Secret on subsequent releases.
 
 User-managed
 ^^^^^^^^^^^^
@@ -573,8 +586,8 @@ with valid ``public_key`` and ``private_key`` JWK values. Set
 
 .. _deploy_service_osmo_values:
 
-Prepare Values
-==============
+Prepare Values and Secrets
+==========================
 
 The chart packages a ``profiles/split-plane-control.yaml`` base profile for an
 HA control plane with external PostgreSQL, Valkey, and object storage. The
@@ -653,6 +666,8 @@ placeholder:
        generated:
          enabled: true
 
+.. _deploy_service_external_idp:
+
 Configure an External IdP
 =========================
 
@@ -730,8 +745,8 @@ See :doc:`../appendix/authentication/idp_role_mapping` for role mapping.
 
 .. _deploy_service_deploy_components:
 
-Deploy Components
-=================
+Install OSMO
+============
 
 Add the published OSMO chart repository and select the chart version to deploy.
 Pull that version once to obtain its matching control-plane profile for the
@@ -767,24 +782,43 @@ Install the control plane and wait for bootstrap and migration Jobs:
        --values osmo-values.yaml \
        --wait --wait-for-jobs --timeout 30m
 
-After a successful chart-managed MEK and service-auth bootstrap, change both
-``bootstrap.enabled`` values to ``false`` in ``osmo-values.yaml`` and apply a
-cleanup upgrade:
-
-.. code-block:: bash
-
-   $ helm upgrade osmo osmo/osmo --version <chart-version> \
-       --namespace osmo \
-       --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
-       --values osmo-values.yaml \
-       --wait --timeout 30m
-
 Configure public DNS and edge TLS for ``externalUrl`` after the gateway's
 LoadBalancer address is assigned. ``gateway.tls`` does not terminate public
 TLS; use your load balancer, Ingress, or Gateway API implementation for that.
 
-Verify
+Log In
 ======
+
+For non-interactive validation, read the generated administrator token into a
+protected temporary file without printing it:
+
+.. code-block:: bash
+
+   $ OSMO_URL=https://osmo.example.com
+   $ umask 077
+   $ OSMO_TOKEN_FILE="$(mktemp)"
+   $ kubectl --namespace osmo get secret osmo-admin-token \
+       --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+   $ osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+   $ rm -f -- "$OSMO_TOKEN_FILE"
+   $ unset OSMO_TOKEN_FILE
+
+For embedded-Dex evaluation, retrieve the generated password only in a private
+terminal, visit ``$OSMO_URL``, and sign in as ``admin@osmo.local``:
+
+.. code-block:: bash
+
+   $ kubectl --namespace osmo get secret osmo-embedded-dex-admin \
+       --output jsonpath='{.data.password}' | base64 --decode
+   $ printf '\n'
+
+Do not paste the password into shell history, logs, or issue trackers. In
+production, use the external OIDC provider configured in
+:ref:`deploy_service_external_idp`; the UI and default ``osmo login`` command
+use that provider.
+
+Verify the Deployment
+=====================
 
 Check the release without reading Secret values:
 
@@ -809,11 +843,13 @@ In another terminal:
 .. code-block:: bash
 
    $ curl --fail http://127.0.0.1:8080/api/version
+   $ osmo pool list
+   $ osmo resource list --pool default
 
-Sign in through the UI or CLI, list pools and resources, and submit a small CPU
-workflow. Confirm that PostgreSQL contains the new workflow, Valkey remains
-reachable, and objects appear under the configured workflow, log, and app
-locations.
+After the compute plane is connected, follow :ref:`deploy_backend` to submit
+the CPU and object-storage verification workflows. Confirm that PostgreSQL
+contains the workflows, Valkey remains reachable, and objects appear under the
+configured workflow, log, and app locations.
 
 Troubleshooting
 ===============
@@ -854,15 +890,36 @@ Common failures include:
 * **Service-auth bootstrap fails**: correct image pull or RBAC issues and
   increment ``secrets.serviceAuth.bootstrap.attempt``. Do not replace the
   retained signing identity during an ordinary upgrade.
-* **Internal TLS bootstrap fails**: with generated TLS, restore any missing
-  retained CA rather than enabling initial generation. With user-managed TLS,
-  verify ``ca.crt``, ``tls.crt``, ``tls.key``, and each Service DNS SAN.
+* **Internal TLS bootstrap fails**: with generated TLS, restore a missing
+  retained CA when continuity matters; an automatically recreated CA requires
+  new leaf certificates and trust. With user-managed TLS, verify ``ca.crt``,
+  ``tls.crt``, ``tls.key``, and each Service DNS SAN.
 * **Authentication redirects or JWKS fetches fail**: verify ``externalUrl``,
   issuer and endpoint URLs, ``jwksHost``, client IDs, Secret keys, and public
   edge TLS. Embedded Dex must be disabled when ``provider: externalOidc``.
 * **Gateway has no public address**: inspect the ``osmo-gateway`` Service and
   cloud load-balancer events, or keep the Service internal and configure
   ``ingress`` or ``httproute`` instead.
+
+Upgrade and Recovery
+====================
+
+Back up PostgreSQL, object storage, and every credential Secret before an
+upgrade. Reuse the same control profile and complete site values. Keep
+OSMO-managed bootstrap enabled; use externally managed Secrets restored by
+your secret manager for maximum recovery robustness. Follow the chart lifecycle
+procedures linked below for database migrations and credential rotation.
+
+Cleanup
+========
+
+Uninstalling the control release preserves retained Secrets and externally
+managed data. Back them up and confirm that no compute plane still depends on
+this control plane before deleting the namespace:
+
+.. code-block:: bash
+
+   $ helm uninstall osmo --namespace osmo --wait
 
 For all chart values and lifecycle procedures, refer to the unified chart
 `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/osmo/README.md>`_.

@@ -38,14 +38,14 @@ production deployment, add a TLS ingress or HTTPRoute, use an external identity
 provider, set a reachable HTTPS ``externalUrl``, and apply the availability,
 backup, and monitoring requirements for your site.
 
-Infrastructure prerequisites
-============================
+Prerequisites
+=============
 
 Prepare the following before installing OSMO:
 
 * A Kubernetes 1.30 or newer cluster with at least three schedulable CPU nodes
   and at least four vCPUs per node.
-* KAI Scheduler 0.12.10.
+* KAI Scheduler 0.15.3.
 * PostgreSQL 15 or newer with an empty database for OSMO.
 * Valkey or Redis 7 or newer.
 * One private object-storage container or bucket for workflow state, logs, and
@@ -65,14 +65,24 @@ standard :ref:`KAI Scheduler installation <installing_kai>`:
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
+     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+     --version v0.15.3 \
      --namespace kai-scheduler \
      --create-namespace \
+     --values deployments/charts/osmo/examples/kai-values.yaml \
      --wait \
      --timeout 10m
+   kubectl --namespace kai-scheduler wait \
+     --for=condition=Available=True \
+     --timeout=10m config.kai.scheduler/kai-config
+   kubectl wait --for=condition=Available \
+     --timeout=10m schedulingshard/default
+   kubectl --namespace kai-scheduler wait \
+     --for=condition=Available \
+     --timeout=10m deployment --all
 
-Create the OSMO Secrets
-=======================
+Prepare Values and Secrets
+==========================
 
 Create the namespace:
 
@@ -86,14 +96,11 @@ Secrets and their matching values:
 * :ref:`PostgreSQL <deploy_service_postgresql>`
 * :ref:`Valkey or Redis <deploy_service_valkey>`
 * :ref:`Object storage <configure_storage_access>`
-* :ref:`Other Secrets <deploy_service_other_secrets>`
+* :ref:`Secret ownership choices <deploy_service_secret_ownership>`
 
 The chart automatically creates and populates the retained
 ``osmo-backend-token`` Secret for the compute plane. The example below also
 selects chart-managed master encryption and service-auth Secrets.
-
-Prepare the site values
-=======================
 
 Create ``single-plane-values.yaml`` with non-secret endpoints. This file layers
 after ``profiles/single-plane.yaml``:
@@ -141,8 +148,8 @@ after ``profiles/single-plane.yaml``:
      service:
        service_base_url: http://osmo-gateway.osmo.svc:80
 
-Install the unified chart
-=========================
+Install OSMO
+============
 
 Use a chart version and OSMO images from the same release. When installing from
 a source checkout, build its dependencies and install the local unified chart:
@@ -158,7 +165,7 @@ a source checkout, build its dependencies and install the local unified chart:
      --wait-for-jobs \
      --timeout 30m
 
-Log in
+Log In
 ======
 
 Forward the gateway in a dedicated terminal:
@@ -167,50 +174,52 @@ Forward the gateway in a dedicated terminal:
 
    kubectl --namespace osmo port-forward service/osmo-gateway 9000:80
 
-The profile uses embedded Dex by default. Run the standard browser login and
-sign in as ``admin@osmo.local`` with the password stored in
-``osmo-embedded-dex-admin``:
+The profile uses embedded Dex by default. Retrieve its generated password only
+in a private terminal:
 
 .. code-block:: bash
 
-   export OSMO_URL=http://127.0.0.1:9000
+   OSMO_URL=http://127.0.0.1:9000
    kubectl get secret osmo-embedded-dex-admin --namespace osmo \
      --output jsonpath='{.data.password}' | base64 --decode
    printf '\n'
-   osmo login "$OSMO_URL"
 
-The password command writes the credential to the terminal. Run it only in a
-private terminal and do not paste its output into logs or issue trackers.
+Visit ``$OSMO_URL`` and sign in as ``admin@osmo.local`` with that password. Do
+not paste the password into shell history, logs, or issue trackers.
 
 For non-interactive validation, read the chart-managed administrator token into
 a mode-0600 file without printing it, then use token login:
 
 .. code-block:: bash
 
-   ADMIN_TOKEN_FILE=$(mktemp)
-   chmod 600 "$ADMIN_TOKEN_FILE"
+   umask 077
+   OSMO_TOKEN_FILE="$(mktemp)"
    kubectl get secret osmo-admin-token --namespace osmo \
-     --output jsonpath='{.data.token}' | base64 --decode >"$ADMIN_TOKEN_FILE"
-   osmo login "$OSMO_URL" --method token --token-file "$ADMIN_TOKEN_FILE"
-   rm -f -- "$ADMIN_TOKEN_FILE"
+     --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+   osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+   rm -f -- "$OSMO_TOKEN_FILE"
+   unset OSMO_TOKEN_FILE
 
-For production, configure ``authentication.provider: externalOidc`` instead.
-Follow :ref:`identity_provider_setup`; the default ``osmo login`` uses browser
-authorization-code flow with PKCE, and ``osmo login --method code`` explicitly
-selects device authorization.
+For production, follow the canonical :ref:`external IdP guidance
+<deploy_service_external_idp>`. The UI and default ``osmo login`` command use
+that provider.
 
-Verify the deployment
+Verify the Deployment
 =====================
 
-Confirm that the control-plane, gateway, and compute-plane Deployments are
-available and that the backend reports resources:
+Confirm that the release, control-plane, gateway, compute-plane, KAI, and API
+are ready and that the backend reports resources:
 
 .. code-block:: bash
 
+   helm status osmo --namespace osmo
    kubectl get deployments --namespace osmo
    kubectl get pods --namespace osmo
    kubectl wait --namespace osmo --for=condition=available deployment --all \
      --timeout=10m
+   kubectl --namespace kai-scheduler wait --for=condition=Available \
+     deployment --all --timeout=10m
+   curl --fail "$OSMO_URL/api/version"
    osmo pool list
    osmo resource list --pool default
 
@@ -222,11 +231,14 @@ Submit the CPU and object-storage smoke workflows from the repository:
      --pool default --format-type json
    osmo workflow submit deployments/workflows/verify-object-storage.yaml \
      --pool default --format-type json
-   osmo workflow query <workflow-name> --format-type json
+   OSMO_WORKFLOW_ID=<returned-workflow-id>
+   osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 
-Repeat the query until each workflow reports ``COMPLETED``. The first workflow
-validates CPU scheduling and compute-plane status reporting. The second also
-validates upload and download through the configured object storage.
+For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
+repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
+or timed-out workflow is a validation failure. The first workflow validates CPU
+scheduling and compute-plane status reporting. The second also validates upload
+and download through the configured object storage.
 
 Troubleshooting
 ===============
@@ -241,12 +253,22 @@ Troubleshooting
 * **Object storage fails:** verify all three URI prefixes, the
   ``object-storage.yaml`` credential document, endpoint, and provider
   permissions.
-* **Workflows remain pending:** verify KAI 0.12.10 is running, inspect
-  ``osmo workflow events <workflow-name>``, and check node capacity with
+* **Workflows remain pending:** verify KAI 0.15.3 is running, inspect
+  ``osmo workflow events "$OSMO_WORKFLOW_ID"``, and check node capacity with
   ``osmo resource list --pool default``.
 * **Images cannot be pulled:** use released chart and image versions that
   match. Keep private registry overrides and pull credentials in a private
   site values file and Kubernetes Secret, never in the published guide.
+
+Upgrade and Recovery
+====================
+
+Reuse the same profile and site values for upgrades. Keep OSMO-managed
+bootstrap enabled so valid managed Secrets are reused. A missing managed
+Secret is recreated, but the replacement can invalidate retained data or
+disconnect consumers that still use the old credential. Back up credential
+Secrets with the state they protect; use externally managed Secrets restored
+by your secret manager for maximum recovery robustness.
 
 Cleanup
 ========

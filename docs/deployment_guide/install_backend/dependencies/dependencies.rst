@@ -38,8 +38,12 @@ OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI w
 
 For more information on the scheduler, see :ref:`scheduler`.
 
-Create a file called ``kai-selectors.yaml`` with placement settings for the
-KAI Scheduler components:
+Run these commands from the root of an OSMO repository clone. The checked
+``deployments/charts/osmo/examples/kai-values.yaml`` file defines the scheduler
+and admission behavior tested with OSMO.
+
+Create ``kai-selectors.yaml`` only when the KAI Scheduler components need
+environment-specific placement settings:
 
 .. code-block:: yaml
 
@@ -49,18 +53,28 @@ KAI Scheduler components:
     affinity: {}
     tolerations: []
 
-Next, install the tested KAI Scheduler release using ``helm``:
+Install the tested KAI Scheduler release with the common values first and the
+environment values second:
 
 .. code-block:: bash
 
   helm upgrade --install kai-scheduler \
-    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
+    oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+    --version v0.15.3 \
     --namespace kai-scheduler \
     --create-namespace \
-    --values kai-selectors.yaml
+    --values deployments/charts/osmo/examples/kai-values.yaml \
+    --values kai-selectors.yaml \
+    --wait \
+    --timeout 10m
   kubectl --namespace kai-scheduler wait \
     --for=condition=Available=True \
     --timeout=10m config.kai.scheduler/kai-config
+  kubectl wait --for=condition=Available \
+    --timeout=10m schedulingshard/default
+  kubectl --namespace kai-scheduler wait \
+    --for=condition=Available \
+    --timeout=10m deployment --all
 
 .. note::
    For newer compatible versions, refer to the

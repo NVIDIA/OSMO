@@ -5,7 +5,8 @@
 # REQUIRED and CONDITIONAL setting below. It inherits
 # authentication.provider=embeddedDex from the base values. The chart creates
 # credentials only in retained Kubernetes Secrets; do not put them in this
-# file. See README.md for the externalOidc migration contract.
+# file. See the split-plane deployment guide for the canonical Secret ownership
+# and external OIDC contracts.
 
 # REQUIRED: Keep this value when using the guide's local port-forward. Replace
 # it with the public HTTPS origin when OSMO is exposed through a managed edge.

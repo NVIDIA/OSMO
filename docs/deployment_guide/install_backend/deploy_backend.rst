@@ -27,7 +27,7 @@ contains the backend listener and worker but no control-plane services or
 databases.
 
 Prerequisites
--------------
+=============
 
 Before continuing:
 
@@ -44,14 +44,17 @@ separate namespace:
 
 .. code-block:: bash
 
-   $ export CONTROL_CONTEXT=<control-context>
+   $ export CONTROL_CONTEXT="control-context"
    $ export CONTROL_NAMESPACE=osmo
-   $ export COMPUTE_CONTEXT=<compute-context>
+   $ export COMPUTE_CONTEXT="compute-context"
    $ export COMPUTE_NAMESPACE=osmo-compute
    $ export WORKLOAD_NAMESPACE=osmo-workflows
 
 This guide uses ``gb200-01`` as the backend name. Use the same backend name and
 workload namespace in every step.
+
+Prepare Values and Secrets
+==========================
 
 Configure the control plane
 ---------------------------
@@ -163,8 +166,8 @@ and set ``create: false``.
    ``services.backendWorker.extraRBACRules``. See
    :ref:`group_template_permissions`.
 
-Deploy the compute plane
-------------------------
+Install OSMO
+============
 
 Pull the chart so the compute profile always matches the selected chart
 version, then install it:
@@ -185,13 +188,15 @@ version, then install it:
 
 .. _configure_pool:
 
-Verify the backend
-------------------
+Verify the Deployment
+=====================
 
 Confirm that the backend listener and worker Deployments are available:
 
 .. code-block:: bash
 
+   $ helm --kube-context "$COMPUTE_CONTEXT" status osmo-compute \
+       --namespace "$COMPUTE_NAMESPACE"
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        rollout status deployment \
        --selector app.kubernetes.io/instance=osmo-compute \
@@ -199,17 +204,31 @@ Confirm that the backend listener and worker Deployments are available:
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        get deployments,pods \
        --selector app.kubernetes.io/instance=osmo-compute
+   $ kubectl --context "$COMPUTE_CONTEXT" --namespace kai-scheduler wait \
+       --for=condition=Available deployment --all --timeout=10m
 
 An authenticated OSMO CLI is not required to deploy the backend. Optionally,
-use it to confirm that the backend and pool are online and submit a small CPU
-workflow for end-to-end verification:
+use it to confirm that the backend and pool are online and submit both CPU
+verification workflows for end-to-end verification:
 
 .. code-block:: bash
 
    $ osmo config show BACKEND gb200-01
    $ osmo pool list
    $ osmo resource list --pool default
-   $ osmo workflow submit cookbook/tutorials/hello_world.yaml --pool default
+   $ osmo workflow submit deployments/workflows/verify-hello.yaml \
+       --pool default --format-type json
+   $ osmo workflow submit deployments/workflows/verify-object-storage.yaml \
+       --pool default --format-type json
+   $ OSMO_WORKFLOW_ID=<returned-workflow-id>
+   $ osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
+
+For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
+repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
+or timed-out workflow is a validation failure.
+
+Upgrade and Recovery
+====================
 
 Rotate the backend credential
 -----------------------------
@@ -287,6 +306,17 @@ Check ``osmo resource list --pool <pool>`` and the workflow events. Account for
 the CPU and memory requested by OSMO sidecars as well as the user container.
 Confirm that KAI Scheduler is running and that the cluster has a node with
 enough available capacity for the complete workflow Pod.
+
+Cleanup
+========
+
+Remove the compute release only after its workflows have finished or been
+canceled. The workload namespace is retained when the chart created it:
+
+.. code-block:: bash
+
+   $ helm --kube-context "$COMPUTE_CONTEXT" uninstall osmo-compute \
+       --namespace "$COMPUTE_NAMESPACE" --wait
 
 .. seealso::
 

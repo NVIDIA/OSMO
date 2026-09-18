@@ -57,11 +57,21 @@ kubectl config use-context kind-osmo
 kubectl get storageclass
 
 helm upgrade --install kai-scheduler \
-  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+  oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+  --version v0.15.3 \
   --namespace kai-scheduler \
   --create-namespace \
+  --values deployments/charts/osmo/examples/kai-values.yaml \
   --wait \
   --timeout 10m
+kubectl --namespace kai-scheduler wait \
+  --for=condition=Available=True \
+  --timeout=10m config.kai.scheduler/kai-config
+kubectl wait --for=condition=Available \
+  --timeout=10m schedulingshard/default
+kubectl --namespace kai-scheduler wait \
+  --for=condition=Available \
+  --timeout=10m deployment --all
 
 helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo update cnpg
@@ -82,7 +92,6 @@ match the quickstart Kind port mapping:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   --wait \
@@ -90,21 +99,14 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 140m
 ```
 
-The first installation uses ordered bootstrap steps to create the retained
-`osmo-master-encryption-key` and `osmo-service-auth` Secrets without putting key
-material in Helm state. After that installation succeeds, remove both temporary
-Secret-creation permissions and retain the remaining release values:
-
-```bash
-helm upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --reuse-values \
-  --set-string bootstrap.initializationId= \
-  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --set secrets.serviceAuth.bootstrap.enabled=false \
-  --wait \
-  --timeout 140m
-```
+The bootstrap Job creates the retained `osmo-master-encryption-key` and
+`osmo-service-auth` Secrets without putting key material in Helm state. Keep
+bootstrap enabled for OSMO-managed credentials: later releases validate and
+reuse valid Secrets and recreate a missing managed Secret. Generated Secrets
+carry `osmo.nvidia.com/credential-source` ownership metadata. Deleting one can
+still invalidate retained data or disconnect consumers that use its old bytes.
+For maximum recovery robustness, provision the Secret from an external secret
+manager and select external management.
 
 Embedded Dex uses volatile memory storage and is intended for development and
 evaluation only. Dex restarts invalidate active sessions and signing keys.
@@ -167,7 +169,8 @@ osmo workflow submit deployments/workflows/verify-hello.yaml \
 osmo workflow submit deployments/workflows/verify-object-storage.yaml \
   --pool default \
   --format-type json
-osmo workflow query <workflow-id> --format-type json
+OSMO_WORKFLOW_ID=<returned-workflow-id>
+osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 ```
 
 Repeat the query until the workflow status is `COMPLETED`.
@@ -342,7 +345,6 @@ Install the generic profile first and a site-specific overlay second:
 
 ```bash
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
   --values <site-values.yaml>
@@ -383,7 +385,6 @@ cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
 # Edit self-contained-environment-values.yaml for the target environment and,
 # for production, configure externalOidc and its existing Secret references.
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
   --values self-contained-environment-values.yaml \
@@ -478,7 +479,6 @@ Install the chart after the operator is Ready:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
@@ -589,7 +589,6 @@ install the chart by layering the environment values after the profile:
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
@@ -885,34 +884,28 @@ rules. Every step with the projected token shares these permissions, so use a
 dedicated namespace and trusted step images. Protected credentials are created
 atomically after recording issuance intent; Helm-created empty placeholders are
 not a supported substitute. To avoid Secret creation permission, provide all
-credentials externally and disable every credential-generating bootstrap step.
+credentials externally and select external management for every credential.
 
 ### New installations and adoption
 
-For an intentionally new installation, provide a unique non-secret ID:
+An intentionally new installation needs no initialization ID. Bootstrap creates
+declared OSMO-managed credentials only after validating the installation state,
+fresh-database requirements, and consumer gates. Consumer application containers
+must not have started before initial issuance. External database users must also
+keep non-chart writers stopped during MEK creation.
 
-```yaml
-bootstrap:
-  initializationId: my-new-osmo-installation
-```
-
-Remove the ID after successful initialization. The ID does not override a recorded
-credential identity, a live execution Lease, or the MEK fresh-database checks.
-Consumer application containers must not have started before initial issuance.
-External database users must also keep non-chart writers stopped during MEK creation.
-
-For an upgrade from the previous chart, leave the ID empty and keep the existing
-credential declarations for the first upgrade. Bootstrap validates and adopts the
-retained credentials without changing their bytes. Missing, invalid, or foreign
-credentials stop adoption. Add new identity declarations in a later upgrade.
+On upgrade, keep the existing credential declarations. Bootstrap validates and
+adopts valid retained credentials without changing their bytes. It recreates an
+absent OSMO-managed credential through the credential's owning step. Invalid or
+foreign-owned credentials stop adoption, and bootstrap never adopts or mutates an
+externally managed Secret.
 
 The runtime-owned `<fullname>-bootstrap-state` ConfigMap stores Secret UIDs and
 key fingerprints, step receipts, generation, and completion state; it contains no
 credential bytes. Helm never renders or resets it. Keep it with the retained
-Secrets. A replacement Secret UID is deliberately rejected, even if its bytes
-match; disaster recovery that recreates objects requires an explicitly reviewed
-repair of the installation record after restoring and validating the original
-credentials. Merely deleting the record is not a supported reset procedure.
+Secrets. When an owning step recreates an absent managed Secret, bootstrap records
+the replacement UID and fingerprint. A live replacement with foreign ownership is
+rejected. Merely deleting the record is not a supported reset procedure.
 
 ### Upgrading during a CA rotation
 
@@ -957,15 +950,14 @@ waiting for gated Deployments after a Job has failed. Diagnose the terminal Job
 condition and stopped Pod first; interrupt the Helm client before submitting an
 explicit retry. A Helm client timeout alone does not prove the Job stopped.
 
-A dependency failure before any credential write can be retried directly. A crash
-following an attempted Secret create is deliberately conservative: an existing
-valid output is reused, but a missing output with an issuance intent requires
-restoration or an explicitly reviewed recovery. A deleted/unreachable former Pod
-is not proof its processes stopped. After SIGKILL, OOM, or node loss, preserve the
-old Pod and Lease until terminal process state is established. A foreign Lease
-that remains held always requires explicit recovery, even if Kubernetes reports
-the old Pod as Failed or Succeeded; Pod phase alone cannot prove termination.
-Clear a stranded Lease only after establishing that its former owner cannot write.
+A dependency failure before any credential write can be retried directly. After a
+failed create, an existing valid output is reused and an absent managed output is
+reissued by its owning step. A deleted or unreachable former Pod is not proof its
+processes stopped. After SIGKILL, OOM, or node loss, preserve the old Pod and Lease
+until terminal process state is established. A foreign Lease that remains held
+always requires explicit recovery, even if Kubernetes reports the old Pod as
+Failed or Succeeded; Pod phase alone cannot prove termination. Clear a stranded
+Lease only after establishing that its former owner cannot write.
 
 Common scheduling settings default to the API Pod policy. Compatible existing
 service-auth overrides are accepted; conflicting overrides require an explicit
@@ -1092,10 +1084,12 @@ kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin 
 printf '\n'
 ```
 
-Managed credential loss fails closed after initialization or adoption. Deleting a
-Secret is no longer a rotation request. Use a new declarative token/identity
-reference for a replacement, validate it, and retire the old declaration. Retain
-the installation record with its credentials; see [One bootstrap Job](#one-bootstrap-job).
+Deleting a managed Secret is not a rotation request. The next reconciliation
+recreates it with new bytes and records its new identity. That can disconnect a
+compute plane or invalidate retained data, so restore the original Secret when
+continuity matters. Use a new declarative token or identity reference for an
+intentional replacement, validate it, and retire the old declaration. Retain the
+installation record with its credentials; see [One bootstrap Job](#one-bootstrap-job).
 Older
 `authentication.embeddedDex.admin`, credential-generation fields, and
 `secrets.backendApiTokens` values are removed. Revoke
@@ -1170,8 +1164,8 @@ Kubernetes-only step in the shared bootstrap Job. The step uses the configured O
 service image; its Secret permissions are get/create, and retries only preserve an existing
 Secret after validating its ownership, digest, and key pair.
 
-Single-plane, split-plane, and existing installations use
-`managementMode: external`. Create their Secret before install:
+Single-plane, split-plane, and existing installations may use
+`managementMode: external`. Create an externally managed Secret before install:
 
 ```bash
 OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
@@ -1186,9 +1180,9 @@ rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-Quickstart and self-contained are install-only profiles. After bootstrap,
-disable `secrets.serviceAuth.bootstrap.enabled` to remove that step and its Secret permissions. Use the migration below
-for an older DB-backed identity.
+Quickstart and self-contained keep OSMO-managed bootstrap enabled so later
+releases validate and reuse the service-auth Secret. Use the migration below for
+an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window using the full
@@ -1487,11 +1481,9 @@ the runtime-owned installation ConfigMap together.
 - For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
   `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
   Unfreeze HPAs only after `stable` completes.
-- A new installation requires an explicit `bootstrap.initializationId`. A release
-  without an installation record is adopted only when all declared protected
-  credentials already exist and validate. Adopt before adding credential declarations.
-  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` alone does not
-  authorize replacing retained credentials.
+- A new installation needs no initialization ID. Bootstrap creates missing
+  OSMO-managed TLS Secrets and adopts valid existing owned Secrets. It rejects
+  foreign-owned Secrets and never mutates externally managed credentials.
 - After a failed ordinary Job, correct the cause and change `bootstrap.attempt`.
   Capture failure evidence and clean up a retained terminal Job after replacement,
   as described in [Retry and scheduling](#retry-and-scheduling).

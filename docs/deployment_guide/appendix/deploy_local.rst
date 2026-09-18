@@ -233,31 +233,38 @@ the compute worker hosts submitted workflows.
    kind create cluster --config kind-osmo-cluster-config.yaml
    kubectl config use-context kind-osmo
 
-Install cluster dependencies
+Install Cluster Dependencies
 ============================
 
-Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
+Install KAI Scheduler v0.15.3 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
-cluster. Keep both operators on the control worker. KAI v0.12.10 applies
-``global.nodeSelector`` to chart-managed pods and ``global.affinity`` to the
-components created by its operator, so both settings are required:
+cluster. Keep both operators on the control worker. The checked common values
+file supplies OSMO's scheduler behavior; the command-line values add only the
+placement settings for this KIND topology:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
      oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.12.10 \
-     --create-namespace -n kai-scheduler \
+     --version v0.15.3 \
+     --namespace kai-scheduler \
+     --create-namespace \
+     --values deployments/charts/osmo/examples/kai-values.yaml \
      --set-string 'global.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
      --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=osmo.nvidia.com/node-pool' \
      --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In' \
      --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=control-plane' \
-     --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
+     --wait \
+     --timeout 10m
 
    kubectl --namespace kai-scheduler wait \
      --for=condition=Available=True \
-     --timeout=5m config.kai.scheduler/kai-config
+     --timeout=10m config.kai.scheduler/kai-config
+   kubectl wait --for=condition=Available \
+     --timeout=10m schedulingshard/default
+   kubectl --namespace kai-scheduler wait \
+     --for=condition=Available \
+     --timeout=10m deployment --all
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
@@ -301,8 +308,8 @@ defaults:
      --wait-for-jobs \
      --timeout 20m
 
-Log in and run a workflow
-=========================
+Log In
+======
 
 The cluster configuration maps the gateway to ``http://127.0.0.1``. The default
 embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
@@ -314,22 +321,53 @@ embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
      --output jsonpath='{.data.password}' | base64 --decode
    printf '\n'
 
-Do not paste the password into shell history, logs, or issue trackers. Install
-the CLI if necessary, sign in through the browser OIDC flow, and submit both
-canonical CPU verification workflows:
+Do not paste the password into shell history, logs, or issue trackers. Visit
+``http://127.0.0.1`` and sign in as ``admin@osmo.local`` with that password.
+Embedded Dex is for development and evaluation; use an external OIDC provider
+and a public HTTPS URL in production.
+
+For non-interactive validation, read the generated administrator token into a
+protected temporary file without printing it:
 
 .. code-block:: bash
 
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-   osmo login http://127.0.0.1
+   OSMO_URL=http://127.0.0.1
+   umask 077
+   OSMO_TOKEN_FILE="$(mktemp)"
+   kubectl --namespace osmo get secret osmo-admin-token \
+     --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+   osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+   rm -f -- "$OSMO_TOKEN_FILE"
+   unset OSMO_TOKEN_FILE
+
+Verify the Deployment
+=====================
+
+Check the release, OSMO and KAI readiness, and the API before submitting the
+canonical CPU verification workflows:
+
+.. code-block:: bash
+
+   helm status osmo --namespace osmo
+   kubectl --namespace osmo wait --for=condition=Available \
+     deployment --all --timeout=10m
+   kubectl --namespace kai-scheduler wait --for=condition=Available \
+     deployment --all --timeout=10m
+   curl --fail "$OSMO_URL/api/version"
    osmo profile set pool default
+   osmo pool list
+   osmo resource list --pool default
    osmo workflow submit deployments/workflows/verify-hello.yaml
    osmo workflow submit deployments/workflows/verify-object-storage.yaml
-   osmo workflow query <workflow-id>
+   OSMO_WORKFLOW_ID=<returned-workflow-id>
+   osmo workflow query "$OSMO_WORKFLOW_ID"
 
-Query each returned workflow ID until its status is ``COMPLETED``. Both use the
-default ``cpu`` platform; the object-storage workflow also verifies a round trip
-between two dependent tasks.
+For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
+repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
+or timed-out workflow is a validation failure. Both use the default ``cpu``
+platform; the object-storage workflow also verifies a round trip between two
+dependent tasks.
 
 .. admonition:: Success!
    :class: tip
@@ -341,7 +379,8 @@ If you used Option A, submit the GPU verification workflow too:
 .. code-block:: bash
 
    osmo workflow submit deployments/workflows/verify-gpu.yaml
-   osmo workflow query <workflow-id>
+   OSMO_WORKFLOW_ID=<returned-workflow-id>
+   osmo workflow query "$OSMO_WORKFLOW_ID"
 
 The GPU workflow explicitly uses the ``gpu`` platform and runs ``nvidia-smi``
 in a CUDA container, proving that OSMO and KAI scheduled it onto the GPU node
@@ -391,8 +430,8 @@ long-lived environment.
    :ref:`Self-contained Deployment
    <deploy_self_contained>` guide.
 
-Clean up resources
-==================
+Cleanup
+========
 
 Remove the OSMO release, then delete the disposable cluster using the command
 for the option you selected:

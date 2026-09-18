@@ -23,12 +23,16 @@ through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
 development authentication, bootstrapped service auth, and small
 single-node stateful dependencies.
-Chart defaults and `self-contained.yaml` are install-only profiles; both
-bootstrap service auth in-cluster and must not be reused as upgrade values.
-The single-plane and split profiles keep service auth external and bootstrap
-disabled. The quickstart generates its other application credentials and does
-not require an image-pull Secret to be created beforehand. Configure top-level
-`imagePullSecrets` only when using a registry that requires credentials.
+Chart defaults and `self-contained.yaml` keep OSMO-managed bootstrap enabled so
+upgrades validate and reuse valid managed Secrets and recreate a missing managed
+Secret. A recreated credential can invalidate retained data or disconnect old
+consumers; externally managed Secrets restored by a secret manager provide the
+most robust recovery. The single-plane and split profiles default service auth
+to external management, but an environment overlay can deliberately select
+OSMO-managed service auth. The quickstart generates its other application
+credentials and does not require an image-pull Secret to be created beforehand.
+Configure top-level `imagePullSecrets` only when using a registry that requires
+credentials.
 
 The self-contained profile is the converged path for environments that host
 OSMO and its stateful dependencies in Kubernetes. It uses chart-version OSMO
@@ -68,6 +72,7 @@ and embedded stateful dependencies, and configures control-plane autoscaling,
 disruption budgets, and topology spreading. Layer site-specific dependency,
 identity-provider, public URL, and gateway values after it.
 
-KAI Scheduler is a prerequisite for every profile that enables the compute
-plane. The unified chart does not install or manage KAI. CloudNativePG must also
-be installed before enabling the embedded PostgreSQL Cluster.
+KAI Scheduler 0.15.3 is a prerequisite for every profile that enables the
+compute plane. Install it with `examples/kai-values.yaml`; the unified chart
+does not install or manage KAI. CloudNativePG must also be installed before
+enabling the embedded PostgreSQL Cluster.
