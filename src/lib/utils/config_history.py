@@ -17,9 +17,6 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import enum
-import re
-
-from . import osmo_errors
 
 
 class ConfigHistoryType(enum.Enum):
@@ -34,48 +31,3 @@ class ConfigHistoryType(enum.Enum):
     RESOURCE_VALIDATION = 'RESOURCE_VALIDATION'
     BACKEND_TEST = 'BACKEND_TEST'
     ROLE = 'ROLE'
-
-
-CONFIG_TYPES = sorted([t.value for t in ConfigHistoryType])
-CONFIG_TYPES_REGEX = rf'^({'|'.join(CONFIG_TYPES)}):([1-9][0-9]*)$'
-
-OPERABLE_CONFIG_TYPES = sorted([
-    t.value for t in ConfigHistoryType if t != ConfigHistoryType.DATASET
-])
-OPERABLE_CONFIG_TYPES_REGEX = rf'^({'|'.join(OPERABLE_CONFIG_TYPES)}):([1-9][0-9]*)$'
-
-
-class ConfigHistoryRevision:
-    """ Splits config type and revision number. """
-
-    config_type: ConfigHistoryType
-    revision: int
-
-    def __init__(self, revision: str):
-        parsed_revision = re.fullmatch(CONFIG_TYPES_REGEX, revision)
-
-        if not parsed_revision:
-            raise osmo_errors.OSMOUserError(
-                f'Invalid revision "{revision}": expected <CONFIG_TYPE>:<revision> where ' +
-                f'<CONFIG_TYPE> is one of {', '.join(CONFIG_TYPES)}')
-
-        self.config_type = ConfigHistoryType(parsed_revision.group(1).upper())
-        self.revision = int(parsed_revision.group(2))
-
-
-class OperableConfigHistoryRevision:
-    """Splits operable config type and revision number."""
-
-    config_type: ConfigHistoryType
-    revision: int
-
-    def __init__(self, revision: str):
-        parsed_revision = re.fullmatch(OPERABLE_CONFIG_TYPES_REGEX, revision)
-
-        if not parsed_revision:
-            raise osmo_errors.OSMOUserError(
-                f'Invalid revision "{revision}": expected <CONFIG_TYPE>:<revision> where ' +
-                f'<CONFIG_TYPE> is one of {', '.join(OPERABLE_CONFIG_TYPES)}')
-
-        self.config_type = ConfigHistoryType(parsed_revision.group(1).upper())
-        self.revision = int(parsed_revision.group(2))

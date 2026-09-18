@@ -1680,7 +1680,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher._last_reconciled_snapshot = old_snapshot
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests, mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues:
@@ -1739,7 +1739,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 reconciliation_state_store=state_store)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher, test_updater=sync_tests)
@@ -1787,7 +1787,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 path, enable_reconciliation=False)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher, test_updater=mock_sync_tests)
@@ -1839,7 +1839,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -1929,7 +1929,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -2007,7 +2007,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -2044,7 +2044,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 path, enable_reconciliation=True)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher, test_updater=mock_sync_tests)
@@ -2083,7 +2083,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -2157,7 +2157,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 path, enable_reconciliation=True)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher, test_updater=mock_sync_tests)
@@ -2228,7 +2228,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher._last_reconciled_snapshot = old_snapshot
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests, mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues:
@@ -2308,7 +2308,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -2356,7 +2356,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 reconciliation_state_store=state_store)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
                 side_effect=RuntimeError('redis unavailable'),
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
@@ -2397,7 +2397,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
                 path, enable_reconciliation=True)
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
                 side_effect=[RuntimeError('redis unavailable'), True],
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
@@ -2496,7 +2496,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             with mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues, mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests:
                 self._wire_reconciliation_callbacks(
                     watcher,
@@ -2540,7 +2540,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher._last_reconciled_snapshot = old_snapshot
 
             with mock.patch(
-                'src.service.core.config.helpers.update_backend_tests_cronjobs',
+                'src.service.core.config.helpers.update_backend_tests_cronjobs_from_configmap',
             ) as mock_sync_tests, mock.patch(
                 'src.service.core.config.helpers.update_backend_queues',
             ) as mock_sync_queues:

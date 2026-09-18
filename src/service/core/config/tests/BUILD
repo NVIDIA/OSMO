@@ -20,15 +20,6 @@ load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
-    name = "test_config_history_helpers",
-    srcs = ["test_config_history_helpers.py"],
-    deps = [
-        "//src/lib/utils:osmo_errors",
-        "//src/service/core/config:config",
-    ],
-)
-
-osmo_py_test(
     name = "test_helpers",
     srcs = ["test_helpers.py"],
     deps = [

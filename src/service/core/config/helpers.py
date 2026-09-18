@@ -269,69 +269,6 @@ def update_node_pool_platform(
     )
 
 
-def update_backend_node_pool_platform(pool: str, platform: str | None = None):
-    """
-    Update the pool and platform matching for all nodes in the pool's backend.
-    """
-    pool_info = connectors.Pool.fetch_from_configmap(pool)
-    # Update all the pool and platforms per node in the backend
-    resources = objects.get_resources(backends=[pool_info.backend], verbose=True).resources
-    pool_config = connectors.VerbosePoolConfig(pools={pool: pool_info})
-    for resource in resources:
-        update_node_pool_platform(
-            resource, pool_info.backend, pool_config,
-            pool_name=pool, platform_name=platform
-        )
-
-
-def pod_labels_and_tolerations_equal(t1: Dict, t2: Dict) -> bool:
-    """
-    Check to see if two pod specs have the same node selectors and tolerations.
-    Return true if the pod specs have the same node selectors and tolerations,
-    otherwise return false.
-    """
-    t1_spec = t1.get('spec', {})
-    t2_spec = t2.get('spec', {})
-    return t1_spec.get('nodeSelector', {}) == t2_spec.get('nodeSelector', {}) and \
-        t1_spec.get('tolerations', {}) == t2_spec.get('tolerations', {})
-
-
-
-
-def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
-                                 node_condition_prefix: str,
-                                 job_id: str | None = None) -> bool:
-    """
-    Update CronJobs for backend tests by sending test configurations directly to the job.
-    The job will handle creating ConfigMaps and CronJob specs internally.
-
-    Args:
-        backend_name: Name of the backend
-        current_tests: Current list of test names in backend configuration
-        node_condition_prefix: Prefix for node conditions/labels
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    try:
-        # Fetch test configurations directly
-        test_configs = {}
-        for test_name in current_tests:
-            try:
-                test_config = connectors.BackendTests.fetch_from_db(postgres, test_name)
-                test_configs[test_name] = test_config.model_dump(by_alias=True, exclude_unset=True)
-            except osmo_errors.OSMOError as error:
-                logging.error('Failed to fetch test config for test %s: %s', test_name, error)
-                continue
-
-        return update_backend_tests_cronjobs_from_configmap(
-            backend_name, test_configs, node_condition_prefix, job_id=job_id)
-
-    except osmo_errors.OSMOError as error:
-        logging.error('Failed to queue SynchronizeBackendTest job for backend %s: %s',
-                      backend_name, error)
-        return False
-
-
 def update_backend_tests_cronjobs_from_configmap(
     backend_name: str,
     test_configs: Dict[str, Any],
@@ -358,27 +295,3 @@ def update_backend_tests_cronjobs_from_configmap(
         logging.error('Failed to queue SynchronizeBackendTest job for backend %s: %s',
                       backend_name, error)
         return False
-
-
-def notify_backends_of_test_update(test_name: str):
-    """
-    Notify all backends that use a specific test when the test is updated.
-
-    Args:
-        test_name: Name of the test that was updated
-    """
-    postgres = connectors.PostgresConnector.get_instance()
-
-    try:
-        backends_using_test = connectors.BackendTests.get_backends(postgres, test_name)
-        for backend_info in backends_using_test:
-            backend_name = backend_info['name']
-            backend = connectors.Backend.fetch_from_db(postgres, backend_name)
-            if test_name in backend.tests:
-                update_backend_tests_cronjobs(backend_name, backend.tests or [],
-                                              backend.node_conditions.prefix)
-                logging.info('Queued SynchronizeBackendTest job for backend %s ' \
-                             'due to test %s', backend_name, test_name)
-    except osmo_errors.OSMOError as error:
-        logging.error('Failed to queue backend test jobs for test %s: %s',
-                      test_name, error)
