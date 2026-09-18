@@ -27,8 +27,7 @@ external to the Helm release. This profile is useful for development,
 evaluation, and small installations that do not need independent control and
 compute clusters.
 
-The unified ``osmo`` chart installs both planes in one Helm release. Do not
-install the legacy ``service`` or ``backend-operator`` charts for this model.
+The unified ``osmo`` chart installs both planes in one Helm release.
 
 .. image:: deploy_single_plane.svg
    :align: center
@@ -90,9 +89,8 @@ Secrets and their matching values:
 * :ref:`Other Secrets <deploy_service_other_secrets>`
 
 The chart automatically creates and populates the retained
-``osmo-backend-token`` Secret for the compute plane. Do not create that Secret
-manually. The example below also selects chart-managed master encryption and
-service-auth Secrets.
+``osmo-backend-token`` Secret for the compute plane. The example below also
+selects chart-managed master encryption and service-auth Secrets.
 
 Prepare the site values
 =======================
