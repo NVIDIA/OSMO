@@ -142,8 +142,7 @@ the placement values second, as in :ref:`the compute deployment guide
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.15.3 \
+     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.15.3/kai-scheduler-v0.15.3.tgz \
      --namespace kai-scheduler \
      --create-namespace \
      --values deployments/charts/osmo/examples/kai-values.yaml \
