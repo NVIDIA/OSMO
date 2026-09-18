@@ -1,16 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Non-secret, environment-specific values for the self-contained profile.
-# It inherits authentication.provider=embeddedDex from the base values. The
-# chart creates credentials only in retained Kubernetes Secrets; do not put
-# them in this file. See README.md for the externalOidc migration contract.
+# Copy this file to self-contained-environment-values.yaml and review every
+# REQUIRED and CONDITIONAL setting below. It inherits
+# authentication.provider=embeddedDex from the base values. The chart creates
+# credentials only in retained Kubernetes Secrets; do not put them in this
+# file. See README.md for the externalOidc migration contract.
 
-# Replace with the public HTTPS URL where users and the OSMO CLI reach OSMO.
-externalUrl: https://osmo.example.com
+# REQUIRED: Keep this value when using the guide's local port-forward. Replace
+# it with the public HTTPS origin when OSMO is exposed through a managed edge.
+externalUrl: http://127.0.0.1:8080
 
-# Place OSMO services and chart-owned bootstrap Jobs on platform nodes. Keep
-# this label in sync with the labels applied to your Kubernetes nodes.
+# CONDITIONAL: These selectors match the node labels used by the guide. Change
+# every control-plane or compute value below if your cluster uses other labels.
+# This selector places OSMO services and chart-owned bootstrap Jobs on platform
+# nodes.
 podDefaults:
   nodeSelector:
     osmo.nvidia.com/node-pool: control-plane
@@ -47,7 +51,8 @@ configuration:
 
 compute:
   workflowNetworkPolicy:
-    # Replace with every IPv4 Pod and Service CIDR used by your cluster.
+    # REQUIRED: Replace with every IPv4 Pod and Service CIDR used by your
+    # cluster. Omit duplicate entries when one CIDR covers both networks.
     clusterCIDRs:
     - 10.0.0.0/8
 

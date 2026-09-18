@@ -1478,7 +1478,7 @@ test_control_umbrella() {
     require_not_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "provider_2:"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
-        "issuer: https://osmo.example.com/dex"
+        "issuer: http://127.0.0.1:8080/dex"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         '- "osmo-browser"'
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \

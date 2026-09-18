@@ -170,30 +170,28 @@ created by the OSMO release:
 Install OSMO
 ============
 
-Use the self-contained profile and its shipped environment overlay unchanged.
-Create ``self-contained-site-values.yaml`` for the settings that differ in your
-environment:
+Copy the shipped environment template and edit the copy for your cluster:
 
-.. code-block:: yaml
+.. code-block:: bash
 
-   externalUrl: http://127.0.0.1:8080
+   cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
+     self-contained-environment-values.yaml
 
-   compute:
-     workflowNetworkPolicy:
-       clusterCIDRs:
-       - <pod-cidr>
-       - <service-cidr>
+Review every setting marked ``REQUIRED`` or ``CONDITIONAL`` in the copied file:
 
-Use ``http://127.0.0.1:8080`` for the local evaluation path, or set
-``externalUrl`` to the public HTTPS URL for an operator-managed edge. The
-``clusterCIDRs`` list must cover every IPv4 Pod and Service CIDR used by the
-cluster. Omit duplicate entries when both networks are covered by one CIDR.
+* Keep ``externalUrl: http://127.0.0.1:8080`` for the local evaluation path, or
+  replace it with the public HTTPS URL for an operator-managed edge.
+* Replace ``compute.workflowNetworkPolicy.clusterCIDRs`` with every IPv4 Pod
+  and Service CIDR used by the cluster. Omit duplicate entries when both
+  networks are covered by one CIDR.
+* The included node selectors match the ``control-plane`` and ``compute``
+  labels from the prerequisites. If your cluster uses different labels, update
+  every selector in the file consistently.
 
-The shipped environment overlay places OSMO services, bootstrap Jobs, embedded
-Dex, PostgreSQL, Valkey, and RustFS on ``control-plane`` nodes. It places the
-built-in workflow Pod templates on ``compute`` nodes. Add matching overrides to
-the site values file only if your cluster uses different labels. Retain the
-compute-node selector in any additional or replacement workflow Pod templates.
+The environment file places OSMO services, bootstrap Jobs, embedded Dex,
+PostgreSQL, Valkey, and RustFS on platform nodes. It places the built-in
+workflow Pod templates on compute nodes. Retain the compute-node selector in
+any additional or replacement workflow Pod templates.
 
 The command below uses Helm 4's ``--wait=legacy`` strategy because its default
 watcher can leave the release ``pending-install`` after operator-managed custom
@@ -206,8 +204,7 @@ resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
-     --values deployments/charts/osmo/examples/self-contained-environment-values.yaml \
-     --values self-contained-site-values.yaml \
+     --values self-contained-environment-values.yaml \
      --wait=legacy \
      --wait-for-jobs \
      --timeout 30m
@@ -320,6 +317,9 @@ Common causes include:
 * If Helm 4 reports an operator custom resource as ``InProgress`` after its
   Ready or Available condition is true, use the documented explicit
   ``kubectl wait`` checks and Helm's ``--wait=legacy`` strategy.
+* If the CLI reports ``Connection refused`` after the local port-forward was
+  working, restart ``kubectl port-forward``. The command exits if its selected
+  gateway Pod restarts.
 * An OAuth redirect loop or rejected token usually means ``externalUrl`` does
   not exactly match the URL used by the browser and CLI. With an external IdP,
   also check the issuer, audience, JWKS URL, client Secret, redirect URI, and
@@ -365,8 +365,7 @@ values. The command uses Helm 4; with Helm 3, replace ``--wait=legacy`` with
    helm upgrade osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
-     --values deployments/charts/osmo/examples/self-contained-environment-values.yaml \
-     --values self-contained-site-values.yaml \
+     --values self-contained-environment-values.yaml \
      --wait=legacy \
      --wait-for-jobs \
      --timeout 30m
