@@ -125,11 +125,21 @@ osmo_py_test(
     tags = ["requires-network"],
 )
 
-py_test(
+osmo_py_test(
     name = "test_postgres_units",
     srcs = ["test_postgres_units.py"],
     deps = [
         requirement("pydantic"),
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/connectors:connectors",
+    ],
+    size = "small",
+)
+
+osmo_py_test(
+    name = "test_mek_rewrap",
+    srcs = ["test_mek_rewrap.py"],
+    deps = [
         "//src/lib/utils:osmo_errors",
         "//src/utils/connectors:connectors",
     ],
@@ -146,7 +156,7 @@ py_test(
     size = "small",
 )
 
-py_test(
+osmo_py_test(
     name = "test_mek_reconciliation_postgres",
     srcs = ["test_mek_reconciliation_postgres.py"],
     deps = [

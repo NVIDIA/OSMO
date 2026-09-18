@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import contextlib
 import json
 from pathlib import Path
 import shutil
@@ -16,9 +17,28 @@ import unittest
 
 from jwcrypto import jwk  # type: ignore
 import psycopg2  # type: ignore
+import psycopg2.extensions  # type: ignore
+import psycopg2.pool  # type: ignore
 
 from src.utils import connectors
 from src.utils.secret_manager import SecretManager
+
+
+class UnlockFailureCursor(psycopg2.extensions.cursor):
+    """Fail the unlock in PostgreSQL without disconnecting the owning session."""
+
+    def execute(self, query, parameters=None):
+        if query == "SELECT pg_advisory_unlock(%s);":
+            return super().execute("SELECT 1 / 0;")
+        return super().execute(query, parameters)
+
+
+class UnlockFailureConnection(psycopg2.extensions.connection):
+    """Use real connections with fault injection limited to the unlock statement."""
+
+    def cursor(self, *args, **kwargs):
+        kwargs["cursor_factory"] = UnlockFailureCursor
+        return super().cursor(*args, **kwargs)
 
 
 def _available_port() -> int:
@@ -41,6 +61,7 @@ def _write_keyring(path: Path, current: str, keys: dict[str, jwk.JWK]) -> None:
     )
 
 
+# pylint: disable=protected-access,consider-using-with
 class TestMekReconciliationPostgres(unittest.TestCase):
     """The MEK implementation may inspect/rewrap data, but may not own DB state."""
 
@@ -142,6 +163,30 @@ class TestMekReconciliationPostgres(unittest.TestCase):
             "WHERE schemaname = 'public' AND tablename LIKE 'mek_%%' ORDER BY tablename;",
             (), return_raw=True)
         return [row["tablename"] for row in rows]
+
+    def test_failed_unlock_does_not_leave_a_session_lock_in_the_pool(self) -> None:
+        assert self.database._pool is not None
+        self.database._pool.closeall()
+        self.database._pool = psycopg2.pool.ThreadedConnectionPool(
+            3, 4, host=str(self.socket_directory), port=self.port,
+            dbname="postgres", user="postgres",
+            connection_factory=UnlockFailureConnection,
+        )
+
+        with self.assertRaises(psycopg2.DataError) as failure:
+            self.database.rewrap_mek_references()
+        self.assertEqual(failure.exception.pgcode, "22012")
+
+        with contextlib.closing(psycopg2.connect(
+            host=str(self.socket_directory), port=self.port,
+            dbname="postgres", user="postgres",
+        )) as observer:
+            with observer.cursor() as cursor:
+                cursor.execute("SELECT pg_try_advisory_lock(%s);", (0x4F534D4F4D454B,))
+                acquired = cursor.fetchone()[0]
+                if acquired:
+                    cursor.execute("SELECT pg_advisory_unlock(%s);", (0x4F534D4F4D454B,))
+                self.assertTrue(acquired)
 
     def test_rewrap_uses_no_mek_tables_or_triggers(self) -> None:
         self.assertEqual(self._mek_relations(), [])
