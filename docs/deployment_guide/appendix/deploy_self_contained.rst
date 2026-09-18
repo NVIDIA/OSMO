@@ -136,11 +136,7 @@ Create ``kai-overrides.yaml`` to keep KAI Scheduler on platform nodes:
      tolerations: []
 
 Install KAI Scheduler v0.12.10 using the same release artifact and values-file
-workflow as :ref:`the compute deployment guide <installing_kai>`. KAI v0.12.10
-configures scheduler arguments through ``SchedulingShard.spec.args`` rather
-than the older ``scheduler.additionalArgs`` Helm value. The patch below
-disables stale-gang eviction and enables the pod condition OSMO uses to detect
-scheduler preemption:
+workflow as :ref:`the compute deployment guide <installing_kai>`:
 
 .. code-block:: bash
 
@@ -151,8 +147,6 @@ scheduler preemption:
      --values kai-overrides.yaml
    kubectl wait --for=condition=Available \
      config.kai.scheduler/kai-config --timeout=10m
-   kubectl patch schedulingshard default --type=merge \
-     --patch '{"spec":{"args":{"default-staleness-grace-period":"-1s","update-pod-eviction-condition":"true"}}}'
    kubectl wait --for=condition=Available \
      schedulingshard/default --timeout=10m
    kubectl --namespace kai-scheduler wait --for=condition=Available \
