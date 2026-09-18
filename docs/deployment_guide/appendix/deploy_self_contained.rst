@@ -163,8 +163,10 @@ created by the OSMO release:
 
 .. code-block:: bash
 
+   helm repo add osmo-dex https://charts.dexidp.io
    helm repo add cnpg https://cloudnative-pg.github.io/charts
-   helm repo update cnpg
+   helm repo add osmo-rustfs https://charts.rustfs.com
+   helm repo update
    helm upgrade --install cnpg cnpg/cloudnative-pg \
      --version 0.29.0 \
      --namespace cnpg-system \

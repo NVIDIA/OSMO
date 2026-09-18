@@ -72,8 +72,10 @@ kubectl --namespace kai-scheduler wait \
   --for=condition=Available \
   --timeout=10m deployment --all
 
+helm repo add osmo-dex https://charts.dexidp.io
 helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo update cnpg
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -406,6 +408,10 @@ Install OSMO with the production profile and the environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
@@ -476,7 +482,10 @@ processes can use otherwise-idle CPU and finish quickly.
 Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
 helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -614,6 +623,10 @@ split-plane control profile, then
 install the chart by layering the environment values after the profile:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
@@ -680,6 +693,10 @@ file. Each compute release attached to the same control plane must use a unique
 name.
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm dependency build deployments/charts/osmo
 helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \

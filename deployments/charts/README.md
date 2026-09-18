@@ -31,6 +31,10 @@ operator, and a default dynamic StorageClass, install the complete browser,
 CLI, API, and CPU workflow experience with the chart defaults:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
@@ -85,6 +89,10 @@ kubectl create namespace osmo
 kubectl --namespace osmo create secret generic osmo-oauth2-proxy \
   --from-literal=client_secret='<oidc-client-secret>' \
   --from-literal=cookie_secret='<32-byte-random-cookie-secret>'
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm repo update
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml

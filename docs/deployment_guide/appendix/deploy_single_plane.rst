@@ -155,6 +155,10 @@ a source checkout, build its dependencies and install the local unified chart:
 
 .. code-block:: bash
 
+   helm repo add osmo-dex https://charts.dexidp.io
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm repo add osmo-rustfs https://charts.rustfs.com
+   helm repo update
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
