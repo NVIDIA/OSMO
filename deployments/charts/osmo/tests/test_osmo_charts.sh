@@ -2053,7 +2053,7 @@ test_control_umbrella() {
     # Workflow callbacks may use a Gateway address distinct from public OAuth URLs.
     local callback_url expected_callback_url
     for callback_url in '' http://osmo-gateway.osmo.svc.cluster.local:80; do
-        expected_callback_url="${callback_url:-http://osmo-gateway:80}"
+        expected_callback_url="${callback_url:-http://osmo-gateway.default.svc:80}"
         helm_template osmo "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
             --set services.mcp.enabled=true \
