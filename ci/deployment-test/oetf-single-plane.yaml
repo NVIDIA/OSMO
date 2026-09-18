@@ -10,5 +10,5 @@ environments:
       strategy: token
       token_env: OETF_TOKEN
     pool: default
-    # Preserve the existing nightly kind/dev selection when switching auth.
+    # This nightly deployment does not enable MCP or the auth lifecycle suite.
     exclude_tags: [auth, mcp]

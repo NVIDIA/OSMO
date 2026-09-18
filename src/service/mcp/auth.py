@@ -18,15 +18,16 @@ SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 import base64
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 import dataclasses
-from typing import cast
+from functools import partial
+from typing import Literal, cast
 from urllib import parse
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from fastmcp.server.auth.oidc_proxy import OIDCProxy
+from fastmcp.server.auth.oidc_proxy import OIDCConfiguration, OIDCProxy
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from key_value.aio.protocols import AsyncKeyValue
 from key_value.aio.stores.redis import RedisStore
@@ -78,6 +79,50 @@ class _OSMOOIDCProxy(OIDCProxy):
             audience=self._access_token_audience,
             required_scopes=required_scopes,
         )
+
+
+class _EmbeddedDexOIDCProxy(OIDCProxy):
+    """Use Dex's public issuer with in-cluster discovery and token traffic."""
+
+    def __init__(self, *, public_issuer: str, **kwargs: object) -> None:
+        self._public_issuer = public_issuer
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+
+    def get_oidc_configuration(
+        self,
+        config_url: pydantic.AnyHttpUrl,
+        strict: bool | None,
+        timeout_seconds: int | None,
+    ) -> OIDCConfiguration:
+        configuration = super().get_oidc_configuration(
+            config_url, strict, timeout_seconds,
+        )
+        expected_endpoints = {
+            'issuer': self._public_issuer,
+            'authorization_endpoint': f'{self._public_issuer}/auth',
+            'token_endpoint': f'{self._public_issuer}/token',
+            'jwks_uri': f'{self._public_issuer}/keys',
+        }
+        if any(
+            str(getattr(configuration, field)) != expected
+            for field, expected in expected_endpoints.items()
+        ):
+            raise ValueError('Embedded Dex discovery does not match its public issuer')
+        internal_issuer = str(config_url).removesuffix('/.well-known/openid-configuration')
+        return configuration.model_copy(update={
+            'token_endpoint': f'{internal_issuer}/token',
+            'jwks_uri': f'{internal_issuer}/keys',
+        })
+
+    def _uses_alternate_verification(self) -> bool:
+        # Relay the signed ID token; Dex access tokens are opaque.
+        return False
+
+    def _prepare_scopes_for_upstream_refresh(self, scopes: list[str]) -> list[str]:
+        # Dex needs profile/email scopes again to retain identity claims on refresh.
+        return list(dict.fromkeys((*scopes, *_UPSTREAM_OIDC_SCOPES)))
+
+
 # Rejects a hand-written placeholder; identity providers issue well above this.
 _MIN_CLIENT_SECRET_LENGTH = 32
 # Native MCP clients redirect to a dynamically allocated loopback port.
@@ -93,6 +138,10 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     model_config = pydantic.ConfigDict(hide_input_in_errors=True)
 
+    oidc_provider: Literal['externalOidc', 'embeddedDex'] = pydantic.Field(
+        default='externalOidc',
+        json_schema_extra={'env': 'OSMO_MCP_AUTH_OIDC_PROVIDER'},
+    )
     resource_url: str = pydantic.Field(
         json_schema_extra={'env': 'OSMO_MCP_AUTH_RESOURCE_URL'},
     )
@@ -161,13 +210,19 @@ class MCPAuthConfig(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='after')
     def _validate_auth_config(self) -> 'MCPAuthConfig':
-        resource = _https_url(self.resource_url)
+        embedded = self.oidc_provider == 'embeddedDex'
+        resource = _oauth_url(self.resource_url, allow_http_loopback=embedded)
         if not resource.endswith('/mcp'):
             raise ValueError('resource_url must end with /mcp')
         self.resource_url = resource
-        self.oidc_config_url = _https_url(self.oidc_config_url)
+        self.oidc_config_url = _oauth_url(self.oidc_config_url, allow_http=embedded)
+        if embedded and not self.oidc_config_url.endswith(
+            '/dex/.well-known/openid-configuration'
+        ):
+            raise ValueError('Embedded Dex discovery URL must end with '
+                             '/dex/.well-known/openid-configuration')
         if self.oidc_access_token_issuer:
-            self.oidc_access_token_issuer = _https_url(
+            self.oidc_access_token_issuer = _oauth_url(
                 self.oidc_access_token_issuer,
                 preserve_trailing_slash=True,
             )
@@ -181,6 +236,8 @@ class MCPAuthConfig(pydantic.BaseModel):
     @property
     def auth_scope(self) -> str:
         """The delegated scope clients request for this resource."""
+        if self.oidc_provider == 'embeddedDex':
+            return 'openid'
         return f'{self.resource_url}/{self.oidc_access_token_required_scope}'
 
 
@@ -233,19 +290,26 @@ def create_auth_runtime(config: MCPAuthConfig) -> MCPAuthRuntime:
     )
     mcp_url = config.resource_url
     requested_scope = config.auth_scope
-    upstream_scope = ' '.join((requested_scope, *_UPSTREAM_OIDC_SCOPES))
-    provider = _OSMOOIDCProxy(
+    upstream_scope = ' '.join(dict.fromkeys((requested_scope, *_UPSTREAM_OIDC_SCOPES)))
+    provider_factory: Callable[..., OIDCProxy]
+    if config.oidc_provider == 'embeddedDex':
+        provider_factory = partial(
+            _EmbeddedDexOIDCProxy,
+            public_issuer=mcp_url.removesuffix('/mcp') + '/dex',
+            verify_id_token=True,
+        )
+    else:
+        provider_factory = partial(
+            _OSMOOIDCProxy,
+            access_token_issuer=config.oidc_access_token_issuer or '',
+            access_token_audience=mcp_url,
+            required_scopes=[config.oidc_access_token_required_scope],
+        )
+    provider = provider_factory(
         config_url=config.oidc_config_url,
         client_id=config.oidc_client_id,
         client_secret=client_secret,
-        access_token_issuer=config.oidc_access_token_issuer or '',
-        access_token_audience=mcp_url,
-        required_scopes=[config.oidc_access_token_required_scope],
-        # base_url publishes authorize, token, register, consent and the
-        # callback under /mcp instead of on the shared gateway root;
-        # resource_base_url keeps the RFC 9728 resource named /mcp, not
-        # /mcp/mcp. The path-scoped issuer is what the protected-resource
-        # document points clients at for RFC 8414 discovery.
+        # Keep OAuth endpoints under /mcp and the protected resource at /mcp.
         base_url=mcp_url,
         resource_base_url=mcp_url.removesuffix('/mcp'),
         issuer_url=mcp_url,
@@ -310,19 +374,26 @@ def _read_optional_secret(path: str | None) -> str | None:
     return _read_required_secret(path, 'Redis password') if path else None
 
 
-def _https_url(
+def _oauth_url(
     value: str,
     *,
     preserve_trailing_slash: bool = False,
+    allow_http: bool = False,
+    allow_http_loopback: bool = False,
 ) -> str:
     parsed = parse.urlsplit(value)
     try:
         _ = parsed.port
     except ValueError as error:
         raise ValueError('OAuth URL contains an invalid port') from error
+    if allow_http_loopback and parsed.hostname in {'localhost', '127.0.0.1', '::1'}:
+        allow_http = True
     if (
-        parsed.scheme != 'https'
+        parsed.scheme not in ({'https', 'http'} if allow_http else {'https'})
         or not parsed.hostname
+        or any(ord(character) <= 0x20 or ord(character) == 0x7F for character in value)
+        or '\\' in value
+        or '%' in parsed.netloc
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query

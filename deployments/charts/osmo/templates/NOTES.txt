@@ -39,6 +39,15 @@ For an HTTPS JWKS URI, Envoy validates the certificate with its system CA bundle
 and requires the exact DNS SAN configured in authentication.externalOidc.jwksHost.
 {{- end }}
 
+{{- if .Values.services.mcp.enabled }}
+
+MCP endpoint: {{ include "osmo.mcp.resourceUrl" . }}
+{{- if eq (include "osmo.mcp.embeddedDex" .) "true" }}
+Use a Streamable HTTP client and sign in with a local Dex account.
+The release manages MCP client credentials.
+{{- end }}
+{{- end }}
+
 {{- if hasPrefix "http://" .Values.externalUrl }}
 WARNING: HTTP is for trusted development networks only. Passwords, authorization
 codes, bearer tokens, and session cookies can be intercepted. Use HTTPS for

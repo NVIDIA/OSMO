@@ -80,10 +80,15 @@ bazel run //test/oetf:teardown
 ```
 
 After `oetf:deploy`, the dashboard is reachable at
-`http://quick-start.osmo/` and tests run with:
+`http://quick-start.osmo/` for the released quick-start chart, or
+`http://127.0.0.1/` with `--build-local`. Use the deployment URL for tests:
 
 ```bash
-bazel run //test/oetf:run -- --env kind --tags kind
+bazel run //test/oetf:run -- --env kind --tags kind \
+  --bazel-arg=--test_tag_filters=-mcp
+# For a source-built deployment, set OSMO_ACCESS_TOKEN to its admin API token:
+bazel run //test/oetf:run -- --env kind --url http://127.0.0.1 \
+  --auth-method token --tags kind
 ```
 
 ### Deploy + run (one-shot)
@@ -92,7 +97,7 @@ CI / agent / "is-OSMO-broken" check: deploy → run → teardown in one
 command. Cluster is always destroyed at the end (pass or fail).
 
 ```bash
-# Smoke + 3 self-contained scenarios on a fresh KIND
+# Smoke and self-contained scenarios on a fresh KIND
 bazel run //test/oetf:deploy_and_run -- --env kind --tags kind
 
 # With locally-built images
@@ -832,11 +837,9 @@ The wrapper (`test/oetf/main.py`) is thin:
 - `oetf-smoke` / `oetf-scenario` — for wrapper tag filtering.
 - `kind` — applied to tests **verified to pass against
   `oetf:deploy --env kind`**. `oetf:run --env kind --tags kind` runs
-  this curated subset (currently 10 tests: 2 smoke probes + 4
-  submission-validation scenarios + 3 self-contained 3-file scenarios +
-  `serial-workflow-mounting`). Tests that require NVIDIA-only platforms,
-  registry credentials, or pre-existing data are intentionally not
-  tagged.
+  this curated subset, including [MCP on source builds](#mcp-coverage).
+  Tests that require NVIDIA-only platforms, registry credentials, or
+  pre-existing data are intentionally not tagged.
 - User-supplied `tags = [...]` on individual targets pass through for
   fine-grained filtering (`serial`, `router`, `load`, etc.).
 
@@ -889,16 +892,40 @@ flowchart LR
     TEARDOWN -->|"kind delete cluster"| Cluster
 ```
 
+### MCP coverage
+
+`--build-local` enables MCP with embedded Dex at the loopback Gateway origin.
+The Linux KIND CI gate requires both targets to pass:
+
+- `//test/smoke:mcp-kind`: OAuth discovery; fresh registration, consent, Dex
+  login and PKCE; authenticated initialization, catalog, read and validation
+  tools; rejection of missing or invalid tokens and Dex ID tokens accepted by the API.
+- `//test/scenarios:mcp-workflow`: MCP submission, completion, and log checks.
+
+Auth tests read the embedded admin password from namespace `osmo` through an
+explicit `KUBECONFIG` with a current `kind-*` context. They require no MCP token.
+Set `OSMO_ACCESS_TOKEN` to the deployment's admin API token for workflow polling
+(`deploy_and_run` obtains it automatically), then run:
+
+```bash
+KUBECONFIG=/path/to/kind-kubeconfig bazel run //test/oetf:run -- \
+  --env kind --url http://127.0.0.1 --auth-method token --tags mcp \
+  --target-pattern //test/smoke:mcp-kind,//test/scenarios:mcp-workflow
+```
+
+For the released chart, `deploy_and_run` excludes MCP automatically; standalone
+`run` needs `--bazel-arg=--test_tag_filters=-mcp`. The `auth` suite remains opt-in.
+
 ### User journey: iterating on a service with `--build-local`
 
 `oetf:deploy --env kind --build-local` is idempotent: subsequent calls
 detect the existing cluster, do an incremental bazel rebuild, kind-load
 any changed image digests, and `kubectl rollout restart` the osmo
 deployments so running pods pick up the new images. No manual
-`kubectl rollout restart` step. Edits to either the 9 Python services *or*
-the web-ui (Next.js) are picked up by the same re-run — the 9-service bazel
-build and the UI docker buildx build run concurrently inside the pre-install
-hook.
+`kubectl rollout restart` step. Re-runs build services and web-ui, plus workflow
+init-container and CLI images on Linux. Native macOS builds omit runtime images;
+those require a Linux builder. Bazel and web-ui docker buildx builds run
+concurrently in the pre-install hook.
 
 To force a refresh without source-code changes (e.g., to pick up a chart
 upgrade), pass `--fresh` — that deletes the cluster first and runs the

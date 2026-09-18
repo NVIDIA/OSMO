@@ -20,8 +20,10 @@ import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 import contextlib
 import dataclasses
+import ipaddress
 import json
 import math
+import os
 import re
 import ssl
 import time
@@ -297,9 +299,10 @@ async def create_app_context(
     request_timeout_seconds: float,
     transport: httpx.AsyncBaseTransport | None = None,
     gateway_ca_file: str = '',
+    allow_http: bool = False,
 ) -> AsyncIterator[AppContext]:
     """Create one credential-free HTTP connection pool for the MCP process."""
-    validate_gateway_origin(gateway_url)
+    validate_gateway_origin(gateway_url, allow_http=allow_http)
     if (
         not math.isfinite(request_timeout_seconds)
         or request_timeout_seconds <= 0
@@ -324,21 +327,22 @@ async def create_app_context(
         )
 
 
-def validate_gateway_origin(gateway_url: str) -> None:
-    """Reject any Gateway base URL that is not one fixed HTTPS origin."""
+def validate_gateway_origin(gateway_url: str, *, allow_http: bool = False) -> None:
+    """Require one fixed origin; embedded deployments may use in-cluster HTTP."""
+    scheme_description = 'HTTP(S)' if allow_http else 'HTTPS'
     try:
         parsed_url = parse.urlsplit(gateway_url)
         _ = parsed_url.port
     except ValueError:
         raise ValueError(
-            'gateway_url must be a valid HTTPS origin.') from None
+            f'gateway_url must be a valid {scheme_description} origin.') from None
 
     if (
         any(ord(character) <= 0x20 or ord(character) == 0x7F
             for character in gateway_url)
         or '\\' in gateway_url
         or '%' in parsed_url.netloc
-        or parsed_url.scheme != 'https'
+        or parsed_url.scheme not in ({'https', 'http'} if allow_http else {'https'})
         or not parsed_url.hostname
         or parsed_url.username is not None
         or parsed_url.password is not None
@@ -347,8 +351,40 @@ def validate_gateway_origin(gateway_url: str) -> None:
         or parsed_url.fragment
     ):
         raise ValueError(
-            'gateway_url must be an HTTPS origin without credentials, '
+            f'gateway_url must be an {scheme_description} origin without credentials, '
             'path, query, or fragment.')
+    if (
+        parsed_url.scheme == 'http'
+        and parsed_url.hostname not in {'localhost', '127.0.0.1', '::1'}
+        and not _is_in_cluster_gateway_origin(parsed_url)
+    ):
+        raise ValueError(
+            'HTTP Gateway URLs must use loopback or the configured in-cluster Gateway Service.')
+
+
+def _is_in_cluster_gateway_origin(parsed_url: parse.SplitResult) -> bool:
+    """Match the chart URL to its Kubernetes-provided Service configuration."""
+    hostname = parsed_url.hostname or ''
+    if re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', hostname) is None:
+        return False
+    try:
+        configured_url = parse.urlsplit(os.environ.get('OSMO_GATEWAY_URL', ''))
+        configured_port = configured_url.port
+    except ValueError:
+        return False
+    port = 80 if parsed_url.port is None else parsed_url.port
+    if (
+        configured_url.scheme != 'http'
+        or configured_url.hostname != hostname
+        or (80 if configured_port is None else configured_port) != port
+    ):
+        return False
+    service_prefix = hostname.upper().replace('-', '_')
+    try:
+        ipaddress.ip_address(os.environ.get(f'{service_prefix}_SERVICE_HOST', ''))
+    except ValueError:
+        return False
+    return os.environ.get(f'{service_prefix}_SERVICE_PORT') == str(port)
 
 
 def _validate_api_path(path: str) -> None:

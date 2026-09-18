@@ -56,6 +56,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CLUSTER_NAME = "osmo"
 # Public URL (mapped to 127.0.0.1 in /etc/hosts) used for tests + CLI access.
 KIND_HOSTNAME = "quick-start.osmo"
+# Embedded MCP uses an HTTP loopback origin for its public OAuth endpoints.
+KIND_SOURCE_URL = "http://127.0.0.1"
 
 # Public Helm chart defaults.
 OSMO_HELM_REPO_NAME = "osmo"
@@ -409,6 +411,8 @@ class KindAdapter:
             self._rollout_restart_osmo()
 
         env = resolve_environment(params.env_name or "kind")
+        if self.build_local:
+            env = dataclasses.replace(env, url=KIND_SOURCE_URL)
         self._wait_for_health(env.url)
         return env
 
@@ -904,7 +908,10 @@ class KindAdapter:
             ]
         else:
             args += [
-                "--set-string", f"externalUrl=http://{KIND_HOSTNAME}",
+                "--set-string", f"externalUrl={KIND_SOURCE_URL}",
+                "--set", "services.mcp.enabled=true",
+                # Workflow log reads can exceed the chart's small API memory limit.
+                "--set", "services.api.resources.limits.memory=1Gi",
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]

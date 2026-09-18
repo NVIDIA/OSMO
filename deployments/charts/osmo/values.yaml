@@ -242,6 +242,7 @@ authentication:
   embeddedDex:
     browserClientId: osmo-browser
     cliClientId: osmo-cli
+    mcpClientId: osmo-mcp
     # Bounds how long Envoy can retain a signing key lost with memory storage.
     jwksCacheDurationSeconds: 30
     expiry:
@@ -713,8 +714,10 @@ services:
     ## Built-in FastMCP OIDC proxy. MCP authenticates every caller itself and
     ## relays the verified upstream token to the Gateway for normal RBAC.
     ##
-    ## Only four values have no default: services.mcp.resourceUrl, oidc.configUrl,
-    ## oidc.clientId, and a Secret holding the client secret. Secret file paths
+    ## With embedded Dex, enabling MCP derives its URL and OIDC settings and
+    ## generates a retained confidential-client Secret. Set oidc.configUrl to
+    ## use a separately managed provider instead. External OIDC requires
+    ## resourceUrl, configUrl, clientId, and a client-secret reference. File paths
     ## follow existingSecret.mountPath. Redis host, port, TLS, and password come
     ## from the chart's effective Valkey configuration; redisPasswordKey remains
     ## available for compatibility with a Secret that combines the OIDC client
@@ -2113,6 +2116,12 @@ dex:
       secretKeyRef:
         name: osmo-embedded-dex-oauth
         key: browser-client-secret
+  - name: OSMO_DEX_MCP_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: osmo-embedded-dex-mcp
+        key: client-secret
+        optional: true
   volumes:
   - name: tmp
     emptyDir: {}

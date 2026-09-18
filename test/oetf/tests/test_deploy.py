@@ -269,6 +269,9 @@ class TestKindAdapter(unittest.TestCase):
                     msg=f"{sub} should not be remapped on multi-node CPU path",
                 )
         self.assertEqual(env.auth.strategy, "dev")
+        self.assertEqual(env.url, "http://quick-start.osmo")
+        self.assertNotIn("services.mcp.enabled=true", osmo_calls[0])
+        self.assertNotIn("services.api.resources.limits.memory=1Gi", osmo_calls[0])
 
     def test_deploy_reuses_existing_cluster(self):
         # kind get clusters returns 'osmo' → no create call
@@ -437,7 +440,11 @@ class TestKindAdapter(unittest.TestCase):
             build_local=True,
             capture_stdouts=["osmo"],  # `kind get clusters` says cluster already exists
         )
-        adapter.deploy(DeployParams(type="kind", env_name="kind"))
+        health_opener = unittest.mock.Mock(side_effect=_always_ok_opener)
+        adapter.url_opener = health_opener
+        env = adapter.deploy(DeployParams(type="kind", env_name="kind"))
+        self.assertEqual(env.url, "http://127.0.0.1")
+        health_opener.assert_called_with("http://127.0.0.1/health", timeout=5)
         cmds = [tuple(c) for c in calls]
         dependency_build = next(
             index for index, command in enumerate(cmds)
@@ -474,10 +481,22 @@ class TestKindAdapter(unittest.TestCase):
             osmo_helm_args,
         )
         self.assertIn(
-            "externalUrl=http://quick-start.osmo",
+            "services.api.resources.limits.memory=1Gi",
+            osmo_helm_args,
+            "workflow log reads must not hit the chart's 512Mi API limit",
+        )
+        self.assertFalse(any(
+            arg.startswith("services.api.resources.requests.memory=")
+            for arg in osmo_helm_args
+        ))
+        self.assertIn(
+            "externalUrl=http://127.0.0.1",
             osmo_helm_args,
             "source-build KIND must configure the unified chart's public origin",
         )
+        self.assertIn("services.mcp.enabled=true", osmo_helm_args)
+        self.assertIn("imageRegistry=localhost:5001", osmo_helm_args)
+        self.assertIn("imageRepository=osmo", osmo_helm_args)
         self.assertNotIn(
             "global.osmoImageTag=ci-123",
             osmo_helm_args,
@@ -823,10 +842,22 @@ class TestKindAdapter(unittest.TestCase):
 class TestKindPreflight(unittest.TestCase):
     """check_kind_prereqs enumerates rather than raising."""
 
-    def test_returns_list(self):
-        # Don't assert contents — depends on local machine state.
-        result = check_kind_prereqs()
-        self.assertIsInstance(result, list)
+    def setUp(self):
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.shutil.which",
+            return_value="/mock/bin/tool",
+        ))
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.subprocess.run",
+            return_value=_FakeCompleted(),
+        ))
+        self.enterContext(unittest.mock.patch(
+            "test.oetf.deploy_adapters.kind_adapter.socket.gethostbyname",
+            return_value="127.0.0.1",
+        ))
+
+    def test_healthy_prereqs_return_no_errors(self):
+        self.assertEqual(check_kind_prereqs(), [])
 
     def test_no_nvcr_requirement(self):
         """NVCR creds are no longer needed for pulls from public nvcr.io/nvidia/osmo."""
