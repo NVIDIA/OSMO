@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+name: Set up Testbot
+description: Install agent runtimes, build tools, and sandbox prerequisites.
+inputs:
+  build-tools:
+    description: Install Bazel and pnpm
+    default: 'false'
+  reviewer-sandbox:
+    description: Configure and check the sandbox before starting AI work
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: '3.14.7'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      with:
+        node-version: 20
+
+    - name: Setup pnpm
+      if: inputs.build-tools == 'true'
+      uses: pnpm/action-setup@v4
+      with:
+        package_json_file: src/ui/package.json
+
+    # Bypass unreliable release-list discovery; verify the pinned binary.
+    - name: Install Bazelisk
+      if: inputs.build-tools == 'true'
+      env:
+        BAZELISK_VERSION: v1.27.0
+        BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
+      shell: bash
+      run: |
+        curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
+          "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
+        echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
+        sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
+        sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+
+    - name: Setup Bazel
+      if: inputs.build-tools == 'true'
+      uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+      with:
+        bazelisk-cache: true
+        disk-cache: ${{ github.workflow }}
+        repository-cache: true
+        external-cache: |
+          manifest:
+            osmo_python_deps: src/locked_requirements.txt
+            osmo_tests_python_deps: src/tests/locked_requirements.txt
+            osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+            pylint_python_deps: bzl/linting/locked_requirements.txt
+            io_bazel_rules_go: src/runtime/go.mod
+            bazel_gazelle: src/runtime/go.sum
+
+    - name: Install agent sandbox prerequisites
+      if: inputs.reviewer-sandbox == 'true'
+      shell: bash
+      run: |
+        # Ubuntu 24.04 requires the bwrap AppArmor profile for namespaces.
+        # https://learn.chatgpt.com/docs/sandboxing#prerequisites
+        sudo apt-get update -qq
+        sudo apt-get install -y bubblewrap apparmor-profiles apparmor-utils
+        if [[ ! -f /etc/apparmor.d/bwrap-userns-restrict ]]; then
+          sudo install -m 0644 \
+            /usr/share/apparmor/extra-profiles/bwrap-userns-restrict \
+            /etc/apparmor.d/bwrap-userns-restrict
+        fi
+        sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+
+    - name: Check agent sandbox file access
+      if: inputs.reviewer-sandbox == 'true'
+      shell: bash
+      run: |
+        npx --yes @openai/codex@0.154.0 sandbox \
+          -c 'sandbox_mode="workspace-write"' \
+          -c sandbox_workspace_write.network_access=true -- \
+          python3 -c 'import pathlib,tempfile; pathlib.Path("AGENTS.md").read_text(); f=tempfile.TemporaryFile(dir="."); f.write(b"sandbox write works"); f.close(); print("Agent sandbox read/write passed")'

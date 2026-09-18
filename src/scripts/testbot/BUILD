@@ -9,6 +9,8 @@ osmo_py_library(
     data = [
         "SELECT_TARGETS_PROMPT.md",
         "TESTBOT_PROMPT.md",
+        "TESTBOT_RULES.md",
+        "TESTBOT_REVIEW_PROMPT.md",
     ],
     visibility = ["//visibility:public"],
 )

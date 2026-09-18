@@ -1,28 +1,74 @@
 # Testbot: AI-Powered Test Generation
 
-Testbot analyzes coverage gaps, generates tests using Claude Code, validates them, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
+Testbot analyzes coverage gaps, generates tests with an agent, recovers interrupted generation, reviews and repairs the changes with an independent review session, verifies the final diff, and opens PRs for human review. It also responds to inline review comments via `/testbot`.
 
 ## Architecture
 
 ### Test Generation (`testbot.yaml`)
 
-```text
-Codecov API ──┐
-              ├─► criticality_scorer.py ──► select_targets_agent.py ──► Claude Code CLI ──► guardrails ──► verify_coverage.py ──► create_pr.py
-git log ──────┤    (heuristic shortlist)       (LLM target picker)         |          ↑      (LCOV → JSON report)
-filesystem ───┘                                                            └──────────┘ (agent retries on test failures; self-checks coverage)
+GitHub Actions displays five connected jobs, each with its own status and logs:
+
+```mermaid
+flowchart LR
+    A[Preflight] --> B[Pick targets]
+    B --> C[Generate tests]
+    C --> D[Review, repair, and verify]
+    D --> E[Publish PR or finish dry run]
 ```
 
-| Stage | Component | Description |
-|-------|-----------|-------------|
-| **Stage 1: Heuristic** | `criticality_scorer.py` | Combines Codecov coverage with static fan-in (Python AST + Go scan), 6-month git churn, and a path-tier classification to rank candidates by `criticality * coverage_gap`. Outputs a top-20 JSON shortlist. |
-| **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate and picks the 1-3 files where coverage would protect the highest-value OSMO behavior. The picker reasons about **value only** (blast radius, contract centrality, encoded policy) — feasibility/scaffolding is left to the generator. Can return zero picks if nothing meets the bar. |
-| **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures, and runs `verify_coverage.py` against `bazel-out/_coverage/_coverage_report.dat` to confirm the listed uncovered lines are actually hit. Iterates again on the still-uncovered ranges until ≥70% of the picker's listed lines are covered or the remainder is explained as unreachable. |
-| **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **Coverage verifier** | `verify_coverage.py` | Parses the LCOV report, computes per-range hits against the picker's listed uncovered ranges, emits a JSON sidecar + Markdown PR snippet. Used by both the generator (self-iteration) and the harness (independent verification before PR). |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale and the coverage-gain report (with ✅/⚠️/❔ markers per target), and sends a brief Slack review request when Slack credentials are configured |
+Selection combines Codecov coverage, code importance, and git history. If it
+selects no targets, the remaining jobs are skipped. Each job summarizes its own
+results: selected files, generation attempts, review/check outcomes and coverage,
+or the published PR link. Job status and logs show live progress.
 
-Claude Code is sandboxed: it can only read files, edit test files, and run test/build commands (`bazel test`, `bazel coverage`, `bazel query`, `pnpm test`, and `python`/`python3` — the latter so the generator can invoke `verify_coverage.py` during its self-iteration loop). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
+`pipeline.py` supervises generation and independent review agents. Failed
+compaction, timeouts, context limits, or missing results
+can restart an agent with fresh context, preserving edits and a checkpoint.
+Authentication/configuration failures stop retries. The original targets remain
+the work queue; the reviewer can finish incomplete generation, fix source bugs,
+and enable skipped regressions after proving they fail before the fix and pass
+afterward. Failed final checks feed the next review attempt.
+
+| Default budget | Limit |
+|---|---|
+| Attempts per agent stage | 3 |
+| Generation, shared across attempts | 400 turns / 30 minutes |
+| Review / independent verification | 20 / 15 minutes, including retries |
+| Each agent attempt | 15 minutes |
+| Generation/review runner job | 75 minutes |
+
+CLI flags can override stage budgets. Scheduled runs queue behind active work.
+The review and response agents use `azure/openai/gpt-6-astra` at
+`https://inference-api.nvidia.com/v1`, authenticated with `NVIDIA_API_KEY`
+(the workflow falls back to `NVIDIA_NIM_KEY`).
+
+The reviewer must return a valid structured decision with `ready=true` and no
+remaining work. `verification.py` then checks Bazel tests/style/BUILD registration
+and fresh coverage for selected and changed packages, including reverse-dependent
+tests for source fixes. UI changes use `pnpm validate:coverage`; UI dependencies
+are installed when needed. Coverage below the 70% listed-line goal requires a
+reviewed explanation. Source fixes map coverage to unchanged original lines;
+replaced/deleted lines count as uncovered. Missing coverage or failed checks
+block publication.
+
+Stage handoffs carry patches and content fingerprints. `--stage review` restores
+generation's changes on the same clean baseline; `--stage restore` checks the
+final verified files before publication, including in dry runs. Standalone
+`create_pr.py` without a verified manifest remains limited to test changes.
+Generation/review diagnostic artifacts retain prompts, streams, errors,
+checkpoints, patches, and check results for 14 days, including failures and dry
+runs. Publication downloads only the verified patch, manifests, metadata, and
+summaries. Re-running a failed job reuses its successful upstream handoff; dry
+runs complete verification and restoration without creating a PR.
+
+The shared setup action installs Ubuntu 24.04 `bubblewrap` and its AppArmor
+profile and probes the sandbox before selection and review. The reviewer uses
+workspace-write permissions with network access for dependencies. Its build
+cache is shared with final verification, excluded from artifact uploads, and
+uses `--nocache_test_results` to rerun tests. API keys are excluded from reviewer
+tool subprocesses and verification commands. Agent jobs have read-only GitHub
+permissions and no stored checkout credentials; only Create PR receives write
+authentication. See the permissions table below and `TESTBOT_REVIEW_PROMPT.md`.
 
 ### Review Response (`testbot-respond.yaml`)
 
@@ -30,30 +76,32 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test/
 /testbot comment → respond.py
   ├─ fetch all thread comments (GraphQL)
   ├─ filter: trigger phrase, author, dedup
-  ├─ Claude Code CLI: read files, apply fix, run tests
+  ├─ Agent CLI: read files, apply fix, run tests
   ├─ respond.py: git commit + push
-  ├─ structured reply via --json-schema
+  ├─ structured reply via --output-schema
   └─ post inline reply to each thread
 ```
 
 | Feature | Description |
 |---------|-------------|
 | **Trigger** | Comment starting with `/testbot` on any PR with the `ai-generated` label |
-| **Thread context** | Full conversation history (all nested comments) passed to Claude |
-| **Structured output** | `--json-schema` returns per-thread replies and commit message |
+| **Thread context** | Full conversation history (all nested comments) passed to the agent |
+| **Structured output** | `--output-schema` returns per-thread replies and commit message |
 | **Safety** | Repo-member-only access, crash recovery, push retry |
 | **Dedup** | Skips threads where the bot already replied and is awaiting human follow-up |
 
-### Security Boundary
+### Generation and publication boundary
 
-|  | Claude Code | Harness scripts |
-|---|---|---|
-| Read source files | Yes | — |
-| Write/edit test files | Yes | — |
-| Run `bazel test` / `pnpm test` | Yes | — |
-| Run `git` commands | **No** | `create_pr.py`, `respond.py` |
-| Run `gh` commands | **No** | `create_pr.py`, `respond.py` |
-| Filter non-test changes | — | `guardrails.py` |
+| Operation | Generator | Independent reviewer | Harness |
+|---|---|---|---|
+| Read source and tests | Yes | Yes | Yes |
+| Edit tests and test BUILD entries | Yes | Yes | — |
+| Fix production bugs | No | Yes, with regression coverage | — |
+| Run tests and measure coverage | Yes | Yes | Required final check |
+| Commit, push, create PR | No | No | Yes, after verification |
+| Preserve failures and enforce budgets | — | — | Yes |
+
+The separate `/testbot` response workflow retains its existing permissions.
 
 ## Triggering on GitHub
 
@@ -71,7 +119,7 @@ gh workflow run testbot.yaml --ref <branch> \
 
 ### Schedule
 
-Runs automatically every hour on weekdays. A cheap preflight job lists open
+Runs automatically every two hours on weekdays. A cheap preflight job lists open
 testbot PRs first; generation is skipped while any open testbot PR is still
 unapproved, and proceeds when there are no open testbot PRs or all open testbot
 PRs are approved.
@@ -107,8 +155,8 @@ Then post a new `/testbot` comment with clearer instructions.
 |-------|---------|-------------|
 | `max_targets` | `3` | Files to target per run |
 | `max_uncovered` | `500` | Uncovered lines cap per target (0 = no cap) |
-| `max_turns` | `400` | Claude Code agent turns |
-| `timeout_minutes` | `60` | Workflow timeout |
+| `max_turns` | `400` | Generation agent turns |
+| `timeout_minutes` | `75` | Maximum minutes per generation/review job |
 | `model` | `aws/anthropic/bedrock-claude-opus-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
@@ -126,10 +174,9 @@ notification. Direct channel IDs are also accepted.
 
 | Arg | Default | Description |
 |-----|---------|-------------|
-| `--max-turns` | `200` | Claude Code agent turns |
 | `--max-responses` | `10` | Max threads to address per trigger |
-| `--timeout` | `720` | Claude Code CLI timeout in seconds |
-| `--model` | `aws/anthropic/bedrock-claude-opus-5` | LLM model |
+| `--timeout` | `1800` | Agent session timeout in seconds (workflow) |
+| `--model` | `azure/openai/gpt-6-astra` | LLM model |
 
 ### Coverage target selection
 
@@ -194,14 +241,19 @@ can see *why* a file was chosen.
 
 ```text
 src/scripts/testbot/
+├── agent_runner.py            # CLI processes, failure detection, inference configuration
+├── pipeline.py                # Recovery, stage handoffs, and independent review
+├── run_summary.py             # Attempt history and Actions job summaries
+├── verification.py            # Harness checks and verified-content manifest
+├── TESTBOT_REVIEW_PROMPT.md    # Independent review/repair contract
 ├── coverage_targets.py         # Codecov API client + filtering helpers
 ├── criticality_scorer.py       # Stage 1: heuristic shortlist (fan-in × churn × tier × coverage gap)
-├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets
+├── select_targets_agent.py     # Stage 2: Agent that picks the best test targets
 ├── SELECT_TARGETS_PROMPT.md    # System prompt for the Stage-2 picker
 ├── verify_coverage.py          # LCOV → per-range coverage report (used by generator + harness)
-├── create_pr.py                # Branch, commit, push, open PR (with coverage report in body)
+├── create_pr.py                # Branch, commit, push, open PR with agent summaries
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
-├── respond.py                  # Review response: Claude Code CLI + GitHub API
+├── respond.py                  # Review response: agent CLI + GitHub API
 ├── TESTBOT_RULES.md            # Shared test quality rules and conventions
 ├── TESTBOT_PROMPT.md           # Prompt for generate workflow (coverage targets)
 ├── TESTBOT_RESPOND_PROMPT.md   # Prompt for respond workflow (review feedback)

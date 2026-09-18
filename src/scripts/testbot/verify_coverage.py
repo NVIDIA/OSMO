@@ -2,20 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Compute per-target coverage gain from a Bazel LCOV report.
 
-Given the picker's target metadata (source file + uncovered ranges that the
-generator was asked to cover) and the LCOV report produced by
-``bazel coverage``, this script:
-
-  1. parses LCOV's per-file hit table,
-  2. for each listed uncovered range, counts how many lines now have hits,
-  3. emits a JSON sidecar (machine-readable) and a Markdown snippet
-     (human-readable, embedded in the PR body by ``create_pr.py``).
-
-The script is the source of truth used by both the LLM (which calls it
-during its self-iteration loop to find ranges still uncovered) and the
-harness (which calls it after generation to attach a report to the PR).
-Both consume the same JSON, so the LLM and the human reviewer see the same
-numbers.
+Measure listed uncovered ranges for generator self-checks and final verification.
+Write JSON and Markdown reports for diagnostics and the Actions review summary.
 
 Usage:
     python verify_coverage.py \\
@@ -249,50 +237,8 @@ def build_reports(
     return reports
 
 
-def reports_from_json(payload: object) -> list[TargetReport]:
-    """Rebuild reports from the JSON written by ``render_json``.
-
-    Fail-soft: malformed entries and fields are skipped or coerced to 0 so
-    a bad value upstream degrades the PR body instead of blocking the PR.
-    """
-    if not isinstance(payload, list):
-        return []
-
-    def _int(value: object) -> int:
-        if not isinstance(value, (int, float, str)):
-            return 0
-        try:
-            return int(value)
-        except ValueError:
-            return 0
-
-    reports: list[TargetReport] = []
-    for entry in payload:
-        if not isinstance(entry, dict) or not entry.get("file_path"):
-            continue
-        ranges = []
-        for raw in entry.get("ranges") or []:
-            if not isinstance(raw, dict):
-                continue
-            start, end = raw.get("start"), raw.get("end")
-            if start is None or end is None:
-                continue
-            ranges.append(RangeResult(
-                _int(start), _int(end),
-                _int(raw.get("hit_lines")), _int(raw.get("total_lines")),
-            ))
-        reports.append(TargetReport(
-            file_path=str(entry["file_path"]),
-            listed_lines=_int(entry.get("listed_lines")),
-            hit_lines=_int(entry.get("hit_lines")),
-            ranges=ranges,
-            lcov_seen=bool(entry.get("lcov_seen", True)),
-        ))
-    return reports
-
-
 def render_markdown(reports: list[TargetReport]) -> str:
-    """Render the Markdown coverage-gain section for the PR body.
+    """Render measured coverage for diagnostics and Actions summaries.
 
     One row per target, naming only the ranges still missing coverage.
     """

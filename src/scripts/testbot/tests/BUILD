@@ -52,5 +52,13 @@ osmo_py_test(
         "//:.python-version",
         "//:MODULE.bazel",
         "//.github/workflows:workflows",
+        "//.github/actions/testbot-setup:action.yaml",
     ],
+)
+
+
+osmo_py_test(
+    name = "test_pipeline",
+    srcs = ["test_pipeline.py"],
+    deps = ["//src/scripts/testbot"],
 )

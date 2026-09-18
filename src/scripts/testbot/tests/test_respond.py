@@ -3,17 +3,18 @@
 """Tests for respond.py."""
 
 import json
-import subprocess
+from pathlib import Path
 import unittest
 from typing import Any
 from unittest.mock import patch
 
+from src.scripts.testbot import agent_runner
 from src.scripts.testbot.respond import (
     _extract_replies,
     _has_trigger,
     build_prompt,
     filter_actionable,
-    run_claude,
+    run_agent,
     sanitize_commit_message,
 )
 
@@ -253,7 +254,7 @@ class TestExtractReplies(unittest.TestCase):
     """Tests for _extract_replies tiered fallback."""
 
     def test_tier1_structured_output(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [
                     {"comment_id": "123", "reply": "Added edge case tests."},
@@ -261,57 +262,57 @@ class TestExtractReplies(unittest.TestCase):
                 ],
             },
         }
-        result = _extract_replies(claude_output)
+        result = _extract_replies(agent_output)
         self.assertEqual(len(result), 2)
         self.assertEqual(result["123"], "Added edge case tests.")
         self.assertEqual(result["456"], "Fixed the assertion.")
 
     def test_tier1_empty_replies_falls_through(self):
-        claude_output: dict[str, Any] = {"structured_output": {"replies": []}}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output: dict[str, Any] = {"structured_output": {"replies": []}}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier1_not_dict_falls_through(self):
-        claude_output = {"structured_output": "not a dict", "result": ""}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"structured_output": "not a dict", "result": ""}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier2_json_in_result_text(self):
         data = json.dumps({
             "replies": [{"comment_id": "789", "reply": "Done."}],
         })
-        claude_output = {"result": f"Here is the output: {data}"}
-        result = _extract_replies(claude_output)
+        agent_output = {"result": f"Here is the output: {data}"}
+        result = _extract_replies(agent_output)
         self.assertEqual(result["789"], "Done.")
 
     def test_tier2_no_replies_key(self):
-        claude_output = {"result": '{"other_key": "value"}'}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": '{"other_key": "value"}'}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_tier2_malformed_json(self):
-        claude_output = {"result": "this is {not valid json"}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": "this is {not valid json"}
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_skips_entries_without_comment_id(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [{"reply": "no comment id"}],
             },
         }
-        self.assertEqual(_extract_replies(claude_output), {})
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_skips_entries_without_reply(self):
-        claude_output = {
+        agent_output = {
             "structured_output": {
                 "replies": [{"comment_id": "123", "reply": ""}],
             },
         }
-        self.assertEqual(_extract_replies(claude_output), {})
+        self.assertEqual(_extract_replies(agent_output), {})
 
     def test_empty_output(self):
         self.assertEqual(_extract_replies({}), {})
 
     def test_no_result_no_structured(self):
-        claude_output = {"result": ""}
-        self.assertEqual(_extract_replies(claude_output), {})
+        agent_output = {"result": ""}
+        self.assertEqual(_extract_replies(agent_output), {})
 
 
 class TestBuildPrompt(unittest.TestCase):
@@ -350,59 +351,62 @@ class TestBuildPrompt(unittest.TestCase):
         self.assertIn("PR #857", prompt)
 
 
-class TestRunClaude(unittest.TestCase):
-    """Tests for run_claude subprocess invocation."""
+class TestRunAgent(unittest.TestCase):
+    """Adapt agent output to the existing response flow."""
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_successful_run_returns_parsed_json(self, mock_run):
-        expected = {"structured_output": {"replies": []}, "result": "ok"}
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 0, stdout=json.dumps(expected),
-        )
-        result = run_claude("test prompt")
-        self.assertEqual(result, expected)
+    def setUp(self):
+        self.output: str | None = json.dumps({"commit_message": "testbot: fix tests", "replies": []})
+        self.result = agent_runner.Attempt(returncode=0, successful=True, summary="Tests updated")
+        self.agent = self.enterContext(patch("src.scripts.testbot.respond.agent_runner.run_agent",
+                                          side_effect=self.invoke))
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_nonzero_exit_returns_empty(self, mock_run):
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 1, stdout="error output", stderr="",
-        )
-        result = run_claude("test prompt")
-        self.assertEqual(result, {})
+    def invoke(self, command, *args, **kwargs):
+        """Write the final message while temporary paths exist."""
+        del args, kwargs
+        schema = Path(command[command.index("--output-schema") + 1])
+        self.schema = json.loads(schema.read_text(encoding="utf-8"))
+        if self.output is not None:
+            output = Path(command[command.index("--output-last-message") + 1])
+            output.write_text(self.output, encoding="utf-8")
+        return self.result
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_timeout_returns_timeout_marker(self, mock_run):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=720)
-        result = run_claude("test prompt")
-        self.assertTrue(result.get("is_error"))
-        self.assertEqual(result.get("subtype"), "timeout")
+    def test_successful_run_preserves_response_shape(self):
+        result = run_agent("test prompt")
+        self.assertEqual(result, {"structured_output": json.loads(self.output or ""),
+                                  "result": "Tests updated"})
+        self.agent.assert_called_once()
+        self.assertIn('model="azure/openai/gpt-6-astra"', self.agent.call_args.args[0])
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_invalid_json_returns_empty(self, mock_run):
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 0, stdout="not json",
-        )
-        result = run_claude("test prompt")
-        self.assertEqual(result, {})
+    def test_model_timeout_schema_and_github_access(self):
+        run_agent("test prompt", model="custom/model", timeout=45)
+        command, prompt, _, timeout, backend = self.agent.call_args.args
+        self.assertIn('model="custom/model"', command)
+        self.assertEqual((prompt, timeout, backend), ("test prompt", 45, "codex"))
+        self.assertEqual(set(self.schema["required"]), {"commit_message", "replies"})
+        self.assertFalse(self.schema["additionalProperties"])
+        self.assertFalse(self.schema["properties"]["replies"]["items"]["additionalProperties"])
+        configs = dict(command[index + 1].split("=", 1) for index, value in enumerate(command)
+                       if value == "-c")
+        excluded = json.loads(configs["shell_environment_policy.exclude"])
+        self.assertNotIn("GH_TOKEN", excluded)
+        self.assertNotIn("GITHUB_TOKEN", excluded)
+        self.assertEqual(configs["shell_environment_policy.ignore_default_excludes"], "true")
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_nonzero_exit_with_valid_json_returns_parsed(self, mock_run):
-        expected = {"is_error": True, "subtype": "error_max_turns", "result": "partial"}
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 1, stdout=json.dumps(expected), stderr="",
-        )
-        result = run_claude("test prompt")
-        self.assertEqual(result, expected)
+    def test_timeout_returns_existing_marker(self):
+        self.result = agent_runner.Attempt(reason="timeout")
+        self.assertEqual(run_agent("test"), {"is_error": True, "subtype": "timeout"})
 
-    @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_uses_model_and_turns_args(self, mock_run):
-        mock_run.return_value = subprocess.CompletedProcess(
-            [], 0, stdout="{}",
-        )
-        run_claude("test", model="custom/model", max_turns=10)
-        cmd = mock_run.call_args[0][0]
-        self.assertIn("custom/model", cmd)
-        self.assertIn("10", cmd)
+    def test_failed_process_never_returns_final_message(self):
+        for result in (agent_runner.Attempt(returncode=1), agent_runner.Attempt(returncode=0)):
+            with self.subTest(result=result):
+                self.result = result
+                self.assertEqual(run_agent("test"), {})
+
+    def test_missing_or_malformed_final_message_returns_empty(self):
+        for output in (None, "not json", "[]"):
+            with self.subTest(output=output):
+                self.output = output
+                self.assertEqual(run_agent("test"), {})
 
 
 class TestSanitizeCommitMessage(unittest.TestCase):

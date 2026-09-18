@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
-"""Respond to PR review comments by delegating fixes to Claude Code CLI.
+"""Respond to PR review comments by delegating fixes to the agent CLI.
 
 Fetches unresolved review threads containing a trigger phrase, runs a
-single Claude Code CLI session to apply all fixes, then posts per-comment
+single agent CLI session to apply all fixes, then posts per-comment
 inline replies.
 
 Usage:
@@ -14,10 +14,13 @@ import argparse
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import shlex
 import subprocess
+import tempfile
 
+from src.scripts.testbot import agent_runner
 from src.scripts.testbot.guardrails import get_changed_files
 
 logging.basicConfig(
@@ -34,22 +37,6 @@ ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # non-terminal so the user's /testbot is still eligible for retry on the next
 # event without having to repost the comment.
 ERROR_REPLY_MARKER = "<!-- testbot-status: error -->"
-# Mostly mirrored in testbot.yaml's `--allowedTools` — keep the shared
-# entries (Read/Edit/Write/Glob/Grep, cd/mv/rm, bazel/pnpm/npx/vitest/tsc)
-# in sync. The `gh pr view/diff/checks` entries are respond-only because
-# generate runs before any PR exists.
-ALLOWED_TOOLS = (
-    "Read,Edit,Write,Glob,Grep,"
-    "Bash(cd *),Bash(mv *),Bash(rm *),"
-    "Bash(bazel test *),Bash(bazel build *),"
-    "Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),"
-    "Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *),"
-    "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *),"
-    # Needed for "/testbot update the PR description" requests; the workflow
-    # token already carries pull-requests: write.
-    "Bash(gh pr edit *)"
-)
-
 THREADS_QUERY = """
 query($owner: String!, $repo: String!, $pr: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -107,10 +94,12 @@ REPLY_SCHEMA = json.dumps({
                     },
                 },
                 "required": ["comment_id", "reply"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["commit_message", "replies"],
+    "additionalProperties": False,
 })
 
 GIT_TRAILER_PREFIXES = (
@@ -121,7 +110,7 @@ MAX_COMMIT_MESSAGE_LENGTH = 500
 
 
 def sanitize_commit_message(message: str) -> str:
-    """Sanitize a commit message from Claude's output.
+    """Sanitize a commit message from the agent's output.
 
     Enforces testbot: prefix, strips git trailers that could fake
     attribution, and caps length.
@@ -210,7 +199,7 @@ def filter_actionable(
     """Filter threads to actionable ones, logging each skip reason.
 
     A thread is actionable if ANY non-bot comment contains the trigger
-    phrase. The full thread history is preserved for Claude's context.
+    phrase. The full thread history is preserved for the agent's context.
     The reply_comment_id is set to the LAST comment with the trigger
     (the one that should receive the inline reply).
     """
@@ -289,9 +278,9 @@ def filter_actionable(
 
 
 def build_prompt(threads: list[dict], pr_number: int) -> str:
-    """Build a single prompt with all actionable threads for Claude Code.
+    """Build a single prompt with all actionable threads for the agent.
 
-    Each thread includes the full conversation history so Claude
+    Each thread includes the full conversation history so the agent
     understands the context (original comment + follow-up replies).
     """
     lines = [
@@ -312,60 +301,36 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
     return "\n".join(lines)
 
 
-def run_claude(
+def run_agent(
     prompt: str,
-    model: str = "aws/anthropic/bedrock-claude-opus-5",
-    max_turns: int = 50,
+    model: str = "azure/openai/gpt-6-astra",
     timeout: int = 720,
 ) -> dict:
-    """Run Claude Code CLI and return parsed JSON output.
-
-    Returns a dict with 'structured_output' and/or 'result' fields.
-    Returns empty dict on failure.
-    """
-    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.116")
-    cmd = [
-        *shlex.split(claude_bin), "--print",
-        "--model", model,
-        "--output-format", "json",
-        "--json-schema", REPLY_SCHEMA,
-        "--allowedTools", ALLOWED_TOOLS,
-        "--max-turns", str(max_turns),
-        prompt,
-    ]
-    logger.info("Claude Code command: %s", " ".join(shlex.quote(c) for c in cmd))
-
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, check=False,
-        )
-    except subprocess.TimeoutExpired:
-        logger.error("Claude Code CLI timed out after %ds", timeout)
-        return {"is_error": True, "subtype": "timeout"}
-
-    if result.returncode != 0:
-        logger.warning(
-            "Claude Code CLI exited %d: stderr=%s",
-            result.returncode, result.stderr[:500],
-        )
-
-    # Claude Code returns valid JSON even on non-zero exit (max turns, auth errors).
-    try:
-        parsed = json.loads(result.stdout)
-        if result.returncode != 0 and parsed.get("is_error"):
-            logger.warning(
-                "Claude Code reported error: subtype=%s result=%s",
-                parsed.get("subtype", ""), str(parsed.get("result", ""))[:300],
-            )
-        return parsed
-    except (json.JSONDecodeError, ValueError):
-        if result.returncode == 0:
-            logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
+    """Run one agent session and adapt its final JSON to the existing reply flow."""
+    with tempfile.TemporaryDirectory(prefix="testbot-respond-") as directory:
+        artifacts = Path(directory)
+        schema, output = artifacts / "schema.json", artifacts / "response.json"
+        schema.write_text(REPLY_SCHEMA, encoding="utf-8")
+        command = agent_runner.agent_command(
+            artifacts, schema, output, agent_runner.reviewer_build_environment(artifacts),
+            model=model, allow_github=True)
+        result = agent_runner.run_agent(command, prompt, artifacts / "session", timeout, "codex")
+        if result.reason == "timeout":
+            return {"is_error": True, "subtype": "timeout"}
+        if not result.successful:
+            logger.error("Agent failed: %s: %s", result.reason, result.summary)
+            return {}
+        try:
+            parsed = json.loads(output.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                return {"structured_output": parsed, "result": result.summary}
+        except (OSError, ValueError) as error:
+            logger.error("Failed to read agent JSON output: %s", error)
         return {}
 
 
-def _extract_replies(claude_output: dict) -> dict[str, str]:
-    """Extract per-comment replies from Claude output with tiered fallback.
+def _extract_replies(agent_output: dict) -> dict[str, str]:
+    """Extract per-comment replies from agent output with tiered fallback.
 
     Returns a dict mapping comment_id (str) to reply text.
     """
@@ -381,7 +346,7 @@ def _extract_replies(claude_output: dict) -> dict[str, str]:
         return result
 
     # Tier 1: structured_output.replies
-    structured = claude_output.get("structured_output")
+    structured = agent_output.get("structured_output")
     if isinstance(structured, dict) and isinstance(structured.get("replies"), list):
         replies = _parse_replies_list(structured["replies"])
         if replies:
@@ -389,7 +354,7 @@ def _extract_replies(claude_output: dict) -> dict[str, str]:
             return replies
 
     # Tier 2: extract JSON from result text
-    result_text = claude_output.get("result", "")
+    result_text = agent_output.get("result", "")
     if isinstance(result_text, str) and result_text:
         try:
             start = result_text.index("{")
@@ -403,7 +368,7 @@ def _extract_replies(claude_output: dict) -> dict[str, str]:
         except (ValueError, json.JSONDecodeError):
             pass
 
-    logger.warning("No per-thread replies found in Claude output")
+    logger.warning("No per-thread replies found in agent output")
     return {}
 
 
@@ -479,20 +444,18 @@ def reply_to_comment(
 
 
 def main() -> None:
-    """Fetch actionable review threads, delegate to Claude Code, post replies."""
+    """Fetch actionable review threads, delegate to the agent, post replies."""
     parser = argparse.ArgumentParser(
-        description="Respond to PR review comments via Claude Code CLI.",
+        description="Respond to PR review comments via the agent CLI.",
     )
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--trigger-phrase", default="/testbot")
     parser.add_argument("--max-responses", type=int, default=10,
                         help="Max threads to address per trigger (default: 10)")
-    parser.add_argument("--max-turns", type=int, default=50,
-                        help="Max Claude Code agent turns (default: 50)")
     parser.add_argument("--timeout", type=int, default=720,
-                        help="Claude Code CLI timeout in seconds (default: 720)")
-    parser.add_argument("--model", default="aws/anthropic/bedrock-claude-opus-5",
-                        help="LLM model name (default: aws/anthropic/bedrock-claude-opus-5)")
+                        help="Agent CLI timeout in seconds (default: 720)")
+    parser.add_argument("--model", default="azure/openai/gpt-6-astra",
+                        help="LLM model name (default: azure/openai/gpt-6-astra)")
     args = parser.parse_args()
 
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
@@ -505,7 +468,7 @@ def main() -> None:
         logger.info("No actionable comments on PR #%d", args.pr_number)
         return
 
-    logger.info("=== Actionable threads to send to Claude ===")
+    logger.info("=== Actionable threads to send to the agent ===")
     for thread in actionable:
         logger.info(
             "  reply_comment_id=%s author=%s path=%s line=%s trigger=%s",
@@ -520,13 +483,13 @@ def main() -> None:
     ).stdout.strip()
 
     prompt = build_prompt(actionable, args.pr_number)
-    logger.info("Running Claude Code for %d comment(s)...", len(actionable))
-    claude_output = run_claude(
-        prompt, model=args.model, max_turns=args.max_turns, timeout=args.timeout,
+    logger.info("Running the agent for %d comment(s)...", len(actionable))
+    agent_output = run_agent(
+        prompt, model=args.model, timeout=args.timeout,
     )
 
-    if not claude_output:
-        logger.error("Claude Code failed — discarding any partial changes")
+    if not agent_output:
+        logger.error("Agent failed — discarding any partial changes")
         discard_changes()
         for comment in actionable:
             reply_to_comment(
@@ -540,11 +503,11 @@ def main() -> None:
     # On timeout or max-turns, discard partial file changes (may be incomplete)
     # and post an informative reply with the error marker so the user can
     # retry without having to repost the /testbot comment.
-    subtype = claude_output.get("subtype")
+    subtype = agent_output.get("subtype")
     if subtype in ("timeout", "error_max_turns"):
         reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
-        turns_used = claude_output.get("num_turns", "?")
-        logger.warning("Claude %s after %s turns — discarding partial changes", reason, turns_used)
+        turns_used = agent_output.get("num_turns", "?")
+        logger.warning("Agent %s after %s turns — discarding partial changes", reason, turns_used)
         discard_changes()
         status_msg = (
             f"I {reason} after {turns_used} turns. "
@@ -555,21 +518,21 @@ def main() -> None:
             reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
         return
 
-    logger.info("Claude output keys: %s", list(claude_output.keys()))
+    logger.info("Agent output keys: %s", list(agent_output.keys()))
     logger.info(
-        "Claude diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
-        claude_output.get("num_turns"),
-        claude_output.get("stop_reason"),
-        claude_output.get("terminal_reason"),
-        claude_output.get("total_cost_usd"),
+        "Agent diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
+        agent_output.get("num_turns"),
+        agent_output.get("stop_reason"),
+        agent_output.get("terminal_reason"),
+        agent_output.get("total_cost_usd"),
     )
-    if "structured_output" in claude_output:
-        logger.info("structured_output: %s", json.dumps(claude_output["structured_output"]))
-    if "result" in claude_output:
-        logger.info("result text: %s", claude_output["result"])
+    if "structured_output" in agent_output:
+        logger.info("structured_output: %s", json.dumps(agent_output["structured_output"]))
+    if "result" in agent_output:
+        logger.info("result text: %s", agent_output["result"])
 
-    per_thread_replies = _extract_replies(claude_output)
-    structured = claude_output.get("structured_output", {})
+    per_thread_replies = _extract_replies(agent_output)
+    structured = agent_output.get("structured_output", {})
     raw_commit_message = (
         structured.get("commit_message", "testbot: address review feedback")
         if isinstance(structured, dict)
@@ -588,7 +551,7 @@ def main() -> None:
     else:
         logger.info("No file modifications detected")
 
-    # When push fails, Claude's per-thread replies describe work that wasn't
+    # When push fails, the agent's per-thread replies describe work that wasn't
     # applied — discard them so we don't mislead the reviewer.
     if modified_files and not push_succeeded:
         per_thread_replies = {}

@@ -227,7 +227,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 ### Testbot (`scripts/testbot/`)
 
-AI-powered test generation and review response using Claude Code CLI. See `scripts/testbot/README.md` for details.
+AI-powered test generation and review. See `scripts/testbot/README.md` for details.
 
 ### Tests
 

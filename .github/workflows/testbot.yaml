@@ -14,13 +14,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Testbot: analyzes coverage gaps, generates tests via Claude Code,
-# validates them, and opens a PR for human review. Runs hourly on weekdays.
+# Generate, review, and verify tests before publication.
 name: Testbot
 
 on:
   schedule:
-    - cron: '0 * * * 1-5'  # Weekdays hourly
+    - cron: '0 */2 * * 1-5'  # Every two hours on weekdays
   workflow_dispatch:
     inputs:
       max_targets:
@@ -30,16 +29,11 @@ on:
         description: 'Max uncovered lines per target (0 = no cap)'
         default: '500'
       max_turns:
-        description: 'Max Claude Code agent turns'
-        # Matches the schedule-trigger fallback below. Scales with
-        # max_targets — the generator runs the full read/write/verify
-        # loop per target, and runs/26536045087 hit max_turns at 101/100
-        # on a single target after Claude's context auto-compacted,
-        # wiping most of the exploration state mid-run.
+        description: 'Max generation agent turns'
         default: '400'
       timeout_minutes:
-        description: 'Workflow timeout in minutes'
-        default: '60'
+        description: 'Maximum minutes for each pipeline job'
+        default: '75'
       model:
         description: 'LLM model name on NVIDIA gateway'
         default: 'aws/anthropic/bedrock-claude-opus-5'
@@ -51,28 +45,29 @@ on:
         description: 'Slack channel for review request (empty = no notification)'
         default: '#osmo-code-reviews'
       force_run:
-        description: 'Bypass the open-PR preflight (useful when testing workflow changes from a branch)'
+        description: 'Bypass the open-PR preflight'
         type: boolean
         default: false
       force_create_pr:
-        description: 'Bypass create_pr.py has_unapproved_testbot_pr check (useful for branch verification when an unapproved testbot PR already exists)'
+        description: 'Allow publication while another testbot PR awaits review'
         type: boolean
         default: false
       skip_slack:
-        description: 'Skip the Slack review request even when the channel/token are configured (useful for ad-hoc dispatches)'
+        description: 'Skip the Slack review request'
         type: boolean
         default: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: testbot
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   preflight:
+    name: Preflight
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.open-testbot-prs.outputs.should_run }}
@@ -81,9 +76,6 @@ jobs:
         id: open-testbot-prs
         run: |
           set -euo pipefail
-          # workflow_dispatch force_run bypass — useful when verifying
-          # testbot changes from a feature branch without waiting for
-          # all open ai-generated PRs to be approved/merged.
           if [[ "$FORCE_RUN" == "true" ]]; then
             echo "force_run=true; bypassing open-PR preflight check."
             echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -115,108 +107,54 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           FORCE_RUN: ${{ inputs.force_run || 'false' }}
 
-  generate-tests:
+  select-targets:
+    name: Pick targets
     needs: preflight
     if: needs.preflight.outputs.should_run == 'true'
     environment: nim-env
-    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '60') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      has_targets: ${{ steps.pick-targets.outputs.has_targets }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
           fetch-depth: 0
-          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          persist-credentials: false
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Set up runtimes and check reviewer sandbox early
+        uses: ./.github/actions/testbot-setup
         with:
-          python-version: '3.14.7'
+          reviewer-sandbox: 'true'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          package_json_file: src/ui/package.json
-
-      - name: Install UI dependencies
-        working-directory: src/ui
-        run: pnpm install --frozen-lockfile
-
-      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
-      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
-      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
-      # Install bazelisk directly from the asset URL to bypass the broken path.
-      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
-      # so we pin the SHA256 we observed and verify before sudo-installing.
-      - name: Install Bazelisk
-        env:
-          BAZELISK_VERSION: v1.27.0
-          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
-            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
-          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
-          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
-          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
-        with:
-          bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
-          repository-cache: true
-          external-cache: |
-            manifest:
-              osmo_python_deps: src/locked_requirements.txt
-              osmo_tests_python_deps: src/tests/locked_requirements.txt
-              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
-              pylint_python_deps: bzl/linting/locked_requirements.txt
-              io_bazel_rules_go: src/runtime/go.mod
-              bazel_gazelle: src/runtime/go.sum
-
-      - name: Configure git
-        run: |
-          git config user.name "testbot[bot]"
-          git config user.email "testbot[bot]@users.noreply.github.com"
-
-      # Two-stage target selection: a heuristic scorer narrows the candidate
-      # pool to ~20 critical-but-undertested files (using fan-in, churn, and
-      # path-tier signals), then a small Claude subagent reads each candidate
-      # and picks the 1-3 best test targets by ROI.
       - name: Score criticality (Stage 1)
         run: |
-          # PYTHONPATH=. so the namespace-package import
-          # `from src.scripts.testbot.coverage_targets import ...` resolves.
-          # criticality_scorer logs the ranked shortlist itself; we just
-          # dump the JSON in a foldable group so reviewers can see the full
-          # per-signal breakdown when debugging a pick.
+          mkdir -p "$RUNNER_TEMP/testbot-targets"
           PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
             --shortlist-size 20 \
             --max-uncovered ${{ inputs.max_uncovered || '500' }} \
-            --output "$RUNNER_TEMP/shortlist.json"
+            --output "$RUNNER_TEMP/testbot-targets/shortlist.json"
           echo "::group::Shortlist JSON (full per-signal breakdown)"
-          cat "$RUNNER_TEMP/shortlist.json"
+          cat "$RUNNER_TEMP/testbot-targets/shortlist.json"
           echo "::endgroup::"
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Pick targets via subagent (Stage 2)
+        id: pick-targets
         run: |
           PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
-            --shortlist "$RUNNER_TEMP/shortlist.json" \
+            --shortlist "$RUNNER_TEMP/testbot-targets/shortlist.json" \
             --max-targets ${{ inputs.max_targets || '3' }} \
-            --output "$RUNNER_TEMP/targets.txt" \
-            --meta-output "$RUNNER_TEMP/targets_meta.json"
+            --output "$RUNNER_TEMP/testbot-targets/targets.txt" \
+            --meta-output "$RUNNER_TEMP/testbot-targets/targets_meta.json"
           echo "::group::Selected targets"
-          cat "$RUNNER_TEMP/targets.txt"
+          cat "$RUNNER_TEMP/testbot-targets/targets.txt"
           echo "::endgroup::"
+          jq -r '"has_targets=\(length > 0)"' "$RUNNER_TEMP/testbot-targets/targets_meta.json" >> "$GITHUB_OUTPUT"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
@@ -224,219 +162,225 @@ jobs:
           DISABLE_PROMPT_CACHING: "1"
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      - name: Generate tests
+      - name: Summarize selection
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
         run: |
-          # Validate workflow_dispatch input before splicing it into the
-          # shell command (defense in depth — the input is interpolated
-          # by GitHub Actions, not the shell, so quoting alone isn't enough).
-          if ! [[ "$MAX_TURNS" =~ ^[0-9]+$ ]]; then
-            echo "max_turns must be a non-negative integer, got: $MAX_TURNS" >&2
-            exit 2
-          fi
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot-targets" --stage selection \
+            --outcome "$JOB_OUTCOME"
 
-          TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          # Include the rules inline rather than pointing at them.
-          PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
+      - name: Preserve targets diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-targets-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot-targets/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 14
 
-          $(cat src/scripts/testbot/TESTBOT_RULES.md)
+  generate-tests:
+    name: Generate tests
+    needs: select-targets
+    if: needs.select-targets.outputs.has_targets == 'true'
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          persist-credentials: false
 
-          Coverage targets:
-          $TARGETS"
-          STREAM_LOG="$RUNNER_TEMP/claude-stream.jsonl"
+      - name: Set up build tools
+        uses: ./.github/actions/testbot-setup
+        with:
+          build-tools: 'true'
 
-          # Stream every turn and tool use into a foldable group so the
-          # diagnostics summary stays visible by default; the verbose
-          # stream is one click away. We disable -e so the diagnostics
-          # block runs even when Claude exits non-zero.
+      - name: Download targets handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-targets-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot-targets
+
+      - name: Generate tests with recovery
+        run: |
+          stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          echo "::stop-commands::$stop_token"
           set +e
-          echo "::group::Claude Code stream (click to expand turn-by-turn log)"
-          npx @anthropic-ai/claude-code@2.1.116 --print \
-            --model "$ANTHROPIC_MODEL" \
-            --output-format stream-json --verbose \
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(bazel coverage *),Bash(bazel query *),Bash(python *),Bash(python3 *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
-            --max-turns "$MAX_TURNS" \
-            "$PROMPT" | tee "$STREAM_LOG"
-          # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
-          # Claude failures as success.
-          status=${PIPESTATUS[0]}
-          echo "::endgroup::"
-
-          # Wrap untrusted Claude result text in ::stop-commands:: so it can't
-          # inject workflow commands (::warning::, ::add-mask::, etc.).
-          STOP_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
-          echo "::group::Claude Code diagnostics"
-          echo "::stop-commands::$STOP_TOKEN"
-          python3 - "$STREAM_LOG" "$status" <<'PY'
-          import json, sys
-          path, status = sys.argv[1], sys.argv[2]
-          # Result message is the final stream-json event; iterate in reverse
-          # and stop at the first match instead of parsing every assistant
-          # turn and tool-use line.
-          final = None
-          with open(path) as f:
-              for line in reversed(f.readlines()):
-                  line = line.strip()
-                  if not line:
-                      continue
-                  try:
-                      msg = json.loads(line)
-                  except json.JSONDecodeError:
-                      continue
-                  if msg.get("type") == "result":
-                      final = msg
-                      break
-          print(f"exit_status: {status}")
-          if final is None:
-              print("no final result message captured")
-              sys.exit(0)
-          for key in ("subtype", "is_error", "num_turns", "duration_ms",
-                      "duration_api_ms", "total_cost_usd"):
-              if key in final:
-                  print(f"{key}: {final[key]}")
-          result = final.get("result")
-          if isinstance(result, str) and result:
-              # Save the full generator summary so create_pr.py can
-              # embed it in the PR body — reviewers see the same
-              # "what I did / what's still uncovered / files changed"
-              # block the LLM produced, not just the workflow log.
-              import os
-              summary_path = os.path.join(
-                  os.environ["RUNNER_TEMP"], "generate_summary.md"
-              )
-              with open(summary_path, "w", encoding="utf-8") as out:
-                  out.write(result)
-              print("result:")
-              print(result[:2000])
-          PY
-          echo "::$STOP_TOKEN::"
-          echo "::endgroup::"
-          exit $status
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage generate --artifacts "$RUNNER_TEMP/testbot" \
+            --targets-meta "$RUNNER_TEMP/testbot-targets/targets_meta.json" \
+            --max-turns "$MAX_TURNS"
+          status=$?
+          echo "::$stop_token::"
+          exit "$status"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-5' }}
           MAX_TURNS: ${{ inputs.max_turns || '400' }}
-          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
-          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
+          DISABLE_PROMPT_CACHING: "1"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
-      # Independently measure how many of the picker's listed uncovered
-      # lines were actually exercised by the new tests, then attach the
-      # report to the PR. The generator is expected to have already
-      # self-iterated against this same script (see TESTBOT_PROMPT.md);
-      # this step gives the human reviewer the same numbers and acts as
-      # the source of truth in case the LLM skipped the loop.
-      # Fail-soft: a non-zero exit here would block PR creation, so we
-      # log and continue — the PR body will note the missing report.
-      # always() so the verifier still runs when Generate fails (e.g.,
-      # max_turns hit, transient API error). Even partial test files
-      # produce a useful coverage number for the workflow log —
-      # diagnosing run/26536045087 was harder than it needed to be
-      # because this step was skipped. Create PR stays gated on
-      # success so half-written tests don't open a PR.
-      - name: Verify coverage
-        if: always() && inputs.dry_run != true
-        continue-on-error: true
+      - name: Summarize generation
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
         run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage generation \
+            --outcome "$JOB_OUTCOME"
+
+      - name: Preserve generation diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-generation-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 14
+
+  review-tests:
+    name: Review, repair, and verify
+    needs: generate-tests
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '75') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up build tools and reviewer sandbox
+        uses: ./.github/actions/testbot-setup
+        with:
+          build-tools: 'true'
+          reviewer-sandbox: 'true'
+
+      - name: Download generation handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-generation-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot
+
+      - name: Review, repair, and verify
+        run: |
+          stop_token=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          echo "::stop-commands::$stop_token"
           set +e
-          # bazel coverage prints the LCOV path on success; the
-          # combined_report=lcov setting in .bazelrc routes it to
-          # bazel-out/_coverage/_coverage_report.dat.
-          #
-          # Do NOT use --config=ci here. That config sets
-          # DOCKER_HOST=tcp://docker:2375 and TESTCONTAINERS_HOST_OVERRIDE=docker
-          # for the self-hosted DinD environment that coverage.yaml uses,
-          # but testbot.yaml runs on ubuntu-latest with the runner's
-          # local docker socket. With --config=ci, testcontainers-based
-          # integration tests fail to reach the daemon and produce zero
-          # DA hits — that's how PR #1058 ended up with the verifier
-          # reporting 0/97 while Codecov's later pr-checks run (which
-          # has DinD wired up properly) confirmed 93/97 hit.
-          # Scope to test targets in the directories the picker
-          # actually chose. `bazel coverage //...` ran 211 tests on
-          # run/26871947281 and took 10 minutes; the LLM's earlier
-          # in-Generate coverage call (scoped to the same package)
-          # produced the same numbers in 48 seconds. Same-directory
-          # patterns work across languages:
-          #   Go     src/utils/roles/user_role_sync.go  →  //src/utils/roles/...
-          #          (same-package roles_test + roles_integration_test)
-          #   Python src/utils/job/jobs.py             →  //src/utils/job/...
-          #          (picks up the tests/ subdir convention)
-          #   TS     src/ui/.../foo.ts                 →  //src/ui/.../...
-          patterns=$(python3 -c '
-          import json, os, sys
-          path = os.path.join(os.environ["RUNNER_TEMP"], "targets_meta.json")
-          try:
-              meta = json.load(open(path))
-          except (OSError, json.JSONDecodeError):
-              # fail-open to //... so a stale/missing meta still produces
-              # a (slower) report rather than skipping coverage entirely
-              print("//...")
-              sys.exit(0)
-          dirs = sorted({
-              entry["file_path"].rsplit("/", 1)[0]
-              for entry in meta
-              if isinstance(entry, dict) and entry.get("file_path") and "/" in entry["file_path"]
-          })
-          print(" ".join(f"//{d}/..." for d in dirs) if dirs else "//...")
-          ')
-          echo "::group::bazel coverage $patterns"
-          bazel coverage $patterns 2>&1 | tail -50
-          coverage_status=${PIPESTATUS[0]}
-          echo "::endgroup::"
-          echo "bazel coverage exit_status: $coverage_status"
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage review --artifacts "$RUNNER_TEMP/testbot"
+          status=$?
+          echo "::$stop_token::"
+          exit "$status"
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
 
-          PYTHONPATH=. python src/scripts/testbot/verify_coverage.py \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            --lcov bazel-out/_coverage/_coverage_report.dat \
-            --json-output "$RUNNER_TEMP/coverage_report.json" \
-            --markdown-output "$RUNNER_TEMP/coverage_report.md"
+      - name: Summarize review
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage review \
+            --outcome "$JOB_OUTCOME"
 
-          echo "::group::Coverage report (markdown)"
-          cat "$RUNNER_TEMP/coverage_report.md" || true
-          echo "::endgroup::"
+      - name: Preserve review diagnostics and changes
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve publication inputs
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: testbot-publication-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/testbot/final.patch
+            ${{ runner.temp }}/testbot/handoff.json
+            ${{ runner.temp }}/testbot/verified_changes.json
+            ${{ runner.temp }}/testbot/targets_meta.json
+            ${{ runner.temp }}/testbot/generate_summary.md
+            ${{ runner.temp }}/testbot/review_summary.md
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish PR or finish dry run
+    needs: review-tests
+    environment: nim-env
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          persist-credentials: false
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Set up publication runtime
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14.7'
+
+      - name: Download review handoff
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: testbot-publication-${{ github.run_id }}
+          path: ${{ runner.temp }}/testbot
+
+      - name: Restore and check the verified changes
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.pipeline \
+            --stage restore --artifacts "$RUNNER_TEMP/testbot"
 
       - name: Create PR
+        id: create-pr
         if: inputs.dry_run != true
         run: |
-          # Pass --coverage-report when the verify step produced one;
-          # missing report is non-fatal so the PR still opens.
-          coverage_flag=""
-          if [[ -s "$RUNNER_TEMP/coverage_report.json" ]]; then
-            coverage_flag="--coverage-report $RUNNER_TEMP/coverage_report.json"
-          fi
-          # --generate-summary is similarly fail-soft: when the file is
-          # missing (LLM produced no final result text), the PR body
-          # still renders without the section.
-          summary_flag=""
-          if [[ -s "$RUNNER_TEMP/generate_summary.md" ]]; then
-            summary_flag="--generate-summary $RUNNER_TEMP/generate_summary.md"
-          fi
-          PYTHONPATH=src/scripts python -m testbot.create_pr \
-            --targets-meta "$RUNNER_TEMP/targets_meta.json" \
-            $coverage_flag \
-            $summary_flag
+          git config user.name "testbot[bot]"
+          git config user.email "testbot[bot]@users.noreply.github.com"
+          gh auth setup-git --hostname github.com
+          PYTHONPATH=. python -m src.scripts.testbot.create_pr \
+            --targets-meta "$RUNNER_TEMP/testbot/targets_meta.json" \
+            --generate-summary "$RUNNER_TEMP/testbot/generate_summary.md" \
+            --review-summary "$RUNNER_TEMP/testbot/review_summary.md" \
+            --verified-changes "$RUNNER_TEMP/testbot/verified_changes.json"
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
-          # FORCE_CREATE_PR bypasses the create_pr.py script-level guard
-          # against stacking on top of an already-open ai-generated PR.
-          # Pairs with force_run (which bypasses the *job-level*
-          # preflight) for end-to-end branch verification when an
-          # unapproved testbot PR is already open.
           FORCE_CREATE_PR: ${{ inputs.force_create_pr || 'false' }}
-          # SKIP_SLACK uses the same env-var pattern as FORCE_CREATE_PR
-          # (script checks the string at runtime). The earlier YAML-
-          # expression form `inputs.skip_slack && '' || <secret>`
-          # didn't work because GHA expressions treat empty string as
-          # falsy: `'' || X` collapses to `X`, so the secret always
-          # reached create_pr.py. Run #26870328623 verified that
-          # failure mode — Slack still posted despite skip_slack=true.
+          # A flag avoids empty-string expressions falling back to the secret.
           SKIP_SLACK: ${{ inputs.skip_slack || 'false' }}
           TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN }}
-          # workflow_dispatch override wins when present. For schedule
-          # triggers inputs.slack_channel is null, so we fall back to
-          # the org/repo var. The literal #osmo-slack-test is the
-          # safety-net default for forks / dev repos where the var
-          # isn't set — prod has vars.TESTBOT_SLACK_CHANNEL configured
-          # to #osmo-code-reviews and the workflow_dispatch input
-          # default mirrors that.
+          # Only null uses defaults; an empty channel disables notification.
           TESTBOT_SLACK_CHANNEL: ${{ inputs.slack_channel == null && (vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test') || inputs.slack_channel }}
+
+      - name: Summarize publish
+        if: always()
+        env:
+          JOB_OUTCOME: ${{ job.status }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          TESTBOT_PR_URL: ${{ steps.create-pr.outputs.pr_url }}
+        run: |
+          PYTHONPATH=. python -m src.scripts.testbot.run_summary \
+            --artifacts "$RUNNER_TEMP/testbot" --stage publish \
+            --outcome "$JOB_OUTCOME" --dry-run "$DRY_RUN" --pr-url "$TESTBOT_PR_URL"

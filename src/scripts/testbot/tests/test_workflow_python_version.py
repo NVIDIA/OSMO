@@ -74,6 +74,7 @@ class TestWorkflowPythonVersion(unittest.TestCase):
         workflows = sorted(p for p in workflows_dir.iterdir() if p.suffix in {".yaml", ".yml"})
         self.assertTrue(workflows, f"No workflows found in {workflows_dir}")
 
+        workflows.append(self.root / ".github/actions/testbot-setup/action.yaml")
         mismatches: list[tuple[str, str]] = []
         for workflow in workflows:
             for match in _WORKFLOW_PYTHON_RE.finditer(workflow.read_text()):

@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Responds to /testbot commands in review comments on AI-generated PRs.
-# Delegates fixes to Claude Code CLI and posts inline replies.
+# Delegates fixes to the agent CLI and posts inline replies.
 name: Testbot - Respond to Reviews
 
 on:
@@ -39,7 +39,7 @@ jobs:
     if: >-
       contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
       github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 20
+    timeout-minutes: 40
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -97,18 +97,25 @@ jobs:
           git config user.name "testbot[bot]"
           git config user.email "testbot[bot]@users.noreply.github.com"
 
+      - name: Setup agent sandbox
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap apparmor-profiles apparmor-utils
+          if [[ ! -f /etc/apparmor.d/bwrap-userns-restrict ]]; then
+            sudo install -m 0644 \
+              /usr/share/apparmor/extra-profiles/bwrap-userns-restrict \
+              /etc/apparmor.d/bwrap-userns-restrict
+          fi
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+
       - name: Respond to review comments
         run: |
           PYTHONPATH=src/scripts python -m testbot.respond \
             --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot \
             --max-responses 10 \
-            --max-turns 200 \
-            --timeout 900 \
-            --model aws/anthropic/bedrock-claude-opus-5
+            --timeout 1800 \
+            --model azure/openai/gpt-6-astra
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
-          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
-          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
-          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY || secrets.NVIDIA_NIM_KEY }}
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
