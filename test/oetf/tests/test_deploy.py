@@ -273,6 +273,22 @@ class TestKindAdapter(unittest.TestCase):
         self.assertNotIn("services.mcp.enabled=true", osmo_calls[0])
         self.assertNotIn("services.api.resources.limits.memory=1Gi", osmo_calls[0])
 
+    def test_helm_and_readiness_share_the_chart_timeout(self):
+        for unified, timeout in ((True, "140m"), (False, "25m")):
+            with self.subTest(unified=unified):
+                adapter, calls = self._adapter()
+                with unittest.mock.patch.object(
+                    adapter, "_retain_quick_start_chart", return_value="chart"
+                ):
+                    # pylint: disable-next=protected-access
+                    adapter._helm_install_chart("chart", unified=unified)
+                install = next(
+                    call for call in calls if call[:3] == ["helm", "upgrade", "--install"]
+                )
+                wait = next(call for call in calls if call[:2] == ["kubectl", "wait"])
+                self.assertEqual(install[install.index("--timeout") + 1], timeout)
+                self.assertIn(f"--timeout={timeout}", wait)
+
     def test_deploy_reuses_existing_cluster(self):
         # kind get clusters returns 'osmo' → no create call
         adapter, calls = self._adapter(capture_stdouts=["osmo\n", "", ""])
@@ -472,6 +488,8 @@ class TestKindAdapter(unittest.TestCase):
             cmds,
         )
         osmo_helm_args = cmds[osmo_install]
+        self.assertFalse(any(value.startswith("bootstrap.initializationId=")
+                             for value in osmo_helm_args))
         self.assertIn(
             "imageTag=ci-123",
             osmo_helm_args,
@@ -511,6 +529,10 @@ class TestKindAdapter(unittest.TestCase):
             capture_stdouts=[""],  # `kind get clusters` returns empty: cluster missing
         )
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
+        installation = next(command for command in calls
+                            if command[:4] == ["helm", "upgrade", "--install", "osmo"])
+        self.assertTrue(any(value.startswith("bootstrap.initializationId=oetf-")
+                            for value in installation))
         rollout_calls = [c for c in calls if c[:3] == ["kubectl", "rollout", "restart"]]
         self.assertEqual(
             rollout_calls, [],

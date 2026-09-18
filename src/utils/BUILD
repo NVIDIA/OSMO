@@ -39,6 +39,27 @@ go_library(
 ################################################################
 
 osmo_py_library(
+    name = "bootstrap_lib",
+    srcs = ["bootstrap.py"],
+    deps = [requirement("kubernetes")],
+    visibility = ["//visibility:public"],
+)
+
+osmo_python_wrapper(
+    name = "bootstrap_wrapper",
+    bin_name = "osmo-bootstrap",
+    main = None,
+    module = "src.utils.bootstrap",
+    runfiles_dir = "/src/service/core/service_binary.runfiles",
+)
+
+alias(
+    name = "bootstrap_wrapper_public",
+    actual = ":bootstrap_wrapper",
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "static_config",
     srcs = [
         "static_config.py",
@@ -119,6 +140,7 @@ osmo_py_library(
     name = "internal_tls_bootstrap_lib",
     srcs = ["internal_tls_bootstrap.py"],
     deps = [
+        "//src/utils:bootstrap_lib",
         requirement("cryptography"),
         requirement("kubernetes"),
     ],
@@ -129,6 +151,7 @@ osmo_py_library(
     name = "identity_bootstrap_lib",
     srcs = ["identity_bootstrap.py"],
     deps = [
+        "//src/utils:bootstrap_lib",
         requirement("bcrypt"),
         requirement("kubernetes"),
     ],

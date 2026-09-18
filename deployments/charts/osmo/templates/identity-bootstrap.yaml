@@ -4,20 +4,14 @@
 {{- $embeddedDex := eq .Values.authentication.provider "embeddedDex" -}}
 {{- $mcpEmbeddedDex := eq (include "osmo.mcp.embeddedDex" .) "true" -}}
 {{- $passwords := list -}}
-{{- $managedTokens := list -}}
 {{- range $identityID, $identity := .Values.authentication.bootstrap.identities -}}
 {{- if $identity.enabled -}}
 {{- if and $embeddedDex (dig "enabled" false ($identity.dex | default dict)) -}}
 {{- $passwords = append $passwords (dict "identityID" $identityID "secretName" (include "osmo.bootstrap.dexPasswordSecretName" $identityID) "hashEnvironment" (include "osmo.bootstrap.dexHashEnvironmentName" $identityID)) -}}
 {{- end -}}
-{{- range $tokenName, $token := $identity.tokens -}}
-{{- if hasKey $token "managedSecret" -}}
-{{- $managedTokens = append $managedTokens (dict "identityID" $identityID "tokenName" $tokenName "secretName" $token.managedSecret.name) -}}
 {{- end -}}
 {{- end -}}
-{{- end -}}
-{{- end -}}
-{{- if or $embeddedDex $managedTokens -}}
+{{- if $embeddedDex -}}
 {{- $bootstrap := .Values.authentication.bootstrap -}}
 {{- $name := printf "%s-identity-bootstrap" (include "osmo.fullname" .) | trunc 58 | trimSuffix "-" -}}
 {{- $resourceHooks := dict "helm.sh/hook" "pre-install,pre-upgrade,post-install,post-upgrade" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded,hook-failed" -}}
@@ -51,9 +45,6 @@ rules:
   resources: ["secrets"]
   resourceNames:
   {{- range $passwords }}
-  - {{ .secretName | quote }}
-  {{- end }}
-  {{- range $managedTokens }}
   - {{ .secretName | quote }}
   {{- end }}
   {{- if $embeddedDex }}
@@ -143,10 +134,6 @@ spec:
         {{- range $passwords }}
         - --password
         - {{ printf "%s=%s=%s" .identityID .secretName .hashEnvironment | quote }}
-        {{- end }}
-        {{- range $managedTokens }}
-        - --token
-        - {{ printf "%s/%s=%s" .identityID .tokenName .secretName | quote }}
         {{- end }}
         {{- if $embeddedDex }}
         - --oauth-secret-name

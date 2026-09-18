@@ -26,8 +26,8 @@ Configured local users:
 {{- end }}
 
 Generated credential Secrets are retained across Helm upgrades and uninstall.
-To rotate one credential, delete only its named Secret and run the next Helm or
-GitOps reconciliation. Do not place decoded values in shell history or logs.
+Recorded credential loss fails closed. Follow the chart recovery/rotation guidance;
+deleting a retained Secret does not request rotation. Do not place decoded values in shell history or logs.
 
 {{- else }}
 

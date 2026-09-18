@@ -28,6 +28,8 @@ bootstrap_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/object-storage-bootstrap.XXXXXX")
 trap 'rm -rf "$bootstrap_tmpdir"' EXIT HUP INT TERM
 AWS_CONFIG_FILE="$bootstrap_tmpdir/config"
 export AWS_CONFIG_FILE
+export AWS_MAX_ATTEMPTS=1
+export AWS_RETRY_MODE=standard
 
 cat >"$AWS_CONFIG_FILE" <<'EOF'
 [default]
@@ -37,6 +39,7 @@ EOF
 
 attempt=1
 while ! existing_buckets=$(aws s3api list-buckets \
+    --cli-connect-timeout 5 --cli-read-timeout 10 \
     --query 'Buckets[].Name' --output text 2>/dev/null); do
     if [ "$attempt" -ge "$attempts" ]; then
         echo "object storage endpoint was not ready after $attempts attempts" >&2
@@ -69,5 +72,5 @@ $bucket
     if [ "$bucket_exists" = true ]; then
         continue
     fi
-    aws s3api create-bucket --bucket "$bucket"
+    aws s3api create-bucket --bucket "$bucket" --cli-connect-timeout 5 --cli-read-timeout 10
 done

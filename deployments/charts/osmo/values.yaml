@@ -210,6 +210,9 @@ authentication:
   # Bootstrap identities are keyed maps so values overlays can append users,
   # backend operators, and credentials without replacing chart defaults.
   bootstrap:
+    # Normalize supported legacy token ownership before OSMO bootstrap inventories it.
+    tokenMigration:
+      enabled: true
     activeDeadlineSeconds: 300
     resources:
       requests:
@@ -2223,3 +2226,22 @@ rustfs:
   storageclass:
     name: ""
     dataStorageSize: 1Gi
+
+# One ordinary Job sequences only enabled bootstrap operations.
+bootstrap:
+  # Explicit authorization for a new installation with missing protected credentials.
+  # Use a unique non-secret ID and remove it after successful initialization.
+  initializationId: ""
+  attempt: ""
+  coordinatorActiveDeadlineSeconds: 300
+  storageActiveDeadlineSeconds: 600
+  # Null inherits compatible existing scheduling. Set explicitly to resolve conflicts.
+  nodeSelector: null
+  tolerations: null
+  affinity: null
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

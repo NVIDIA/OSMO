@@ -88,10 +88,18 @@ The chart always mounts a stable Kubernetes Secret when internal TLS is on.
 {{- end }}
 {{- end }}
 
+{{- define "osmo.gateway.generatedTlsSecretName" -}}
+{{- $fullname := include "osmo.fullname" .root -}}
+{{- $name := printf "%s%s" $fullname .suffix -}}
+{{- if gt (len $name) 63 -}}
+{{- printf "%s-%s%s" ($fullname | trunc (int (sub 63 (add 9 (len .suffix)))) | trimSuffix "-") ($fullname | sha256sum | trunc 8) .suffix -}}
+{{- else -}}{{- $name -}}{{- end -}}
+{{- end -}}
+
 {{- define "osmo.gateway.tlsLeafSecretName" -}}
 {{- include "osmo.gateway.tlsNormalize" .root -}}
 {{- if .root.Values.gateway.tls.generated.enabled -}}
-{{- printf "%s-internal-tls-%s" (include "osmo.fullname" .root) .component | trunc 63 | trimSuffix "-" -}}
+{{- include "osmo.gateway.generatedTlsSecretName" (dict "root" .root "suffix" (printf "-internal-tls-%s" .component)) -}}
 {{- else -}}
 {{- required (printf "gateway.tls.upstreamCerts.%s is required when generated TLS is disabled" .component) (index .root.Values.gateway.tls.upstreamCerts .component) -}}
 {{- end -}}
@@ -100,7 +108,7 @@ The chart always mounts a stable Kubernetes Secret when internal TLS is on.
 {{- define "osmo.gateway.tlsTrustSecretName" -}}
 {{- include "osmo.gateway.tlsNormalize" . -}}
 {{- if .Values.gateway.tls.generated.enabled -}}
-{{- printf "%s-internal-tls-trust" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- include "osmo.gateway.generatedTlsSecretName" (dict "root" . "suffix" "-internal-tls-trust") -}}
 {{- else -}}
 {{- required "gateway.tls.caSecret is required when generated TLS is disabled" .Values.gateway.tls.caSecret -}}
 {{- end -}}

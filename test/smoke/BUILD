@@ -73,8 +73,28 @@ oetf_smoke_test(
     name = "oauth-cookie-kind",
     src = "oauth_cookie_kind.py",
     data = ["//deployments/charts:osmo"],
-    extra_deps = [requirement("cryptography")],
+    extra_deps = [requirement("cryptography"), "//test/oetf:embedded_auth"],
     size = "large",
     tags = ["auth", "kind"],
     timeout = "long",
+)
+
+oetf_smoke_test(
+    name = "bootstrap_lifecycle_kind",
+    src = "bootstrap_lifecycle_kind.py",
+    data = ["//deployments/charts:osmo"],
+    extra_deps = [
+        "//test/oetf:cluster_fixture",
+        "//test/oetf:embedded_auth",
+        requirement("pyyaml"),
+    ],
+    size = "enormous",
+    tags = ["bootstrap-kind", "bootstrap-lifecycle"],
+    timeout = "eternal",
+)
+
+# Match OETF's filename-to-target convention while retaining the documented target.
+alias(
+    name = "bootstrap-lifecycle-kind",
+    actual = ":bootstrap_lifecycle_kind",
 )

@@ -19,7 +19,9 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import copy
 import datetime
+import json
 from types import SimpleNamespace
+from typing import Any
 import unittest
 from unittest import mock
 
@@ -490,6 +492,102 @@ class InternalTlsBootstrapTest(unittest.TestCase):
             )
 
 
+    def test_initial_ca_survives_crash_before_derived_publication(self) -> None:
+        self.api.secrets.clear()
+        self.api.fail_next_replace.add('ca')
+        with self.assertRaises(internal_tls_bootstrap.BootstrapError):
+            self.reconcile()
+        issued = copy.deepcopy(self.api.secrets['ca'].data)
+        self.assertTrue(issued['ca.crt'])
+        self.assertTrue(issued['ca.key'])
+        self.reconcile()
+        self.assertEqual(issued['ca.crt'], self.api.secrets['ca'].data['ca.crt'])
+        self.assertEqual(issued['ca.key'], self.api.secrets['ca'].data['ca.key'])
+
+    def test_rotation_receipt_requires_current_trust_and_leaf_files(self) -> None:
+        self.reconcile()
+        old_trust = copy.deepcopy(self.api.secrets['trust'].data)
+        self.reconcile(phase='prepare', rotation_id='rotation-1')
+        current_trust = copy.deepcopy(self.api.secrets['trust'].data)
+        api = mock.Mock()
+        api.read_namespaced_secret.side_effect = self.api.read_namespaced_secret
+        api.read_namespaced_config_map.side_effect = kubernetes_exceptions.ApiException(status=404)
+        arguments: dict[str, Any] = {
+            'namespace': 'osmo', 'release_name': 'test', 'record_name': 'tls-record',
+            'ca_secret_name': 'ca', 'trust_secret_name': 'trust',
+            'leaves': [internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+            'rotation_id': 'rotation-1', 'phase': 'prepare',
+        }
+        self.api.secrets['trust'].data = old_trust
+        with self.assertRaisesRegex(internal_tls_bootstrap.BootstrapError, 'trust bundle'):
+            internal_tls_bootstrap.publish_rotation_snapshot(api, **arguments)
+        api.create_namespaced_config_map.assert_not_called()
+        self.api.secrets['trust'].data = current_trust
+        internal_tls_bootstrap.publish_rotation_snapshot(api, **arguments)
+        state = json.loads(api.create_namespaced_config_map.call_args.args[1].data['state.json'])
+        self.assertEqual(state['phase'], 'prepare')
+        self.assertEqual(set(state['files']), {'trust', 'leaf'})
+        self.assertNotIn('ca', state['files'])
+
+    def test_rotation_snapshot_rejects_ca_change_during_validation(self) -> None:
+        self.reconcile()
+        self.reconcile(phase='prepare', rotation_id='rotation-1')
+        api = mock.Mock()
+        api.read_namespaced_config_map.side_effect = kubernetes_exceptions.ApiException(status=404)
+        reads = 0
+
+        def read_secret(name: str, namespace: str) -> kubernetes_client.V1Secret:
+            nonlocal reads
+            if name == 'ca':
+                reads += 1
+                if reads == 2:
+                    self.reconcile(phase='activate', rotation_id='rotation-1')
+            return self.api.read_namespaced_secret(name, namespace)
+
+        api.read_namespaced_secret.side_effect = read_secret
+        with self.assertRaisesRegex(internal_tls_bootstrap.BootstrapError, 'phase changed'):
+            internal_tls_bootstrap.publish_rotation_snapshot(api, namespace='osmo',
+                release_name='test', record_name='tls-record', ca_secret_name='ca',
+                trust_secret_name='trust',
+                leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+                rotation_id='rotation-1', phase='prepare')
+        api.create_namespaced_config_map.assert_not_called()
+        api.replace_namespaced_config_map.assert_not_called()
+
+    def test_delayed_rotation_publisher_cannot_overwrite_newer_receipt(self) -> None:
+        self.reconcile()
+        self.reconcile(phase='prepare', rotation_id='rotation-1')
+        api = mock.Mock()
+        receipt = kubernetes_client.V1ConfigMap(metadata=kubernetes_client.V1ObjectMeta(
+            resource_version='1', labels={'app.kubernetes.io/managed-by':
+                'osmo-internal-tls-bootstrap', 'app.kubernetes.io/instance': 'test'}))
+        api.read_namespaced_config_map.side_effect = lambda *_: copy.deepcopy(receipt)
+
+        def read_secret(name: str, namespace: str) -> kubernetes_client.V1Secret:
+            # A different publisher commits after this publisher observes the receipt.
+            if name == 'trust':
+                receipt.metadata.resource_version = '2'
+            return self.api.read_namespaced_secret(name, namespace)
+
+        def replace_receipt(name: str, namespace: str,
+                            body: kubernetes_client.V1ConfigMap) -> None:
+            del name, namespace
+            if body.metadata.resource_version != receipt.metadata.resource_version:
+                raise kubernetes_exceptions.ApiException(status=409)
+            self.fail('Delayed publisher overwrote a newer receipt')
+
+        api.read_namespaced_secret.side_effect = read_secret
+        api.replace_namespaced_config_map.side_effect = replace_receipt
+        with self.assertRaises(kubernetes_exceptions.ApiException) as error:
+            internal_tls_bootstrap.publish_rotation_snapshot(api, namespace='osmo',
+                release_name='test', record_name='tls-record', ca_secret_name='ca',
+                trust_secret_name='trust',
+                leaves=[internal_tls_bootstrap.LeafSpec('leaf', 'osmo-api')],
+                rotation_id='rotation-1', phase='prepare')
+        self.assertEqual(error.exception.status, 409)
+        api.read_namespaced_config_map.assert_called_once()
+
+
 class RolloutVerificationTest(unittest.TestCase):
     def setUp(self) -> None:
         self.annotation = 'ca-2026-09:prepare'
@@ -521,7 +619,7 @@ class RolloutVerificationTest(unittest.TestCase):
             for _ in range(2)
         ]
 
-    def verify(self, *, hpas: list[object] | None = None) -> None:
+    def verify(self, *, hpas: list[object] | None = None, snapshot_phase: str = '') -> None:
         core_api = SimpleNamespace(
             list_namespaced_pod=lambda **_kwargs: SimpleNamespace(items=self.pods)
         )
@@ -540,10 +638,24 @@ class RolloutVerificationTest(unittest.TestCase):
             namespace='osmo',
             deployment_names=['osmo-api'],
             allowed_annotations={self.annotation},
+            snapshot_phase=snapshot_phase,
         )
 
     def test_accepts_one_complete_frozen_generation(self) -> None:
         self.verify()
+
+    def test_phase_annotations_cannot_replace_verified_snapshot_startup(self) -> None:
+        for pod in self.pods:
+            pod.spec = SimpleNamespace(init_containers=[])
+            pod.status.init_container_statuses = []
+        with self.assertRaisesRegex(internal_tls_bootstrap.BootstrapError, 'snapshot files'):
+            self.verify(snapshot_phase=self.annotation)
+        for pod in self.pods:
+            pod.spec.init_containers = [SimpleNamespace(name='bootstrap-credentials', env=[
+                SimpleNamespace(name='OSMO_BOOTSTRAP_TLS_PHASE', value=self.annotation)])]
+            pod.status.init_container_statuses = [SimpleNamespace(name='bootstrap-credentials',
+                state=SimpleNamespace(terminated=SimpleNamespace(exit_code=0)))]
+        self.verify(snapshot_phase=self.annotation)
 
     def test_rejects_a_partial_rollout(self) -> None:
         self.deployment.status.updated_replicas = 1

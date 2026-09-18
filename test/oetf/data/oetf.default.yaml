@@ -56,3 +56,15 @@ environments:
     pool: default
     # Source builds enable MCP; keep the separate auth lifecycle suite opt-in.
     exclude_tags: [auth]
+
+  # Cluster lifecycle tests authenticate each isolated release after install.
+  bootstrap-kind:
+    url: http://127.0.0.1
+    auth:
+      strategy: dev
+      username: bootstrap-test
+    type: kind
+    allow_deploy: false
+    cluster_name: osmo-bootstrap
+    mode: cpu
+    pool: default

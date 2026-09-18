@@ -24,7 +24,7 @@
 {{- fail "disable secrets.masterEncryptionKey.bootstrap.enabled before requesting a rotation phase" -}}
 {{- end -}}
 
-{{- if or $mek.bootstrap.enabled $operation }}
+{{- if $operation }}
 {{- $secretName = required "secrets.masterEncryptionKey.existingSecret.name is required" $secretName }}
 {{- $secretKey = required "secrets.masterEncryptionKey.existingSecret.key is required" $secretKey }}
 {{- $leaseHash := printf "%s/%s:%s" .Release.Namespace .Release.Name $secretName | sha256sum | trunc 10 }}

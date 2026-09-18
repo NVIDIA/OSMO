@@ -261,7 +261,7 @@ def build_bazel_command(
         "--test_summary=terse",
         f"--build_event_json_file={bep_path}",
     ]
-    if args.env == "kind":
+    if args.env in ("kind", "bootstrap-kind"):
         # Bazel gives tests an isolated HOME, so kubectl cannot otherwise see
         # the kubeconfig created by the KIND deployment step.
         kubeconfig = os.environ.get("KUBECONFIG")
@@ -274,6 +274,13 @@ def build_bazel_command(
         helm_chart_path = os.environ.get("OETF_HELM_CHART_PATH")
         if helm_chart_path:
             cmd.append(f"--test_env=OETF_HELM_CHART_PATH={helm_chart_path}")
+    if args.env == "bootstrap-kind":
+        for name in ("OETF_BOOTSTRAP_IMAGE", "OETF_BOOTSTRAP_BASELINE_CHART",
+                     "OETF_BOOTSTRAP_BASELINE_IMAGE", "OETF_BOOTSTRAP_CLEANUP",
+                     "OETF_BOOTSTRAP_HELM",
+                     "OETF_BOOTSTRAP_WORKFLOW_IMAGES"):
+            if name in os.environ:
+                cmd.append(f"--test_env={name}")
     cmd.extend(test_args)
     cmd.extend(args.bazel_arg)
     return cmd
@@ -305,9 +312,9 @@ def _resolve_targets_via_query(
         tag_parts = tag_filter.split(",")
         # Keep only targets whose tags include ANY of the requested tags.
         # bazel query `attr` uses regex on the concatenated tag list.
-        tag_regex = "|".join(re.escape(tag) for tag in tag_parts)
+        tag_regex = _tag_query_regex(tag_parts)
         expr = (
-            f'attr(tags, "({tag_regex})", {tests_union}) '
+            f'attr(tags, "{tag_regex}", {tests_union}) '
             f'except ({pylint_union})'
         )
     else:
@@ -318,10 +325,10 @@ def _resolve_targets_via_query(
     if exclude_tags_arg:
         exclude_parts = [t.strip() for t in exclude_tags_arg.split(",") if t.strip()]
         if exclude_parts:
-            exclude_regex = "|".join(re.escape(t) for t in exclude_parts)
+            exclude_regex = _tag_query_regex(exclude_parts)
             expr = (
                 f'({expr}) '
-                f'except attr(tags, "({exclude_regex})", {tests_union})'
+                f'except attr(tags, "{exclude_regex}", {tests_union})'
             )
     output = subprocess.check_output(
         ["bazel", "query", expr, "--output=label"],
@@ -329,6 +336,12 @@ def _resolve_targets_via_query(
         cwd=_workspace_root(),
     )
     return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def _tag_query_regex(tags: List[str]) -> str:
+    """Match complete elements of Bazel's '[tag, other-tag]' attribute text."""
+    alternatives = "|".join(re.escape(tag) for tag in tags)
+    return rf"(^|\[|, )({alternatives})(,|\]|$)"
 
 
 def _resolve_tag_filter(tags_arg: str) -> str:

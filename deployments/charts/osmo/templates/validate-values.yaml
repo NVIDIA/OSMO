@@ -60,6 +60,9 @@
     .Values.embeddedDependencies.dex.enabled) -}}
 {{- fail "embedded dependencies require planes.control.enabled=true" -}}
 {{- end -}}
+{{- if and .Values.secrets.serviceAuth.bootstrap.enabled (not .Values.planes.control.enabled) -}}
+{{- fail "secrets.serviceAuth.bootstrap.enabled requires planes.control.enabled=true" -}}
+{{- end -}}
 {{- if and .Values.databaseMigration.enabled (not .Values.planes.control.enabled) -}}
 {{- fail "databaseMigration.enabled requires planes.control.enabled=true" -}}
 {{- end -}}

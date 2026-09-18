@@ -1073,5 +1073,263 @@ class IdentityBootstrapTest(unittest.TestCase):
         self.assertEqual([110, 70, 10], observed_timeouts)
 
 
+class TokenMigrationTest(unittest.TestCase):
+    """Migration changes supported ownership metadata, never credential data."""
+
+    def setUp(self) -> None:
+        self.api = mock.Mock()
+        self.values: dict[str, kubernetes_client.V1Secret] = {}
+        self.patches: list[str] = []
+        self.api.read_namespaced_secret.side_effect = self.read
+        self.api.patch_namespaced_secret.side_effect = self.patch
+
+    def add_secret(self, name='token', manager='osmo-backend-token-bootstrap'):
+        secret = kubernetes_client.V1Secret(
+            metadata=kubernetes_client.V1ObjectMeta(
+                name=name,
+                uid=f'{name}-uid',
+                resource_version='1',
+                labels={
+                    'app.kubernetes.io/instance': 'release',
+                    'app.kubernetes.io/managed-by': manager,
+                    'keep': 'label',
+                },
+                annotations={'keep': 'annotation'},
+                owner_references=[
+                    kubernetes_client.V1OwnerReference(
+                        api_version='v1',
+                        kind='ConfigMap',
+                        name='owner',
+                        uid='owner-uid',
+                    )
+                ],
+            ),
+            type='Opaque',
+            data={
+                key: base64.b64encode(value).decode()
+                for key, value in {
+                    'token': (name[0] * 43).encode(),
+                    'previous-token': b'z' * 43,
+                }.items()
+            },
+        )
+        self.values[name] = secret
+        return secret
+
+    def read(self, name, namespace):
+        del namespace
+        if name not in self.values:
+            raise kubernetes_exceptions.ApiException(status=404)
+        return copy.deepcopy(self.values[name])
+
+    def patch(self, name, namespace, body):
+        del namespace
+        secret = self.values[name]
+        self.assertEqual(
+            body[:2],
+            [
+                {'op': 'test', 'path': '/metadata/uid', 'value': secret.metadata.uid},
+                {
+                    'op': 'test',
+                    'path': '/metadata/resourceVersion',
+                    'value': secret.metadata.resource_version,
+                },
+            ],
+        )
+        self.assertEqual(
+            body[2:],
+            [
+                {
+                    'op': 'replace',
+                    'path': '/metadata/labels/app.kubernetes.io~1managed-by',
+                    'value': 'osmo-identity-bootstrap',
+                }
+            ],
+        )
+        self.patches.append(name)
+        secret.metadata.labels['app.kubernetes.io/managed-by'] = (
+            'osmo-identity-bootstrap'
+        )
+        secret.metadata.resource_version = str(
+            int(secret.metadata.resource_version) + 1
+        )
+        return copy.deepcopy(secret)
+
+    def migrate(self, *names):
+        identity_bootstrap.migrate_tokens(
+            self.api,
+            namespace='namespace',
+            release_name='release',
+            token_specs=tuple(
+                identity_bootstrap.TokenSpec(name, 'primary', name)
+                for name in (names or ('token',))
+            ),
+        )
+
+    def test_supported_legacy_managers_preserve_data_and_metadata(self):
+        for manager in ('osmo-backend-token-bootstrap', 'osmo-embedded-dex-bootstrap'):
+            with self.subTest(manager=manager):
+                original = copy.deepcopy(self.add_secret(manager=manager))
+                self.migrate()
+                original.metadata.labels['app.kubernetes.io/managed-by'] = (
+                    'osmo-identity-bootstrap'
+                )
+                original.metadata.resource_version = '2'
+                self.assertEqual(self.values['token'].to_dict(), original.to_dict())
+                self.api.create_namespaced_secret.assert_not_called()
+                self.api.replace_namespaced_secret.assert_not_called()
+
+    def test_absent_and_canonical_tokens_make_no_writes(self):
+        self.migrate()
+        self.add_secret(manager='osmo-identity-bootstrap')
+        self.migrate()
+        self.api.patch_namespaced_secret.assert_not_called()
+        self.api.create_namespaced_secret.assert_not_called()
+
+    def test_prevalidation_rejects_invalid_second_secret_before_any_write(self):
+        for invalid in ('foreign', 'manager', 'type', 'data'):
+            with self.subTest(invalid=invalid):
+                self.add_secret('alpha')
+                bad = self.add_secret('beta')
+                if invalid == 'foreign':
+                    bad.metadata.labels['app.kubernetes.io/instance'] = 'someone-else'
+                elif invalid == 'manager':
+                    bad.metadata.labels['app.kubernetes.io/managed-by'] = 'unrecognized'
+                elif invalid == 'type':
+                    bad.type = 'kubernetes.io/tls'
+                else:
+                    bad.data['token'] = 'not-base64'
+                before = copy.deepcopy(self.values)
+                with self.assertRaises(identity_bootstrap.BootstrapError):
+                    self.migrate('alpha', 'beta')
+                self.assertEqual(self.values, before)
+                self.api.patch_namespaced_secret.assert_not_called()
+
+    def test_conflict_rereads_and_revalidates_ownership(self):
+        self.add_secret()
+
+        def conflict(name, namespace, body):
+            del name, namespace, body
+            self.values['token'].metadata.labels['app.kubernetes.io/instance'] = (
+                'foreign'
+            )
+            raise kubernetes_exceptions.ApiException(status=409)
+
+        self.api.patch_namespaced_secret.side_effect = conflict
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'not owned'):
+            self.migrate()
+        self.assertEqual(self.api.patch_namespaced_secret.call_count, 1)
+
+    def test_conflicts_retry_with_current_version_and_are_bounded(self):
+        self.add_secret()
+
+        def conflict_once(name, namespace, body):
+            if self.api.patch_namespaced_secret.call_count == 1:
+                self.values[name].metadata.resource_version = '2'
+                raise kubernetes_exceptions.ApiException(status=409)
+            return self.patch(name, namespace, body)
+
+        self.api.patch_namespaced_secret.side_effect = conflict_once
+        self.migrate()
+        self.assertEqual(self.api.patch_namespaced_secret.call_count, 2)
+        self.assertEqual(self.values['token'].metadata.resource_version, '3')
+        self.add_secret()
+        self.api.patch_namespaced_secret.reset_mock()
+        self.api.patch_namespaced_secret.side_effect = (
+            kubernetes_exceptions.ApiException(status=422)
+        )
+        with self.assertRaisesRegex(
+            identity_bootstrap.BootstrapError, 'after concurrent updates'
+        ):
+            self.migrate()
+        self.assertEqual(self.api.patch_namespaced_secret.call_count, 5)
+
+    def test_main_migration_cannot_create_credentials_or_restart_dex(self):
+        arguments = [
+            '--namespace=namespace',
+            '--release-name=release',
+            '--migrate-tokens-only',
+            '--token=admin/primary=missing',
+        ]
+        with (
+            mock.patch.object(
+                identity_bootstrap.sys, 'argv', ['identity-bootstrap'] + arguments
+            ),
+            mock.patch.object(
+                identity_bootstrap.kubernetes_config, 'load_incluster_config'
+            ),
+            mock.patch.object(
+                identity_bootstrap.kubernetes_client, 'CoreV1Api', return_value=self.api
+            ),
+            mock.patch.object(identity_bootstrap, 'reconcile_identities') as reconcile,
+            mock.patch.object(identity_bootstrap, 'restart_pods_if_needed') as restart,
+        ):
+            identity_bootstrap.main()
+        self.api.read_namespaced_secret.assert_called_once()
+        self.api.create_namespaced_secret.assert_not_called()
+        self.api.patch_namespaced_secret.assert_not_called()
+        reconcile.assert_not_called()
+        restart.assert_not_called()
+
+    def test_conflict_cannot_migrate_a_replacement_secret(self):
+        self.add_secret()
+
+        def conflict(name, namespace, body):
+            del name, namespace, body
+            self.values['token'].metadata.uid = 'replacement'
+            raise kubernetes_exceptions.ApiException(status=422)
+
+        self.api.patch_namespaced_secret.side_effect = conflict
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'replaced'):
+            self.migrate()
+        self.assertEqual(self.api.patch_namespaced_secret.call_count, 1)
+
+    def test_partial_migration_retry_preserves_completed_secret(self):
+        self.add_secret('alpha')
+        self.add_secret('beta')
+        # Distinct previous tokens preserve the reconciler's uniqueness contract.
+        self.values['beta'].data.pop('previous-token')
+        before = {
+            name: copy.deepcopy(secret.data) for name, secret in self.values.items()
+        }
+
+        def interrupted(name, namespace, body):
+            if name == 'beta':
+                raise kubernetes_exceptions.ApiException(status=503)
+            return self.patch(name, namespace, body)
+
+        self.api.patch_namespaced_secret.side_effect = interrupted
+        with self.assertRaises(identity_bootstrap.BootstrapError):
+            self.migrate('alpha', 'beta')
+        self.api.patch_namespaced_secret.side_effect = self.patch
+        self.migrate('alpha', 'beta')
+        self.assertEqual(self.patches, ['alpha', 'beta'])
+        self.assertEqual(
+            {name: secret.data for name, secret in self.values.items()}, before
+        )
+
+    def test_migration_cli_rejects_creation_and_dex_options(self):
+        for option in (
+            '--allow-initial-generation',
+            '--password=id=secret=HASH',
+            '--oauth-secret-name=oauth',
+            '--dex-pod-selector=dex',
+            '--password-generation=2',
+            '--mcp-secret-name=osmo-embedded-dex-mcp',
+            '--mcp-pod-selector=app=mcp',
+        ):
+            with self.subTest(option=option), self.assertRaises(SystemExit):
+                # pylint: disable-next=protected-access
+                identity_bootstrap._parse_arguments(
+                    [
+                        '--namespace=namespace',
+                        '--release-name=release',
+                        '--migrate-tokens-only',
+                        '--token=admin/primary=token',
+                        option,
+                    ]
+                )
+
+
 if __name__ == '__main__':
     unittest.main()

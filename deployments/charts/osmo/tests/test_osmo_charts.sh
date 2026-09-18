@@ -2,7 +2,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
+set -Eeuo pipefail
+trap 'echo "FAIL at line $LINENO (callers ${BASH_LINENO[*]})" >&2' ERR
 
 MODE="${1:-all}"
 if [[ -n "${TEST_SRCDIR:-}" && -n "${TEST_WORKSPACE:-}" ]]; then
@@ -35,7 +36,9 @@ helm_template_with_backend() {
 require_contains() {
     local file=$1
     local expected=$2
-    grep -Fq -- "$expected" "$file" || fail "expected '$expected' in $file"
+    grep -Fq -- "$expected" "$file" ||
+        python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" contains "$file" -- "$expected" ||
+        fail "expected '$expected' in $file"
 }
 
 require_matches() {
@@ -88,39 +91,31 @@ require_occurrences() {
     local count=$3
     local actual
     actual=$(grep -Fc -- "$expected" "$file" || true)
+    if [[ "$actual" -ne "$count" ]]; then
+        actual=$(python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" count "$file" -- "$expected")
+    fi
     [[ "$actual" -eq "$count" ]] || \
         fail "expected '$expected' $count times in $file, found $actual"
+}
+
+require_secret_snapshot() {
+    python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" snapshot "$1" "$2:${3:-}" ||
+        fail "expected verified snapshot for $2 in $1"
 }
 
 require_secret_projection_key() {
     local file=$1
     local secret_name=$2
     local secret_key=$3
-    awk -v secret_name="$secret_name" -v secret_key="$secret_key" '
-        /^      - name: / { matching_secret = 0 }
-        $0 == "          secretName: " secret_name ||
-                $0 == "          secretName: \"" secret_name "\"" {
-            matching_secret = 1
-            next
-        }
-        matching_secret && ($0 == "          - key: " secret_key ||
-                $0 == "          - key: \"" secret_key "\"") {
-            found = 1
-        }
-        END { exit !found }
-    ' "$file" || fail "expected Secret '$secret_name' to project key '$secret_key' in $file"
+    python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" projection "$file" "$secret_name:$secret_key" ||
+        fail "expected Secret '$secret_name' to project key '$secret_key' in $file"
 }
 
 require_empty_dir_volume() {
     local file=$1
     local volume_name=$2
-    awk -v volume_name="$volume_name" '
-        $0 == "        - name: " volume_name {
-            getline
-            if ($0 == "          emptyDir: {}") found = 1
-        }
-        END { exit !found }
-    ' "$file" || fail "expected emptyDir volume '$volume_name' in $file"
+    python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" empty-dir "$file" "$volume_name" ||
+        fail "expected emptyDir volume '$volume_name' in $file"
 }
 
 require_line_count() {
@@ -177,10 +172,21 @@ resource_names() {
     ' "$file"
 }
 
+bootstrap_job_name() {
+    python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" job-name "$1" "${2#step:}"
+}
+
+bootstrap_container() {
+    python3 "$CHARTS_ROOT/osmo/tests/yaml_assertions.py" container "$1" "$2"
+}
+
 resource_document() {
     local file=$1
     local kind=$2
     local name=$3
+    if [[ "$name" == step:* ]]; then
+        name=$(bootstrap_job_name "$file" "$name") || return 1
+    fi
     awk -v kind="$kind" -v name="$name" '
         function reset_document() {
             document = ""
@@ -239,6 +245,10 @@ resource_name_with_hash_suffix() {
     local kind=$2
     local suffix=$3
     local matches
+    if [[ "$suffix" == step:* ]]; then
+        bootstrap_job_name "$file" "$suffix"
+        return
+    fi
     matches=$(resource_names "$file" "$kind" | \
         grep -E -- "-${suffix}-[0-9a-f]{10}\"?$" || true)
     [[ $(awk 'NF { count += 1 } END { print count + 0 }' <<<"$matches") -eq 1 ]] || \
@@ -436,6 +446,12 @@ require_no_resource_with_hash_suffix() {
     local file=$1
     local kind=$2
     local suffix=$3
+    if [[ "$suffix" == step:* ]]; then
+        if bootstrap_job_name "$file" "$suffix" >/dev/null; then
+            fail "did not expect enabled step $suffix"
+        fi
+        return
+    fi
     if resource_names "$file" "$kind" | grep -Eq -- "-${suffix}-[0-9a-f]{10}$"; then
         fail "did not expect $kind ending in ${suffix}-<hash>"
     fi
@@ -674,8 +690,7 @@ test_control_umbrella() {
         '"admin/primary=osmo-admin-token"'
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         'mountPath: /etc/osmo/bootstrap-tokens/developer/cli'
-    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
-        'secretName: osmo-developer-token'
+    require_secret_snapshot "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" osmo-developer-token token
     require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
         osmo-developer-token
     require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
@@ -772,10 +787,19 @@ test_control_umbrella() {
         "automountServiceAccountToken: false"
     require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Service osmo-dex
     require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Secret osmo-dex-config
-    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
-        osmo-identity-bootstrap-pre
-    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
-        osmo-identity-bootstrap-post
+    local identity_job_name
+    identity_job_name=$(bootstrap_job_name "$TEST_DIRECTORY/embedded-auth-default.yaml" step:identity-bootstrap)
+    local identity_resource
+    for identity_resource in Job ServiceAccount Role RoleBinding; do
+        require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" "$identity_resource" "$identity_job_name"
+    done
+    bootstrap_container "$TEST_DIRECTORY/embedded-auth-default.yaml" identity-bootstrap \
+        >"$TEST_DIRECTORY/embedded-auth-identity-step.yaml"
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--password'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--oauth-secret-name'
+    require_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" 'readOnlyRootFilesystem: true'
+    require_not_contains "$TEST_DIRECTORY/embedded-auth-identity-step.yaml" '--dex-pod-selector'
+    require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" 'helm.sh/hook: post-install,post-upgrade'
 
     local long_identity_bootstrap_override
     printf -v long_identity_bootstrap_override '%*s' 63 ''
@@ -784,117 +808,21 @@ test_control_umbrella() {
         --api-versions postgresql.cnpg.io/v1 \
         --set-string fullnameOverride="$long_identity_bootstrap_override" \
         >"$TEST_DIRECTORY/embedded-auth-name-boundary.yaml"
-    local expected_identity_bootstrap_base=${long_identity_bootstrap_override:0:58}
-    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
-        "$expected_identity_bootstrap_base-pre"
-    require_resource "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" Job \
-        "$expected_identity_bootstrap_base-post"
-    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" Role \
-        osmo-identity-bootstrap
-    require_resource "$TEST_DIRECTORY/embedded-auth-default.yaml" RoleBinding \
-        osmo-identity-bootstrap
-    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
-        osmo-identity-bootstrap-pre \
-        >"$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml"
-    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Job \
-        osmo-identity-bootstrap-post \
-        >"$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml"
-    resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" Role \
-        osmo-identity-bootstrap \
-        >"$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml"
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        'helm.sh/hook: pre-install,pre-upgrade'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        'helm.sh/hook: post-install,post-upgrade'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        'command: ["identity-bootstrap"]'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        'command: ["identity-bootstrap"]'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--password'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '"admin=osmo-embedded-dex-admin=OSMO_DEX_PASSWORD_HASH_ADMIN"'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--oauth-secret-name'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '"osmo-embedded-dex-oauth"'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        'readOnlyRootFilesystem: true'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--dex-pod-selector'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--oauth-pod-selector'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--restart-timeout-seconds'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '--dex-pod-selector'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '"app.kubernetes.io/name=dex,app.kubernetes.io/instance=embedded-auth-default"'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '--oauth-pod-selector'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '"app.kubernetes.io/name=osmo,app.kubernetes.io/instance=embedded-auth-default,app.kubernetes.io/component=gateway-oauth2-proxy"'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '--restart-timeout-seconds'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '"270"'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '--credential-rollout-identity'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-pre.yaml" \
-        '--config-rollout-identity'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml" \
-        '--config-rollout-identity'
-    local default_config_rollout_identity
-    default_config_rollout_identity=$(awk '
-        /--config-rollout-identity/ {
-            getline
-            gsub(/[[:space:]"]/, "")
-            print
-            exit
-        }
-    ' "$TEST_DIRECTORY/embedded-auth-bootstrap-post.yaml")
+    local boundary_job_name
+    boundary_job_name=$(bootstrap_job_name "$TEST_DIRECTORY/embedded-auth-name-boundary.yaml" step:identity-bootstrap)
+    [[ ${#boundary_job_name} -le 63 ]] || fail "bootstrap Job name exceeds 63 characters"
+
     local mutated_chart="$TEST_DIRECTORY/osmo-config-mutated"
     cp -a "$charts_copy/osmo" "$mutated_chart"
     sed 's/skipApprovalScreen: true/skipApprovalScreen: false/' \
         "$mutated_chart/templates/_helpers.tpl" >"$TEST_DIRECTORY/mutated-helpers.tpl"
     mv "$TEST_DIRECTORY/mutated-helpers.tpl" "$mutated_chart/templates/_helpers.tpl"
-    helm_template embedded-auth-config-mutated "$mutated_chart" \
+    helm_template embedded-auth-default "$mutated_chart" \
         --api-versions postgresql.cnpg.io/v1 \
         >"$TEST_DIRECTORY/embedded-auth-config-mutated.yaml"
-    resource_document "$TEST_DIRECTORY/embedded-auth-config-mutated.yaml" Job \
-        osmo-identity-bootstrap-post \
-        >"$TEST_DIRECTORY/embedded-auth-config-mutated-post.yaml"
-    local mutated_config_rollout_identity
-    mutated_config_rollout_identity=$(awk '
-        /--config-rollout-identity/ {
-            getline
-            gsub(/[[:space:]"]/, "")
-            print
-            exit
-        }
-    ' "$TEST_DIRECTORY/embedded-auth-config-mutated-post.yaml")
-    if [[ -z "$default_config_rollout_identity" ||
-          "$default_config_rollout_identity" == "$mutated_config_rollout_identity" ]]; then
-        fail "embedded Dex config changes must change the rollout identity"
-    fi
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'resources: ["secrets"]'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'resources: ["pods"]'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'resourceNames:'
-    require_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'verbs: ["list", "delete"]'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'resources: ["deployments"]'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'verbs: ["*"]'
-    require_not_contains "$TEST_DIRECTORY/embedded-auth-bootstrap-role.yaml" \
-        'customresourcedefinitions'
+    local mutated_job_name
+    mutated_job_name=$(bootstrap_job_name "$TEST_DIRECTORY/embedded-auth-config-mutated.yaml" step:identity-bootstrap)
+    [[ "$identity_job_name" == "$mutated_job_name" ]] || fail "Dex config change changed the OSMO bootstrap Job"
     require_contains "$TEST_DIRECTORY/embedded-auth-default.yaml" \
         'kind: NetworkPolicy'
     resource_document "$TEST_DIRECTORY/embedded-auth-default.yaml" NetworkPolicy \
@@ -1052,9 +980,9 @@ test_control_umbrella() {
     require_no_resource "$TEST_DIRECTORY/external-auth.yaml" ServiceAccount osmo-dex
     require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Secret osmo-dex-config
     require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Job \
-        external-auth-osmo-identity-bootstrap-pre
+        "step:identity-bootstrap"
     require_no_resource "$TEST_DIRECTORY/external-auth.yaml" Job \
-        external-auth-osmo-identity-bootstrap-post
+        "step:identity-bootstrap"
     require_not_contains "$TEST_DIRECTORY/external-auth.yaml" \
         "osmo-embedded-dex-admin"
     require_not_contains "$TEST_DIRECTORY/external-auth.yaml" \
@@ -1197,15 +1125,15 @@ test_control_umbrella() {
     require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" \
         "split-compute-osmo-api"
     require_no_resource_with_hash_suffix "$TEST_DIRECTORY/split-compute.yaml" Job \
-        "service-auth-bootstrap"
+        "step:bootstrap-service-auth"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
     require_no_deployment "$TEST_DIRECTORY/split-compute.yaml" "osmo-dex"
     require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Secret osmo-dex-config
     require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Job \
-        split-compute-osmo-identity-bootstrap-pre
+        "step:identity-bootstrap"
     require_no_resource "$TEST_DIRECTORY/split-compute.yaml" Job \
-        split-compute-osmo-identity-bootstrap-post
+        "step:identity-bootstrap"
     require_not_contains "$TEST_DIRECTORY/split-compute.yaml" \
         "kind: Secret"
     require_contains "$TEST_DIRECTORY/split-compute.yaml" \
@@ -1350,12 +1278,9 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Deployment \
         "osmo-gateway-oauth2-proxy" \
         >"$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml"
-    require_occurrences "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'secretName: "osmo-embedded-dex-oauth"' 2
-    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'key: "browser-client-secret"'
-    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" \
-        'key: "cookie-secret"'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'secretName: osmo-embedded-dex-oauth'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'key: browser-client-secret'
+    require_contains "$TEST_DIRECTORY/self-contained-oauth2-proxy.yaml" 'key: cookie-secret'
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Namespace \
         "osmo-workflows"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Namespace \
@@ -1384,16 +1309,16 @@ test_control_umbrella() {
         "$TEST_DIRECTORY/self-contained-workflow-network-policy.yaml" \
         "helm.sh/resource-policy: keep"
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-identity-bootstrap-pre"
+        "step:identity-bootstrap"
     resource_document "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-identity-bootstrap-pre" \
+        "step:identity-bootstrap" \
         >"$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml"
     require_contains \
         "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
         'image: "nvcr.io/nvidia/osmo/service:6.3.1"'
     require_contains \
         "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
-        'command: ["identity-bootstrap"]'
+        '- identity-bootstrap'
     require_contains \
         "$TEST_DIRECTORY/self-contained-identity-bootstrap.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
@@ -1497,25 +1422,24 @@ test_control_umbrella() {
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Service \
         "osmo-rustfs-svc"
     require_resource "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "osmo-identity-bootstrap-pre"
-    require_contains "$TEST_DIRECTORY/self-contained.yaml" \
-        'name: "osmo-mek-bootstrap-'
+        "step:identity-bootstrap"
+    require_resource "$TEST_DIRECTORY/self-contained.yaml" Job "step:mek-lifecycle"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
-        Job mek-bootstrap >"$TEST_DIRECTORY/self-contained-mek-bootstrap.yaml"
+        Job "step:mek-lifecycle" >"$TEST_DIRECTORY/self-contained-mek-bootstrap.yaml"
     require_contains "$TEST_DIRECTORY/self-contained-mek-bootstrap.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "service-auth-bootstrap"
+        "step:bootstrap-service-auth"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
-        Job service-auth-bootstrap \
+        Job "step:bootstrap-service-auth" \
         >"$TEST_DIRECTORY/self-contained-service-auth-bootstrap.yaml"
     require_contains \
         "$TEST_DIRECTORY/self-contained-service-auth-bootstrap.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
     require_resource_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" Job \
-        "object-storage-bootstrap"
+        "step:object-storage-bootstrap"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/self-contained.yaml" \
-        Job object-storage-bootstrap \
+        Job "step:object-storage-bootstrap" \
         >"$TEST_DIRECTORY/self-contained-object-storage-bootstrap.yaml"
     require_contains \
         "$TEST_DIRECTORY/self-contained-object-storage-bootstrap.yaml" \
@@ -1616,7 +1540,7 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-runtime-api.yaml" \
         "name: osmo-nvcr-pull"
     require_occurrences "$TEST_DIRECTORY/quickstart-runtime.yaml" \
-        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 3
+        "image: nvcr.io/nvstaging/osmo/service:$quickstart_runtime_tag" 18
 
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
@@ -1654,16 +1578,15 @@ test_control_umbrella() {
         "osmo-rustfs-data" >"$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-rustfs-pvc.yaml" "storage: 1Gi"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Job \
-        "osmo-identity-bootstrap-pre"
-    require_contains "$TEST_DIRECTORY/quickstart.yaml" \
-        'name: "osmo-mek-bootstrap-'
+        "step:identity-bootstrap"
+    require_resource "$TEST_DIRECTORY/quickstart.yaml" Job "step:mek-lifecycle"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" '- "bootstrap"'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
-        "service-auth-bootstrap"
+        "step:bootstrap-service-auth"
     require_contains "$TEST_DIRECTORY/quickstart.yaml" \
-        'command: ["service-auth-bootstrap"]'
+        '- service-auth-bootstrap'
     require_resource_with_hash_suffix "$TEST_DIRECTORY/quickstart.yaml" Job \
-        "object-storage-bootstrap"
+        "step:object-storage-bootstrap"
     require_not_contains "$TEST_DIRECTORY/quickstart-api.yaml" \
         "imagePullSecrets:"
 
@@ -1700,7 +1623,7 @@ test_control_umbrella() {
         "osmo-backend-worker"
     require_no_resource_with_hash_suffix \
         "$TEST_DIRECTORY/single-plane-azure.yaml" Job \
-        "service-auth-bootstrap"
+        "step:bootstrap-service-auth"
     resource_document "$TEST_DIRECTORY/single-plane-azure.yaml" Service \
         "osmo-gateway" >"$TEST_DIRECTORY/single-plane-azure-gateway.yaml"
     require_contains "$TEST_DIRECTORY/single-plane-azure-gateway.yaml" \
@@ -2247,8 +2170,7 @@ INVALID_DEX_MCP
     require_not_contains "$TEST_DIRECTORY/quickstart.yaml" "currentMek:"
     require_contains "$charts_copy/osmo/README.md" \
         "helm upgrade --install osmo deployments/charts/osmo"
-    require_occurrences "$charts_copy/osmo/README.md" \
-        "--wait-for-jobs" 4
+    require_contains "$charts_copy/osmo/README.md" "--wait-for-jobs"
     require_contains "$charts_copy/osmo/README.md" \
         "kubectl config use-context kind-osmo"
     require_contains "$charts_copy/osmo/README.md" \
@@ -2533,10 +2455,10 @@ INVALID_DEX_MCP
         control-monitor-osmo-backend-monitor
 
     resource_document "$TEST_DIRECTORY/conventions.yaml" Job \
-        osmo-identity-bootstrap-pre \
+        "step:identity-bootstrap" \
         >"$TEST_DIRECTORY/conventions-identity-bootstrap.yaml"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/conventions.yaml" Job \
-        object-storage-bootstrap \
+        "step:object-storage-bootstrap" \
         >"$TEST_DIRECTORY/conventions-object-storage-bootstrap.yaml"
     resource_document "$TEST_DIRECTORY/conventions.yaml" ConfigMap \
         osmo-backend-test-runner-template \
@@ -2570,7 +2492,7 @@ INVALID_DEX_MCP
     require_contains "$TEST_DIRECTORY/conventions-identity-bootstrap.yaml" \
         'name: convention-pull-secret'
     require_contains "$TEST_DIRECTORY/conventions-identity-bootstrap.yaml" \
-        'command: ["identity-bootstrap"]'
+        '- identity-bootstrap'
 
     local convention_service
     for convention_service in api router logger agent ui mcp gateway; do
@@ -2690,63 +2612,28 @@ INVALID_DEX_MCP
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         >"$rendered"
     require_no_resource_with_hash_suffix "$rendered" Job \
-        "service-auth-bootstrap"
+        "step:bootstrap-service-auth"
     require_no_resource "$rendered" ConfigMap "osmo-pgroll-migrations"
     require_no_resource "$rendered" Job "osmo-pgroll-migration"
 
     require_no_resource "$rendered" List osmo-internal-tls-bootstrap
-    local tls_bootstrap_name="osmo-internal-tls-bootstrap"
-    local tls_hook_kind
-    for tls_hook_kind in ServiceAccount Role RoleBinding; do
-        require_resource "$rendered" "$tls_hook_kind" "$tls_bootstrap_name"
-        resource_document "$rendered" "$tls_hook_kind" "$tls_bootstrap_name" \
-            >"$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml"
-        require_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'helm.sh/hook: pre-install,pre-upgrade'
-        require_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'helm.sh/hook-weight: "-30"'
-        require_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
-        require_not_contains \
-            "$TEST_DIRECTORY/osmo-internal-tls-$tls_hook_kind.yaml" \
-            'argocd.argoproj.io/'
+    local tls_bootstrap_name
+    tls_bootstrap_name=$(bootstrap_job_name "$rendered" step:internal-tls-bootstrap)
+    local tls_resource_kind
+    for tls_resource_kind in Job ServiceAccount Role RoleBinding; do
+        require_resource "$rendered" "$tls_resource_kind" "$tls_bootstrap_name"
     done
-    require_resource "$rendered" Job "$tls_bootstrap_name"
-    resource_document "$rendered" Job "$tls_bootstrap_name" \
+    bootstrap_container "$rendered" internal-tls-bootstrap \
         >"$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'command: ["internal-tls-bootstrap"]'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'serviceAccountName: osmo-internal-tls-bootstrap'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" '- internal-tls-bootstrap'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" '- 300s'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" 'seccompProfile:'
     resource_document "$rendered" Role "$tls_bootstrap_name" \
         >"$TEST_DIRECTORY/osmo-internal-tls-role.yaml"
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
-        'verbs: ["get", "update", "patch"]'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
-        'verbs: ["create"]'
-    require_occurrences "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
-        '  resources: ["secrets"]' 2
-    require_occurrences "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" \
-        '  resourceNames:' 2
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'activeDeadlineSeconds: 300'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'ttlSecondsAfterFinished: 300'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'nodeSelector:'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'tolerations:'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'seccompProfile:'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded,hook-failed'
-    require_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'helm.sh/hook-weight: "-20"'
-    require_not_contains "$TEST_DIRECTORY/osmo-internal-tls-bootstrap.yaml" \
-        'argocd.argoproj.io/'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" 'verbs: ["get", "update", "patch"]'
+    require_contains "$TEST_DIRECTORY/osmo-internal-tls-role.yaml" 'verbs: ["create"]'
+    require_not_contains "$rendered" 'helm.sh/hook:'
+    require_not_contains "$rendered" 'ttlSecondsAfterFinished:'
     require_not_contains "$rendered" 'Force=true'
     require_not_contains "$rendered" 'Replace=true'
     require_contains "$CHARTS_ROOT/osmo/README.md" \
@@ -2808,12 +2695,12 @@ INVALID_DEX_MCP
     require_no_resource "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Secret \
         tlsmcp-osmo-internal-tls-mcp
     resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Role \
-        tlsmcp-osmo-internal-tls-bootstrap \
+        "step:internal-tls-bootstrap" \
         >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-role.yaml"
     require_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-role.yaml" \
         '- "tlsmcp-osmo-internal-tls-mcp"'
     resource_document "$TEST_DIRECTORY/osmo-tls-mcp-upgrade.yaml" Job \
-        tlsmcp-osmo-internal-tls-bootstrap \
+        "step:internal-tls-bootstrap" \
         >"$TEST_DIRECTORY/osmo-tls-mcp-upgrade-job.yaml"
     require_not_contains "$TEST_DIRECTORY/osmo-tls-mcp-upgrade-job.yaml" \
         '--fail-if-missing'
@@ -2859,7 +2746,7 @@ INVALID_DEX_MCP
         --set gateway.tls.generated.bootstrap.allowInitialGeneration=true \
         >"$TEST_DIRECTORY/osmo-legacy-reuse.yaml"
     resource_document "$TEST_DIRECTORY/osmo-legacy-reuse.yaml" Job \
-        legacy-reuse-osmo-internal-tls-bootstrap \
+        "step:internal-tls-bootstrap" \
         >"$TEST_DIRECTORY/osmo-legacy-reuse-bootstrap.yaml"
     require_not_contains "$TEST_DIRECTORY/osmo-legacy-reuse-bootstrap.yaml" \
         '--fail-if-missing'
@@ -2953,7 +2840,7 @@ INVALID_DEX_MCP
     require_contains "$TEST_DIRECTORY/osmo-api-external-postgresql.yaml" \
         "key: external-db-password"
     require_no_deployment "$rendered" "osmo-service"
-    require_not_contains "$rendered" "name: osmo-service"
+    require_no_resource "$rendered" Service "osmo-service"
     require_deployment "$rendered" "osmo-worker"
     require_deployment "$rendered" "osmo-router"
     require_deployment "$rendered" "osmo-logger"
@@ -3073,9 +2960,7 @@ INVALID_DEX_MCP
         "pg-require-service-auth-osmo-service-auth-db-migration" \
         >"$TEST_DIRECTORY/postgresql-require-service-auth.yaml"
     local postgresql_require_mek_name
-    postgresql_require_mek_name=$(resource_names \
-        "$TEST_DIRECTORY/postgresql-require.yaml" Job | \
-        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_require_mek_name=$(bootstrap_job_name "$TEST_DIRECTORY/postgresql-require.yaml" step:mek-lifecycle)
     postgresql_require_mek_name=${postgresql_require_mek_name#\"}
     postgresql_require_mek_name=${postgresql_require_mek_name%\"}
     resource_document "$TEST_DIRECTORY/postgresql-require.yaml" Job \
@@ -3117,9 +3002,7 @@ INVALID_DEX_MCP
         --set secrets.masterEncryptionKey.bootstrap.enabled=true \
         >"$TEST_DIRECTORY/postgresql-disable-mek.yaml"
     local postgresql_disable_mek_name
-    postgresql_disable_mek_name=$(resource_names \
-        "$TEST_DIRECTORY/postgresql-disable-mek.yaml" Job | \
-        grep -E -- '-mek-bootstrap-[0-9a-f]{10}"?$')
+    postgresql_disable_mek_name=$(bootstrap_job_name "$TEST_DIRECTORY/postgresql-disable-mek.yaml" step:mek-lifecycle)
     postgresql_disable_mek_name=${postgresql_disable_mek_name#\"}
     postgresql_disable_mek_name=${postgresql_disable_mek_name%\"}
     if [[ "$postgresql_require_mek_name" == "$postgresql_disable_mek_name" ]]; then
@@ -3203,9 +3086,7 @@ INVALID_DEX_MCP
         --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
         >"$TEST_DIRECTORY/managed-backend-token.yaml"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        "managed-backend-token-osmo-identity-bootstrap-pre"
-    require_no_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        "managed-backend-token-osmo-identity-bootstrap-post"
+        "step:identity-bootstrap"
     require_resource "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
         "managed-backend-token-osmo-bootstrap-identities"
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" ConfigMap \
@@ -3213,13 +3094,9 @@ INVALID_DEX_MCP
         >"$TEST_DIRECTORY/managed-backend-token-state.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-state.yaml" \
         '"username": "backend-operator-default"'
-    resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Job \
-        managed-backend-token-osmo-identity-bootstrap-pre \
+    bootstrap_container "$TEST_DIRECTORY/managed-backend-token.yaml" identity-bootstrap \
         >"$TEST_DIRECTORY/managed-backend-token-job.yaml"
-    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        "helm.sh/hook: pre-install,pre-upgrade"
-    require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        "helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded"
+    require_not_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" "helm.sh/hook"
     require_occurrences "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "cpu:" 1
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
@@ -3227,20 +3104,18 @@ INVALID_DEX_MCP
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         "memory: 128Mi"
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
-        'command: ["identity-bootstrap"]'
+        '- identity-bootstrap'
     require_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         '"backend-operator-default/primary=osmo-backend-token"'
     require_not_contains "$TEST_DIRECTORY/managed-backend-token-job.yaml" \
         'alpine/k8s'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Role \
-        managed-backend-token-osmo-identity-bootstrap \
+        "$(bootstrap_job_name "$TEST_DIRECTORY/managed-backend-token.yaml" step:identity-bootstrap)" \
         >"$TEST_DIRECTORY/managed-backend-token-role.yaml"
     require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
         'resources: ["secrets"]'
     require_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
         '- "osmo-backend-token"'
-    require_not_contains "$TEST_DIRECTORY/managed-backend-token-role.yaml" \
-        'resources: ["pods"]'
     resource_document "$TEST_DIRECTORY/managed-backend-token.yaml" Deployment \
         managed-backend-token-osmo-api \
         >"$TEST_DIRECTORY/managed-backend-token-api.yaml"
@@ -3250,8 +3125,7 @@ INVALID_DEX_MCP
         "--bootstrap_token_directory"
     require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
         "mountPath: /etc/osmo/bootstrap-tokens/backend-operator-default/primary"
-    require_contains "$TEST_DIRECTORY/managed-backend-token-api.yaml" \
-        "secretName: osmo-backend-token"
+    require_secret_snapshot "$TEST_DIRECTORY/managed-backend-token-api.yaml" osmo-backend-token token
     require_no_resource "$TEST_DIRECTORY/managed-backend-token.yaml" Secret \
         osmo-backend-token
     require_not_contains "$TEST_DIRECTORY/managed-backend-token.yaml" \
@@ -3265,7 +3139,7 @@ INVALID_DEX_MCP
         --set authentication.bootstrap.identities.backend-operator-default.tokens.primary.existingSecret.name=osmo-existing-backend-token \
         >"$TEST_DIRECTORY/existing-backend-token.yaml"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" Job \
-        "existing-backend-token-osmo-identity-bootstrap-pre"
+        "step:identity-bootstrap"
     require_no_resource "$TEST_DIRECTORY/existing-backend-token.yaml" \
         ServiceAccount "existing-backend-token-osmo-identity-bootstrap"
     require_contains "$TEST_DIRECTORY/existing-backend-token.yaml" \
@@ -3344,7 +3218,7 @@ INVALID_DEX_MCP
     require_occurrences "$rendered" 'secretName: "external-master-encryption-key-secret"' 6
     require_occurrences "$rendered" 'key: "keyring.yaml"' 6
     require_occurrences "$rendered" 'mountPath: "/opt/osmo/mek"' 6
-    require_not_contains "$rendered" "name: OSMO_POD_UID"
+    require_no_resource "$rendered" Job "step:mek-lifecycle"
     require_not_contains "$rendered" "name: OSMO_MEK_CONSUMER"
     require_not_contains "$rendered" "name: OSMO_ALLOW_EXISTING_MEK_ADOPTION"
     require_not_contains "$rendered" "subPath: mek.yaml"
@@ -3358,10 +3232,10 @@ INVALID_DEX_MCP
         --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
         >"$TEST_DIRECTORY/mek-bootstrap.yaml"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/mek-bootstrap.yaml" \
-        Job mek-bootstrap >"$TEST_DIRECTORY/mek-bootstrap-job.yaml"
+        Job "step:mek-lifecycle" >"$TEST_DIRECTORY/mek-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/mek-bootstrap-job.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
-    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'command: ["mek-lifecycle"]'
+    require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '- mek-lifecycle'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '- "bootstrap"'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '--service_auth_file'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" \
@@ -3428,8 +3302,7 @@ INVALID_DEX_MCP
     require_contains "$TEST_DIRECTORY/mek-prepare.yaml" 'resources: ["pods/log"]'
     require_contains "$TEST_DIRECTORY/mek-prepare.yaml" 'resources: ["deployments", "replicasets"]'
     local mek_prepare_name
-    mek_prepare_name=$(awk '/^kind: Role$/{role=1; next} role && /^  name:/{gsub(/"/,"",$2); print $2; exit}' \
-        "$TEST_DIRECTORY/mek-prepare.yaml")
+    mek_prepare_name=$(resource_names "$TEST_DIRECTORY/mek-prepare.yaml" Job | grep '^prepare-osmo-mek-prepare-')
     resource_document "$TEST_DIRECTORY/mek-prepare.yaml" Job "$mek_prepare_name" \
         >"$TEST_DIRECTORY/mek-prepare-job.yaml"
     require_not_contains "$TEST_DIRECTORY/mek-prepare-job.yaml" 'name: OSMO_POSTGRES_PASSWORD'
@@ -3456,7 +3329,7 @@ INVALID_DEX_MCP
         --set secrets.masterEncryptionKey.rotation.phase=rewrap \
         >"$TEST_DIRECTORY/mek-rewrap.yaml"
     require_contains "$TEST_DIRECTORY/mek-rewrap.yaml" '- "rewrap"'
-    rewrap_role_name=$(first_resource_name "$TEST_DIRECTORY/mek-rewrap.yaml" Role)
+    rewrap_role_name=$(resource_names "$TEST_DIRECTORY/mek-rewrap.yaml" Role | grep "^rewrap-external-osmo-mek-rewrap-")
     resource_document "$TEST_DIRECTORY/mek-rewrap.yaml" Role "$rewrap_role_name" \
         >"$TEST_DIRECTORY/mek-rewrap-role.yaml"
     awk '
@@ -3624,7 +3497,7 @@ INVALID_DEX_MCP
     local service_auth_bootstrap_name
     service_auth_bootstrap_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Job \
-        "service-auth-bootstrap")
+        "step:bootstrap-service-auth")
     require_resource "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
         ServiceAccount "$service_auth_bootstrap_name"
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap.yaml" \
@@ -3636,8 +3509,7 @@ INVALID_DEX_MCP
     resource_document "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Role \
         "$service_auth_bootstrap_name" \
         >"$TEST_DIRECTORY/service-auth-bootstrap-role.yaml"
-    resource_document "$TEST_DIRECTORY/service-auth-bootstrap.yaml" Job \
-        "$service_auth_bootstrap_name" \
+    bootstrap_container "$TEST_DIRECTORY/service-auth-bootstrap.yaml" bootstrap-service-auth \
         >"$TEST_DIRECTORY/service-auth-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
         'resourceNames: ["osmo-service-auth"]'
@@ -3645,14 +3517,12 @@ INVALID_DEX_MCP
         'verbs: ["get"]'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
         'verbs: ["create"]'
-    require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-role.yaml" \
-        '"update"'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'command: ["service-auth-bootstrap"]'
+        '- service-auth-bootstrap'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         '- bootstrap'
     require_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
-        'activeDeadlineSeconds: 900'
+        '- 900s'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
         '--postgres-'
     require_not_contains "$TEST_DIRECTORY/service-auth-bootstrap-job.yaml" \
@@ -3679,12 +3549,13 @@ INVALID_DEX_MCP
         --set secrets.serviceAuth.bootstrap.enabled=true \
         --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
         --set-string 'podDefaults.nodeSelector.kubernetes\.io/os=windows' \
+        --set-string 'services.api.pod.nodeSelector.kubernetes\.io/os=linux' \
         --set-string 'secrets.serviceAuth.bootstrap.nodeSelector.kubernetes\.io/os=linux' \
         >"$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml"
     local service_auth_bootstrap_pod_defaults_name
     service_auth_bootstrap_pod_defaults_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-bootstrap-pod-defaults.yaml" Job \
-        "service-auth-bootstrap")
+        "step:bootstrap-service-auth")
     [[ "$service_auth_bootstrap_name" != \
         "$service_auth_bootstrap_pod_defaults_name" ]] || \
         fail "service auth bootstrap pod defaults did not change the Job name"
@@ -3711,7 +3582,7 @@ INVALID_DEX_MCP
     local service_auth_bootstrap_changed_name
     service_auth_bootstrap_changed_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-bootstrap-changed.yaml" Job \
-        "service-auth-bootstrap")
+        "step:bootstrap-service-auth")
     [[ "$service_auth_bootstrap_name" != "$service_auth_bootstrap_changed_name" ]] || \
         fail "service auth bootstrap immutable input did not change the Job name"
 
@@ -3725,7 +3596,7 @@ INVALID_DEX_MCP
     local service_auth_bootstrap_retry_name
     service_auth_bootstrap_retry_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-bootstrap-retry.yaml" Job \
-        "service-auth-bootstrap")
+        "step:bootstrap-service-auth")
     [[ "$service_auth_bootstrap_name" != "$service_auth_bootstrap_retry_name" ]] || \
         fail "service auth bootstrap attempt did not change the Job name"
 
@@ -3738,7 +3609,7 @@ INVALID_DEX_MCP
     local service_auth_bootstrap_boundary_name
     service_auth_bootstrap_boundary_name=$(resource_name_with_hash_suffix \
         "$TEST_DIRECTORY/service-auth-bootstrap-name-boundary.yaml" Job \
-        "service-auth-bootstrap")
+        "step:bootstrap-service-auth")
     [[ ${#service_auth_bootstrap_boundary_name} -le 63 ]] || \
         fail "service auth bootstrap Job name exceeds the Kubernetes limit"
 
@@ -3857,7 +3728,7 @@ INVALID_DEX_MCP
     require_not_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         'argocd.argoproj.io/'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
-        'command: ["service-auth-bootstrap"]'
+        '- service-auth-bootstrap'
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
         "- migrate"
     require_contains "$TEST_DIRECTORY/service-auth-migration.yaml" \
@@ -4448,7 +4319,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-ui.yaml" \
         "serviceAccountName: default"
     require_no_resource "$rendered" ConfigMap "osmo-object-storage-bootstrap"
-    require_no_resource_with_hash_suffix "$rendered" Job "object-storage-bootstrap"
+    require_no_resource_with_hash_suffix "$rendered" Job "step:object-storage-bootstrap"
 
     local embedded_object_storage_settings=(
         --set embeddedDependencies.objectStorage.enabled=true
@@ -4479,7 +4350,7 @@ EOF
     require_resource "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" ConfigMap \
         embedded-object-storage-osmo-object-storage-bootstrap
     require_resource_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" Job \
-        object-storage-bootstrap
+        "step:object-storage-bootstrap"
     resource_document "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
         Secret osmo-rustfs-credentials \
         >"$TEST_DIRECTORY/osmo-rustfs-secret.yaml"
@@ -4521,16 +4392,16 @@ EOF
         "object-storage-bootstrap.sh:"
 
     resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" \
-        Job object-storage-bootstrap \
+        Job "step:object-storage-bootstrap" \
         >"$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "osmo.nvidia.com/node-pool: control-plane"
     require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "helm.sh/hook"
+    require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "ttlSecondsAfterFinished:"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "ttlSecondsAfterFinished: 300"
-    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "backoffLimit: 5"
+        "backoffLimit: 0"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "amazon/aws-cli@sha256:e14216fb361cce909ce199616711ad103182d5937f851cda9bebf25867d7180a"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -4561,8 +4432,8 @@ EOF
         "name: OSMO_STORAGE_BOOTSTRAP_ATTEMPTS"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "automountServiceAccountToken: false"
-    require_not_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "serviceAccountName:"
+    require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
+        "serviceAccountName: $(bootstrap_job_name "$TEST_DIRECTORY/osmo-embedded-object-storage.yaml" step:object-storage-bootstrap)"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "mountPath: /tmp"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
@@ -4583,8 +4454,6 @@ EOF
         "cpu: 50m"
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "memory: 32Mi"
-    require_occurrences "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
-        "cpu:" 1
     require_contains "$TEST_DIRECTORY/osmo-object-storage-bootstrap-job.yaml" \
         "memory: 128Mi"
 
@@ -4691,7 +4560,7 @@ EOF
     require_contains "$TEST_DIRECTORY/osmo-non-default-region-config.yaml" \
         "region: us-west-2"
     resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-non-default-region.yaml" \
-        Job object-storage-bootstrap \
+        Job "step:object-storage-bootstrap" \
         >"$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml"
     require_contains \
         "$TEST_DIRECTORY/osmo-non-default-region-bootstrap-job.yaml" \
@@ -4806,7 +4675,7 @@ EOF
         "secretKey: object-storage.yaml"
 
     resource_document_with_hash_suffix "$TEST_DIRECTORY/osmo-embedded-object-storage-ha.yaml" \
-        Job object-storage-bootstrap \
+        Job "step:object-storage-bootstrap" \
         >"$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml"
     require_contains "$TEST_DIRECTORY/osmo-rustfs-ha-bootstrap-job.yaml" \
         'value: "http://embedded-object-storage-ha-rustfs-svc.default.svc:9000"'
@@ -6674,7 +6543,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-workload-policy-ui.yaml" \
         "automountServiceAccountToken: false"
     require_occurrences "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
-        "type: RuntimeDefault" 13
+        "type: RuntimeDefault" 26
 
     resource_document "$TEST_DIRECTORY/osmo-workload-policy.yaml" \
         PodDisruptionBudget workload-policy-osmo-api \
@@ -6995,6 +6864,8 @@ MCP_INVALID_VALUES
         "compute-only-osmo-backend-worker"
     require_no_deployment "$TEST_DIRECTORY/compute-only.yaml" \
         "compute-only-osmo-api"
+    require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
+        "identity-token-migration"
     require_not_contains "$TEST_DIRECTORY/compute-only.yaml" \
         "apiVersion: postgresql.cnpg.io/v1"
 

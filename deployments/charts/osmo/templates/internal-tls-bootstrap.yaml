@@ -3,7 +3,7 @@
 
 {{- include "osmo.gateway.tlsNormalize" . }}
 {{- $tls := .Values.gateway.tls }}
-{{- if and .Values.planes.control.enabled $tls.enabled $tls.generated.enabled }}
+{{- if and .Values.planes.control.enabled $tls.enabled $tls.generated.enabled (ne $tls.generated.caRotation.phase "stable") }}
 {{- $bootstrapImage := $tls.generated.bootstrap.image | default (include "osmo.component.image" (dict "root" . "component" .Values.services.api)) }}
 {{- $bootstrapName := printf "%s-internal-tls-bootstrap" (include "osmo.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- $caSecret := include "osmo.gateway.tlsCaSecretName" . }}
@@ -18,15 +18,15 @@
 {{- if .Values.services.mcp.enabled }}
 {{- $leaves = append $leaves (dict "component" "mcp" "dns" (include "osmo.component.fullname" (dict "root" . "suffix" "mcp"))) -}}
 {{- end }}
-{{- $consumers := list
-      (include "osmo.api.fullname" .)
-      $routerName
-      (include "osmo.component.fullname" (dict "root" . "suffix" "agent"))
-      $loggerName
-      (printf "%s-envoy" (include "osmo.gateway.fullname" .)) -}}
-{{- if .Values.services.mcp.enabled }}
-{{- $consumers = append $consumers (include "osmo.component.fullname" (dict "root" . "suffix" "mcp")) -}}
-{{- end }}
+{{- $consumers := list -}}
+{{- range $key, $suffix := dict "api" "api" "router" "router" "agent" "agent" "logger" "logger" "mcp" "mcp" -}}
+{{- if (index $.Values.services $key).enabled -}}
+{{- $consumer := include "osmo.component.fullname" (dict "root" $ "suffix" $suffix) -}}
+{{- if eq $key "api" -}}{{- $consumer = include "osmo.api.fullname" $ -}}{{- end -}}
+{{- $consumers = append $consumers $consumer -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.gateway.envoy.enabled -}}{{- $consumers = append $consumers (printf "%s-envoy" (include "osmo.gateway.fullname" .)) -}}{{- end -}}
 {{- $secretNames := list $caSecret $trustSecret -}}
 {{- range $leaf := $leaves }}
 {{- $secretName := include "osmo.gateway.tlsLeafSecretName" (dict "root" $ "component" $leaf.component) -}}
@@ -61,6 +61,13 @@ metadata:
   annotations:
     {{- include "osmo.metadata.annotations" (dict "root" . "protectedAnnotations" $supportAnnotations) | nindent 4 }}
 rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: [{{ include "osmo.bootstrap.tlsRecordName" . | quote }}]
+  verbs: ["get", "update"]
 - apiGroups: [""]
   resources: ["secrets"]
   resourceNames:
@@ -134,6 +141,8 @@ spec:
         imagePullPolicy: {{ $tls.generated.bootstrap.imagePullPolicy | quote }}
         command: ["internal-tls-bootstrap"]
         args:
+        - --snapshot-record
+        - {{ include "osmo.bootstrap.tlsRecordName" . | quote }}
         - --namespace
         - {{ .Release.Namespace | quote }}
         - --release-name
