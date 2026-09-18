@@ -87,10 +87,9 @@ jobs:
 
       - name: Add quick-start.osmo to /etc/hosts
         run: |
-          # The KIND adapter's check_kind_prereqs requires this name to
-          # resolve so tests can reach the chart's ingress at
-          # http://quick-start.osmo via the host port mapping published by
-          # `kind create cluster --config`.
+          # The KIND adapter's legacy-chart preflight requires this name
+          # to resolve. Source-built MCP tests use http://127.0.0.1 through
+          # the same host port mapping published by kind create cluster.
           echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
       - name: Preflight (OETF KIND adapter check_kind_prereqs)
@@ -144,15 +143,9 @@ jobs:
       - name: Run OETF deploy_and_run on KIND
         id: deploy_and_run
         run: |
-          # --build-local + --use-local-registry: build 9 OSMO service images
-          # + web-ui from PR source, push to a host-side `registry:2`
-          # container, KIND nodes pull from it on-demand. Replaces `kind
-          # load docker-image` which duplicates each image into every node's
-          # containerd content store (6 nodes × 10 images = 60 image-copies
-          # — overruns hosted ubuntu-latest's 145 GB disk). With registry
-          # mode each KIND node only pulls images its pods actually
-          # schedule (1-2 nodes per image under the chart's node_group
-          # selectors), dropping the multiplier from 6x to 1-2x.
+          # Build services, workflow runtime, and web-ui from PR source.
+          # Nodes pull from a local registry on demand, avoiding the disk cost
+          # of loading every image into all six KIND nodes.
           #
           # web-ui IS built and pushed: ingress-nginx has a hard
           # `wait-for-web-ui` init container that polls osmo-ui:80, so
@@ -164,11 +157,12 @@ jobs:
           #
           # Scenario set narrowed for PR-gate cost: smoke (api-checks +
           # websocket-checks, ~5s) covers service+router+logger HTTP/WS;
-          # templates + mount-validation (~6s) submit workflows so
-          # backend-listener / backend-worker / osmo_ctrl runtime get
-          # touched. workflow-labels exercises the label policy gate
+          # templates + mount-validation reject invalid workflow submissions.
+          # workflow-labels exercises the label policy gate
           # (off/warn/enforce), label-syntax validation, list filters, and a
-          # labeled round-trip through the API.
+          # labeled round-trip through the API. MCP smoke covers discovery,
+          # real Dex OAuth, caller-bound tools, and token rejection; its one
+          # workflow scenario checks submission, completion, and logs.
           #
           # --jobs=1 serializes: chart's single-replica ingress-nginx 504s
           # under parallel scenario submits.
@@ -198,11 +192,20 @@ jobs:
             bazel run //test/oetf:deploy_and_run -- \
               --env kind --tags kind \
               --target-pattern //test/smoke/... \
-              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation,//test/scenarios:workflow-labels \
+              --target-pattern //test/scenarios:templates,//test/scenarios:mount-validation,//test/scenarios:workflow-labels,//test/scenarios:mcp-workflow \
               --jobs 1 \
               --build-local --use-local-registry \
               --keep --keep-on-failure \
               --output-json "${GITHUB_WORKSPACE}/kind-smoke-result.json"
+          # Fail if either required MCP target is absent, skipped, or failed.
+          jq -e '
+            .results as $results |
+            ["//test/smoke:mcp-kind", "//test/scenarios:mcp-workflow"] |
+            all(.[]; . as $target |
+              [$results[] | select(.target == $target)] as $matches |
+              ($matches | length) > 0 and
+              all($matches[]; .status == "pass"))
+          ' "${GITHUB_WORKSPACE}/kind-smoke-result.json"
 
       - name: Diagnose KIND state on failure
         if: failure() && steps.deploy_and_run.outcome == 'failure'

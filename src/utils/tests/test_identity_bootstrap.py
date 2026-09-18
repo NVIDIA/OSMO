@@ -243,6 +243,175 @@ class IdentityBootstrapTest(unittest.TestCase):
         }, set(hashes.data))
         self.assertIn('osmo-embedded-dex-oauth', self.api.secrets)
 
+    def reconcile_mcp(
+        self, *, enabled: bool = True,
+    ) -> identity_bootstrap.BootstrapResult:
+        return identity_bootstrap.reconcile_identities(
+            self.api,  # type: ignore[arg-type]
+            namespace='osmo',
+            release_name='release',
+            password_specs=(),
+            token_specs=(),
+            oauth_secret_name='osmo-embedded-dex-oauth',
+            dex_hash_secret_name='osmo-embedded-dex-password-hashes',
+            mcp_secret_name='osmo-embedded-dex-mcp' if enabled else None,
+        )
+
+    def test_mcp_secret_is_independent_and_retained_without_replacement(self) -> None:
+        initial = self.reconcile_mcp()
+        secret = self.api.secrets['osmo-embedded-dex-mcp']
+        client_secret = self.decode(secret, 'client-secret')
+        self.assertEqual({'client-secret'}, set(secret.data))
+        self.assertEqual(43, len(client_secret))
+        self.assertNotEqual(
+            client_secret,
+            self.decode(self.api.secrets['osmo-embedded-dex-oauth'],
+                        'browser-client-secret'))
+        self.assertEqual('Opaque', secret.type)
+        self.assertEqual({
+            'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
+            'app.kubernetes.io/instance': 'release',
+        }, secret.metadata.labels)
+        original_secrets = copy.deepcopy(self.api.secrets)
+
+        repeated = self.reconcile_mcp()
+
+        self.assertEqual(initial, repeated)
+        self.assertEqual(original_secrets, self.api.secrets)
+
+    def test_enabling_mcp_preserves_browser_credentials_and_disabled_identity(self) -> None:
+        disabled = self.reconcile_mcp(enabled=False)
+        self.assertNotIn('osmo-embedded-dex-mcp', self.api.secrets)
+        self.assertEqual('', disabled.mcp_credential_identity)
+        oauth = copy.deepcopy(self.api.secrets['osmo-embedded-dex-oauth'])
+
+        enabled = self.reconcile_mcp()
+
+        self.assertNotEqual(disabled.dex_credential_identity,
+                            enabled.dex_credential_identity)
+        self.assertEqual(disabled.oauth_credential_identity,
+                         enabled.oauth_credential_identity)
+        self.assertEqual(oauth, self.api.secrets['osmo-embedded-dex-oauth'])
+        self.assertEqual(disabled, self.reconcile_mcp(enabled=False))
+        self.assertIn('osmo-embedded-dex-mcp', self.api.secrets)
+
+    def test_mcp_secret_recreation_changes_only_dex_and_mcp_identities(self) -> None:
+        original = self.reconcile_mcp()
+        del self.api.secrets['osmo-embedded-dex-mcp']
+
+        recreated = self.reconcile_mcp()
+
+        self.assertNotEqual(original.dex_credential_identity,
+                            recreated.dex_credential_identity)
+        self.assertNotEqual(original.mcp_credential_identity,
+                            recreated.mcp_credential_identity)
+        self.assertEqual(original.oauth_credential_identity,
+                         recreated.oauth_credential_identity)
+
+    def test_malformed_mcp_secret_is_rejected_without_replacement(self) -> None:
+        self.reconcile_mcp()
+        for data in (
+            {},
+            {'client-secret': 'invalid base64!'},
+            {'client-secret': base64.b64encode(b'short').decode('ascii')},
+            {'client-secret': base64.b64encode(b'!' * 43).decode('ascii')},
+            {'wrong-key': base64.b64encode(b'a' * 43).decode('ascii')},
+        ):
+            with self.subTest(data=data):
+                secret = self.api.secrets['osmo-embedded-dex-mcp']
+                secret.data = data
+                original = copy.deepcopy(secret)
+                with self.assertRaisesRegex(
+                    identity_bootstrap.BootstrapError,
+                    'osmo-embedded-dex-mcp contains invalid credentials',
+                ):
+                    self.reconcile_mcp()
+                self.assertEqual(original, self.api.secrets['osmo-embedded-dex-mcp'])
+
+    def test_foreign_mcp_secret_is_rejected_without_replacement(self) -> None:
+        self.reconcile_mcp()
+        secret = self.api.secrets['osmo-embedded-dex-mcp']
+        secret.metadata.labels['app.kubernetes.io/instance'] = 'other-release'
+        original = copy.deepcopy(secret)
+
+        with self.assertRaisesRegex(
+            identity_bootstrap.BootstrapError,
+            'osmo-embedded-dex-mcp is not owned by this release',
+        ):
+            self.reconcile_mcp()
+
+        self.assertEqual(original, self.api.secrets['osmo-embedded-dex-mcp'])
+
+    def test_concurrent_mcp_secret_create_preserves_winning_credentials(self) -> None:
+        self.api = ConcurrentCreateCoreApi()
+        result = self.reconcile_mcp()
+        original = copy.deepcopy(self.api.secrets['osmo-embedded-dex-mcp'])
+
+        self.assertEqual(result, self.reconcile_mcp())
+        self.assertEqual(original, self.api.secrets['osmo-embedded-dex-mcp'])
+
+    def run_mcp_bootstrap(self) -> None:
+        arguments = identity_bootstrap._parse_arguments([  # pylint: disable=protected-access
+            '--namespace', 'osmo',
+            '--release-name', 'release',
+            '--oauth-secret-name', 'osmo-embedded-dex-oauth',
+            '--dex-hash-secret-name', 'osmo-embedded-dex-password-hashes',
+            '--mcp-secret-name', 'osmo-embedded-dex-mcp',
+            '--dex-pod-selector', 'app=dex',
+            '--oauth-pod-selector', 'app=oauth2-proxy',
+            '--mcp-pod-selector', 'app=mcp',
+            '--config-rollout-identity', 'config-v1',
+        ])
+        with (
+            mock.patch.object(identity_bootstrap, '_parse_arguments',
+                              return_value=arguments),
+            mock.patch.object(identity_bootstrap.kubernetes_config,
+                              'load_incluster_config'),
+            mock.patch.object(identity_bootstrap.kubernetes_client,
+                              'CoreV1Api', return_value=self.api),
+        ):
+            identity_bootstrap.main()
+
+    def test_mcp_credential_change_restarts_dex_and_mcp_and_preserves_oauth(self) -> None:
+        self.run_mcp_bootstrap()
+        for name in ('dex', 'oauth2-proxy', 'mcp'):
+            self.api.pods[name] = kubernetes_client.V1Pod(
+                metadata=kubernetes_client.V1ObjectMeta(
+                    name=name, labels={'app': name}))
+        self.run_mcp_bootstrap()
+        self.assertEqual([], self.api.deleted_pods)
+        secret = self.api.secrets['osmo-embedded-dex-mcp']
+        secret.data['client-secret'] = base64.b64encode(b'z' * 43).decode('ascii')
+
+        self.run_mcp_bootstrap()
+
+        self.assertEqual(['dex', 'mcp'], self.api.deleted_pods)
+        self.assertIn('oauth2-proxy', self.api.pods)
+        annotations = self.api.secrets['osmo-embedded-dex-mcp'].metadata.annotations
+        result = self.reconcile_mcp()
+        self.assertEqual(result.dex_credential_identity, annotations[
+            'osmo.nvidia.com/embedded-dex-credential-rollout'])
+        self.assertEqual(result.mcp_credential_identity, annotations[
+            'osmo.nvidia.com/embedded-dex-mcp-credential-rollout'])
+        self.run_mcp_bootstrap()
+        self.assertEqual(['dex', 'mcp'], self.api.deleted_pods)
+
+    def test_main_does_not_log_mcp_credentials_on_success_or_failure(self) -> None:
+        self.reconcile_mcp()
+        client_secret = self.decode(
+            self.api.secrets['osmo-embedded-dex-mcp'], 'client-secret').decode('ascii')
+        with self.assertLogs(level='INFO') as logs:
+            self.run_mcp_bootstrap()
+        self.assertNotIn(client_secret, '\n'.join(logs.output))
+        self.api.secrets['osmo-embedded-dex-mcp'].data['unexpected-key'] = 'YQ=='
+
+        with self.assertLogs(level='ERROR') as logs, self.assertRaises(SystemExit):
+            self.run_mcp_bootstrap()
+
+        self.assertNotIn(client_secret, '\n'.join(logs.output))
+        self.assertIn('osmo-embedded-dex-mcp contains invalid credentials',
+                      '\n'.join(logs.output))
+
     def test_managed_token_preserves_optional_previous_token(self) -> None:
         token_specs = (identity_bootstrap.TokenSpec(
             identity_id='backend-east', token_name='primary',
@@ -1146,6 +1315,8 @@ class TokenMigrationTest(unittest.TestCase):
             '--oauth-secret-name=oauth',
             '--dex-pod-selector=dex',
             '--password-generation=2',
+            '--mcp-secret-name=osmo-embedded-dex-mcp',
+            '--mcp-pod-selector=app=mcp',
         ):
             with self.subTest(option=option), self.assertRaises(SystemExit):
                 # pylint: disable-next=protected-access

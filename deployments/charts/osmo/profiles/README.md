@@ -15,7 +15,7 @@ values after a base overlay so that the environment values take precedence.
 | `self-contained.yaml` | Yes, with production inputs | KAI Scheduler, the CloudNativePG operator, a default dynamic StorageClass, at least four schedulable nodes, a NetworkPolicy-enforcing CNI, an external OIDC client and Secret with role assignments for production, a TLS edge and public `externalUrl`, and IPv4 cluster CIDRs |
 | `single-plane.yaml` | Base overlay | Site-specific external PostgreSQL, Valkey, and object-storage locations; required Kubernetes Secrets for static authentication; `externalUrl`; and `compute.backendName` |
 | `split-plane-control.yaml` | Base overlay | PostgreSQL, Valkey, and object-storage endpoints; Kubernetes Secrets; and `externalUrl` |
-| `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` set explicitly at install time |
+| `split-plane-compute.yaml` | Base overlay | A control-plane `externalUrl`, a compute authentication Secret, and `compute.backendName` in environment-specific values |
 
 The default values are the smallest complete control-and-compute deployment
 for browser, CLI, and CPU hello-world verification. It exposes the UI and API
@@ -61,6 +61,12 @@ helm upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
   --values single-plane-azure.yaml
 ```
+
+`split-plane-control.yaml` is the reusable HA control-plane base profile. It
+uses the chart application version for OSMO images, disables the compute plane
+and embedded stateful dependencies, and configures control-plane autoscaling,
+disruption budgets, and topology spreading. Layer site-specific dependency,
+identity-provider, public URL, and gateway values after it.
 
 KAI Scheduler is a prerequisite for every profile that enables the compute
 plane. The unified chart does not install or manage KAI. CloudNativePG must also

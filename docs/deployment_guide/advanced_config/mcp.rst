@@ -32,8 +32,42 @@ This guide covers setup and operations. Give users the MCP URL and refer them
 to :ref:`getting_started_mcp` for client setup. See
 :ref:`mcp_identity_permissions` for the API actions each tool requires.
 
-Prerequisites
-=============
+Embedded Dex Quickstart
+=======================
+
+Add ``--set services.mcp.enabled=true`` to the unified chart's quickstart
+install or upgrade. When upgrading, use ``--reset-then-reuse-values`` to merge
+existing overrides with new chart defaults. Connect a Streamable HTTP client
+to ``<externalUrl>/mcp`` (default ``http://127.0.0.1/mcp``), approve the client,
+and sign in with the UI's Dex account. HTTP is limited to loopback origins;
+other public hosts require HTTPS.
+
+With ``authentication.provider: embeddedDex`` and MCP's ``oidc.configUrl``
+unset, the chart registers the confidential ``osmo-mcp`` client and generates
+the retained ``osmo-embedded-dex-mcp`` Secret outside Helm values. Override the
+client ID with ``authentication.embeddedDex.mcpClientId``. MCP uses the
+release's Valkey and in-cluster Dex and Gateway endpoints. Keep Kubernetes
+Service links enabled on the MCP Pod (``enableServiceLinks: true``) so it can
+validate the in-cluster HTTP Gateway address.
+
+Dex access tokens are opaque. MCP instead verifies the signed ID token's
+issuer and MCP client audience, then forwards it to the Gateway for normal
+identity, role, and pool checks. Client consent is required; the external
+provider's delegated API scope is not.
+
+Generated credentials survive upgrades and uninstall. Deleting the MCP Secret
+and upgrading regenerates it and restarts Dex and MCP; users must sign in
+again. Embedded Dex keeps sessions and signing keys in memory and is intended
+for development and evaluation only.
+
+External OIDC Prerequisites
+===========================
+
+To use external OIDC only for MCP, configure
+``services.mcp.oidcProxy.oidc.configUrl`` and the matching Gateway JWT entry
+below. Leave ``authentication.provider: embeddedDex`` to keep browser and CLI
+login on Dex. Use ``authentication.provider: externalOidc`` and
+``authentication.externalOidc`` only for release-wide provider changes.
 
 Before enabling MCP:
 
@@ -41,11 +75,7 @@ Before enabling MCP:
   reach. Set ``services.mcp.resourceUrl`` to that origin plus the exact
   ``/mcp`` path; the chart derives the outbound Gateway origin from it.
 * In the unified ``osmo`` chart, enable ``planes.control.enabled``.
-  Gateway Envoy, OAuth2 Proxy, and authorization are mandatory and cannot be
-  disabled. The default provider is embedded Dex; use
-  ``authentication.provider: externalOidc`` and ``authentication.externalOidc``
-  for an operator-managed provider. The development quickstart does not
-  provision the public HTTPS endpoint or confidential application needed for MCP.
+  Gateway Envoy, OAuth2 Proxy, and authorization are mandatory.
 * Configure a matching identity-provider JWT entry under
   ``gateway.envoy.jwt.providers`` or ``gateway.envoy.jwt.additionalProviders``
   and role mappings for the upstream API token. The chart adds the MCP
@@ -76,8 +106,8 @@ do. The Gateway must validate the same token and resolve its OSMO identity and
 roles. The delegated scope permits MCP access; it grants no additional OSMO
 API or pool permissions.
 
-Microsoft Entra is the validated provider profile. Verify this token contract
-before using another OIDC provider.
+Microsoft Entra is the validated external provider profile. Verify this token
+contract before using another external OIDC provider.
 
 .. important::
 
@@ -158,8 +188,8 @@ must support this Gateway CA setting and Redis-backed readiness.
 
 Use ``services.mcp.oidcProxy.redis.dbNumber`` and ``keyPrefix`` to isolate
 proxy state from other Redis users. Replicas share the same storage and client
-secret, so ``services.mcp.replicas`` may exceed one. The chart references
-externally managed MCP credentials without creating them.
+secret, so ``services.mcp.replicas`` may exceed one. In external OIDC mode, the
+chart references externally managed MCP credentials without creating them.
 
 Native clients normally omit ``Origin``. If a compatible client sends a
 browser origin, permit it through ``services.mcp.allowedOrigins``. This
@@ -202,9 +232,10 @@ and returns an authorization code to the client's loopback URL. The client
 exchanges that code and its Proof Key for Code Exchange (PKCE) verifier at
 ``/mcp/token`` for a resource token.
 
-FastMCP requests the full delegated scope plus ``openid profile email
-offline_access`` upstream. The client discovers its required scope without
-manual configuration. ``offline_access`` allows session refresh without
+For external OIDC, FastMCP requests the full delegated scope plus
+``openid profile email offline_access`` upstream. Embedded Dex uses only those
+standard OIDC scopes and advertises ``openid`` to MCP clients. Clients discover
+their scope automatically. ``offline_access`` allows session refresh without
 granting additional OSMO permissions. Proxy access tokens default to 600
 seconds; ``refreshTokenTtlSeconds`` is a fallback when the upstream provider
 omits refresh-token expiry.
@@ -234,10 +265,11 @@ Gateway Envoy pods. Then inspect both discovery documents:
    $ curl --fail --silent --show-error \
        https://osmo.example.com/.well-known/oauth-authorization-server/mcp
 
-Check that the resource, issuer, and delegated scope use the configured MCP
-URL, ``client_id_metadata_document_supported`` is ``true``, and
-``registration_endpoint`` points to ``/mcp/register``. Complete a fresh login
-and run the read-only verification in :ref:`getting_started_mcp`.
+Check that the resource and issuer use the configured MCP URL,
+``client_id_metadata_document_supported`` is ``true``, and
+``registration_endpoint`` points to ``/mcp/register``. External OIDC advertises
+the delegated API scope; embedded Dex advertises ``openid``. Complete a fresh
+login and run the read-only verification in :ref:`getting_started_mcp`.
 Also confirm that a restricted user's tool call is denied when its API action
 or target pool is outside that user's permissions.
 
@@ -313,8 +345,10 @@ Troubleshooting
    * - A tool returns ``HTTP 403``
      - Verify the user's API action and pool access for that tool.
    * - Tools time out or report a Gateway dependency failure
-     - Check reachability of the public Gateway origin derived from
-       ``resourceUrl``, then Gateway and API health.
+     - For embedded Dex with ``gateway.envoy.ssl.enabled: false``, check
+       reachability of the in-cluster Gateway Service. For external OIDC or
+       embedded Dex with Gateway Envoy TLS enabled, check the public Gateway
+       origin derived from ``resourceUrl``. Then check Gateway and API health.
    * - Direct in-cluster requests fail
      - With NetworkPolicy enforced, only this release's Gateway Envoy pods may
        reach MCP.

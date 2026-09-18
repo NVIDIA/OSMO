@@ -64,6 +64,7 @@ class CredentialState:
 class BootstrapResult:
     dex_credential_identity: str
     oauth_credential_identity: str
+    mcp_credential_identity: str = ''
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -197,6 +198,16 @@ def _validate_oauth(name: str, data: dict[str, bytes]) -> None:
     except (binascii.Error, ValueError) as error:
         raise BootstrapError(f'{name} contains invalid credentials') from error
     if len(data['browser-client-secret']) < 43 or len(cookie) != 32:
+        raise BootstrapError(f'{name} contains invalid credentials')
+
+
+def _validate_mcp(name: str, data: dict[str, bytes]) -> None:
+    if set(data) != {'client-secret'}:
+        raise BootstrapError(f'{name} contains invalid credentials')
+    client_secret = data['client-secret']
+    if len(client_secret) < 43 or any(
+            character not in b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+            for character in client_secret):
         raise BootstrapError(f'{name} contains invalid credentials')
 
 
@@ -394,6 +405,7 @@ def reconcile_identities(
     token_specs: tuple[TokenSpec, ...],
     oauth_secret_name: str | None,
     dex_hash_secret_name: str | None,
+    mcp_secret_name: str | None = None,
 ) -> BootstrapResult:
     """Create or validate all managed bootstrap identity credentials."""
     password_hashes = {}
@@ -446,14 +458,30 @@ def reconcile_identities(
             validate=_validate_oauth,
         )
 
+    dex_credentials = (
+        *password_hashes.values(),
+        oauth_data.get('browser-client-secret', b''),
+    )
+    mcp_identity = ''
+    if mcp_secret_name is not None:
+        mcp_data = _reconcile_identity_secret(
+            api,
+            namespace=namespace,
+            release_name=release_name,
+            name=mcp_secret_name,
+            generate=lambda: {'client-secret': _generate_client_secret()},
+            validate=_validate_mcp,
+        )
+        dex_credentials += (mcp_data['client-secret'],)
+        mcp_identity = credential_identity('mcp', mcp_data['client-secret'])
+
     return BootstrapResult(
-        dex_credential_identity=credential_identity(
-            'dex', *password_hashes.values(),
-            oauth_data.get('browser-client-secret', b'')),
+        dex_credential_identity=credential_identity('dex', *dex_credentials),
         oauth_credential_identity=credential_identity(
             'oauth2-proxy',
             oauth_data.get('browser-client-secret', b''),
             oauth_data.get('cookie-secret', b'')),
+        mcp_credential_identity=mcp_identity,
     )
 
 
@@ -858,6 +886,7 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument('--migrate-tokens-only', action='store_true')
     parser.add_argument('--admin-secret-name')
     parser.add_argument('--oauth-secret-name')
+    parser.add_argument('--mcp-secret-name')
     parser.add_argument(
         '--password', dest='password_specs', type=_password_spec,
         action='append', default=[])
@@ -877,6 +906,7 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument('--dex-pod-selector')
     parser.add_argument('--config-rollout-identity')
     parser.add_argument('--oauth-pod-selector')
+    parser.add_argument('--mcp-pod-selector')
     parser.add_argument(
         '--restart-timeout-seconds', type=_positive_integer, default=120)
     parsed = parser.parse_args(arguments)
@@ -898,10 +928,15 @@ def main() -> None:
     try:
         password_specs = tuple(getattr(arguments, 'password_specs', ()))
         token_specs = tuple(getattr(arguments, 'token_specs', ()))
+        mcp_secret_name = getattr(arguments, 'mcp_secret_name', None)
+        mcp_pod_selector = getattr(arguments, 'mcp_pod_selector', None)
         unified = bool(
             password_specs
             or token_specs
-            or getattr(arguments, 'dex_hash_secret_name', None))
+            or getattr(arguments, 'dex_hash_secret_name', None)
+            or mcp_secret_name)
+        if mcp_pod_selector and not mcp_secret_name:
+            raise BootstrapError('--mcp-secret-name is required for an MCP rollout')
         if not unified and (
             not arguments.admin_secret_name or not arguments.oauth_secret_name
         ):
@@ -931,6 +966,7 @@ def main() -> None:
                 token_specs=token_specs,
                 oauth_secret_name=arguments.oauth_secret_name,
                 dex_hash_secret_name=arguments.dex_hash_secret_name,
+                mcp_secret_name=mcp_secret_name,
             )
         else:
             result = reconcile(
@@ -954,6 +990,8 @@ def main() -> None:
                     dex_tracking_names += (arguments.oauth_secret_name,)
                 if arguments.dex_hash_secret_name:
                     dex_tracking_names += (arguments.dex_hash_secret_name,)
+                if mcp_secret_name:
+                    dex_tracking_names += (mcp_secret_name,)
             else:
                 dex_tracking_names = (
                     arguments.admin_secret_name, arguments.oauth_secret_name)
@@ -998,6 +1036,19 @@ def main() -> None:
                     'osmo.nvidia.com/embedded-dex-config-rollout'),
                 rollout_identity=arguments.config_rollout_identity,
                 pod_label_selector=arguments.dex_pod_selector,
+                restart_timeout_seconds=max(
+                    0, restart_deadline - time.monotonic()),
+            )
+        if mcp_pod_selector and mcp_secret_name:
+            restart_pods_if_needed(
+                api,
+                namespace=arguments.namespace,
+                release_name=arguments.release_name,
+                tracking_secret_names=(mcp_secret_name,),
+                rollout_annotation=(
+                    'osmo.nvidia.com/embedded-dex-mcp-credential-rollout'),
+                rollout_identity=result.mcp_credential_identity,
+                pod_label_selector=mcp_pod_selector,
                 restart_timeout_seconds=max(
                     0, restart_deadline - time.monotonic()),
             )

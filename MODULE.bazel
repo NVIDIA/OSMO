@@ -370,8 +370,8 @@ apt.install(
 
 oci.pull(
     name = "distroless_cc",
-    digest = "sha256:417ebc04e7fa1ef0eb534e69cc04beab5f820d426379449d12fdaa4b31f840a0",
-    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.1.3",
+    digest = "sha256:b1deb9e97732ab5da2f1f6e0d3ac1e56bdc2df0a5bf900180662a4740f05957c",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.1.4",
     platforms = [
         "linux/arm64/v8",
         "linux/amd64",
@@ -381,8 +381,8 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_14_dev",
-#     digest = "sha256:c434a4688912f8cb8b89bd61af386b8c9e40b8a67a2f1345887b7136bde62226",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.1.3-dev",
+#     digest = "sha256:60023c6532eb9f470fadbe082b2ec78a991650f08fc39d44aaa94d38cedc6a0a",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.1.4-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"

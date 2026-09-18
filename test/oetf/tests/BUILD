@@ -172,3 +172,12 @@ osmo_py_test(
 
 # test_dev_adapter stays internal — dev_adapter.py is not shipped in the public
 # OETF distribution; the internal overlay package owns its tests.
+
+osmo_py_test(
+    name = "test_mcp_probe",
+    srcs = ["test_mcp_probe.py"],
+    deps = [
+        "//test/oetf:mcp_probe",
+        requirement("requests"),
+    ],
+)

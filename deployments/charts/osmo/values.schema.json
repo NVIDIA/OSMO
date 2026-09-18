@@ -233,6 +233,7 @@
       "properties": {
         "browserClientId": { "type": "string", "minLength": 1 },
         "cliClientId": { "type": "string", "minLength": 1 },
+        "mcpClientId": { "type": "string", "minLength": 1 },
         "jwksCacheDurationSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
         "expiry": {
           "type": "object",
@@ -255,7 +256,7 @@
           "required": ["deviceRequests", "signingKeys", "idTokens", "refreshTokens"]
         }
       },
-      "required": ["browserClientId", "cliClientId", "jwksCacheDurationSeconds", "expiry"]
+      "required": ["browserClientId", "cliClientId", "mcpClientId", "jwksCacheDurationSeconds", "expiry"]
     },
     "externalSecretKeyReference": {
       "type": "object",

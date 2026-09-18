@@ -28,6 +28,7 @@ osmo_py_test(
         "//src/tests/common",
         "//src/tests/common/registry",
         osmo_requirement("fastapi"),
+        osmo_requirement("requests"),
         osmo_tests_requirement("httpx"),
         osmo_tests_requirement("testcontainers"),
     ],

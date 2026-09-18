@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+workflow:
+  name: oetf-mcp-round-trip
+  resources:
+    default:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: echo
+    image: ubuntu:22.04
+    command: [echo]
+    args: [oetf-mcp-workflow-complete]
+    resource: default
+  timeout:
+    exec_timeout: 1m
+    queue_timeout: 3m

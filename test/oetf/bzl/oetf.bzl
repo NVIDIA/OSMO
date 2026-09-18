@@ -74,6 +74,7 @@ def oetf_scenario_test(
         test_dir = None,
         data = [],
         workflow_data = ["@osmo_workspace//test/workflow:all_workflow_yamls"],
+        extra_deps = [],
         tags = [],
         test_filter = None,
         size = "large",
@@ -100,6 +101,7 @@ def oetf_scenario_test(
         behavior). Post-migration overlay packages pass their own internal
         filegroup label (e.g. `["//test/workflow:all_internal_yamls"]`).
       tags: additional filter tags (e.g. ["router", "load"]).
+      extra_deps: additional library dependencies used by the scenario.
       test_filter: optional "ClassName.test_method" — emitted as an argv arg
         so `unittest` only runs the one method. Used to split slow files
         into per-test Bazel targets for parallelism.
@@ -137,7 +139,7 @@ def oetf_scenario_test(
             "@osmo_workspace//src/lib/utils:osmo_errors",
             requirement("pyyaml"),
             requirement("requests"),
-        ],
+        ] + extra_deps,
         tags = _COMMON_TAGS + ["oetf-scenario"] + tags,
         size = size,
         timeout = timeout,

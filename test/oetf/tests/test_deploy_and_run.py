@@ -29,7 +29,7 @@ class RunTestsAuthTest(unittest.TestCase):
         )
         environment = EnvironmentConfig(
             name="kind",
-            url="http://quick-start.osmo",
+            url="http://127.0.0.1",
             auth=EnvironmentAuth(strategy="dev", username="testuser"),
             type="kind",
             pool="default",
@@ -58,10 +58,48 @@ class RunTestsAuthTest(unittest.TestCase):
         test_command = run_mock.call_args_list[1].args[0]
         self.assertIn("--auth-method", test_command)
         self.assertIn("token", test_command)
+        self.assertEqual(
+            test_command[test_command.index("--url") + 1], "http://127.0.0.1",
+        )
+        self.assertFalse(any("-mcp" in part for part in test_command))
         self.assertFalse(any("managed-admin-token" in part for part in test_command))
         self.assertEqual(
             run_mock.call_args_list[1].kwargs["env"]["OSMO_ACCESS_TOKEN"],
             "managed-admin-token",
+        )
+
+    def test_released_kind_excludes_mcp_and_preserves_caller_tag_filters(self):
+        args = argparse.Namespace(
+            build_local=False,
+            cluster_name="",
+            env="kind",
+            verbose=False,
+            bazel_arg=["--test_tag_filters=-database"],
+        )
+        environment = EnvironmentConfig(
+            name="kind",
+            url="http://quick-start.osmo",
+            auth=EnvironmentAuth(strategy="dev", username="testuser"),
+            type="kind",
+            pool="default",
+        )
+
+        with mock.patch.object(
+            deploy_and_run_main.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0),
+        ) as run_mock:
+            result = deploy_and_run_main._run_tests(  # pylint: disable=protected-access
+                args, environment,
+            )
+
+        self.assertEqual(result, 0)
+        run_mock.assert_called_once()
+        command = run_mock.call_args.args[0]
+        self.assertIn("--bazel-arg=--test_tag_filters=-database,-mcp", command)
+        self.assertEqual(command[command.index("--auth-method") + 1], "dev")
+        self.assertEqual(
+            command[command.index("--url") + 1], "http://quick-start.osmo",
         )
 
 

@@ -549,6 +549,68 @@ EOF
     fi
 }
 
+test_gateway_jwt_audiences() {
+    local chart=$1
+    local audience_case audience_settings disabled_expected enabled_expected
+    local mcp_enabled audience_expected provider_index
+    local audiences=()
+    while IFS='|' read -r audience_case audience_settings disabled_expected enabled_expected; do
+        cat >"$TEST_DIRECTORY/jwt-audience-values.json" <<EOF
+{
+  "gateway": {"envoy": {"jwt": {"providers": [
+    {"issuer": "https://issuer.example.com",
+     "jwks_uri": "https://issuer.example.com/keys", "cluster": "idp"$audience_settings},
+    {"issuer": "other-issuer",
+     "jwks_uri": "https://issuer.example.com/keys", "cluster": "idp"}
+  ]}}}
+}
+EOF
+        for mcp_enabled in false true; do
+            helm_template jwt-audiences "$chart" \
+                -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+                -f "$CHARTS_ROOT/osmo/tests/control-mcp-values.yaml" \
+                --set "services.mcp.enabled=$mcp_enabled" \
+                -f "$TEST_DIRECTORY/jwt-audience-values.json" \
+                >"$TEST_DIRECTORY/jwt-audiences.yaml"
+            for provider_index in 0 1; do
+                awk -v provider="provider_$provider_index:" '
+                    $1 == provider { keep = 1; next }
+                    keep && $1 == "forward:" { exit }
+                    keep && ($1 == "audiences:" || $1 == "-") {
+                        sub(/^[[:space:]]+/, "")
+                        print
+                    }
+                ' "$TEST_DIRECTORY/jwt-audiences.yaml" \
+                    >"$TEST_DIRECTORY/jwt-audiences-actual.txt"
+                audience_expected=""
+                if [[ "$provider_index" == 0 ]]; then
+                    audience_expected=$disabled_expected
+                    if [[ "$mcp_enabled" == true ]]; then
+                        audience_expected=$enabled_expected
+                    fi
+                fi
+                if [[ -n "$audience_expected" ]]; then
+                    IFS=',' read -r -a audiences <<<"$audience_expected"
+                    printf 'audiences:\n'
+                    printf -- '- "%s"\n' "${audiences[@]}"
+                else
+                    printf 'audiences: []\n'
+                fi >"$TEST_DIRECTORY/jwt-audiences-expected.txt"
+                cmp -s "$TEST_DIRECTORY/jwt-audiences-expected.txt" \
+                    "$TEST_DIRECTORY/jwt-audiences-actual.txt" || \
+                    fail "unexpected JWT audiences for $audience_case (MCP=$mcp_enabled, provider=$provider_index)"
+            done
+        done
+    done <<'JWT_AUDIENCES'
+omitted|||https://osmo.example.com/mcp
+empty-list|,"audiences":[]||https://osmo.example.com/mcp
+singular|,"audience":"123"|123|123,https://osmo.example.com/mcp
+empty-list-fallback|,"audiences":[],"audience":"old-client"|old-client|old-client,https://osmo.example.com/mcp
+plural|,"audiences":["true","123","https://osmo.example.com/mcp"],"audience":"ignored"|true,123,https://osmo.example.com/mcp|true,123,https://osmo.example.com/mcp
+non-string|,"audiences":[null,123,true,{},[],"configured-client"]|configured-client|configured-client,https://osmo.example.com/mcp
+JWT_AUDIENCES
+}
+
 test_control_umbrella() {
     local charts_copy="$TEST_DIRECTORY/charts"
     local rendered="$TEST_DIRECTORY/osmo.yaml"
@@ -599,6 +661,8 @@ test_control_umbrella() {
         cat "$TEST_DIRECTORY/osmo-lint.out" >&2
         fail "expected chart defaults to pass helm lint"
     fi
+
+    test_gateway_jwt_audiences "$charts_copy/osmo"
 
     helm show values "$charts_copy/osmo" >"$TEST_DIRECTORY/osmo-values.yaml"
     require_contains "$TEST_DIRECTORY/osmo-values.yaml" "imageRegistry: nvcr.io"
@@ -1406,9 +1470,9 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "issuer: https://osmo.example.com/dex"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
-        "- osmo-browser"
+        '- "osmo-browser"'
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
-        "- osmo-cli"
+        '- "osmo-cli"'
     require_not_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
         "name: external-idp"
     require_contains "$TEST_DIRECTORY/self-contained-gateway-config.yaml" \
@@ -1971,6 +2035,95 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/quickstart-gateway-config.yaml" \
         "cluster: osmo-ui"
     require_no_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-mcp"
+
+    # Workflow callbacks may use a Gateway address distinct from public OAuth URLs.
+    local callback_url expected_callback_url
+    for callback_url in '' http://osmo-gateway.osmo.svc.cluster.local:80; do
+        expected_callback_url="${callback_url:-http://osmo-gateway:80}"
+        helm_template osmo "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set services.mcp.enabled=true \
+            --set-string externalUrl=http://127.0.0.1 \
+            --set-string "configuration.service.service_base_url=$callback_url" \
+            >"$TEST_DIRECTORY/quickstart-callback.yaml"
+        resource_document "$TEST_DIRECTORY/quickstart-callback.yaml" ConfigMap osmo-api-config \
+            >"$TEST_DIRECTORY/quickstart-callback-config.yaml"
+        require_contains "$TEST_DIRECTORY/quickstart-callback-config.yaml" \
+            "service_base_url: $expected_callback_url"
+        require_contains "$TEST_DIRECTORY/quickstart-callback.yaml" \
+            'value: "http://127.0.0.1/mcp"'
+        require_contains "$TEST_DIRECTORY/quickstart-callback.yaml" \
+            'issuer: http://127.0.0.1/dex'
+    done
+
+    # Enabling MCP on chart defaults needs no external application or Secret.
+    local mcp_origin
+    for mcp_origin in http://127.0.0.1 http://127.0.0.1:18080 http://localhost:8080 https://osmo.example.com; do
+        helm_template osmo "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set services.mcp.enabled=true \
+            --set-string "externalUrl=$mcp_origin" \
+            >"$TEST_DIRECTORY/quickstart-mcp.yaml"
+        require_deployment "$TEST_DIRECTORY/quickstart-mcp.yaml" osmo-mcp
+        resource_document "$TEST_DIRECTORY/quickstart-mcp.yaml" Deployment osmo-mcp \
+            >"$TEST_DIRECTORY/quickstart-mcp-deployment.yaml"
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" \
+            "value: \"$mcp_origin/mcp\""
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" \
+            'value: "http://osmo-gateway:80"'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" \
+            'value: "http://osmo-dex:5556/dex/.well-known/openid-configuration"'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" \
+            'name: OSMO_MCP_AUTH_OIDC_PROVIDER'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" 'value: embeddedDex'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" 'value: "osmo-mcp"'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" 'secretName: osmo-embedded-dex-mcp'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-deployment.yaml" 'value: "/etc/osmo/mcp-auth/client-secret"'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp.yaml" 'name: OSMO_DEX_MCP_CLIENT_SECRET'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp.yaml" '--mcp-secret-name'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp.yaml" '--mcp-pod-selector'
+        require_no_resource "$TEST_DIRECTORY/quickstart-mcp.yaml" Secret osmo-embedded-dex-mcp
+        resource_document "$TEST_DIRECTORY/quickstart-mcp.yaml" ConfigMap osmo-gateway-envoy-config \
+            >"$TEST_DIRECTORY/quickstart-mcp-gateway.yaml"
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-gateway.yaml" "issuer: $mcp_origin/dex"
+        require_contains "$TEST_DIRECTORY/quickstart-mcp-gateway.yaml" '- "osmo-mcp"'
+        require_contains "$TEST_DIRECTORY/quickstart-mcp.yaml" "\"$mcp_origin/mcp/auth/callback\""
+    done
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" '--mcp-secret-name'
+    require_not_contains "$TEST_DIRECTORY/quickstart.yaml" 'name: OSMO MCP'
+    require_not_contains "$TEST_DIRECTORY/quickstart-gateway-config.yaml" '- "osmo-mcp"'
+
+    helm_template custom-mcp "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set services.mcp.enabled=true \
+        --set-string externalUrl=http://localhost:18080 \
+        --set-string authentication.embeddedDex.mcpClientId=custom-client \
+        --set-string fullnameOverride=custom \
+        --set gateway.envoy.service.port=8081 \
+        >"$TEST_DIRECTORY/quickstart-custom-mcp.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-custom-mcp.yaml" 'id: "custom-client"'
+    require_contains "$TEST_DIRECTORY/quickstart-custom-mcp.yaml" '- "custom-client"'
+    require_contains "$TEST_DIRECTORY/quickstart-custom-mcp.yaml" 'value: "http://custom-gateway:8081"'
+
+    local invalid_dex_mcp_setting invalid_dex_mcp_error
+    while IFS='|' read -r invalid_dex_mcp_setting invalid_dex_mcp_error; do
+        if helm_template invalid-mcp "$charts_copy/osmo" \
+                --api-versions postgresql.cnpg.io/v1 \
+                --set services.mcp.enabled=true \
+                --set-string "$invalid_dex_mcp_setting" \
+                >"$TEST_DIRECTORY/invalid-dex-mcp.out" 2>&1; then
+            fail "expected embedded Dex MCP validation to fail: $invalid_dex_mcp_setting"
+        fi
+        require_contains "$TEST_DIRECTORY/invalid-dex-mcp.out" "$invalid_dex_mcp_error"
+    done <<'INVALID_DEX_MCP'
+externalUrl=http://osmo.example.com|must be a valid HTTPS origin
+services.mcp.resourceUrl=https://different.example.com/mcp|must match externalUrl
+services.mcp.oidcProxy.oidc.clientId=unregistered|client settings are chart-managed
+services.mcp.oidcProxy.existingSecret.name=unmanaged|client settings are chart-managed
+services.mcp.oidcProxy.existingSecret.redisPasswordKey=redis-password|client settings are chart-managed
+authentication.embeddedDex.mcpClientId=osmo-cli|must be non-empty and different
+authentication.embeddedDex.mcpClientId=osmo-browser|must be non-empty and different
+INVALID_DEX_MCP
     require_deployment "$TEST_DIRECTORY/quickstart.yaml" \
         "osmo-gateway-oauth2-proxy"
     require_deployment "$TEST_DIRECTORY/quickstart.yaml" "osmo-gateway-authz"
@@ -3727,13 +3880,13 @@ EOF
 existing-secret|--set-string secrets.objectStorage.existingSecret=unexpected
 generated-secret|--set secrets.objectStorage.generate=true --set-string secrets.objectStorage.existingSecret=
 EOF
-    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:latest"
+    require_contains "$rendered" "nvcr.io/nvidia/osmo/service:6.3.1"
     resource_document "$rendered" ConfigMap osmo-api-config \
         >"$TEST_DIRECTORY/osmo-external-runtime-config.yaml"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "init: nvcr.io/nvidia/osmo/init-container:latest"
+        "init: nvcr.io/nvidia/osmo/init-container:6.3.1"
     require_contains "$TEST_DIRECTORY/osmo-external-runtime-config.yaml" \
-        "client: nvcr.io/nvidia/osmo/client:latest"
+        "client: nvcr.io/nvidia/osmo/client:6.3.1"
     require_contains "$rendered" "- INFO"
     require_contains "$rendered" "service_base_url: http://osmo-gateway"
     require_not_contains "$rendered" "service_base_url: http://osmo-gateway-envoy"
@@ -5632,6 +5785,7 @@ EOF
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/complete-snapshot-values.yaml" \
+        --set-string configuration.service.service_base_url=https://ignored.example.com \
         --set-string configuration.snapshot.service.service_base_url=http://internal-gateway.osmo.svc:8080 \
         >"$TEST_DIRECTORY/complete-snapshot.yaml"
 
@@ -5646,6 +5800,8 @@ EOF
         >"$TEST_DIRECTORY/complete-snapshot-config.yaml"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
         "service_base_url: http://internal-gateway.osmo.svc:8080"
+    require_not_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
+        "ignored.example.com"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
         "secretName: independent-data-storage"
     require_contains "$TEST_DIRECTORY/complete-snapshot-config.yaml" \
@@ -6019,11 +6175,11 @@ MCP_ROUTES
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "issuer: https://idp.example.com"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "- https://osmo.example.com/mcp"
+        '- "https://osmo.example.com/mcp"'
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "uri: https://issuer.example.com/.well-known/jwks.json"
     require_contains "$TEST_DIRECTORY/osmo-mcp.yaml" \
-        "image: nvcr.io/nvidia/osmo/mcp:latest"
+        "image: nvcr.io/nvidia/osmo/mcp:6.3.1"
     require_occurrences "$TEST_DIRECTORY/osmo-mcp.yaml" \
         "kubernetes.io/os: linux" 12
 
@@ -6613,7 +6769,7 @@ MCP_INVALID_VALUES
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "name: osmo-mirror-secret"
     require_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
-        "image: osmo-mirror.example.com/nvidia/osmo/service:latest"
+        "image: osmo-mirror.example.com/nvidia/osmo/service:6.3.1"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \
         "valkey-mirror.example.com"
     require_not_contains "$TEST_DIRECTORY/osmo-api-image-pull-secret.yaml" \

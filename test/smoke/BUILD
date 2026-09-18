@@ -28,6 +28,14 @@ oetf_smoke_test(
     tags = ["api", "mcp"],
 )
 
+# Real embedded Dex login requires the source-build KIND quickstart.
+# Keep this essential MCP gate independent of the auth lifecycle suite.
+oetf_smoke_test(
+    name = "mcp-kind",
+    src = "mcp_kind.py",
+    tags = ["api", "kind", "mcp"],
+)
+
 # auth-checks stays internal — public quick-start chart ships no JWT issuer
 # (only oauth2Proxy). Re-enable here once the public chart adds one.
 

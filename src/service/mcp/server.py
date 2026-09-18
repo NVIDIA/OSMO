@@ -61,7 +61,7 @@ class MCPServiceConfig(
         description='The TCP port to bind to when serving the MCP service.',
         json_schema_extra={'command_line': 'port', 'env': 'OSMO_MCP_PORT'})
     gateway_url: pydantic.AnyHttpUrl = pydantic.Field(
-        description='HTTPS origin of the same-deployment OSMO Gateway.',
+        description='Origin of the same-deployment OSMO Gateway.',
         json_schema_extra={'env': 'OSMO_GATEWAY_URL'})
     gateway_ca_file: str = pydantic.Field(
         default='',
@@ -89,7 +89,9 @@ class MCPServiceConfig(
 
     @pydantic.model_validator(mode='after')
     def _validate_gateway_url(self) -> 'MCPServiceConfig':
-        gateway.validate_gateway_origin(str(self.gateway_url))
+        gateway.validate_gateway_origin(
+            str(self.gateway_url), allow_http=self.oidc_provider == 'embeddedDex',
+        )
         return self
 
 
@@ -176,7 +178,7 @@ def create_runtime_application(
     # loopback hosts (fastmcp/server/http.py:297-306), so the deployment origin
     # has to be listed explicitly or consent is rejected.
     browser_origins = list(dict.fromkeys([
-        str(config.gateway_url).rstrip('/'),
+        config.resource_url.removesuffix('/mcp'),
         *config.allowed_origins,
     ]))
     application = create_application(protocol_server, browser_origins)
@@ -191,6 +193,7 @@ def create_runtime_application(
             request_timeout_seconds=config.request_timeout_seconds,
             transport=http_transport,
             gateway_ca_file=config.gateway_ca_file,
+            allow_http=config.oidc_provider == 'embeddedDex',
         ) as app_context:
             lifespan_application.state.mcp_app_context = app_context
             try:
