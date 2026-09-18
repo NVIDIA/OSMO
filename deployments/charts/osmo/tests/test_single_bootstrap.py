@@ -129,6 +129,14 @@ class SingleBootstrapTests(unittest.TestCase):
                 if not jobs:
                     continue
                 job = jobs[0]
+                configuration = json.loads(next(
+                    item['data']['config.json']
+                    for item in resources
+                    if item['kind'] == 'ConfigMap'
+                    and item['metadata']['name']
+                    == job['metadata']['name'] + '-config'
+                ))
+                self.assertNotIn('initialization_id', configuration)
                 specification = job['spec']
                 pod = specification['template']['spec']
                 self.assertEqual(specification['backoffLimit'], 0)

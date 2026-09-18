@@ -68,7 +68,6 @@ class Configuration:
     release: str
     record: str
     generation: str
-    initialization_id: str
     secrets: list[SecretSpec]
     consumers: list[str]
     steps: list[str]
@@ -113,24 +112,13 @@ def secret_identity(
 
 
 def initialization_mode(configuration: Configuration, inventory: dict[str, Any]) -> str:
-    """Absence of Kubernetes objects never independently authorizes initialization."""
+    """Initialize missing managed credentials; otherwise adopt the inventory."""
     missing = [
         item.name
         for item in configuration.secrets
         if item.protected and item.name not in inventory
     ]
-    if not missing:
-        return 'adopt'
-    if not configuration.initialization_id:
-        raise BootstrapError(
-            'No installation record and protected credentials are missing: '
-            + ', '.join(missing)
-            + '. Restore retained credentials to adopt this release unchanged. '
-            'For an intentionally '
-            'new installation, set bootstrap.initializationId to a unique non-secret ID; '
-            'remove it after initialization. Adopt before changing credential declarations.'
-        )
-    return 'initialize'
+    return 'initialize' if missing else 'adopt'
 
 
 def verify_committed(committed: dict[str, Any], inventory: dict[str, Any]) -> None:
@@ -194,20 +182,29 @@ class Coordinator:
                 )
         return result
 
-    def verify_enabled_committed(self, inventory: dict[str, Any]) -> None:
+    def verify_enabled_committed(
+        self, inventory: dict[str, Any], *, allow_missing: bool = False
+    ) -> None:
         for specification in self.configuration.secrets:
             adopted_uid = self.state.get('adopted', {}).get(specification.name)
-            if (
-                adopted_uid
-                and inventory.get(specification.name, {}).get('uid') != adopted_uid
-            ):
-                raise BootstrapError(
-                    f'Adopted credential {specification.name} is missing or replaced.'
-                )
+            current = inventory.get(specification.name)
+            if adopted_uid:
+                if current is None and not allow_missing:
+                    raise BootstrapError(
+                        f'Adopted credential {specification.name} is missing or replaced.'
+                    )
+                if current is not None and current.get('uid') != adopted_uid:
+                    raise BootstrapError(
+                        f'Adopted credential {specification.name} is missing or replaced.'
+                    )
             previous = self.state['committed'].get(specification.name)
             if not specification.protected or previous is None:
                 continue
-            current = inventory.get(specification.name)
+            if current is None:
+                if allow_missing:
+                    continue
+                verify_committed({specification.name: previous}, inventory)
+                continue
             if (
                 specification.rotation_id
                 and specification.rotation_id
@@ -215,8 +212,7 @@ class Coordinator:
             ):
                 # The explicit lifecycle operation owns key transitions. Its
                 # validator must still accept the retained Secret in step().
-                # Rotation never authorizes recreating a lost Secret.
-                if current is None or current['uid'] != previous['uid']:
+                if current['uid'] != previous['uid']:
                     raise BootstrapError(
                         f'Rotated credential {specification.name} was replaced.'
                     )
@@ -422,7 +418,6 @@ class Coordinator:
                 self.verify_quiescence()
             self.state = {
                 'installation': self.configuration.installation,
-                'initializationId': self.configuration.initialization_id,
                 'mode': mode,
                 'committed': {},
                 'intents': {},
@@ -450,7 +445,8 @@ class Coordinator:
                 ),
                 _request_timeout=API_TIMEOUT,
             )
-        self.verify_enabled_committed(inventory)
+        self.state.pop('initializationId', None)
+        self.verify_enabled_committed(inventory, allow_missing=True)
         self.state.update(
             generation=self.configuration.generation,
             podUID=self.pod_uid,
@@ -466,7 +462,7 @@ class Coordinator:
         if name not in self.configuration.steps:
             raise BootstrapError(f'Step {name} is disabled.')
         inventory = self.inventory()
-        self.verify_enabled_committed(inventory)
+        self.verify_enabled_committed(inventory, allow_missing=True)
         existing_protected = {
             item.name: inventory[item.name]
             for item in self.configuration.secrets
@@ -513,7 +509,13 @@ class Coordinator:
                 'Credential issuance does not belong to the prepared step.'
             )
         if name in self.state.get('adopted', {}) or name in self.state['committed']:
-            raise BootstrapError(f'Refusing to recreate retained credential {name}.')
+            if name in pending.get('existing', {}):
+                raise BootstrapError(
+                    f'Refusing to recreate retained credential {name}.'
+                )
+            self.state.get('adopted', {}).pop(name, None)
+            self.state['committed'].pop(name, None)
+            self.state.get('rotations', {}).pop(name, None)
         if name in self.state['intents']:
             raise BootstrapError(
                 f'Credential {name} has an unresolved issuance intent.'

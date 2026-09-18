@@ -3261,6 +3261,7 @@ INVALID_DEX_MCP
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" '--service_auth_file'
     require_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" \
         'secretName: "osmo-service-auth"'
+    require_not_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'initialization_id'
     require_not_contains "$TEST_DIRECTORY/mek-bootstrap.yaml" 'kind: Lease'
     require_no_resource "$TEST_DIRECTORY/mek-bootstrap.yaml" Secret \
         external-master-encryption-key-secret

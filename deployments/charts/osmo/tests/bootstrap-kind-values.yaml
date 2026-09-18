@@ -6,8 +6,6 @@ externalUrl: http://127.0.0.1:30080
 planes:
   compute:
     enabled: false
-bootstrap:
-  initializationId: bootstrap-kind-fresh
 services:
   api:
     replicas: 1

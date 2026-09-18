@@ -2229,9 +2229,6 @@ rustfs:
 
 # One ordinary Job sequences only enabled bootstrap operations.
 bootstrap:
-  # Explicit authorization for a new installation with missing protected credentials.
-  # Use a unique non-secret ID and remove it after successful initialization.
-  initializationId: ""
   attempt: ""
   coordinatorActiveDeadlineSeconds: 300
   storageActiveDeadlineSeconds: 600
