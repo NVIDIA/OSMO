@@ -115,6 +115,111 @@ def bootstrap_jobs(resources: list[dict]) -> list[dict]:
 
 
 class SingleBootstrapTests(unittest.TestCase):
+    def test_managed_secret_lifecycle_preserves_then_recreates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary_directory = root / 'bin'
+            binary_directory.mkdir()
+            kubectl = binary_directory / 'kubectl'
+            kubectl.write_text(r'''#!/bin/sh
+set -eu
+
+state=${FAKE_STATE_DIRECTORY:?}
+
+if [ "$1" = get ]; then
+    name=$3
+    data="$state/$name.data"
+    if [ ! -f "$data" ]; then
+        case "$*" in
+            *--ignore-not-found=true*) exit 0 ;;
+            *) exit 1 ;;
+        esac
+    fi
+    case "$*" in
+        *metadata.name*) printf '%s' "$name" ;;
+        *'.data '*) base64 <"$data" | tr -d '\n' ;;
+        *) exit 1 ;;
+    esac
+    exit 0
+fi
+
+if [ "$1" = create ] && [ "$2" = secret ]; then
+    name=$4
+    for argument in "$@"; do
+        case "$argument" in
+            --from-file=*) source=${argument#*=}; source=${source#*=} ;;
+        esac
+    done
+    cp "$source" "$state/pending.data"
+    printf '%s\n' 'apiVersion: v1' 'kind: Secret' 'metadata:' "  name: $name"
+    exit 0
+fi
+
+if [ "$1" = label ] && [ "$2" = --local ]; then
+    cat
+    printf '  labels:\n'
+    for argument in "$@"; do
+        case "$argument" in
+            *=*) printf '    %s: %s\n' "${argument%%=*}" "${argument#*=}" ;;
+        esac
+    done
+    exit 0
+fi
+
+if [ "$1" = annotate ] && [ "$2" = --local ]; then
+    cat
+    printf '  annotations:\n'
+    for argument in "$@"; do
+        case "$argument" in
+            *=*) printf '    %s: %s\n' "${argument%%=*}" "${argument#*=}" ;;
+        esac
+    done
+    exit 0
+fi
+
+if [ "$1" = create ] && [ "$2" = -f ]; then
+    cat >"$state/pending.yaml"
+    name=$(awk '$1 == "name:" { print $2; exit }' "$state/pending.yaml")
+    mv "$state/pending.yaml" "$state/$name.yaml"
+    cp "$state/pending.data" "$state/$name.data"
+    exit 0
+fi
+
+exit 2
+''')
+            kubectl.chmod(0o755)
+            environment = {
+                **os.environ,
+                'PATH': f'{binary_directory}:{os.environ["PATH"]}',
+                'FAKE_STATE_DIRECTORY': str(root),
+            }
+            command = [
+                'bash',
+                str(CHART / 'files/mek-bootstrap.sh'),
+                '--namespace', 'test',
+                '--release-name', 'release',
+                '--secret-name', 'generated-mek',
+                '--secret-key', 'mek.yaml',
+            ]
+
+            subprocess.run(command, check=True, env=environment)
+            original = (root / 'generated-mek.data').read_bytes()
+            subprocess.run(command, check=True, env=environment)
+            self.assertEqual((root / 'generated-mek.data').read_bytes(), original)
+
+            (root / 'generated-mek.data').unlink()
+            (root / 'generated-mek.yaml').unlink()
+            subprocess.run(command, check=True, env=environment)
+            self.assertNotEqual((root / 'generated-mek.data').read_bytes(), original)
+            manifest = (root / 'generated-mek.yaml').read_text()
+            self.assertIn(
+                'app.kubernetes.io/managed-by: osmo-mek-bootstrap', manifest
+            )
+            self.assertIn('app.kubernetes.io/instance: release', manifest)
+            self.assertIn(
+                'osmo.nvidia.com/credential-source: osmo-chart-bootstrap', manifest
+            )
+
     def test_all_32_enable_combinations(self) -> None:
         for mask in range(32):
             with self.subTest(mask=mask):
