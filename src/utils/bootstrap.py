@@ -544,6 +544,7 @@ class Coordinator:
                     self.state.setdefault('rotations', {})[specification.name] = (
                         specification.rotation_id
                     )
+                    self.state['intents'].pop(specification.name, None)
         self.state['receipts'][name] = {
             'generation': self.configuration.generation,
             'podUID': self.pod_uid,
