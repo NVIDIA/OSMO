@@ -8,7 +8,6 @@ scheduler:
   args:
     default-staleness-grace-period: 3m
     update-pod-eviction-condition: "true"
-    feature-gates: DynamicResourceAllocation=false
   actions:
     stalegangeviction:
       enabled: false

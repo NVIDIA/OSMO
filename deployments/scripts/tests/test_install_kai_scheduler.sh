@@ -23,6 +23,12 @@ assert_contains() {
     grep -Fq -- "$expected" "$file" || fail "expected $expected"
 }
 
+assert_not_contains() {
+    local file="$1"
+    local unexpected="$2"
+    ! grep -Fq -- "$unexpected" "$file" || fail "did not expect $unexpected"
+}
+
 cat >"$mock_directory/kubectl" <<'EOF'
 #!/bin/bash
 set -euo pipefail
@@ -62,6 +68,6 @@ rendered="$test_directory/kai.yaml"
 assert_contains "$rendered" 'gpuPodRuntimeClassName: ""'
 assert_contains "$rendered" 'default-staleness-grace-period: 3m'
 assert_contains "$rendered" 'update-pod-eviction-condition: "true"'
-assert_contains "$rendered" 'feature-gates: DynamicResourceAllocation=false'
+assert_not_contains "$rendered" 'feature-gates: DynamicResourceAllocation=false'
 assert_contains "$rendered" 'stalegangeviction:'
 assert_contains "$rendered" 'enabled: false'
