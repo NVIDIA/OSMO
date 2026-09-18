@@ -117,7 +117,7 @@ before exposing OSMO to users.
 Install cluster dependencies
 ============================
 
-Create ``kai-selectors.yaml`` to keep KAI Scheduler on platform nodes:
+Create ``kai-overrides.yaml`` to keep KAI Scheduler on platform nodes:
 
 .. code-block:: yaml
 
@@ -136,7 +136,11 @@ Create ``kai-selectors.yaml`` to keep KAI Scheduler on platform nodes:
      tolerations: []
 
 Install KAI Scheduler v0.12.10 using the same release artifact and values-file
-workflow as :ref:`the compute deployment guide <installing_kai>`:
+workflow as :ref:`the compute deployment guide <installing_kai>`. KAI v0.12.10
+configures scheduler arguments through ``SchedulingShard.spec.args`` rather
+than the older ``scheduler.additionalArgs`` Helm value. The patch below
+disables stale-gang eviction and enables the pod condition OSMO uses to detect
+scheduler preemption:
 
 .. code-block:: bash
 
@@ -144,9 +148,11 @@ workflow as :ref:`the compute deployment guide <installing_kai>`:
      https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
      --namespace kai-scheduler \
      --create-namespace \
-     --values kai-selectors.yaml
+     --values kai-overrides.yaml
    kubectl wait --for=condition=Available \
      config.kai.scheduler/kai-config --timeout=10m
+   kubectl patch schedulingshard default --type=merge \
+     --patch '{"spec":{"args":{"default-staleness-grace-period":"-1s","update-pod-eviction-condition":"true"}}}'
    kubectl wait --for=condition=Available \
      schedulingshard/default --timeout=10m
    kubectl --namespace kai-scheduler wait --for=condition=Available \
@@ -170,14 +176,13 @@ created by the OSMO release:
 Install OSMO
 ============
 
-Copy the shipped environment template and edit the copy for your cluster:
+Copy the YAML displayed below into a file named
+``self-contained-environment-values.yaml``:
 
-.. code-block:: bash
+.. literalinclude:: ../../../deployments/charts/osmo/examples/self-contained-environment-values.yaml
+   :language: yaml
 
-   cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
-     self-contained-environment-values.yaml
-
-Review every setting marked ``REQUIRED`` or ``CONDITIONAL`` in the copied file:
+Review every setting marked ``REQUIRED`` or ``CONDITIONAL`` in that file:
 
 * Keep ``externalUrl: http://127.0.0.1:8080`` for the local evaluation path, or
   replace it with the public HTTPS URL for an operator-managed edge.
@@ -249,7 +254,6 @@ shell history:
 
    umask 077
    OSMO_TOKEN_FILE="$(mktemp)"
-   trap 'rm -f -- "${OSMO_TOKEN_FILE}"' EXIT INT TERM
    kubectl --namespace osmo get secret osmo-admin-token \
      --output jsonpath='{.data.token}' \
      | base64 --decode > "${OSMO_TOKEN_FILE}"
@@ -257,7 +261,7 @@ shell history:
      --method=token \
      --token-file="${OSMO_TOKEN_FILE}"
    rm -f -- "${OSMO_TOKEN_FILE}"
-   trap - EXIT INT TERM
+   unset OSMO_TOKEN_FILE
 
 To use the browser UI, retrieve the embedded-Dex password in a private terminal:
 

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Copy this file to self-contained-environment-values.yaml and review every
+# Save this content as self-contained-environment-values.yaml and review every
 # REQUIRED and CONDITIONAL setting below. It inherits
 # authentication.provider=embeddedDex from the base values. The chart creates
 # credentials only in retained Kubernetes Secrets; do not put them in this
