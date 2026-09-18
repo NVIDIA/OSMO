@@ -353,6 +353,8 @@ or GKE annotations for AWS or GCP. Federate the exact ServiceAccount subjects
 used by the release; with release name ``osmo`` they are ``osmo-api``,
 ``osmo-worker``, and ``osmo-workflow``.
 
+.. _deploy_service_other_secrets:
+
 Configure Other Secrets
 =======================
 

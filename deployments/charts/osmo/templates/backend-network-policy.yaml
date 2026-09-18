@@ -32,6 +32,20 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: {{ include "osmo.compute.backendNamespace" . }}
+  {{- if and .Values.planes.control.enabled (ne (include "osmo.compute.backendNamespace" .) .Release.Namespace) }}
+  - ports:
+    - port: {{ ternary 443 .Values.gateway.envoy.listenerPort .Values.gateway.envoy.ssl.enabled }}
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "osmo.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: gateway-envoy
+  {{- end }}
   - ports:
     - port: 53
       protocol: UDP

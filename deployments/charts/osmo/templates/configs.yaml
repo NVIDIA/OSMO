@@ -116,7 +116,7 @@ data:
       {{- $backends := deepCopy $cfg.backends }}
       {{- range $name, $backend := $backends }}
       {{- if and (kindIs "map" $backend) (not (index $backend "k8s_namespace")) }}
-      {{- $_ := set $backend "k8s_namespace" $.Release.Namespace }}
+      {{- $_ := set $backend "k8s_namespace" (include "osmo.compute.backendNamespace" $) }}
       {{- end }}
       {{- end }}
       {{- toYaml $backends | nindent 6 }}
