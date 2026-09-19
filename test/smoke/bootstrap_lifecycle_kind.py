@@ -45,6 +45,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.values = yaml.safe_load(
             (self.chart_path() / 'tests/bootstrap-kind-values.yaml').read_text()
         )
+        self.values.setdefault('bootstrap', {})
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))
             self.port = listener.getsockname()[1]
