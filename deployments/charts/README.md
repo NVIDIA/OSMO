@@ -44,19 +44,8 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-After the first installation bootstraps the retained master-encryption-key and
-service-auth Secrets, disable both one-time bootstrap Jobs and their
-Secret-creation permissions:
-
-```bash
-helm --kube-context kind-osmo upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --reuse-values \
-  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --set secrets.serviceAuth.bootstrap.enabled=false \
-  --wait \
-  --timeout 20m
-```
+Keep bootstrap enabled for OSMO-managed credentials. Upgrades validate and
+reuse retained Secrets, and recreate a missing managed Secret.
 
 The default values deploy the UI, gateway, control and compute planes, a
 CloudNativePG Cluster, persistent Valkey, and persistent RustFS. They generate
@@ -106,18 +95,9 @@ helm upgrade --install osmo deployments/charts/osmo \
   --timeout 30m
 ```
 
-After the first installation bootstraps the retained master-encryption-key
-Secret, persist `secrets.masterEncryptionKey.bootstrap.enabled: false` in the
-environment overlay and apply it. The immediate Helm cleanup transaction is:
-
-```bash
-helm upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --reuse-values \
-  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --wait \
-  --timeout 30m
-```
+Keep bootstrap enabled for OSMO-managed credentials. For maximum recovery
+robustness, provision credentials from an external secret manager and select
+external management instead.
 
 See the [`osmo` self-contained guide](osmo/README.md#self-contained-production)
 for availability, storage, identity, network-isolation, backup, and edge details.

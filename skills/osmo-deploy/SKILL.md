@@ -115,10 +115,11 @@ migrate release ownership, values, data, and credentials using the chart guide;
 this installer does not perform that migration. The minimal wrapper and MicroK8s
 bootstrap are removed. Existing clusters use the BYO path.
 
-On a fresh install, chart hooks create bootstrap credentials. The installer
-then disables MEK/service-auth bootstrap. Upgrades retain prior values and
-require retained credential Secrets; missing keys require deliberate recovery.
-Do not re-enable bootstrap to hide a missing-key failure.
+On a fresh install, chart hooks create bootstrap credentials. Keep
+MEK/service-auth bootstrap enabled for OSMO-managed credentials: upgrades
+validate and reuse existing managed Secrets and recreate a missing managed
+Secret. Use externally managed Secrets restored from a secret manager when
+maximum recovery robustness is required.
 
 Verification runs CPU, object-storage, and optional GPU workflows. It owns a
 temporary foreground port-forward and cleans up that process. Private AKS uses

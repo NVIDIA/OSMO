@@ -441,8 +441,8 @@ secrets:
     # Change after intentionally updating the externally managed Secret.
     rolloutNonce: ''
     bootstrap:
-      # Quickstart is install-only. Disable after successful bootstrap to
-      # remove the one-time Secret-creation RBAC and Job from desired state.
+      # Keep enabled for OSMO-managed credentials so upgrades validate and
+      # reuse retained Secrets or recreate a missing managed Secret.
       enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
