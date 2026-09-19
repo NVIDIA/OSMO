@@ -183,7 +183,11 @@ class Coordinator:
         return result
 
     def verify_enabled_committed(
-        self, inventory: dict[str, Any], *, allow_missing: bool = False
+        self,
+        inventory: dict[str, Any],
+        *,
+        allow_missing: bool = False,
+        allow_missing_committed: frozenset[str] = frozenset(),
     ) -> None:
         for specification in self.configuration.secrets:
             adopted_uid = self.state.get('adopted', {}).get(specification.name)
@@ -201,7 +205,7 @@ class Coordinator:
             if not specification.protected or previous is None:
                 continue
             if current is None:
-                if allow_missing:
+                if allow_missing or specification.name in allow_missing_committed:
                     continue
                 verify_committed({specification.name: previous}, inventory)
                 continue
@@ -529,7 +533,17 @@ class Coordinator:
         if pending.get('step') != name or pending.get('podUID') != self.pod_uid:
             raise BootstrapError('Step completion does not match the prepared attempt.')
         inventory = self.inventory()
-        self.verify_enabled_committed(inventory)
+        later_steps = self.configuration.steps[
+            self.configuration.steps.index(name) + 1:
+        ]
+        self.verify_enabled_committed(
+            inventory,
+            allow_missing_committed=frozenset(
+                specification.name
+                for specification in self.configuration.secrets
+                if specification.step in later_steps
+            ),
+        )
         verify_committed(pending['existing'], inventory)
         for specification in self.configuration.secrets:
             if specification.step == name:

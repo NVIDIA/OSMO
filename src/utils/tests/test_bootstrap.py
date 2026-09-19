@@ -179,6 +179,38 @@ class CoordinatorTests(unittest.TestCase):
             self.runtime.state['committed']['root']['uid'], 'replacement-uid'
         )
 
+    def test_earlier_step_finishes_while_later_committed_secret_is_missing(
+        self,
+    ) -> None:
+        later = bootstrap.SecretSpec('later', 'identity', 'owner', ['key'])
+        self.runtime.configuration = dataclasses.replace(
+            configuration(),
+            secrets=configuration().secrets + [later],
+            steps=['tls', 'identity'],
+        )
+        self.state['committed'] = {
+            'root': bootstrap.secret_identity(
+                secret(), configuration().secrets[0], 'release'
+            ),
+            'later': bootstrap.secret_identity(
+                secret(uid='later-uid'), later, 'release'
+            ),
+        }
+        self.set_state()
+
+        def read_secret(name, *_args, **_kwargs):
+            if name == 'root':
+                return secret()
+            raise ApiException(status=404)
+
+        self.core.read_namespaced_secret.side_effect = read_secret
+        self.runtime.prepare('tls')
+        self.runtime.finish('tls')
+
+        self.assertEqual(self.runtime.state['receipts']['tls']['podUID'], 'uid')
+        with self.assertRaisesRegex(bootstrap.BootstrapError, 'Committed credential'):
+            self.runtime.ready()
+
     def test_begin_removes_legacy_initialization_id_from_retained_state(self) -> None:
         self.state['initializationId'] = 'obsolete'
         self.set_state()
