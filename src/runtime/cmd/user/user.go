@@ -61,9 +61,9 @@ func handleExit() {
 }
 
 func createOutLogsStream(outChan chan messages.Request) func(*exec.Cmd, *bufio.Scanner,
-	*sync.WaitGroup, chan bool) {
+	*sync.WaitGroup, chan bool, <-chan struct{}) {
 	streamOutLogs := func(cmd *exec.Cmd, scanner *bufio.Scanner,
-		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
+		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool, _ <-chan struct{}) {
 		defer waitStreamLogs.Done()
 		for scanner.Scan() {
 			outChan <- messages.MessageOutRequest(scanner.Text())
