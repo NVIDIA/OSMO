@@ -88,17 +88,16 @@ Secret in the control-plane namespace. The commands do not print the token:
 .. code-block:: bash
 
    $ set -o pipefail
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ if openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" &&
-       [ -s "$TOKEN_FILE" ]; then
-       kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
-         create secret generic osmo-gb200-01-backend-token \
-         --from-file=token="$TOKEN_FILE"
-     else
-       echo "Failed to generate backend token" >&2
-     fi
-   $ rm -f -- "$TOKEN_FILE"
+   $ TOKEN_FILE=$(mktemp) &&
+     chmod 600 "$TOKEN_FILE" &&
+     openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" &&
+     [ -s "$TOKEN_FILE" ] &&
+     kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+       create secret generic osmo-gb200-01-backend-token \
+       --from-file=token="$TOKEN_FILE"
+   $ BACKEND_TOKEN_STATUS=$?
+   $ rm -f -- "${TOKEN_FILE:-}" || BACKEND_TOKEN_STATUS=$?
+   $ test "$BACKEND_TOKEN_STATUS" -eq 0
 
 For production, provision the same Secret through your approved secret
 manager. As a best practice, use a different token for each backend so that

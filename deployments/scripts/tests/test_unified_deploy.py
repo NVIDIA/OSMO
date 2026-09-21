@@ -291,6 +291,22 @@ class DeploymentTest(unittest.TestCase):
         self.assertTrue(missing_values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
         self.assertTrue(any(call[:2] == ('helm', 'upgrade') for call in missing.calls))
 
+    def test_upgrade_does_not_enable_bootstrap_during_mek_rotation(self):
+        previous = {'secrets': {'masterEncryptionKey': {
+            'bootstrap': {'enabled': False},
+            'rotation': {'phase': 'prepare', 'requestId': 'rotation-1'},
+        }}}
+        values, _ = self.run_install(FakeCluster(previous=previous))
+        self.assertFalse(values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
+
+    def test_upgrade_does_not_enable_bootstrap_during_service_auth_migration(self):
+        previous = {'secrets': {'serviceAuth': {
+            'bootstrap': {'enabled': False},
+            'migration': {'enabled': True},
+        }}}
+        values, _ = self.run_install(FakeCluster(previous=previous))
+        self.assertFalse(values[0]['secrets']['serviceAuth']['bootstrap']['enabled'])
+
     def test_upgrade_preserves_external_secret_management(self):
         previous = {'secrets': {
             'masterEncryptionKey': {

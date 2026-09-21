@@ -154,24 +154,6 @@ printf '%s' "$POSTGRES_USERNAME" >"$SECRETS_DIR/postgres-username"
 printf '%s' "$POSTGRES_PASSWORD" >"$SECRETS_DIR/postgres-password"
 printf '%s' "$REDIS_PASSWORD" >"$SECRETS_DIR/redis-password"
 kubectl create namespace osmo --dry-run=client --output yaml | kubectl apply -f -
-# Releases installed by this helper before managed bootstrap existed may have
-# one unlabeled token with this exact shape. Adopt only that narrow legacy case.
-if helm status osmo --namespace osmo >/dev/null 2>&1; then
-    LEGACY_BACKEND_TOKEN="$(kubectl get secret osmo-backend-token --namespace osmo \
-        --ignore-not-found --output json)"
-    if [[ -n "$LEGACY_BACKEND_TOKEN" ]] && jq --exit-status '
-        .type == "Opaque" and
-        ((.metadata.labels // {}) | length == 0) and
-        (((.metadata.annotations // {}) | keys
-            - ["kubectl.kubernetes.io/last-applied-configuration"]) | length == 0) and
-        ((.metadata.ownerReferences // []) | length == 0) and
-        ((.data | keys) == ["token"]) and
-        (.data.token | @base64d | test("^[A-Za-z0-9_-]{43}$"))
-    ' <<<"$LEGACY_BACKEND_TOKEN" >/dev/null; then
-        kubectl patch secret osmo-backend-token --namespace osmo --type=merge --patch \
-            '{"metadata":{"labels":{"app.kubernetes.io/instance":"osmo","app.kubernetes.io/managed-by":"osmo-identity-bootstrap"},"annotations":{"osmo.nvidia.com/credential-source":"osmo-identity-bootstrap"}}}'
-    fi
-fi
 if [[ -n "$OSMO_IMAGE_PULL_SECRET" && -n "$OSMO_IMAGE_PULL_CONFIG" ]]; then
     jq --exit-status --arg registry "$IMAGE_REGISTRY" \
         '.auths[$registry] as $auth | if $auth then {auths:{($registry):$auth}} else error("registry credentials not found") end' \

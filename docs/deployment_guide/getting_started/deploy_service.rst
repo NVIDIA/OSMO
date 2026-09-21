@@ -795,13 +795,16 @@ protected temporary file without printing it:
 .. code-block:: bash
 
    $ OSMO_URL=https://osmo.example.com
+   $ set -o pipefail
    $ umask 077
-   $ OSMO_TOKEN_FILE="$(mktemp)"
-   $ kubectl --namespace osmo get secret osmo-admin-token \
-       --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
-   $ osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
-   $ rm -f -- "$OSMO_TOKEN_FILE"
+   $ OSMO_TOKEN_FILE="$(mktemp)" &&
+     kubectl --namespace osmo get secret osmo-admin-token \
+       --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE" &&
+     osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+   $ OSMO_LOGIN_STATUS=$?
+   $ rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
    $ unset OSMO_TOKEN_FILE
+   $ test "$OSMO_LOGIN_STATUS" -eq 0
 
 For embedded-Dex evaluation, retrieve the generated password only in a private
 terminal, visit ``$OSMO_URL``, and sign in as ``admin@osmo.local``:

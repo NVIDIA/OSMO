@@ -30,9 +30,7 @@ consumers; externally managed Secrets restored by a secret manager provide the
 most robust recovery. The single-plane and split profiles default service auth
 to external management, but an environment overlay can deliberately select
 OSMO-managed service auth. The quickstart generates its other application
-credentials and does not require an image-pull Secret to be created beforehand.
-Configure top-level `imagePullSecrets` only when using a registry that requires
-credentials.
+credentials without requiring a separately provisioned registry Secret.
 
 The self-contained profile is the converged path for environments that host
 OSMO and its stateful dependencies in Kubernetes. It uses chart-version OSMO

@@ -242,15 +242,18 @@ shell history:
 
 .. code-block:: bash
 
-   umask 077
    OSMO_URL=http://127.0.0.1:8080
-   OSMO_TOKEN_FILE="$(mktemp)"
+   set -o pipefail
+   umask 077
+   OSMO_TOKEN_FILE="$(mktemp)" &&
    kubectl --namespace osmo get secret osmo-admin-token \
      --output jsonpath='{.data.token}' \
-     | base64 --decode > "$OSMO_TOKEN_FILE"
+     | base64 --decode > "$OSMO_TOKEN_FILE" &&
    osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
-   rm -f -- "$OSMO_TOKEN_FILE"
+   OSMO_LOGIN_STATUS=$?
+   rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
    unset OSMO_TOKEN_FILE
+   test "$OSMO_LOGIN_STATUS" -eq 0
 
 To use the browser UI, retrieve the embedded-Dex password in a private terminal:
 

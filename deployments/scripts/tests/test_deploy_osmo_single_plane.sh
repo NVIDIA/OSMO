@@ -104,12 +104,6 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     'echo "kubectl $*" >>"$COMMAND_LOG"' \
     'if [[ "$1 $2" == "get secret" ]]; then' \
     '  case "$3" in' \
-    '    osmo-backend-token) case "$BACKEND_TOKEN_STATE" in' \
-    '      absent) exit 0 ;;' \
-    '      legacy) echo "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"osmo-backend-token\",\"annotations\":{\"kubectl.kubernetes.io/last-applied-configuration\":\"legacy\"}},\"type\":\"Opaque\",\"data\":{\"token\":\"YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ==\"}}" ;;' \
-    '      foreign) echo "{\"metadata\":{\"labels\":{\"app.kubernetes.io/managed-by\":\"someone-else\"}},\"type\":\"Opaque\",\"data\":{\"token\":\"YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ==\"}}" ;;' \
-    '      error) exit 17 ;;' \
-    '    esac ;;' \
     '    osmo-default-admin) case "$DEFAULT_ADMIN_SECRET_STATE" in' \
     '      absent) exit 0 ;;' \
     '      existing) if [[ "$*" == *"jsonpath="* ]]; then echo YWRtaW4tcGFzc3dvcmQtc2VudGluZWwtMTIzNDU2Nzg5MDEyMzQ1Njc4OQ==; else echo secret/osmo-default-admin; fi ;;' \
@@ -142,7 +136,6 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     'if [[ "$*" == *"port-forward"* ]]; then touch "$PORT_FORWARD_READY"; while true; do sleep 1; done; fi'
 
 write_mock helm '#!/bin/bash' 'set -euo pipefail' 'echo "helm $*" >>"$COMMAND_LOG"' \
-    'if [[ "$1" == status ]]; then [[ "$HELM_RELEASE_STATE" == existing ]]; exit; fi' \
     'previous=' \
     'for argument in "$@"; do' \
     '  if [[ "$previous" == --values && "$argument" == *single-plane-values.json ]]; then cp "$argument" "$CAPTURED_VALUES"; fi' \
@@ -182,7 +175,7 @@ terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/azure/single-plane.tfva
 terraform_example="${TEST_SRCDIR}/_main/deployments/terraform/azure/example/example.tf"
 [[ -x "$script" ]] || fail "deployment script is absent"
 
-export BACKEND_TOKEN_STATE=absent DEFAULT_ADMIN_SECRET_STATE=absent HELM_RELEASE_STATE=absent
+export DEFAULT_ADMIN_SECRET_STATE=absent
 if ! "$bash_binary" "$script" >"$test_directory/output.log" 2>&1; then
     cat "$test_directory/output.log" >&2
     fail "initial deployment-script run failed"
@@ -280,15 +273,12 @@ assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enab
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
 export DEFAULT_ADMIN_SECRET_STATE=existing
-export BACKEND_TOKEN_STATE=legacy HELM_RELEASE_STATE=existing
 if ! "$bash_binary" "$script" >"$test_directory/existing-admin-output.log" 2>&1; then
     cat "$test_directory/existing-admin-output.log" >&2
     fail "existing-admin deployment-script run failed"
 fi
-assert_contains "$command_log" 'kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output json'
-assert_contains "$command_log" 'kubectl patch secret osmo-backend-token --namespace osmo --type=merge'
-assert_contains "$command_log" 'app.kubernetes.io/managed-by":"osmo-identity-bootstrap'
-assert_contains "$command_log" 'osmo.nvidia.com/credential-source":"osmo-identity-bootstrap'
+assert_not_contains "$command_log" 'kubectl get secret osmo-backend-token'
+assert_not_contains "$command_log" 'kubectl patch secret osmo-backend-token'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-default-admin'
 assert_not_contains "$command_log" 'openssl rand -base64 32'
@@ -296,7 +286,6 @@ assert_not_contains "$command_log" 'openssl rand -base64 32'
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
 unset OSMO_IMAGE_PULL_SECRET OSMO_IMAGE_PULL_CONFIG
-export BACKEND_TOKEN_STATE=foreign
 if ! "$bash_binary" "$script" >"$test_directory/no-pull-secret-output.log" 2>&1; then
     cat "$test_directory/no-pull-secret-output.log" >&2
     fail "no-pull-secret deployment-script run failed"
@@ -309,15 +298,6 @@ jq -e '
 ' "$CAPTURED_VALUES" >/dev/null || fail "empty pull-secret configuration was not preserved"
 assert_not_contains "$command_log" 'kubectl create secret generic 456'
 assert_not_contains "$command_log" 'kubectl patch secret osmo-backend-token'
-
-: >"$command_log"
-rm -f "$PORT_FORWARD_READY"
-export BACKEND_TOKEN_STATE=error
-if "$bash_binary" "$script" >"$test_directory/lookup-error-output.log" 2>&1; then
-    fail "backend-token lookup error unexpectedly succeeded"
-fi
-assert_not_contains "$command_log" 'kubectl patch secret osmo-backend-token'
-assert_not_contains "$command_log" 'helm upgrade --install osmo'
 
 : >"$command_log"
 export BLOB_PUBLIC_ACCESS=true

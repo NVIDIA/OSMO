@@ -166,13 +166,16 @@ administrator token into a protected temporary file without printing it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+set -o pipefail
 umask 077
-OSMO_TOKEN_FILE="$(mktemp)"
+OSMO_TOKEN_FILE="$(mktemp)" &&
 kubectl --namespace osmo get secret osmo-admin-token \
-  --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+  --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE" &&
 osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
-rm -f -- "$OSMO_TOKEN_FILE"
+OSMO_LOGIN_STATUS=$?
+rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
 unset OSMO_TOKEN_FILE
+test "$OSMO_LOGIN_STATUS" -eq 0
 ```
 
 ### Verify the deployment
@@ -1098,9 +1101,12 @@ Helm uninstall does not delete the API-created Secrets.
 A separate `pre-install,pre-upgrade` Job runs before the ordinary OSMO bootstrap
 Job. It changes only the manager label of valid, release-owned managed token
 Secrets from `osmo-backend-token-bootstrap` or `osmo-embedded-dex-bootstrap` to
-`osmo-identity-bootstrap`. Secret identities, current and previous token bytes,
-and other metadata are preserved. Missing Secrets and already migrated Secrets
-require no writes. The migration does not generate credentials or change Dex.
+`osmo-identity-bootstrap`. As a narrow compatibility exception, it also adopts
+an exact-shape, unlabeled `osmo-backend-token` Secret from the legacy Azure
+helper by adding the release and manager labels plus the credential-source
+annotation. Secret identities and token bytes are preserved. Missing Secrets
+and already migrated Secrets require no writes. The migration does not generate
+credentials or change Dex.
 
 `authentication.bootstrap.tokenMigration.enabled` defaults to `true`. The hook
 renders only for the control plane with at least one enabled identity containing

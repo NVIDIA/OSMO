@@ -195,13 +195,16 @@ a mode-0600 file without printing it, then use token login:
 
 .. code-block:: bash
 
+   set -o pipefail
    umask 077
-   OSMO_TOKEN_FILE="$(mktemp)"
+   OSMO_TOKEN_FILE="$(mktemp)" &&
    kubectl get secret osmo-admin-token --namespace osmo \
-     --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE"
+     --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE" &&
    osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
-   rm -f -- "$OSMO_TOKEN_FILE"
+   OSMO_LOGIN_STATUS=$?
+   rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
    unset OSMO_TOKEN_FILE
+   test "$OSMO_LOGIN_STATUS" -eq 0
 
 For production, follow the canonical :ref:`external IdP guidance
 <deploy_service_external_idp>`. The UI and default ``osmo login`` command use

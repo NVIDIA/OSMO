@@ -843,11 +843,13 @@ def install(options, environment, directory, chart, user_values):
     override_file.write_text(json.dumps(requested))
     effective = inspect_values(directory, [default_file, override_file])
     if current:
-        managed_bootstrap = {
-            name: {'bootstrap': {'enabled': True}}
-            for name in ['masterEncryptionKey', 'serviceAuth']
-            if effective['secrets'][name]['managementMode'] == 'osmo'
-        }
+        managed_bootstrap = {}
+        if (effective['secrets']['masterEncryptionKey']['managementMode'] == 'osmo'
+                and not effective['secrets']['masterEncryptionKey']['rotation']['phase']):
+            managed_bootstrap['masterEncryptionKey'] = {'bootstrap': {'enabled': True}}
+        if (effective['secrets']['serviceAuth']['managementMode'] == 'osmo'
+                and not effective['secrets']['serviceAuth']['migration']['enabled']):
+            managed_bootstrap['serviceAuth'] = {'bootstrap': {'enabled': True}}
         if managed_bootstrap:
             requested = merge(requested, {'secrets': managed_bootstrap})
             override_file.write_text(json.dumps(requested))
