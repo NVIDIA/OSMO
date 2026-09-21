@@ -74,10 +74,13 @@ The Secret manifests in this guide use ``stringData`` so their required keys
 are clear. Replace every placeholder before applying them, restrict access to
 the files, and never commit them to source control.
 
+Prepare Values and Secrets
+==========================
+
 .. _deploy_service_postgresql:
 
 Configure PostgreSQL Connection
-===============================
+-------------------------------
 
 Create an empty PostgreSQL database for OSMO. The database user must be able to
 create and update objects in that database. The username is non-secret
@@ -151,7 +154,7 @@ not use TLS, set ``tls.enabled: false``.
 .. _deploy_service_valkey:
 
 Configure Valkey Connection
-===========================
+---------------------------
 
 OSMO requires Valkey or Redis 7 or newer. Save a Secret whose default key is
 ``redis-password`` as ``valkey-secret.yaml``:
@@ -222,14 +225,14 @@ for a trusted network endpoint that does not provide TLS.
 .. _configure_data:
 
 Configure Storage Connection
-============================
+----------------------------
 
 OSMO uses three locations for workflow state, logs, and application bundles.
 All locations must use the same scheme: ``s3://``, ``azure://``, or
 ``swift://``.
 
 Static credentials
-------------------
+^^^^^^^^^^^^^^^^^^
 
 Create one Secret containing the credential document. The following S3 or
 S3-compatible example can be saved as ``object-storage-secret.yaml``:
@@ -279,7 +282,7 @@ The three locations may share a bucket or container. Grant only the read/write
 permissions needed for those prefixes.
 
 Workload identity
------------------
+^^^^^^^^^^^^^^^^^
 
 As an alternative, configure AWS IRSA, Azure Workload Identity, or GCP
 Workload Identity and grant the identities used by the API, worker, and
@@ -361,27 +364,23 @@ used by the release; with release name ``osmo`` they are ``osmo-api``,
 .. _deploy_service_secret_ownership:
 
 Configure Other Secrets
-=======================
+-----------------------
 
-Choose one owner for each credential Secret. In OSMO-managed mode, keep
-bootstrap enabled. OSMO reuses a valid managed Secret and recreates it if it is
-missing. Generated Secrets carry the
-``osmo.nvidia.com/credential-source`` annotation so their owner is visible.
-Deleting a credential remains an operator error: a replacement can invalidate
-retained data or disconnect consumers that still use the old credential.
-
-For maximum recovery robustness, provision the Secret from an external secret
-manager and select external management. Back up every credential together with
-the state it protects.
+Keep each production credential's source of truth in your organization's
+secret manager. Either provision the Kubernetes Secret externally before
+installation, or import a bootstrap-generated value into the secret manager,
+switch that Secret to external management, and disable its bootstrap. Back up
+every credential together with the state it protects. Generated Secrets carry
+the ``osmo.nvidia.com/credential-source`` annotation so their owner is visible.
 
 MEK
----
+^^^
 
 The master encryption key (MEK) protects encrypted values stored in
 PostgreSQL.
 
 Chart-managed
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 For a new database, the chart can create the retained
 ``osmo-master-encryption-key`` Secret without placing key material in Helm
@@ -399,11 +398,10 @@ state:
          enabled: true
 
 Back up that Secret after installation. Never intentionally replace it while
-retaining the database. Keep ``bootstrap.enabled: true`` so OSMO can validate
-and reconcile the managed Secret on subsequent releases.
+retaining the database.
 
 User-managed
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 For a user-managed MEK, save the following as ``mek-secret.yaml``. The
 ``currentMek`` value must name an entry in ``meks``; each entry is a
@@ -434,13 +432,13 @@ Set ``managementMode: external`` and ``bootstrap.enabled: false`` when the
 Secret is user-managed.
 
 Internal TLS
-------------
+^^^^^^^^^^^^
 
 ``gateway.tls`` protects traffic from Envoy to the OSMO services; it does not
 configure public edge TLS.
 
 Chart-managed
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 Chart-managed mode creates and retains an internal CA, trust bundle, and one
 leaf Secret per service:
@@ -458,7 +456,7 @@ the new CA invalidates existing leaf certificates and trust. Restore the
 original CA when continuity matters.
 
 User-managed
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 For user-managed TLS, create a CA Secret containing ``ca.crt`` and a
 ``kubernetes.io/tls`` Secret containing ``tls.crt`` and ``tls.key`` for each
@@ -522,12 +520,12 @@ Point OSMO at the Secret names as follows:
 Change ``gateway.tls.rolloutNonce`` after rotating user-managed TLS Secrets.
 
 Service auth
-------------
+^^^^^^^^^^^^
 
 Service auth is OSMO's stable JWT signing identity.
 
 Chart-managed
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 The chart can create the retained ``osmo-service-auth`` Secret for a new
 installation:
@@ -543,11 +541,10 @@ installation:
        bootstrap:
          enabled: true
 
-Back up the Secret after installation. Keep ``bootstrap.enabled: true`` so OSMO
-can validate and reconcile the managed Secret on subsequent releases.
+Back up the Secret after installation.
 
 User-managed
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 For a user-managed identity, generate the file with the OSMO service image:
 
@@ -586,8 +583,8 @@ with valid ``public_key`` and ``private_key`` JWK values. Set
 
 .. _deploy_service_osmo_values:
 
-Prepare Values and Secrets
-==========================
+Assemble the Control-plane Values
+=================================
 
 The chart packages a ``profiles/split-plane-control.yaml`` base profile for an
 HA control plane with external PostgreSQL, Valkey, and object storage. The
@@ -772,7 +769,9 @@ Render and lint the release before changing the cluster:
        --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
        --values osmo-values.yaml > /tmp/osmo-rendered.yaml
 
-Install the control plane and wait for bootstrap and migration Jobs:
+Install the control plane and wait for bootstrap and migration Jobs. The
+command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
+``--wait=legacy`` with ``--wait``:
 
 .. code-block:: bash
 
@@ -780,7 +779,7 @@ Install the control plane and wait for bootstrap and migration Jobs:
        --namespace osmo \
        --values /tmp/osmo-chart/osmo/profiles/split-plane-control.yaml \
        --values osmo-values.yaml \
-       --wait --wait-for-jobs --timeout 30m
+       --wait=legacy --wait-for-jobs --timeout 30m
 
 Configure public DNS and edge TLS for ``externalUrl`` after the gateway's
 LoadBalancer address is assigned. ``gateway.tls`` does not terminate public
@@ -789,8 +788,8 @@ TLS; use your load balancer, Ingress, or Gateway API implementation for that.
 Log In
 ======
 
-For non-interactive validation, read the generated administrator token into a
-protected temporary file without printing it:
+To validate with the OSMO CLI, read the generated administrator token into a
+protected temporary file:
 
 .. code-block:: bash
 
@@ -806,8 +805,8 @@ protected temporary file without printing it:
    $ unset OSMO_TOKEN_FILE
    $ test "$OSMO_LOGIN_STATUS" -eq 0
 
-For embedded-Dex evaluation, retrieve the generated password only in a private
-terminal, visit ``$OSMO_URL``, and sign in as ``admin@osmo.local``:
+For embedded-Dex evaluation, retrieve the generated password, visit
+``$OSMO_URL``, and sign in as ``admin@osmo.local``:
 
 .. code-block:: bash
 
@@ -815,8 +814,7 @@ terminal, visit ``$OSMO_URL``, and sign in as ``admin@osmo.local``:
        --output jsonpath='{.data.password}' | base64 --decode
    $ printf '\n'
 
-Do not paste the password into shell history, logs, or issue trackers. In
-production, use the external OIDC provider configured in
+In production, use the external OIDC provider configured in
 :ref:`deploy_service_external_idp`; the UI and default ``osmo login`` command
 use that provider.
 
@@ -908,10 +906,12 @@ Upgrade and Recovery
 ====================
 
 Back up PostgreSQL, object storage, and every credential Secret before an
-upgrade. Reuse the same control profile and complete site values. Keep
-OSMO-managed bootstrap enabled; use externally managed Secrets restored by
-your secret manager for maximum recovery robustness. Follow the chart lifecycle
-procedures linked below for database migrations and credential rotation.
+upgrade. Reuse the same control profile and complete site values. Keep each
+production credential's source of truth in your organization's secret manager:
+provision it externally from the outset, or import the bootstrap-generated
+value, switch to external management, and disable its bootstrap. Follow the
+chart lifecycle procedures linked below for database migrations and credential
+rotation.
 
 Cleanup
 ========

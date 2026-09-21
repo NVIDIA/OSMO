@@ -19,6 +19,9 @@ stateful dependencies and uses retained in-cluster credential generation. The
 standalone `backend-operator` chart remains available for existing two-chart
 installations, but it is not a dependency of this chart.
 
+All OSMO install and upgrade examples use Helm 4's `--wait=legacy` strategy.
+With Helm 3, replace `--wait=legacy` with `--wait`.
+
 ## Quick start
 
 `externalUrl` is the browser and authentication origin. Workflow containers use
@@ -48,6 +51,9 @@ below. Raw Helm installs and upgrades using generated internal TLS require Helm
 3.19 or newer for the explicit CA rotation hooks. Ordinary bootstrap uses one
 regular Job with ordered init containers. The cluster must have a default dynamic StorageClass. Install
 Helm, `kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO.
+Create and label the cluster's platform and compute nodes as shown in the
+[canonical Quickstart](../../../docs/deployment_guide/appendix/deploy_local.rst)
+before applying the selector overlays below.
 Select the development cluster context once; replace `kind-osmo` if your
 cluster has a different context. A GPU workflow also requires GPU-capable nodes
 and the NVIDIA GPU Operator.
@@ -61,6 +67,7 @@ helm upgrade --install kai-scheduler \
   --namespace kai-scheduler \
   --create-namespace \
   --values deployments/charts/osmo/examples/kai-values.yaml \
+  --values deployments/charts/osmo/examples/kai-selectors.yaml \
   --wait \
   --timeout 10m
 kubectl --namespace kai-scheduler wait \
@@ -86,28 +93,28 @@ helm upgrade --install cnpg cnpg/cloudnative-pg \
 
 ### Install OSMO
 
-Install the chart defaults. Its bootstrap Job creates the shared development
-identity directly in Kubernetes. The defaults use `http://127.0.0.1` to
-match the quickstart Kind port mapping:
+Install the chart defaults with the shared converged-cluster selector overlay.
+Its bootstrap Job creates the shared development identity directly in
+Kubernetes. The defaults use `http://127.0.0.1` to match the quickstart Kind
+port mapping:
 
 ```bash
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
-  --wait \
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
+  --wait=legacy \
   --wait-for-jobs \
   --timeout 140m
 ```
 
 The bootstrap Job creates the retained `osmo-master-encryption-key` and
-`osmo-service-auth` Secrets without putting key material in Helm state. Keep
-bootstrap enabled for OSMO-managed credentials: later releases validate and
-reuse valid Secrets and recreate a missing managed Secret. Generated Secrets
-carry `osmo.nvidia.com/credential-source` ownership metadata. Deleting one can
-still invalidate retained data or disconnect consumers that use its old bytes.
-For maximum recovery robustness, provision the Secret from an external secret
-manager and select external management.
+`osmo-service-auth` Secrets without putting key material in Helm state.
+Generated Secrets carry `osmo.nvidia.com/credential-source` ownership metadata.
+For reliable recovery, either provision each production credential from an
+external secret manager, or import the bootstrap-generated value, switch its
+Secret to external management, and disable its bootstrap.
 
 Embedded Dex uses volatile memory storage and is intended for development and
 evaluation only. Dex restarts invalidate active sessions and signing keys.
@@ -147,9 +154,7 @@ OSMO_URL=http://127.0.0.1:8080
 The default embedded Dex account signs in as `admin@osmo.local` and appears in
 OSMO as `admin`. Configure those fields under
 `authentication.bootstrap.identities.admin`. Retrieve its random initial
-password only when you need to sign in. This intentionally writes the password
-to the terminal, so use a private terminal and do not paste it into shell
-history, issue trackers, or logs:
+password when you need to sign in:
 
 ```bash
 kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
@@ -161,8 +166,8 @@ Visit `$OSMO_URL` and sign in as `admin@osmo.local` with that password. Embedded
 Dex is for development and evaluation; use an external OIDC provider and a
 public HTTPS URL in production.
 
-For non-interactive validation, install the CLI if needed and read the generated
-administrator token into a protected temporary file without printing it:
+To validate with the OSMO CLI, install it if needed and read the generated
+administrator token into a protected temporary file:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
@@ -190,7 +195,6 @@ kubectl --namespace osmo wait --for=condition=Available \
 kubectl --namespace kai-scheduler wait --for=condition=Available \
   deployment --all --timeout=10m
 curl --fail "$OSMO_URL/api/version"
-osmo profile set pool default
 osmo pool list
 osmo resource list --pool default
 osmo workflow submit deployments/workflows/verify-hello.yaml \
@@ -266,7 +270,7 @@ installing, or upgrade an existing quickstart:
 ```bash
 helm upgrade osmo deployments/charts/osmo \
   --namespace osmo --reset-then-reuse-values --set services.mcp.enabled=true \
-  --wait --wait-for-jobs --timeout 20m
+  --wait=legacy --wait-for-jobs --timeout 20m
 ```
 
 `--reset-then-reuse-values` merges existing overrides with new chart defaults.
@@ -320,6 +324,10 @@ PostgreSQL, Valkey, and object storage, while retaining the gateway as a
 URL, external dependency connections, and backend name. Ingress is deliberately
 an external, later step; enable and configure it only when the site has its
 ingress controller and public DNS ready.
+
+Follow the [canonical Single-plane guide](../../../docs/deployment_guide/appendix/deploy_single_plane.rst)
+to label platform and workflow nodes and install KAI with the shared
+`kai-selectors.yaml` overlay before using the command below.
 
 The profile configures Envoy to validate supplied OSMO access tokens against the
 API service's in-cluster `https://osmo-api/api/auth/keys` endpoint. It requires
@@ -379,7 +387,9 @@ Install the generic profile first and a site-specific overlay second:
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
-  --values <site-values.yaml>
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
+  --values <site-values.yaml> \
+  --wait=legacy --wait-for-jobs --timeout 30m
 ```
 
 ## Self-contained production
@@ -393,8 +403,14 @@ run Kubernetes 1.30 or newer and provide:
 - a default dynamic StorageClass;
 - a CNI that enforces Kubernetes NetworkPolicy;
 - the IPv4 pod and Service CIDRs used by the cluster network; and
-- at least four schedulable nodes, with enough failure-domain capacity for
-  three PostgreSQL pods, three Valkey pods, and four RustFS pods.
+- at least four platform nodes, with enough failure-domain capacity for three
+  PostgreSQL Pods, three Valkey Pods, and four RustFS Pods, plus at least one
+  compute node for workflows.
+
+Label platform nodes `osmo.nvidia.com/node-pool=control-plane` and workflow
+nodes `osmo.nvidia.com/node-pool=compute`, as shown in the
+[canonical Self-contained guide](../../../docs/deployment_guide/appendix/deploy_self_contained.rst),
+before applying the selector overlays below.
 
 The profile uses embedded Dex by default. The gateway remains a ClusterIP
 Service; put an operator-managed TLS edge in front of it and set `externalUrl`
@@ -423,8 +439,9 @@ cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
   --values self-contained-environment-values.yaml \
-  --wait \
+  --wait=legacy \
   --wait-for-jobs \
   --timeout 140m
 ```
@@ -522,7 +539,8 @@ helm upgrade --install osmo deployments/charts/osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
-  --wait \
+  --wait=legacy \
+  --wait-for-jobs \
   --timeout 140m
 ```
 
@@ -636,7 +654,8 @@ helm upgrade --install osmo deployments/charts/osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
-  --wait \
+  --wait=legacy \
+  --wait-for-jobs \
   --timeout 140m
 ```
 
@@ -707,7 +726,7 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   --create-namespace \
   --values deployments/charts/osmo/profiles/split-plane-compute.yaml \
   --values <compute-values.yaml> \
-  --wait \
+  --wait=legacy \
   --timeout 10m
 ```
 
@@ -922,7 +941,7 @@ and runs the enabled init containers. It publishes `credentialsReady` only after
 all enabled outputs validate. Consumer init containers then copy those exact bytes
 to shared in-memory volumes. A final
 container waits for the requested consumer rollouts and records completion. This
-allows `helm --wait --wait-for-jobs` without a startup cycle.
+allows `helm --wait=legacy --wait-for-jobs` without a startup cycle.
 
 The shared service account can create Secrets in the release namespace while an
 enabled step needs to issue credentials. Kubernetes RBAC cannot limit Secret
@@ -1126,7 +1145,7 @@ GitOps release. The next hook replaces the failed hook and safely finishes parti
 migration. Successful hooks are deleted. Existing token-format validation is
 unchanged; the migration accepts the same token format as the identity reconciler.
 
-Retrieve a credential only in a private terminal. For example:
+Retrieve a credential when needed. For example:
 
 ```bash
 kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
@@ -1230,9 +1249,9 @@ rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-Quickstart and self-contained keep OSMO-managed bootstrap enabled so later
-releases validate and reuse the service-auth Secret. Use the migration below for
-an older DB-backed identity.
+For reliable recovery, provision service auth from an external secret manager,
+or import a bootstrap-generated identity into it and switch the Secret to
+external management. Use the migration below for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window using the full
@@ -1373,7 +1392,7 @@ helm upgrade osmo deployments/charts/osmo \
   --namespace "${OSMO_NAMESPACE}" \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --wait \
+  --wait=legacy \
   --timeout 140m
 ```
 

@@ -1260,6 +1260,7 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        -f "$charts_copy/osmo/examples/node-selectors.yaml" \
         -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
         >"$TEST_DIRECTORY/self-contained.yaml"
     require_deployment "$TEST_DIRECTORY/self-contained.yaml" "osmo-api"
@@ -1296,6 +1297,7 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        -f "$charts_copy/osmo/examples/node-selectors.yaml" \
         -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
         --set-string compute.workloadNamespace.name=123 \
         >"$TEST_DIRECTORY/numeric-workload-namespace.yaml"
@@ -1352,6 +1354,7 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/self-contained.yaml" \
+        -f "$charts_copy/osmo/examples/node-selectors.yaml" \
         -f "$charts_copy/osmo/examples/self-contained-environment-values.yaml" \
         --set-string rustfs.nameOverride=custom-rustfs \
         >"$TEST_DIRECTORY/custom-rustfs-name.yaml"
@@ -1559,6 +1562,7 @@ test_control_umbrella() {
     helm_template quick-start "$charts_copy/osmo" \
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
+        -f "$charts_copy/osmo/examples/node-selectors.yaml" \
         >"$TEST_DIRECTORY/quickstart.yaml"
     local quickstart_deployment
     for quickstart_deployment in \
@@ -1575,12 +1579,24 @@ test_control_umbrella() {
             "imagePullPolicy: IfNotPresent"
         require_not_contains "$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml" \
             "topologySpreadConstraints:"
+        require_contains "$TEST_DIRECTORY/quickstart-$quickstart_deployment.yaml" \
+            "osmo.nvidia.com/node-pool: control-plane"
     done
     require_resource "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg"
     resource_document "$TEST_DIRECTORY/quickstart.yaml" Cluster "osmo-pg" \
         >"$TEST_DIRECTORY/quickstart-postgresql.yaml"
     require_contains "$TEST_DIRECTORY/quickstart-postgresql.yaml" "instances: 1"
     require_contains "$TEST_DIRECTORY/quickstart-postgresql.yaml" "size: 1Gi"
+    require_contains "$TEST_DIRECTORY/quickstart-postgresql.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/quickstart-config.yaml"
+    require_occurrences "$TEST_DIRECTORY/quickstart-config.yaml" \
+        "osmo.nvidia.com/node-pool: compute" 3
+    resource_document "$TEST_DIRECTORY/quickstart.yaml" Deployment \
+        "osmo-dex" >"$TEST_DIRECTORY/quickstart-dex.yaml"
+    require_contains "$TEST_DIRECTORY/quickstart-dex.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
     require_resource "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
         "osmo-valkey"
     resource_document "$TEST_DIRECTORY/quickstart.yaml" PersistentVolumeClaim \
@@ -1628,6 +1644,7 @@ test_control_umbrella() {
         --namespace osmo \
         --api-versions postgresql.cnpg.io/v1 \
         -f "$charts_copy/osmo/profiles/single-plane.yaml" \
+        -f "$charts_copy/osmo/examples/node-selectors.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/single-plane-azure-values.yaml" \
         --set-string imageTag=single-plane-test-tag \
         >"$TEST_DIRECTORY/single-plane-azure.yaml"
@@ -1682,6 +1699,8 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "memory: 1Gi"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
+        "osmo.nvidia.com/node-pool: control-plane"
+    require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "mountPath: /etc/osmo/secrets/osmo-runtime-pull"
     require_contains "$TEST_DIRECTORY/single-plane-azure-api.yaml" \
         "secretName: osmo-runtime-pull"
@@ -1724,6 +1743,8 @@ test_control_umbrella() {
         "default_platform: cpu"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "- default_gpu_user"
+    require_occurrences "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
+        "osmo.nvidia.com/node-pool: compute" 3
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
         "nvidia.com/gpu"
     require_contains "$TEST_DIRECTORY/single-plane-azure-config.yaml" \
@@ -2596,6 +2617,10 @@ INVALID_DEX_MCP
         "osmo/profiles/self-contained.yaml"
     require_contains "$TEST_DIRECTORY/osmo-package.txt" \
         "osmo/examples/self-contained-environment-values.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/examples/kai-selectors.yaml"
+    require_contains "$TEST_DIRECTORY/osmo-package.txt" \
+        "osmo/examples/node-selectors.yaml"
     if ! grep -Fq "osmo/charts/valkey/Chart.yaml" \
         "$TEST_DIRECTORY/osmo-package.txt" && \
         ! grep -Fq "osmo/charts/valkey-0.11.0.tgz" \

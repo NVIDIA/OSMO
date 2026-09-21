@@ -117,27 +117,9 @@ before exposing OSMO to users.
 Install Cluster Dependencies
 ============================
 
-Create ``kai-overrides.yaml`` to keep KAI Scheduler on platform nodes:
-
-.. code-block:: yaml
-
-   global:
-     nodeSelector:
-       osmo.nvidia.com/node-pool: control-plane
-     affinity:
-       nodeAffinity:
-         requiredDuringSchedulingIgnoredDuringExecution:
-           nodeSelectorTerms:
-           - matchExpressions:
-             - key: osmo.nvidia.com/node-pool
-               operator: In
-               values:
-               - control-plane
-     tolerations: []
-
 Install KAI Scheduler v0.15.3 using the checked common values file first and
-the placement values second, as in :ref:`the compute deployment guide
-<installing_kai>`:
+the shared converged-cluster placement file second, as in :ref:`the compute
+deployment guide <installing_kai>`:
 
 .. code-block:: bash
 
@@ -146,7 +128,7 @@ the placement values second, as in :ref:`the compute deployment guide
      --namespace kai-scheduler \
      --create-namespace \
      --values deployments/charts/osmo/examples/kai-values.yaml \
-     --values kai-overrides.yaml \
+     --values deployments/charts/osmo/examples/kai-selectors.yaml \
      --wait \
      --timeout 10m
    kubectl --namespace kai-scheduler wait \
@@ -184,21 +166,28 @@ Copy the YAML displayed below into a file named
 .. literalinclude:: ../../../deployments/charts/osmo/examples/self-contained-environment-values.yaml
    :language: yaml
 
-Review every setting marked ``REQUIRED`` or ``CONDITIONAL`` in that file:
+Review the environment settings in that file:
 
 * Keep ``externalUrl: http://127.0.0.1:8080`` for the local evaluation path, or
   replace it with the public HTTPS URL for an operator-managed edge.
 * Replace ``compute.workflowNetworkPolicy.clusterCIDRs`` with every IPv4 Pod
   and Service CIDR used by the cluster. Omit duplicate entries when both
   networks are covered by one CIDR.
-* The included node selectors match the ``control-plane`` and ``compute``
-  labels from the prerequisites. If your cluster uses different labels, update
-  every selector in the file consistently.
 
-The environment file places OSMO services, bootstrap Jobs, embedded Dex,
-PostgreSQL, Valkey, and RustFS on platform nodes. It places the built-in
-workflow Pod templates on compute nodes. Retain the compute-node selector in
-any additional or replacement workflow Pod templates.
+The checked ``node-selectors.yaml`` overlay places OSMO services, bootstrap
+Jobs, embedded Dex, PostgreSQL, Valkey, and RustFS on platform nodes. It places
+the built-in workflow Pod templates on compute nodes. If your cluster uses
+different labels, copy and update that file consistently. Apply the same
+compute-node selector to additional workflow Pod templates.
+
+Configure an External IdP
+=========================
+
+Embedded Dex is suitable only for evaluation. Before a production install,
+follow the canonical :ref:`external IdP guidance
+<deploy_service_external_idp>`. Add its ``embeddedDependencies.dex`` and
+``authentication`` blocks to ``self-contained-environment-values.yaml`` and
+create the referenced OIDC Secret before installing OSMO.
 
 Install OSMO
 ============
@@ -214,6 +203,7 @@ resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
+     --values deployments/charts/osmo/examples/node-selectors.yaml \
      --values self-contained-environment-values.yaml \
      --wait=legacy \
      --wait-for-jobs \
@@ -236,9 +226,8 @@ For the local evaluation path, start a port-forward in a separate terminal:
 
    kubectl --namespace osmo port-forward service/osmo-gateway 8080:80
 
-The chart bootstraps an OSMO access token for the ``admin`` identity. Use a
-protected temporary file so the token does not appear in terminal output or
-shell history:
+To validate with the OSMO CLI, read the bootstrapped ``admin`` token into a
+protected temporary file:
 
 .. code-block:: bash
 
@@ -255,7 +244,7 @@ shell history:
    unset OSMO_TOKEN_FILE
    test "$OSMO_LOGIN_STATUS" -eq 0
 
-To use the browser UI, retrieve the embedded-Dex password in a private terminal:
+To use the browser UI, retrieve the embedded-Dex password:
 
 .. code-block:: bash
 
@@ -345,11 +334,10 @@ Common causes include:
   role claim.
 * ``ImagePullBackOff`` means the image registry, tag, credentials, proxy, or
   mirror configuration is incorrect.
-* OSMO-managed mode recreates a missing managed Secret, but the replacement can
-  invalidate retained data or disconnect consumers that still use the old
-  credential. Restore the original Secret when continuity matters. For maximum
-  recovery robustness, use externally managed Secrets restored by your secret
-  manager.
+* Keep each production credential's source of truth in your organization's
+  secret manager. Either provision the Kubernetes Secret externally before
+  installation, or import a bootstrap-generated value, switch that Secret to
+  external management, and disable its bootstrap.
 
 Durability and availability
 ===========================
@@ -386,6 +374,7 @@ values. The command uses Helm 4; with Helm 3, replace ``--wait=legacy`` with
    helm upgrade osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
+     --values deployments/charts/osmo/examples/node-selectors.yaml \
      --values self-contained-environment-values.yaml \
      --wait=legacy \
      --wait-for-jobs \

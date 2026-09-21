@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Place OSMO services and chart-owned bootstrap Jobs on platform nodes.
+podDefaults:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
+# Keep the evaluation-only embedded identity provider on platform nodes.
+dex:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
+# Place the built-in workflow Pod templates on compute nodes. Apply the same
+# selector to any additional workflow Pod templates you create.
+configuration:
+  podTemplates:
+    default_ctrl:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+    default_user:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+    default_gpu_user:
+      spec:
+        nodeSelector:
+          osmo.nvidia.com/node-pool: compute
+
+# These settings apply only when the corresponding embedded dependency is
+# enabled by the selected profile.
+postgresql:
+  cluster:
+    affinity:
+      nodeSelector:
+        osmo.nvidia.com/node-pool: control-plane
+
+valkey:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane
+
+rustfs:
+  nodeSelector:
+    osmo.nvidia.com/node-pool: control-plane

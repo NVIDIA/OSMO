@@ -49,6 +49,7 @@ export HELM="$mock_directory/helm"
 
 script="${TEST_SRCDIR}/_main/deployments/scripts/install-kai-scheduler.sh"
 values="${TEST_SRCDIR}/_main/deployments/charts/osmo/examples/kai-values.yaml"
+selectors="${TEST_SRCDIR}/_main/deployments/charts/osmo/examples/kai-selectors.yaml"
 installer_values="$(dirname "$script")/../charts/osmo/examples/kai-values.yaml"
 
 "$bash_binary" "$script"
@@ -64,9 +65,11 @@ assert_contains "$command_log" \
 rendered="$test_directory/kai.yaml"
 "$real_helm" template kai-scheduler \
     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.15.3/kai-scheduler-v0.15.3.tgz \
-    --namespace kai-scheduler --values "$values" >"$rendered"
+    --namespace kai-scheduler --values "$values" --values "$selectors" >"$rendered"
 assert_contains "$rendered" 'gpuPodRuntimeClassName: ""'
 assert_contains "$rendered" 'default-staleness-grace-period: 3m'
 assert_contains "$rendered" 'update-pod-eviction-condition: "true"'
 assert_not_contains "$rendered" 'feature-gates: DynamicResourceAllocation=false'
 assert_contains "$rendered" $'  actions:\n    stalegangeviction:\n      enabled: false'
+assert_contains "$rendered" 'osmo.nvidia.com/node-pool: control-plane'
+assert_not_contains "$rendered" 'requiredDuringSchedulingIgnoredDuringExecution:'

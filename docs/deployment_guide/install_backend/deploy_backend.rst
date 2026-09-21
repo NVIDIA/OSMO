@@ -53,6 +53,14 @@ separate namespace:
 This guide uses ``gb200-01`` as the backend name. Use the same backend name and
 workload namespace in every step.
 
+Install Cluster Dependencies
+============================
+
+Install KAI Scheduler by following :ref:`the canonical KAI instructions
+<installing_kai>`. Use the common ``kai-values.yaml`` behavior file, but do not
+apply the converged-cluster ``kai-selectors.yaml`` overlay: compute-cluster KAI
+components follow the placement policy of that cluster.
+
 Prepare Values and Secrets
 ==========================
 
@@ -169,7 +177,8 @@ Install OSMO
 ============
 
 Pull the chart so the compute profile always matches the selected chart
-version, then install it:
+version, then install it. The command uses Helm 4's ``--wait=legacy`` strategy.
+With Helm 3, replace ``--wait=legacy`` with ``--wait``:
 
 .. code-block:: bash
 
@@ -183,7 +192,7 @@ version, then install it:
        --namespace "$COMPUTE_NAMESPACE" \
        --values osmo/profiles/split-plane-compute.yaml \
        --values osmo-compute-values.yaml \
-       --wait --timeout 10m
+       --wait=legacy --timeout 10m
 
 .. _configure_pool:
 
@@ -226,43 +235,25 @@ For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
 repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
 or timed-out workflow is a validation failure.
 
-Upgrade and Recovery
-====================
-
-Rotate the backend credential
------------------------------
-
-Use an overlap window so the control and compute planes can change credentials
-without losing registration:
-
-1. Update the control-plane Secret so ``token`` contains the new value and
-   ``previous-token`` contains the old value.
-2. Wait for every API replica to accept both credentials.
-3. Replace ``token`` in the compute-plane Secret with the new value.
-4. Restart the backend-listener and backend-worker Deployments and verify that
-   they reconnect.
-5. Remove ``previous-token`` from the control-plane Secret.
-6. Verify that the old credential is rejected by every API replica.
-
 Troubleshooting
----------------
+===============
 
 Unknown backend
-~~~~~~~~~~~~~~~
+---------------
 
 If the backend listener reports that the backend is not configured, add the
 exact value of ``compute.backendName`` under ``configuration.backends`` in the
 control-plane values and apply the control-plane release.
 
 Namespace mismatch
-~~~~~~~~~~~~~~~~~~
+------------------
 
 If registration reports a namespace mismatch, make
 ``configuration.backends.<backend-name>.k8s_namespace`` identical to
 ``compute.workloadNamespace.name`` and apply the control-plane release.
 
 Backend authentication error
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
 Verify that both Secrets contain identical token data without printing the
 decoded credential:
@@ -292,19 +283,37 @@ If the hashes differ, repeat the Secret-copy step and restart the backend
 listener and worker.
 
 Connection errors
-~~~~~~~~~~~~~~~~~
+-----------------
 
 From a compute-cluster Pod, verify DNS, TLS trust, firewall rules, and access
 to ``externalUrl``. The listener requires a persistent WebSocket connection to
 the OSMO gateway.
 
 Workflow remains pending or validation rejects its resources
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------------------------------------
 
 Check ``osmo resource list --pool <pool>`` and the workflow events. Account for
 the CPU and memory requested by OSMO sidecars as well as the user container.
 Confirm that KAI Scheduler is running and that the cluster has a node with
 enough available capacity for the complete workflow Pod.
+
+Upgrade and Recovery
+====================
+
+Rotate the backend credential
+-----------------------------
+
+Use an overlap window so the control and compute planes can change credentials
+without losing registration:
+
+1. Update the control-plane Secret so ``token`` contains the new value and
+   ``previous-token`` contains the old value.
+2. Wait for every API replica to accept both credentials.
+3. Replace ``token`` in the compute-plane Secret with the new value.
+4. Restart the backend-listener and backend-worker Deployments and verify that
+   they reconnect.
+5. Remove ``previous-token`` from the control-plane Secret.
+6. Verify that the old credential is rejected by every API replica.
 
 Cleanup
 ========

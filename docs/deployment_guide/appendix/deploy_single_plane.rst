@@ -43,8 +43,10 @@ Prerequisites
 
 Prepare the following before installing OSMO:
 
-* A Kubernetes 1.30 or newer cluster with at least three schedulable CPU nodes
-  and at least four vCPUs per node.
+* A Kubernetes 1.30 or newer cluster with at least two platform nodes labeled
+  ``osmo.nvidia.com/node-pool=control-plane`` and at least one workflow node
+  labeled ``osmo.nvidia.com/node-pool=compute``, with at least four vCPUs per
+  node.
 * KAI Scheduler 0.15.3.
 * PostgreSQL 15 or newer with an empty database for OSMO.
 * Valkey or Redis 7 or newer.
@@ -56,8 +58,18 @@ The Kubernetes nodes and OSMO pods must be able to resolve and reach the three
 external services. Keep credentials in a secret manager or private files, not
 in values files or shell history.
 
-Install KAI Scheduler
-=====================
+Label the platform and workflow nodes before installing dependencies:
+
+.. code-block:: bash
+
+   kubectl label node <platform-node-1> <platform-node-2> \
+     osmo.nvidia.com/node-pool=control-plane
+   kubectl label node <compute-node-1> \
+     osmo.nvidia.com/node-pool=compute
+   kubectl get nodes --label-columns=osmo.nvidia.com/node-pool
+
+Install Cluster Dependencies
+============================
 
 Install the tested scheduler release before OSMO, using the same flags as the
 standard :ref:`KAI Scheduler installation <installing_kai>`:
@@ -69,6 +81,7 @@ standard :ref:`KAI Scheduler installation <installing_kai>`:
      --namespace kai-scheduler \
      --create-namespace \
      --values deployments/charts/osmo/examples/kai-values.yaml \
+     --values deployments/charts/osmo/examples/kai-selectors.yaml \
      --wait \
      --timeout 10m
    kubectl --namespace kai-scheduler wait \
@@ -147,11 +160,30 @@ after ``profiles/single-plane.yaml``:
      service:
        service_base_url: http://osmo-gateway.osmo.svc:80
 
+The checked ``kai-selectors.yaml`` overlay places KAI on ``control-plane``
+nodes. The ``node-selectors.yaml`` overlay places OSMO platform Pods there and
+the built-in workflow Pod templates on ``compute`` nodes. Copy and edit both
+files if your cluster uses different labels. Keep ``single-plane-values.yaml``
+last in the values order so site settings can deliberately override the shared
+placement.
+
+Configure an External IdP
+=========================
+
+Embedded Dex is suitable only for evaluation. Before a production install,
+follow the canonical :ref:`external IdP guidance
+<deploy_service_external_idp>`. Add its ``embeddedDependencies.dex`` and
+``authentication`` blocks to ``single-plane-values.yaml`` and create the
+referenced OIDC Secret before installing OSMO.
+
 Install OSMO
 ============
 
 Use a chart version and OSMO images from the same release. When installing from
 a source checkout, build its dependencies and install the local unified chart:
+
+The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
+``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
@@ -163,8 +195,9 @@ a source checkout, build its dependencies and install the local unified chart:
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/single-plane.yaml \
+     --values deployments/charts/osmo/examples/node-selectors.yaml \
      --values single-plane-values.yaml \
-     --wait \
+     --wait=legacy \
      --wait-for-jobs \
      --timeout 30m
 
@@ -177,8 +210,7 @@ Forward the gateway in a dedicated terminal:
 
    kubectl --namespace osmo port-forward service/osmo-gateway 9000:80
 
-The profile uses embedded Dex by default. Retrieve its generated password only
-in a private terminal:
+The profile uses embedded Dex by default. Retrieve its generated password:
 
 .. code-block:: bash
 
@@ -187,11 +219,10 @@ in a private terminal:
      --output jsonpath='{.data.password}' | base64 --decode
    printf '\n'
 
-Visit ``$OSMO_URL`` and sign in as ``admin@osmo.local`` with that password. Do
-not paste the password into shell history, logs, or issue trackers.
+Visit ``$OSMO_URL`` and sign in as ``admin@osmo.local`` with that password.
 
-For non-interactive validation, read the chart-managed administrator token into
-a mode-0600 file without printing it, then use token login:
+To validate with the OSMO CLI, read the chart-managed administrator token into
+a protected temporary file, then use token login:
 
 .. code-block:: bash
 
@@ -205,10 +236,6 @@ a mode-0600 file without printing it, then use token login:
    rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
    unset OSMO_TOKEN_FILE
    test "$OSMO_LOGIN_STATUS" -eq 0
-
-For production, follow the canonical :ref:`external IdP guidance
-<deploy_service_external_idp>`. The UI and default ``osmo login`` command use
-that provider.
 
 Verify the Deployment
 =====================
@@ -269,12 +296,12 @@ Troubleshooting
 Upgrade and Recovery
 ====================
 
-Reuse the same profile and site values for upgrades. Keep OSMO-managed
-bootstrap enabled so valid managed Secrets are reused. A missing managed
-Secret is recreated, but the replacement can invalidate retained data or
-disconnect consumers that still use the old credential. Back up credential
-Secrets with the state they protect; use externally managed Secrets restored
-by your secret manager for maximum recovery robustness.
+Reuse the same profile, selector overlay, and site values for upgrades. Keep
+each production credential's source of truth in your organization's secret
+manager. Either provision the Kubernetes Secret externally before installation,
+or import a bootstrap-generated value, switch that Secret to external
+management, and disable its bootstrap. Back up credentials with the state they
+protect.
 
 Cleanup
 ========

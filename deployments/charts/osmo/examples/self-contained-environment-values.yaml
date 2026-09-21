@@ -1,75 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Save this content as self-contained-environment-values.yaml and review every
-# REQUIRED and CONDITIONAL setting below. It inherits
+# Save this content as self-contained-environment-values.yaml and update the
+# URL and cluster CIDRs for the target environment. It inherits
 # authentication.provider=embeddedDex from the base values. The chart creates
 # credentials only in retained Kubernetes Secrets; do not put them in this
 # file. See the split-plane deployment guide for the canonical Secret ownership
 # and external OIDC contracts.
 
-# REQUIRED: Keep this value when using the guide's local port-forward. Replace
-# it with the public HTTPS origin when OSMO is exposed through a managed edge.
+# Keep this value when using the guide's local port-forward. Replace it with the
+# public HTTPS origin when OSMO is exposed through a managed edge.
 externalUrl: http://127.0.0.1:8080
-
-# CONDITIONAL: These selectors match the node labels used by the guide. Change
-# every control-plane or compute value below if your cluster uses other labels.
-# This selector places OSMO services and chart-owned bootstrap Jobs on platform
-# nodes.
-podDefaults:
-  nodeSelector:
-    osmo.nvidia.com/node-pool: control-plane
-
-# The service-auth bootstrap Job has its own scheduling settings and therefore
-# repeats the platform-node selector.
-secrets:
-  serviceAuth:
-    bootstrap:
-      nodeSelector:
-        osmo.nvidia.com/node-pool: control-plane
-
-# Keep the evaluation-only embedded identity provider on platform nodes.
-dex:
-  nodeSelector:
-    osmo.nvidia.com/node-pool: control-plane
-
-# Place the built-in workflow Pod templates on compute nodes. Apply the same
-# selector to any additional workflow Pod templates you create.
-configuration:
-  podTemplates:
-    default_ctrl:
-      spec:
-        nodeSelector:
-          osmo.nvidia.com/node-pool: compute
-    default_user:
-      spec:
-        nodeSelector:
-          osmo.nvidia.com/node-pool: compute
-    default_gpu_user:
-      spec:
-        nodeSelector:
-          osmo.nvidia.com/node-pool: compute
 
 compute:
   workflowNetworkPolicy:
-    # REQUIRED: Replace with every IPv4 Pod and Service CIDR used by your
-    # cluster. Omit duplicate entries when one CIDR covers both networks.
+    # Replace with every IPv4 Pod and Service CIDR used by your cluster. Omit
+    # duplicate entries when one CIDR covers both networks.
     clusterCIDRs:
     - 10.0.0.0/8
-
-postgresql:
-  cluster:
-    affinity:
-      # Keep embedded PostgreSQL on platform nodes.
-      nodeSelector:
-        osmo.nvidia.com/node-pool: control-plane
-
-valkey:
-  # Keep embedded Valkey on platform nodes.
-  nodeSelector:
-    osmo.nvidia.com/node-pool: control-plane
-
-rustfs:
-  # Keep embedded RustFS on platform nodes.
-  nodeSelector:
-    osmo.nvidia.com/node-pool: control-plane

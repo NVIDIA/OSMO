@@ -42,16 +42,15 @@ Run these commands from the root of an OSMO repository clone. The checked
 ``deployments/charts/osmo/examples/kai-values.yaml`` file defines the scheduler
 and admission behavior tested with OSMO.
 
-Create ``kai-selectors.yaml`` only when the KAI Scheduler components need
-environment-specific placement settings:
+The converged Quickstart, Self-contained, and Single-plane guides layer the
+checked ``deployments/charts/osmo/examples/kai-selectors.yaml`` file to place
+KAI components on nodes labeled ``osmo.nvidia.com/node-pool=control-plane``:
 
 .. code-block:: yaml
 
   global:
-    # Modify the node selectors and tolerations to match your cluster
-    nodeSelector: {}
-    affinity: {}
-    tolerations: []
+    nodeSelector:
+      osmo.nvidia.com/node-pool: control-plane
 
 Install the tested KAI Scheduler release with the common values:
 
@@ -73,9 +72,10 @@ Install the tested KAI Scheduler release with the common values:
     --for=condition=Available \
     --timeout=10m deployment --all
 
-If you created ``kai-selectors.yaml``, add ``--values kai-selectors.yaml``
-after the common ``--values`` option so the environment settings take
-precedence.
+Add that selector file after the common ``--values`` option only for clusters
+that use the documented converged node labels. Split compute clusters use their
+own KAI placement policy. Copy and edit the selector file when a cluster uses a
+different label.
 
 .. note::
    For newer compatible versions, refer to the
