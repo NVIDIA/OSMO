@@ -23,13 +23,13 @@ through gateway NodePort `30080` while omitting optional production behavior.
 It intentionally uses `latest` OSMO images, one replica per component,
 development authentication, bootstrapped service auth, and small
 single-node stateful dependencies.
-For reliable recovery, keep each production credential's source of truth in
-your organization's secret manager. Either provision the Kubernetes Secret
-externally before installation, or import a bootstrap-generated value, switch
-that Secret to external management, and disable its bootstrap. The single-plane
-and split profiles default service auth to external management, while an
-environment overlay can select OSMO-managed service auth for initial setup. The
-quickstart generates its application credentials for evaluation.
+For maximum recovery robustness, keep each production credential's source of
+truth in your organization's secret manager and provision its Kubernetes Secret
+before installation. The chart's bootstrap mechanism remains available as a
+convenience when external provisioning is not used. The single-plane and split
+profiles default service auth to external management, while an environment
+overlay can select OSMO-managed service auth for initial setup. The quickstart
+generates its application credentials for evaluation.
 
 The self-contained profile is the converged path for environments that host
 OSMO and its stateful dependencies in Kubernetes. It uses chart-version OSMO

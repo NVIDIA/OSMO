@@ -109,6 +109,7 @@ if [[ ! "$jwk_json" =~ $jwk_pattern ]]; then
 fi
 
 first_digest=$(sha256sum "$generated_mek")
+: >"$FAKE_STATE_DIRECTORY/commands"
 output=$(run_bootstrap)
 if [[ "$first_digest" != "$(sha256sum "$generated_mek")" ]]; then
     echo 'Existing MEK was regenerated' >&2
@@ -116,6 +117,11 @@ if [[ "$first_digest" != "$(sha256sum "$generated_mek")" ]]; then
 fi
 if [[ "$output" != *'already exists; preserving it'* ]]; then
     echo 'Existing MEK was not reported as preserved' >&2
+    exit 1
+fi
+if grep -Eq '^(label|annotate) --local|^create -f' \
+        "$FAKE_STATE_DIRECTORY/commands"; then
+    echo 'Existing MEK metadata was modified' >&2
     exit 1
 fi
 

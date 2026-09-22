@@ -102,9 +102,15 @@ if [[ "$output" == *"$generated_token"* ]]; then
     exit 1
 fi
 
+: >"$FAKE_STATE_DIRECTORY/commands"
 output=$(run_bootstrap --secret-name generated-token)
 if [[ "$output" != *'already exists; preserving it'* ]]; then
     echo 'Existing backend token was not preserved' >&2
+    exit 1
+fi
+if grep -Eq '^(label|annotate) --local|^create -f' \
+        "$FAKE_STATE_DIRECTORY/commands"; then
+    echo 'Existing backend token metadata was modified' >&2
     exit 1
 fi
 if ! grep -q '{{with index .data "previous-token"}}{{.}}{{end}}' \

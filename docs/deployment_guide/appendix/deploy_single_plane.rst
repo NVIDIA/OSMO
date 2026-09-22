@@ -302,12 +302,12 @@ Troubleshooting
 Upgrade and Recovery
 ====================
 
-Reuse the same profile, selector overlay, and site values for upgrades. Keep
-each production credential's source of truth in your organization's secret
-manager. Either provision the Kubernetes Secret externally before installation,
-or import a bootstrap-generated value, switch that Secret to external
-management, and disable its bootstrap. Back up credentials with the state they
-protect.
+Reuse the same profile, selector overlay, and site values for upgrades. For
+maximum recovery robustness, keep each production credential's source of truth
+in your organization's secret manager and provision its Kubernetes Secret
+before installation. The chart's bootstrap mechanism remains available as a
+convenience when external provisioning is not used. Back up credentials with
+the state they protect.
 
 Cleanup
 ========

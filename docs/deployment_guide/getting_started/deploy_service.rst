@@ -366,12 +366,11 @@ used by the release; with release name ``osmo`` they are ``osmo-api``,
 Configure Other Secrets
 -----------------------
 
-Keep each production credential's source of truth in your organization's
-secret manager. Either provision the Kubernetes Secret externally before
-installation, or import a bootstrap-generated value into the secret manager,
-switch that Secret to external management, and disable its bootstrap. Back up
-every credential together with the state it protects. Generated Secrets carry
-the ``osmo.nvidia.com/credential-source`` annotation so their owner is visible.
+For maximum recovery robustness, keep each production credential's source of
+truth in your organization's secret manager and provision its Kubernetes Secret
+before installation. The chart's bootstrap mechanism remains available as a
+convenience when external provisioning is not used. Back up every credential
+together with the state it protects.
 
 MEK
 ^^^
@@ -908,12 +907,12 @@ Upgrade and Recovery
 ====================
 
 Back up PostgreSQL, object storage, and every credential Secret before an
-upgrade. Reuse the same control profile and complete site values. Keep each
-production credential's source of truth in your organization's secret manager:
-provision it externally from the outset, or import the bootstrap-generated
-value, switch to external management, and disable its bootstrap. Follow the
-chart lifecycle procedures linked below for database migrations and credential
-rotation.
+upgrade. Reuse the same control profile and complete site values. For maximum
+recovery robustness, keep each production credential's source of truth in your
+organization's secret manager and provision its Kubernetes Secret before
+installation. The chart's bootstrap mechanism remains available as a
+convenience when external provisioning is not used. Follow the chart lifecycle
+procedures linked below for database migrations and credential rotation.
 
 Cleanup
 ========

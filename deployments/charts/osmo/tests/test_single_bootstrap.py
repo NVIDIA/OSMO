@@ -358,11 +358,6 @@ class SingleBootstrapTests(unittest.TestCase):
                 'app.kubernetes.io/instance': 'bootstrap-matrix',
             },
         )
-        self.assertEqual(
-            secret.metadata.annotations['osmo.nvidia.com/credential-source'],
-            'osmo-identity-bootstrap',
-        )
-
     def test_all_32_enable_combinations(self) -> None:
         for mask in range(32):
             with self.subTest(mask=mask):

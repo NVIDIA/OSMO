@@ -136,9 +136,6 @@ create_secret() {
                 app.kubernetes.io/managed-by=osmo-backend-token-bootstrap \
                 "app.kubernetes.io/instance=$release_name" \
                 -o yaml \
-            | kubectl annotate --local -f - \
-                osmo.nvidia.com/credential-source=service-chart-bootstrap \
-                -o yaml \
             | kubectl create -f - >/dev/null; then
         printf 'INFO Created backend token Secret %s\n' "$secret_name"
         return

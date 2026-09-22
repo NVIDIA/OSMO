@@ -113,10 +113,10 @@ helm upgrade --install osmo deployments/charts/osmo \
 
 The bootstrap Job creates the retained `osmo-master-encryption-key` and
 `osmo-service-auth` Secrets without putting key material in Helm state.
-Generated Secrets carry `osmo.nvidia.com/credential-source` ownership metadata.
-For reliable recovery, either provision each production credential from an
-external secret manager, or import the bootstrap-generated value, switch its
-Secret to external management, and disable its bootstrap.
+For maximum recovery robustness, keep each production credential in an external
+secret manager and provision its Kubernetes Secret before installation. The
+bootstrap mechanism remains available as a convenience when external
+provisioning is not used.
 
 Embedded Dex uses volatile memory storage and is intended for development and
 evaluation only. Dex restarts invalidate active sessions and signing keys.
@@ -1137,10 +1137,10 @@ Job. It changes only the manager label of valid, release-owned managed token
 Secrets from `osmo-backend-token-bootstrap` or `osmo-embedded-dex-bootstrap` to
 `osmo-identity-bootstrap`. As a narrow compatibility exception, it also adopts
 an exact-shape, unlabeled `osmo-backend-token` Secret from the legacy Azure
-helper by adding the release and manager labels plus the credential-source
-annotation. Secret identities and token bytes are preserved. Missing Secrets
-and already migrated Secrets require no writes. The migration does not generate
-credentials or change Dex.
+helper by adding the release and manager labels. Secret identities, token bytes,
+and existing annotations are preserved. Missing Secrets and already migrated
+Secrets require no writes. The migration does not generate credentials or
+change Dex.
 
 `authentication.bootstrap.tokenMigration.enabled` defaults to `true`. The hook
 renders only for the control plane with at least one enabled identity containing
@@ -1264,9 +1264,10 @@ rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-For reliable recovery, provision service auth from an external secret manager,
-or import a bootstrap-generated identity into it and switch the Secret to
-external management. Use the migration below for an older DB-backed identity.
+For maximum recovery robustness, keep service auth in an external secret
+manager and provision its Kubernetes Secret before installation. Bootstrap
+remains available as a convenience when external provisioning is not used. Use
+the migration below for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window using the full

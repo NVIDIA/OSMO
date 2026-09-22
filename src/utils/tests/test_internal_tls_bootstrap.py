@@ -220,9 +220,6 @@ class InternalTlsBootstrapTest(unittest.TestCase):
                     'argocd.argoproj.io/sync-options': (
                         'Prune=false,Delete=false'
                     ),
-                    'osmo.nvidia.com/credential-source': (
-                        'osmo-internal-tls-bootstrap'
-                    ),
                 },
             )
 
@@ -248,9 +245,6 @@ class InternalTlsBootstrapTest(unittest.TestCase):
                     'helm.sh/resource-policy': 'keep',
                     'argocd.argoproj.io/sync-options': (
                         'Prune=false,Delete=false'
-                    ),
-                    'osmo.nvidia.com/credential-source': (
-                        'osmo-internal-tls-bootstrap'
                     ),
                 },
             )

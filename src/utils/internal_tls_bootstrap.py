@@ -39,7 +39,6 @@ from src.utils.bootstrap import (BoundedApiClient, SecretSpec, record_issuance_i
 _MANAGED_BY = 'osmo-internal-tls-bootstrap'
 _MANAGED_BY_LABEL = 'app.kubernetes.io/managed-by'
 _INSTANCE_LABEL = 'app.kubernetes.io/instance'
-_CREDENTIAL_SOURCE_ANNOTATION = 'osmo.nvidia.com/credential-source'
 _RETENTION_ANNOTATIONS = {
     'helm.sh/resource-policy': 'keep',
     'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
@@ -372,10 +371,7 @@ def _create_secret(
                 _MANAGED_BY_LABEL: _MANAGED_BY,
                 _INSTANCE_LABEL: release_name,
             },
-            annotations={
-                **_RETENTION_ANNOTATIONS,
-                _CREDENTIAL_SOURCE_ANNOTATION: _MANAGED_BY,
-            },
+            annotations=dict(_RETENTION_ANNOTATIONS),
         ),
         type='Opaque',
         data=_encode_secret_data(values) if values is not None else None,
@@ -405,21 +401,17 @@ def _protect_secret(
     name = metadata.name if metadata else None
     if not name:
         raise BootstrapError('Generated TLS Secret is missing metadata.name')
-    required_annotations = {
-        **_RETENTION_ANNOTATIONS,
-        _CREDENTIAL_SOURCE_ANNOTATION: _MANAGED_BY,
-    }
     annotations = metadata.annotations or {}
     if all(
         annotations.get(key) == value
-        for key, value in required_annotations.items()
+        for key, value in _RETENTION_ANNOTATIONS.items()
     ):
         return secret
     try:
         return api.patch_namespaced_secret(
             name=name,
             namespace=namespace,
-            body={'metadata': {'annotations': required_annotations}},
+            body={'metadata': {'annotations': _RETENTION_ANNOTATIONS}},
         )
     except kubernetes_exceptions.ApiException as error:
         status = error.status if error.status is not None else 'unknown'

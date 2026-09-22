@@ -263,12 +263,6 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             secret['metadata']['labels']['app.kubernetes.io/managed-by'],
             'osmo-identity-bootstrap',
         )
-        self.assertEqual(
-            secret['metadata']['annotations'][
-                'osmo.nvidia.com/credential-source'
-            ],
-            'osmo-identity-bootstrap',
-        )
         self.assert_identities_preserved(retained)
         self.assertTrue(
             self.record()['committed'][missing] == recreated,

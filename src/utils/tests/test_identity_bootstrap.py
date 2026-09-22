@@ -272,10 +272,6 @@ class IdentityBootstrapTest(unittest.TestCase):
             'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
             'app.kubernetes.io/instance': 'release',
         }, secret.metadata.labels)
-        self.assertEqual(
-            secret.metadata.annotations['osmo.nvidia.com/credential-source'],
-            'osmo-identity-bootstrap',
-        )
         original_secrets = copy.deepcopy(self.api.secrets)
 
         repeated = self.reconcile_mcp()
@@ -523,10 +519,6 @@ class IdentityBootstrapTest(unittest.TestCase):
         )
         self.assertEqual(
             admin.metadata.labels['app.kubernetes.io/managed-by'],
-            'osmo-embedded-dex-bootstrap',
-        )
-        self.assertEqual(
-            admin.metadata.annotations['osmo.nvidia.com/credential-source'],
             'osmo-embedded-dex-bootstrap',
         )
 
@@ -847,9 +839,6 @@ class IdentityBootstrapTest(unittest.TestCase):
             {
                 'osmo.nvidia.com/browser-client-secret-generation': '2',
                 'osmo.nvidia.com/cookie-secret-generation': '2',
-                'osmo.nvidia.com/credential-source': (
-                    'osmo-embedded-dex-bootstrap'
-                ),
             })
 
     def test_argument_parser_rejects_nonpositive_generation(self) -> None:
@@ -1160,10 +1149,6 @@ class TokenMigrationTest(unittest.TestCase):
                 'osmo-identity-bootstrap'
             )
         else:
-            annotations = dict(secret.metadata.annotations or {})
-            annotations['osmo.nvidia.com/credential-source'] = (
-                'osmo-identity-bootstrap'
-            )
             self.assertEqual(
                 body[2:],
                 [
@@ -1175,15 +1160,9 @@ class TokenMigrationTest(unittest.TestCase):
                             'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
                         },
                     },
-                    {
-                        'op': 'add',
-                        'path': '/metadata/annotations',
-                        'value': annotations,
-                    },
                 ],
             )
             secret.metadata.labels = body[2]['value']
-            secret.metadata.annotations = annotations
         self.patches.append(name)
         secret.metadata.resource_version = str(
             int(secret.metadata.resource_version) + 1
@@ -1239,7 +1218,6 @@ class TokenMigrationTest(unittest.TestCase):
             self.values[name].metadata.annotations,
             {
                 'kubectl.kubernetes.io/last-applied-configuration': 'legacy',
-                'osmo.nvidia.com/credential-source': 'osmo-identity-bootstrap',
             },
         )
 

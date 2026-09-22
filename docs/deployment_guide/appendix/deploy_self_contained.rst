@@ -346,10 +346,10 @@ Common causes include:
   role claim.
 * ``ImagePullBackOff`` means the image registry, tag, credentials, proxy, or
   mirror configuration is incorrect.
-* Keep each production credential's source of truth in your organization's
-  secret manager. Either provision the Kubernetes Secret externally before
-  installation, or import a bootstrap-generated value, switch that Secret to
-  external management, and disable its bootstrap.
+* For maximum recovery robustness, keep each production credential's source of
+  truth in your organization's secret manager and provision its Kubernetes
+  Secret before installation. The chart's bootstrap mechanism remains
+  available as a convenience when external provisioning is not used.
 
 Durability and availability
 ===========================

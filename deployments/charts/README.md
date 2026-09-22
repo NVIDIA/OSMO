@@ -49,10 +49,10 @@ helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --timeout 20m
 ```
 
-For reliable recovery, keep each production credential's source of truth in
-your organization's secret manager. Either provision its Kubernetes Secret
-externally, or import a bootstrap-generated value, switch the Secret to
-external management, and disable its bootstrap.
+For maximum recovery robustness, keep each production credential's source of
+truth in your organization's secret manager and provision its Kubernetes Secret
+before installation. The chart's bootstrap mechanism remains available as a
+convenience when external provisioning is not used.
 
 The default values deploy the UI, gateway, control and compute planes, a
 CloudNativePG Cluster, persistent Valkey, and persistent RustFS. They generate
@@ -84,9 +84,10 @@ Follow the [canonical self-contained guide](../../docs/deployment_guide/appendix
 for the exact node labels, external-IdP Secret and values contract, dependency
 installation, values layering, and install command.
 
-For reliable recovery, provision credentials from an external secret manager,
-or import bootstrap-generated values into it and switch those Secrets to
-external management, then disable their bootstrap.
+For maximum recovery robustness, keep production credentials in an external
+secret manager and provision their Kubernetes Secrets before installation. The
+chart's bootstrap mechanism remains available as a convenience when external
+provisioning is not used.
 
 See the [`osmo` self-contained guide](osmo/README.md#self-contained-production)
 for availability, storage, identity, network-isolation, backup, and edge details.
