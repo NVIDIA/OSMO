@@ -41,7 +41,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 import yaml
@@ -93,12 +92,6 @@ CNPG_REPO_URL = "https://cloudnative-pg.github.io/charts"
 CNPG_CHART = "cnpg/cloudnative-pg"
 CNPG_VERSION = "0.29.0"
 CNPG_NAMESPACE = "cnpg-system"
-
-RUSTFS_REPO_NAME = "rustfs"
-RUSTFS_REPO_URL = "https://charts.rustfs.com"
-
-DEX_REPO_NAME = "dex"
-DEX_REPO_URL = "https://charts.dexidp.io"
 
 # When ``--build-local`` is set, every osmo container's image points at the
 # pseudo-registry ``osmo.local/<svc>:latest-<arch>`` — the chart default
@@ -897,12 +890,6 @@ class KindAdapter:
         readiness_timeout = "140m" if unified else "25m"
         if unified:
             chart_ref = self._retain_quick_start_chart(chart_ref)
-            self._ensure_helm_repo(RUSTFS_REPO_NAME, RUSTFS_REPO_URL)
-            self._ensure_helm_repo(DEX_REPO_NAME, DEX_REPO_URL)
-            self._run(
-                ["helm", "dependency", "build", chart_ref],
-                "Building unified OSMO chart dependencies",
-            )
         args = [
             "helm", "upgrade", "--install", "osmo", chart_ref,
             "--namespace", OSMO_NAMESPACE, "--create-namespace",
@@ -925,8 +912,6 @@ class KindAdapter:
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]
-        if unified and self._new_cluster:
-            args += ["--set-string", f"bootstrap.initializationId=oetf-{uuid.uuid4().hex}"]
         if self.chart_version and not unified:
             args += ["--version", self.chart_version]
         if self.image_location:

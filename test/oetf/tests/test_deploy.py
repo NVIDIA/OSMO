@@ -462,21 +462,15 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(env.url, "http://127.0.0.1")
         health_opener.assert_called_with("http://127.0.0.1/health", timeout=5)
         cmds = [tuple(c) for c in calls]
-        dependency_build = next(
-            index for index, command in enumerate(cmds)
-            if command[:3] == ("helm", "dependency", "build"))
-        rustfs_repo = next(
-            index for index, command in enumerate(cmds)
-            if command[:4] == ("helm", "repo", "add", "rustfs"))
-        dex_repo = next(
-            index for index, command in enumerate(cmds)
-            if command[:4] == ("helm", "repo", "add", "dex"))
         osmo_install = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "upgrade", "--install", "osmo"))
-        self.assertLess(rustfs_repo, dependency_build)
-        self.assertLess(dex_repo, dependency_build)
-        self.assertLess(dependency_build, osmo_install)
+        self.assertFalse(any(command[:3] == ("helm", "dependency", "build")
+                             for command in cmds))
+        self.assertFalse(any(command[:4] in {
+            ("helm", "repo", "add", "rustfs"),
+            ("helm", "repo", "add", "dex"),
+        } for command in cmds))
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
             cmds,
@@ -531,8 +525,8 @@ class TestKindAdapter(unittest.TestCase):
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
         installation = next(command for command in calls
                             if command[:4] == ["helm", "upgrade", "--install", "osmo"])
-        self.assertTrue(any(value.startswith("bootstrap.initializationId=oetf-")
-                            for value in installation))
+        self.assertFalse(any(value.startswith("bootstrap.initializationId=")
+                             for value in installation))
         rollout_calls = [c for c in calls if c[:3] == ["kubectl", "rollout", "restart"]]
         self.assertEqual(
             rollout_calls, [],

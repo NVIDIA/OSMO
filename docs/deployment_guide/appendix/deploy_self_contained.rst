@@ -145,10 +145,8 @@ created by the OSMO release:
 
 .. code-block:: bash
 
-   helm repo add osmo-dex https://charts.dexidp.io
    helm repo add cnpg https://cloudnative-pg.github.io/charts
-   helm repo add osmo-rustfs https://charts.rustfs.com
-   helm repo update
+   helm repo update cnpg
    helm upgrade --install cnpg cnpg/cloudnative-pg \
      --version 0.29.0 \
      --namespace cnpg-system \
@@ -192,6 +190,9 @@ create the referenced OIDC Secret before installing OSMO.
 Install OSMO
 ============
 
+The source checkout includes the pinned dependency archives required by the
+local unified chart.
+
 The command below uses Helm 4's ``--wait=legacy`` strategy because its default
 watcher can leave the release ``pending-install`` after operator-managed custom
 resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
@@ -199,7 +200,6 @@ resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
 .. code-block:: bash
 
    kubectl create namespace osmo
-   helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/self-contained.yaml \
@@ -264,6 +264,7 @@ KAI, and the API are ready. Then submit both CPU verification workflows:
 
 .. code-block:: bash
 
+   # Verify the Helm release and Kubernetes workloads
    helm status osmo --namespace osmo
    kubectl --namespace osmo wait --for=condition=Available \
      deployment --all --timeout=10m
@@ -276,10 +277,17 @@ KAI, and the API are ready. Then submit both CPU verification workflows:
    kubectl --namespace kai-scheduler wait --for=condition=Available \
      deployment --all --timeout=10m
    kubectl --namespace osmo get pods,services,pvc,jobs
+
+   # Verify API availability
    curl --fail "$OSMO_URL/api/version"
-   osmo profile set pool default
+
+.. code-block:: bash
+
+   # Verify pools and resources
    osmo pool list
    osmo resource list --pool default
+
+   # Verify workflow submission and operation
    osmo workflow submit deployments/workflows/verify-hello.yaml \
      --pool default \
      --format-type json

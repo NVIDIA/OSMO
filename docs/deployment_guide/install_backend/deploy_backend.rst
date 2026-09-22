@@ -203,6 +203,7 @@ Confirm that the backend listener and worker Deployments are available:
 
 .. code-block:: bash
 
+   # Verify the Helm release and compute-plane workloads
    $ helm --kube-context "$COMPUTE_CONTEXT" status osmo-compute \
        --namespace "$COMPUTE_NAMESPACE"
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
@@ -221,9 +222,12 @@ verification workflows for end-to-end verification:
 
 .. code-block:: bash
 
+   # Verify the backend, pools, and resources
    $ osmo config show BACKEND gb200-01
    $ osmo pool list
    $ osmo resource list --pool default
+
+   # Verify workflow submission and operation
    $ osmo workflow submit deployments/workflows/verify-hello.yaml \
        --pool default --format-type json
    $ osmo workflow submit deployments/workflows/verify-object-storage.yaml \

@@ -262,10 +262,8 @@ converged deployment guides:
      --for=condition=Available \
      --timeout=10m deployment --all
 
-   helm repo add osmo-dex https://charts.dexidp.io
    helm repo add cnpg https://cloudnative-pg.github.io/charts
-   helm repo add osmo-rustfs https://charts.rustfs.com
-   helm repo update
+   helm repo update cnpg
    helm upgrade --install cnpg cnpg/cloudnative-pg \
      --version 0.29.0 \
      --namespace cnpg-system \
@@ -290,17 +288,17 @@ default pool. CPU workflows use a pod template without a GPU resource key.
 GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
 both the user-container requests and limits.
 
-The chart defaults are the development Quickstart. Build its dependencies and
-install it without a profile, layering the shared selector file afterward. The
-chart uses the in-cluster gateway URL for workflow Pods while retaining the
-public loopback URL for login.
+The chart defaults are the development Quickstart. Its pinned dependency
+archives are included in the source checkout. Install it without a profile,
+layering the shared selector file afterward. The chart uses the in-cluster
+gateway URL for workflow Pods while retaining the public loopback URL for
+login.
 
 The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
 ``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
-   helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --create-namespace \
@@ -352,14 +350,23 @@ canonical CPU verification workflows:
 
 .. code-block:: bash
 
+   # Verify the Helm release and Kubernetes workloads
    helm status osmo --namespace osmo
    kubectl --namespace osmo wait --for=condition=Available \
      deployment --all --timeout=10m
    kubectl --namespace kai-scheduler wait --for=condition=Available \
      deployment --all --timeout=10m
+
+   # Verify API availability
    curl --fail "$OSMO_URL/api/version"
+
+.. code-block:: bash
+
+   # Verify pools and resources
    osmo pool list
    osmo resource list --pool default
+
+   # Verify workflow submission and operation
    osmo workflow submit deployments/workflows/verify-hello.yaml \
      --pool default --format-type json
    osmo workflow submit deployments/workflows/verify-object-storage.yaml \

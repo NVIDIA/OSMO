@@ -825,6 +825,7 @@ Check the release without reading Secret values:
 
 .. code-block:: bash
 
+   # Verify the Helm release and control-plane workloads
    $ helm status osmo --namespace osmo
    $ kubectl --namespace osmo get pods,jobs,services
    $ kubectl --namespace osmo get secret \
@@ -843,6 +844,7 @@ In another terminal:
 
 .. code-block:: bash
 
+   # Verify API availability, pools, and resources
    $ curl --fail http://127.0.0.1:8080/api/version
    $ osmo pool list
    $ osmo resource list --pool default

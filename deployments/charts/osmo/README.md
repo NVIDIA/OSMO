@@ -79,10 +79,8 @@ kubectl --namespace kai-scheduler wait \
   --for=condition=Available \
   --timeout=10m deployment --all
 
-helm repo add osmo-dex https://charts.dexidp.io
 helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo add osmo-rustfs https://charts.rustfs.com
-helm repo update
+helm repo update cnpg
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -94,12 +92,11 @@ helm upgrade --install cnpg cnpg/cloudnative-pg \
 ### Install OSMO
 
 Install the chart defaults with the shared converged-cluster selector overlay.
-Its bootstrap Job creates the shared development identity directly in
-Kubernetes. The defaults use `http://127.0.0.1` to match the quickstart Kind
-port mapping:
+The source checkout includes the pinned dependency archives. Its bootstrap Job
+creates the shared development identity directly in Kubernetes. The defaults
+use `http://127.0.0.1` to match the quickstart Kind port mapping:
 
 ```bash
-helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -189,14 +186,23 @@ Check the release, OSMO and KAI readiness, and the API before submitting both
 canonical CPU verification workflows:
 
 ```bash
+# Verify the Helm release and Kubernetes workloads
 helm status osmo --namespace osmo
 kubectl --namespace osmo wait --for=condition=Available \
   deployment --all --timeout=10m
 kubectl --namespace kai-scheduler wait --for=condition=Available \
   deployment --all --timeout=10m
+
+# Verify API availability
 curl --fail "$OSMO_URL/api/version"
+```
+
+```bash
+# Verify pools and resources
 osmo pool list
 osmo resource list --pool default
+
+# Verify workflow submission and operation
 osmo workflow submit deployments/workflows/verify-hello.yaml \
   --pool default \
   --format-type json
@@ -423,15 +429,11 @@ bypassing Envoy to reach control-plane Services. See
 Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
 creating the policy objects does not prove that the cluster enforces them.
 
-Install OSMO with the production profile and the environment-specific inputs:
+The source checkout includes the pinned dependency archives. Install OSMO with
+the production profile and the environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
-helm repo add osmo-dex https://charts.dexidp.io
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo add osmo-rustfs https://charts.rustfs.com
-helm repo update
-helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
 # Edit self-contained-environment-values.yaml for the target environment and,
@@ -502,10 +504,8 @@ processes can use otherwise-idle CPU and finish quickly.
 Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
 
 ```bash
-helm repo add osmo-dex https://charts.dexidp.io
 helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo add osmo-rustfs https://charts.rustfs.com
-helm repo update
+helm repo update cnpg
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -533,7 +533,6 @@ secrets:
 Install the chart after the operator is Ready:
 
 ```bash
-helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -644,11 +643,6 @@ split-plane control profile, then
 install the chart by layering the environment values after the profile:
 
 ```bash
-helm repo add osmo-dex https://charts.dexidp.io
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo add osmo-rustfs https://charts.rustfs.com
-helm repo update
-helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -715,11 +709,6 @@ file. Each compute release attached to the same control plane must use a unique
 name.
 
 ```bash
-helm repo add osmo-dex https://charts.dexidp.io
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm repo add osmo-rustfs https://charts.rustfs.com
-helm repo update
-helm dependency build deployments/charts/osmo
 helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \
   --namespace osmo-compute \
