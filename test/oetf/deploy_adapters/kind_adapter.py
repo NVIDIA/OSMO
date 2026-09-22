@@ -673,16 +673,21 @@ class KindAdapter:
         self._run(["helm", "repo", "update", OSMO_HELM_REPO_NAME], "Updating osmo helm repo")
 
     def _ensure_helm_repo(self, name: str, url: str) -> None:
-        """Idempotent ``helm repo add`` — a no-op if ``name`` is already registered."""
+        """Ensure ``name`` is registered with ``url``."""
         repos = self._helm_json(
             ["helm", "repo", "list", "-o", "json"],
             description=f"Checking helm repos for {name}",
         )
-        if repos and any(repo.get("name") == name for repo in repos):
+        existing = next(
+            (repo for repo in (repos or []) if repo.get("name") == name),
+            None,
+        )
+        if existing and existing.get("url") == url:
             return
+        update_args = ["--force-update"] if existing else []
         self._run(
-            ["helm", "repo", "add", name, url],
-            f"Adding helm repo {name}",
+            ["helm", "repo", "add", name, url, *update_args],
+            f"{'Updating' if existing else 'Adding'} helm repo {name}",
         )
 
     def _helm_release_installed(self, release: str, namespace: str) -> bool:

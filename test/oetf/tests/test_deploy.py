@@ -352,6 +352,22 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(repo_add_calls, [],
                          msg="helm repo add should be skipped when already present")
 
+    def test_helm_repo_add_updates_existing_name_with_different_url(self):
+        existing_repos = '[{"name":"cnpg","url":"https://wrong.example/charts"}]'
+        adapter, calls = self._adapter(capture_stdouts=[existing_repos])
+
+        adapter._ensure_helm_repo(  # pylint: disable=protected-access
+            "cnpg", "https://cloudnative-pg.github.io/charts",
+        )
+
+        self.assertIn(
+            [
+                "helm", "repo", "add", "cnpg",
+                "https://cloudnative-pg.github.io/charts", "--force-update",
+            ],
+            calls,
+        )
+
     def test_kai_scheduler_install_skipped_when_already_present(self):
         existing_kai = '[{"name":"kai-scheduler","namespace":"kai-scheduler"}]'
         # Captures: kind get, helm list kai (found), helm repo list (osmo).

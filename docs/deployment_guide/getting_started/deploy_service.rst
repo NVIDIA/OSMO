@@ -741,6 +741,26 @@ OIDC discovery remain supported:
 
 See :doc:`../appendix/authentication/idp_role_mapping` for role mapping.
 
+The example disables the bootstrap administrator identity because human users
+authenticate through the external provider. If an OSMO administrator token is
+also required for CLI automation or recovery, replace the ``admin`` block above
+with the following. This keeps the OSMO token without creating an embedded-Dex
+identity or password:
+
+.. code-block:: yaml
+
+   admin:
+     enabled: true
+     username: admin
+     roles:
+       - osmo-admin
+     dex:
+       enabled: false
+     tokens:
+       primary:
+         managedSecret:
+           name: osmo-admin-token
+
 .. _deploy_service_deploy_components:
 
 Install OSMO
@@ -789,12 +809,19 @@ TLS; use your load balancer, Ingress, or Gateway API implementation for that.
 Log In
 ======
 
-To validate with the OSMO CLI, read the generated administrator token into a
-protected temporary file:
+Set the public OSMO URL and log in through the configured external OIDC
+provider:
 
 .. code-block:: bash
 
    $ OSMO_URL=https://osmo.example.com
+   $ osmo login "$OSMO_URL"
+
+If the optional ``osmo-admin-token`` bootstrap credential was retained, it can
+instead be used from a protected temporary file:
+
+.. code-block:: bash
+
    $ set -o pipefail
    $ umask 077
    $ OSMO_TOKEN_FILE="$(mktemp)" &&
