@@ -457,18 +457,27 @@ require_no_resource_with_hash_suffix() {
     fi
 }
 
-require_downloaded_dependencies_untracked() {
-    local repository_root
-    local tracked_archives
+require_locked_dependencies_packaged() {
+    local dependency_name
+    local dependency_version
+    local repository_root=""
 
-    if ! repository_root=$(git -C "$CHARTS_ROOT/osmo" rev-parse --show-toplevel 2>/dev/null); then
-        return
-    fi
-
-    tracked_archives=$(git -C "$repository_root" ls-files -- \
-        'deployments/charts/osmo/charts/*.tgz')
-    [[ -z "$tracked_archives" ]] || \
-        fail "downloaded Helm dependency archives must not be tracked: $tracked_archives"
+    repository_root=$(git -C "$CHARTS_ROOT/osmo" rev-parse --show-toplevel 2>/dev/null || true)
+    while read -r dependency_name dependency_version; do
+        local archive="deployments/charts/osmo/charts/${dependency_name}-${dependency_version}.tgz"
+        [[ -f "$CHARTS_ROOT/osmo/charts/${dependency_name}-${dependency_version}.tgz" ]] || \
+            fail "locked Helm dependency archive is missing: $archive"
+        if [[ -n "$repository_root" ]] && \
+                ! git -C "$repository_root" ls-files --error-unmatch -- "$archive" >/dev/null 2>&1; then
+            fail "locked Helm dependency archive must be tracked: $archive"
+        fi
+    done < <(awk '
+        /^- name:/ { name = $3 }
+        /^  version:/ {
+            gsub(/"/, "", $2)
+            print name, $2
+        }
+    ' "$CHARTS_ROOT/osmo/Chart.lock")
 }
 
 require_clean_osmo_sources() {
@@ -491,7 +500,7 @@ require_clean_osmo_sources() {
     require_contains "$CHARTS_ROOT/osmo/Chart.yaml" \
         "condition: embeddedDependencies.objectStorage.enabled"
     [[ -e "$CHARTS_ROOT/osmo/Chart.lock" ]] || fail "osmo must have a dependency lock"
-    require_downloaded_dependencies_untracked
+    require_locked_dependencies_packaged
     [[ ! -e "$CHARTS_ROOT/osmo/templates/postgres.yaml" ]] || \
         fail "osmo must not contain an unimplemented embedded PostgreSQL template"
     [[ ! -e "$CHARTS_ROOT/osmo/templates/redis.yaml" ]] || \
