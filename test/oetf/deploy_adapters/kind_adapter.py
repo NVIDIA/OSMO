@@ -685,9 +685,10 @@ class KindAdapter:
         if existing and existing.get("url") == url:
             return
         update_args = ["--force-update"] if existing else []
+        operation = "Updating" if existing else "Adding"
         self._run(
             ["helm", "repo", "add", name, url, *update_args],
-            f"{'Updating' if existing else 'Adding'} helm repo {name}",
+            f"{operation} helm repo {name}",
         )
 
     def _helm_release_installed(self, release: str, namespace: str) -> bool:
