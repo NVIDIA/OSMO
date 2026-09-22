@@ -179,14 +179,19 @@ referenced OIDC Secret before installing OSMO.
 Install OSMO
 ============
 
-Use a chart version and OSMO images from the same release. The source checkout
-includes the pinned dependency archives required by the local unified chart:
+Use a chart version and OSMO images from the same release. Register the HTTP
+chart repositories and build the local unified chart's pinned dependencies
+from ``Chart.lock`` before installing OSMO.
 
 The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
 ``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
+   helm repo add osmo-dex https://charts.dexidp.io
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm repo add osmo-rustfs https://charts.rustfs.com
+   helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --values deployments/charts/osmo/profiles/single-plane.yaml \

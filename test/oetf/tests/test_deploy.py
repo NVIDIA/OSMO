@@ -22,7 +22,7 @@ from typing import List
 import yaml
 
 from test.oetf import breadcrumb, local_images, teardown_main
-from test.oetf.deploy_adapters import factory, kind_adapter
+from test.oetf.deploy_adapters import factory
 from test.oetf.deploy_adapters.base import (
     DeployParams,
     DeploySession,
@@ -161,23 +161,44 @@ def _always_ok_opener(*_args, **_kwargs):
 class TestKindAdapter(unittest.TestCase):
     """KindAdapter drives kind + helm with correct flags via osmo/quick-start."""
 
-    def test_unified_chart_runfiles_include_pinned_dependencies(self):
-        chart_directory = kind_adapter._local_osmo_chart_path()  # pylint: disable=protected-access
-        with open(
-            os.path.join(chart_directory, "Chart.lock"), encoding="utf-8",
-        ) as chart_lock_file:
-            dependencies = yaml.safe_load(chart_lock_file)["dependencies"]
+    def test_prepared_unified_chart_ref_builds_dependencies_in_temporary_copy(self):
+        def fake_run(args, **_kwargs):
+            if args[:3] == ["helm", "dependency", "build"]:
+                dependency_directory = os.path.join(args[3], "charts")
+                os.makedirs(dependency_directory, exist_ok=True)
+                with open(
+                    os.path.join(dependency_directory, "example-1.0.0.tgz"),
+                    "w", encoding="utf-8",
+                ) as archive:
+                    archive.write("downloaded dependency")
+            return _FakeCompleted()
 
-        expected_archives = {
-            f"{dependency["name"]}-{dependency["version"]}.tgz"
-            for dependency in dependencies
-        }
-        packaged_archives = set(os.listdir(os.path.join(chart_directory, "charts")))
-        self.assertTrue(
-            expected_archives.issubset(packaged_archives),
-            f"missing pinned unified-chart dependencies: "
-            f"{sorted(expected_archives - packaged_archives)}",
-        )
+        adapter = KindAdapter(subprocess_runner=fake_run)
+        with tempfile.TemporaryDirectory() as source_directory:
+            source_chart = os.path.join(source_directory, "osmo")
+            os.makedirs(source_chart)
+            with open(
+                os.path.join(source_chart, "Chart.yaml"), "w", encoding="utf-8",
+            ) as chart_file:
+                chart_file.write("apiVersion: v2\nname: osmo\nversion: 0.1.0\n")
+
+            with unittest.mock.patch(
+                "test.oetf.deploy_adapters.kind_adapter._local_osmo_chart_path",
+                return_value=source_chart,
+            ):
+                # pylint: disable-next=protected-access
+                prepared_chart_ref = adapter._prepared_unified_chart_ref()
+                with prepared_chart_ref as chart_ref:
+                    prepared_chart = chart_ref
+                    self.assertNotEqual(chart_ref, source_chart)
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        chart_ref, "charts", "example-1.0.0.tgz",
+                    )))
+                    self.assertFalse(os.path.exists(os.path.join(
+                        source_chart, "charts", "example-1.0.0.tgz",
+                    )))
+
+            self.assertFalse(os.path.exists(prepared_chart))
 
     def _adapter(
         self,
@@ -483,12 +504,14 @@ class TestKindAdapter(unittest.TestCase):
         osmo_install = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "upgrade", "--install", "osmo"))
-        self.assertFalse(any(command[:3] == ("helm", "dependency", "build")
-                             for command in cmds))
-        self.assertFalse(any(command[:4] in {
-            ("helm", "repo", "add", "rustfs"),
-            ("helm", "repo", "add", "dex"),
-        } for command in cmds))
+        self.assertTrue(any(command[:3] == ("helm", "dependency", "build")
+                            for command in cmds))
+        self.assertTrue(any(command[:4] == (
+            "helm", "repo", "add", "osmo-dex",
+        ) for command in cmds))
+        self.assertTrue(any(command[:4] == (
+            "helm", "repo", "add", "osmo-rustfs",
+        ) for command in cmds))
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
             cmds,

@@ -36,6 +36,10 @@ install the complete browser, CLI, API, and CPU workflow experience with the
 chart defaults:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm --kube-context kind-osmo upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \

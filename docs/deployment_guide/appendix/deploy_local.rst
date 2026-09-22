@@ -288,17 +288,21 @@ default pool. CPU workflows use a pod template without a GPU resource key.
 GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
 both the user-container requests and limits.
 
-The chart defaults are the development Quickstart. Its pinned dependency
-archives are included in the source checkout. Install it without a profile,
-layering the shared selector file afterward. The chart uses the in-cluster
-gateway URL for workflow Pods while retaining the public loopback URL for
-login.
+The chart defaults are the development Quickstart. Register the HTTP chart
+repositories, build the pinned dependencies from ``Chart.lock``, and install
+it without a profile, layering the shared selector file afterward. The chart
+uses the in-cluster gateway URL for workflow Pods while retaining the public
+loopback URL for login.
 
 The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
 ``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
+   helm repo add osmo-dex https://charts.dexidp.io
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm repo add osmo-rustfs https://charts.rustfs.com
+   helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --create-namespace \

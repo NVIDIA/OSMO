@@ -9,9 +9,6 @@ MODULE.bazel.lock
 *.tgz
 **/Chart.lock
 
-# The unified source chart is self-contained for offline installs and Bazel runfiles.
-!deployments/charts/osmo/charts/*.tgz
-
 # Ignore Intelij config files
 .idea
 

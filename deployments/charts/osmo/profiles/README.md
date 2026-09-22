@@ -59,6 +59,10 @@ The example uses Helm 4's `--wait=legacy`; with Helm 3, replace it with
 `--wait`. For example:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
   --values deployments/charts/osmo/examples/node-selectors.yaml \

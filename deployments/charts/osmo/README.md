@@ -92,11 +92,16 @@ helm upgrade --install cnpg cnpg/cloudnative-pg \
 ### Install OSMO
 
 Install the chart defaults with the shared converged-cluster selector overlay.
-The source checkout includes the pinned dependency archives. Its bootstrap Job
-creates the shared development identity directly in Kubernetes. The defaults
-use `http://127.0.0.1` to match the quickstart Kind port mapping:
+Register the HTTP chart repositories and build the pinned dependencies from
+`Chart.lock` first. The bootstrap Job creates the shared development identity
+directly in Kubernetes. The defaults use `http://127.0.0.1` to match the
+quickstart Kind port mapping:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -390,6 +395,10 @@ externalDependencies:
 Install the generic profile first and a site-specific overlay second:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
@@ -429,11 +438,16 @@ bypassing Envoy to reach control-plane Services. See
 Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
 creating the policy objects does not prove that the cluster enforces them.
 
-The source checkout includes the pinned dependency archives. Install OSMO with
-the production profile and the environment-specific inputs:
+Register the HTTP chart repositories, build the pinned dependencies from
+`Chart.lock`, and install OSMO with the production profile and the
+environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
 # Edit self-contained-environment-values.yaml for the target environment and,
@@ -533,6 +547,10 @@ secrets:
 Install the chart after the operator is Ready:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -643,6 +661,10 @@ split-plane control profile, then
 install the chart by layering the environment values after the profile:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
   --namespace osmo \
   --create-namespace \
@@ -709,6 +731,10 @@ file. Each compute release attached to the same control plane must use a unique
 name.
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \
   --namespace osmo-compute \

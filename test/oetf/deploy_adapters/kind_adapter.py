@@ -92,6 +92,11 @@ CNPG_REPO_URL = "https://cloudnative-pg.github.io/charts"
 CNPG_CHART = "cnpg/cloudnative-pg"
 CNPG_VERSION = "0.29.0"
 CNPG_NAMESPACE = "cnpg-system"
+UNIFIED_CHART_REPOSITORIES = (
+    ("osmo-dex", "https://charts.dexidp.io"),
+    (CNPG_REPO_NAME, CNPG_REPO_URL),
+    ("osmo-rustfs", "https://charts.rustfs.com"),
+)
 
 # When ``--build-local`` is set, every osmo container's image points at the
 # pseudo-registry ``osmo.local/<svc>:latest-<arch>`` — the chart default
@@ -756,6 +761,26 @@ class KindAdapter:
                     os.unlink(legacy_template)
             yield chart_directory
 
+    @contextlib.contextmanager
+    def _prepared_unified_chart_ref(self):
+        """Build locked dependencies in a temporary unified chart copy."""
+        source_chart = _local_osmo_chart_path()
+        if not os.path.isfile(os.path.join(source_chart, "Chart.yaml")):
+            raise RuntimeError(
+                f"Local unified OSMO chart is unavailable at {source_chart}"
+            )
+
+        with tempfile.TemporaryDirectory(prefix="osmo-unified-chart-") as directory:
+            chart_directory = os.path.join(directory, "osmo")
+            shutil.copytree(source_chart, chart_directory)
+            for repository_name, repository_url in UNIFIED_CHART_REPOSITORIES:
+                self._ensure_helm_repo(repository_name, repository_url)
+            self._run(
+                ["helm", "dependency", "build", chart_directory],
+                "Building unified chart dependencies",
+            )
+            yield chart_directory
+
     def _install_kai_scheduler(self) -> None:
         """Install kai-scheduler if it isn't already present.
 
@@ -849,12 +874,8 @@ class KindAdapter:
         # metrics-server installed. We use ``kubectl wait`` on the actual
         # Deployments (more meaningful anyway).
         if self.build_local:
-            chart_ref = _local_osmo_chart_path()
-            if not os.path.isfile(os.path.join(chart_ref, "Chart.yaml")):
-                raise RuntimeError(
-                    f"Local unified OSMO chart is unavailable at {chart_ref}"
-                )
-            self._helm_install_chart(chart_ref, unified=True)
+            with self._prepared_unified_chart_ref() as chart_ref:
+                self._helm_install_chart(chart_ref, unified=True)
             return
         with self._quick_start_chart_ref() as chart_ref:
             self._helm_install_chart(chart_ref, unified=False)
