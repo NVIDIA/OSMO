@@ -38,29 +38,44 @@ OSMO uses `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_ to run AI w
 
 For more information on the scheduler, see :ref:`scheduler`.
 
-Create a file called ``kai-selectors.yaml`` with placement settings for the
-KAI Scheduler components:
+Run these commands from the root of an OSMO repository clone. The checked
+``deployments/charts/osmo/examples/kai-values.yaml`` file defines the scheduler
+and admission behavior tested with OSMO.
+
+The converged Quickstart, Self-contained, and Single-plane guides layer the
+checked ``deployments/charts/osmo/examples/kai-selectors.yaml`` file to place
+KAI components on nodes labeled ``osmo.nvidia.com/node-pool=control-plane``:
 
 .. code-block:: yaml
 
   global:
-    # Modify the node selectors and tolerations to match your cluster
-    nodeSelector: {}
-    affinity: {}
-    tolerations: []
+    nodeSelector:
+      osmo.nvidia.com/node-pool: control-plane
 
-Next, install the tested KAI Scheduler release using ``helm``:
+Install the tested KAI Scheduler release with the common values:
 
 .. code-block:: bash
 
   helm upgrade --install kai-scheduler \
-    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.12.10/kai-scheduler-v0.12.10.tgz \
+    https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.15.3/kai-scheduler-v0.15.3.tgz \
     --namespace kai-scheduler \
     --create-namespace \
-    --values kai-selectors.yaml
+    --values deployments/charts/osmo/examples/kai-values.yaml \
+    --wait \
+    --timeout 10m
   kubectl --namespace kai-scheduler wait \
     --for=condition=Available=True \
     --timeout=10m config.kai.scheduler/kai-config
+  kubectl wait --for=condition=Available \
+    --timeout=10m schedulingshard/default
+  kubectl --namespace kai-scheduler wait \
+    --for=condition=Available \
+    --timeout=10m deployment --all
+
+Add that selector file after the common ``--values`` option only for clusters
+that use the documented converged node labels. Split compute clusters use their
+own KAI placement policy. Copy and edit the selector file when a cluster uses a
+different label.
 
 .. note::
    For newer compatible versions, refer to the

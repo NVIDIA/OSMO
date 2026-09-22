@@ -268,28 +268,59 @@ class DeploymentTest(unittest.TestCase):
                 self.assertFalse(cluster.manifests)
                 self.assertFalse(any(call[:2] == ('helm', 'upgrade') for call in cluster.calls))
 
-    def test_initial_install_disables_bootstrap_after_success(self):
+    def test_initial_install_keeps_managed_bootstrap_enabled(self):
         cluster = FakeCluster()
         self.run_install(cluster)
         upgrades = [call for call in cluster.calls if call[:2] == ('helm', 'upgrade')]
-        self.assertEqual(len(upgrades), 2)
-        self.assertIn('secrets.serviceAuth.bootstrap.enabled=false', upgrades[-1])
-        self.assertIn('secrets.masterEncryptionKey.bootstrap.enabled=false', upgrades[-1])
+        self.assertEqual(len(upgrades), 1)
+        self.assertNotIn('secrets.serviceAuth.bootstrap.enabled=false', upgrades[0])
+        self.assertNotIn('secrets.masterEncryptionKey.bootstrap.enabled=false', upgrades[0])
         self.assertFalse(any(item['kind'] == 'Secret' for item in cluster.manifests))
 
-    def test_upgrade_preserves_values_and_refuses_missing_retained_keys(self):
+    def test_upgrade_reenables_managed_bootstrap_and_recreates_missing_secrets(self):
         previous = {'configuration': {'pools': {'site': {'name': 'site'}}},
                     'secrets': {'serviceAuth': {'bootstrap': {'enabled': False}}}}
         cluster = FakeCluster(previous=previous)
         values, _ = self.run_install(cluster)
         self.assertEqual(values[0]['configuration']['pools'], previous['configuration']['pools'])
+        self.assertTrue(values[0]['secrets']['serviceAuth']['bootstrap']['enabled'])
+        self.assertTrue(values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
+        missing = FakeCluster(previous=previous, secrets=False)
+        missing_values, _ = self.run_install(missing)
+        self.assertTrue(missing_values[0]['secrets']['serviceAuth']['bootstrap']['enabled'])
+        self.assertTrue(missing_values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
+        self.assertTrue(any(call[:2] == ('helm', 'upgrade') for call in missing.calls))
+
+    def test_upgrade_does_not_enable_bootstrap_during_mek_rotation(self):
+        previous = {'secrets': {'masterEncryptionKey': {
+            'bootstrap': {'enabled': False},
+            'rotation': {'phase': 'prepare', 'requestId': 'rotation-1'},
+        }}}
+        values, _ = self.run_install(FakeCluster(previous=previous))
+        self.assertFalse(values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
+
+    def test_upgrade_does_not_enable_bootstrap_during_service_auth_migration(self):
+        previous = {'secrets': {'serviceAuth': {
+            'bootstrap': {'enabled': False},
+            'migration': {'enabled': True},
+        }}}
+        values, _ = self.run_install(FakeCluster(previous=previous))
+        self.assertFalse(values[0]['secrets']['serviceAuth']['bootstrap']['enabled'])
+
+    def test_upgrade_preserves_external_secret_management(self):
+        previous = {'secrets': {
+            'masterEncryptionKey': {
+                'managementMode': 'external',
+                'bootstrap': {'enabled': False},
+            },
+            'serviceAuth': {
+                'managementMode': 'external',
+                'bootstrap': {'enabled': False},
+            },
+        }}
+        values, _ = self.run_install(FakeCluster(previous=previous))
         self.assertFalse(values[0]['secrets']['serviceAuth']['bootstrap']['enabled'])
         self.assertFalse(values[0]['secrets']['masterEncryptionKey']['bootstrap']['enabled'])
-        missing = FakeCluster(previous=previous, secrets=False)
-        with self.assertRaisesRegex(ValueError, 'Restore retained'):
-            self.run_install(missing)
-        self.assertFalse(missing.manifests)
-        self.assertFalse(any(call[:2] == ('helm', 'upgrade') for call in missing.calls))
 
     def test_external_storage_uses_one_secret_without_helm_passwords(self):
         cluster = FakeCluster()
@@ -561,7 +592,7 @@ class DeploymentTest(unittest.TestCase):
         for password in ['pg-secret', 'cache-secret', 'access-secret']:
             self.assertNotIn(password, json.dumps(values))
         self.assertEqual(len([item for item in cluster.manifests if item['metadata']['name'] == 'osmo-default-admin']), 1)
-        self.assertEqual(len([call for call in cluster.calls if call[:2] == ('helm', 'upgrade')]), 2)
+        self.assertEqual(len([call for call in cluster.calls if call[:2] == ('helm', 'upgrade')]), 1)
 
     def test_single_plane_admin_token_is_retained_and_missing_upgrade_token_fails(self):
         options = self.options('--provider', 'aws', '--profile', 'single-plane')
@@ -591,7 +622,8 @@ class DeploymentTest(unittest.TestCase):
             chart = directory / 'osmo'
             shutil.copytree(ROOT / 'deployments/charts/osmo', chart,
                             ignore=shutil.ignore_patterns('charts', 'tmpcharts-*'))
-            (chart / 'Chart.yaml').write_text('apiVersion: v2\nname: osmo\nversion: 0.1.0\n')
+            metadata = (chart / 'Chart.yaml').read_text().split('\ndependencies:', 1)[0]
+            (chart / 'Chart.yaml').write_text(metadata)
             overrides = directory / 'values.json'
             # These inert defaults normally come from the Dex dependency.
             rendered_values = deploy.merge(values[0], {'dex': {

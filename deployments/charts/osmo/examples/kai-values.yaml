@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+admission:
+  gpuPodRuntimeClassName: ""
+
+scheduler:
+  args:
+    default-staleness-grace-period: 3m
+    update-pod-eviction-condition: "true"
+  actions:
+    stalegangeviction:
+      enabled: false

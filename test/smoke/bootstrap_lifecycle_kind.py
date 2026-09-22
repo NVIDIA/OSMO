@@ -45,7 +45,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.values = yaml.safe_load(
             (self.chart_path() / 'tests/bootstrap-kind-values.yaml').read_text()
         )
-        self.values['bootstrap']['initializationId'] = self.namespace
+        self.values.setdefault('bootstrap', {})
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))
             self.port = listener.getsockname()[1]
@@ -196,7 +196,6 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         before = self.secret_identities(list(self.record()['committed']))
         old_generation = self.record()['generation']
         old_uid = self.require_bootstrap_job()['metadata']['uid']
-        self.values['bootstrap']['initializationId'] = ''
         self.values['gateway']['tls']['generated'] = {
             'leafRotationNonce': 'generation-2'
         }
@@ -245,18 +244,32 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
     def test_bootstrap_missing_retained_secret(self) -> None:
         self.install(self.values)
         missing = 'osmo-admin-token'
+        original = self.secret_identities([missing])[missing]
         retained = self.secret_identities(
             [name for name in self.record()['committed'] if name != missing]
         )
         self.kube(['delete', 'secret', missing])
-        self.values['bootstrap']['attempt'] = 'missing-retained'
-        with self.installing(self.values) as process:
-            self.failed_step('begin', 'credential')
-            self.finish_failed_install(process)
-        self.assertNotEqual(
-            self.kube(['get', 'secret', missing], check=False).returncode, 0
+        self.values.setdefault('bootstrap', {})['attempt'] = 'missing-retained'
+
+        self.install(self.values)
+
+        recreated = self.secret_identities([missing])[missing]
+        self.assertTrue(
+            recreated != original,
+            'Deleted managed credential was not recreated with a new identity.',
+        )
+        secret = self.kube_json(['get', 'secret', missing])
+        self.assertEqual(
+            secret['metadata']['labels']['app.kubernetes.io/managed-by'],
+            'osmo-identity-bootstrap',
         )
         self.assert_identities_preserved(retained)
+        self.assertTrue(
+            self.record()['committed'][missing] == recreated,
+            'Coordinator did not commit the recreated credential identity.',
+        )
+        self.assert_sequence()
+        self.authenticate()
 
     def test_bootstrap_legacy_upgrade(self) -> None:
         baseline = copy.deepcopy(self.values)
@@ -310,7 +323,6 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                 ]
             )
         before = self.secret_identities(names)
-        self.values['bootstrap']['initializationId'] = ''
         self.install(self.values)
         self.assertEqual(self.record()['mode'], 'adopt')
         for name in ('osmo-admin-token', 'osmo-backend-token'):
@@ -495,7 +507,6 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                 'osmo-master-encryption-key',
             ]
         )
-        self.values['bootstrap']['initializationId'] = ''
         self.values['gateway']['tls']['generated'] = {'caRotation': rotation}
         self.install(self.values)
         self.assert_identities_preserved(protected)

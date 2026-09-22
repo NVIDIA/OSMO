@@ -19,13 +19,12 @@ from kubernetes.client.exceptions import ApiException
 from src.utils import bootstrap, identity_bootstrap
 
 
-def configuration(initialization_id: str = '') -> bootstrap.Configuration:
+def configuration() -> bootstrap.Configuration:
     return bootstrap.Configuration(
         'namespace',
         'release',
         'record',
         'generation',
-        initialization_id,
         [bootstrap.SecretSpec('root', 'tls', 'owner', ['key'])],
         ['api'],
         ['tls'],
@@ -84,12 +83,9 @@ class CoordinatorTests(unittest.TestCase):
 
         self.core.replace_namespaced_config_map.side_effect = persist
 
-    def test_absence_is_not_initialization_authorization(self) -> None:
-        with self.assertRaisesRegex(bootstrap.BootstrapError, 'initializationId'):
-            bootstrap.initialization_mode(configuration(), {})
+    def test_missing_inventory_initializes_without_authorization(self) -> None:
         self.assertEqual(
-            bootstrap.initialization_mode(configuration('new-install'), {}),
-            'initialize',
+            bootstrap.initialization_mode(configuration(), {}), 'initialize'
         )
 
     def test_complete_inventory_adopts_without_initialization_authorization(
@@ -154,25 +150,74 @@ class CoordinatorTests(unittest.TestCase):
                 )
                 self.assertEqual(retained.data, before)
 
-    def test_adoption_plus_new_identity_is_rejected(self) -> None:
+    def test_adoption_plus_new_identity_initializes_missing_credential(self) -> None:
         changed = dataclasses.replace(
             configuration(),
             secrets=configuration().secrets
             + [bootstrap.SecretSpec('new-identity', 'identity', 'owner', ['token'])],
         )
-        with self.assertRaisesRegex(bootstrap.BootstrapError, 'Adopt before changing'):
-            bootstrap.initialization_mode(changed, {'root': {}})
+        self.assertEqual(
+            bootstrap.initialization_mode(changed, {'root': {}}), 'initialize'
+        )
 
-    def test_committed_loss_rejects_even_with_initialization_authorization(
-        self,
-    ) -> None:
-        self.runtime.configuration = configuration('still-configured')
+    def test_missing_committed_managed_secret_is_reissued(self) -> None:
         self.state['committed'] = {'root': {'uid': 'secret-uid', 'keys': {}}}
         self.set_state()
         self.core.read_namespaced_secret.side_effect = ApiException(status=404)
+        self.runtime.configuration = dataclasses.replace(
+            configuration(), generation='next-generation'
+        )
+
+        self.runtime.begin()
+        self.runtime.prepare('tls')
+        self.runtime.record_issuance('root')
+        self.core.read_namespaced_secret.side_effect = None
+        self.core.read_namespaced_secret.return_value = secret(uid='replacement-uid')
+        self.runtime.finish('tls')
+
+        self.assertEqual(
+            self.runtime.state['committed']['root']['uid'], 'replacement-uid'
+        )
+
+    def test_earlier_step_finishes_while_later_committed_secret_is_missing(
+        self,
+    ) -> None:
+        later = bootstrap.SecretSpec('later', 'identity', 'owner', ['key'])
+        self.runtime.configuration = dataclasses.replace(
+            configuration(),
+            secrets=configuration().secrets + [later],
+            steps=['tls', 'identity'],
+        )
+        self.state['committed'] = {
+            'root': bootstrap.secret_identity(
+                secret(), configuration().secrets[0], 'release'
+            ),
+            'later': bootstrap.secret_identity(
+                secret(uid='later-uid'), later, 'release'
+            ),
+        }
+        self.set_state()
+
+        def read_secret(name, *_args, **_kwargs):
+            if name == 'root':
+                return secret()
+            raise ApiException(status=404)
+
+        self.core.read_namespaced_secret.side_effect = read_secret
+        self.runtime.prepare('tls')
+        self.runtime.finish('tls')
+
+        self.assertEqual(self.runtime.state['receipts']['tls']['podUID'], 'uid')
         with self.assertRaisesRegex(bootstrap.BootstrapError, 'Committed credential'):
-            self.runtime.begin()
-        self.core.create_namespaced_config_map.assert_not_called()
+            self.runtime.ready()
+
+    def test_begin_removes_legacy_initialization_id_from_retained_state(self) -> None:
+        self.state['initializationId'] = 'obsolete'
+        self.set_state()
+
+        self.runtime.begin()
+
+        self.assertNotIn('initializationId', self.runtime.state)
 
     def test_replaced_secret_uid_is_not_an_exact_retry(self) -> None:
         original = bootstrap.secret_identity(
@@ -390,6 +435,17 @@ class CoordinatorTests(unittest.TestCase):
         self.assertIsNone(body['spec']['holderIdentity'])
         self.assertTrue(self.runtime.state['complete'])
 
+    def test_secret_deleted_after_readiness_cannot_complete(self) -> None:
+        self.runtime.configuration = dataclasses.replace(
+            configuration(), consumers=[]
+        )
+        self.state['committed'] = self.runtime.inventory()
+        self.set_state()
+        self.core.read_namespaced_secret.side_effect = ApiException(status=404)
+
+        with self.assertRaisesRegex(bootstrap.BootstrapError, 'Committed credential'):
+            self.runtime.complete()
+
     def test_job_before_deployment_waits_without_committing_credentials(self) -> None:
         self.apps.read_namespaced_deployment.side_effect = ApiException(status=404)
         with self.assertRaises(bootstrap.WaitingForConsumers):
@@ -438,14 +494,15 @@ class CoordinatorTests(unittest.TestCase):
         with self.assertRaisesRegex(bootstrap.BootstrapError, 'prior issuance intent'):
             self.runtime.prepare('tls')
 
-    def test_adoption_cannot_regenerate_before_first_step_receipt(self) -> None:
+    def test_missing_adopted_managed_secret_can_be_reissued(self) -> None:
         self.state['adopted'] = {'root': 'secret-uid'}
         self.set_state()
         self.core.read_namespaced_secret.side_effect = ApiException(status=404)
-        with self.assertRaisesRegex(bootstrap.BootstrapError, 'Adopted credential'):
-            self.runtime.prepare('tls')
-        with self.assertRaisesRegex(bootstrap.BootstrapError, 'Adopted credential'):
-            self.runtime.begin()
+        self.runtime.begin()
+        self.runtime.prepare('tls')
+        self.runtime.record_issuance('root')
+        self.assertNotIn('root', self.runtime.state['adopted'])
+        self.assertEqual(self.runtime.state['intents'], {'root': 'uid'})
 
     def test_old_ready_replica_cannot_complete_new_unready_rollout(self) -> None:
         deployment = types.SimpleNamespace(

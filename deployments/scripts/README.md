@@ -169,10 +169,10 @@ namespace or with the old default release names. Migrating existing releases req
 explicit ownership, configuration, data and credential handling; changing an install
 command does not perform that migration. The standalone charts remain available.
 
-After successful initial installation, the installer disables MEK/service-auth
-bootstrap using the stored release values. Upgrades preserve values and require the
-retained credentials; they never mint replacement encryption/signing keys automatically.
-Use the chart's recovery/rotation procedures for missing credentials or interrupted bootstrap.
+The installer keeps bootstrap enabled for OSMO-managed MEK and service-auth
+credentials. Upgrades validate and reuse existing managed Secrets, and recreate
+one if it is missing. Use external management when credentials must be restored
+from an external secret manager.
 
 Uninstall preserves namespaces and chart-retained Secrets/PVCs. Cloud `--destroy`
 destroys the selected Terraform infrastructure (including its data resources); use
@@ -253,8 +253,10 @@ Terraform's bucket deletion protections remain in effect.
 RDS connections use `verify-full` with the official AWS RDS CA bundle downloaded
 from `truststore.pki.rds.amazonaws.com`; `POSTGRES_CA_FILE` supplies an offline
 bundle. ElastiCache uses TLS on port 6379. Credentials and the administrator token
-are referenced Secrets, and MEK/service-auth bootstrap is disabled after installation.
-The admin token is retained across upgrades; a missing retained token is an error.
+are referenced Secrets. OSMO-managed MEK and service-auth bootstrap stays enabled
+to validate and reuse retained credentials or recreate a missing managed Secret.
+The externally managed administrator token is retained across upgrades; restore
+it before an upgrade if it is missing.
 
 ## Azure single-plane deployment
 

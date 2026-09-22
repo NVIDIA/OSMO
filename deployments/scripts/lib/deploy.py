@@ -837,16 +837,23 @@ def install(options, environment, directory, chart, user_values):
         profile = inspect_values(directory, [profile_chart / 'profiles/single-plane.yaml',
                                              SCRIPTS / 'single-plane-aws.yaml'])
     requested = merge(profile, previous or {}, generated, user_values)
-    if current:
-        for name in ['masterEncryptionKey', 'serviceAuth']:
-            if user_values.get('secrets', {}).get(name, {}).get('bootstrap', {}).get('enabled'):
-                raise ValueError('Use Helm directly for explicit credential recovery/bootstrap operations')
-            requested = merge(requested, {'secrets': {name: {'bootstrap': {'enabled': False}}}})
     default_file = directory / 'chart-defaults.yaml'
     default_file.write_text(command(['helm', 'show', 'values', chart], capture=True))
     override_file = directory / 'install-values.json'
     override_file.write_text(json.dumps(requested))
     effective = inspect_values(directory, [default_file, override_file])
+    if current:
+        managed_bootstrap = {}
+        if (effective['secrets']['masterEncryptionKey']['managementMode'] == 'osmo'
+                and not effective['secrets']['masterEncryptionKey']['rotation']['phase']):
+            managed_bootstrap['masterEncryptionKey'] = {'bootstrap': {'enabled': True}}
+        if (effective['secrets']['serviceAuth']['managementMode'] == 'osmo'
+                and not effective['secrets']['serviceAuth']['migration']['enabled']):
+            managed_bootstrap['serviceAuth'] = {'bootstrap': {'enabled': True}}
+        if managed_bootstrap:
+            requested = merge(requested, {'secrets': managed_bootstrap})
+            override_file.write_text(json.dumps(requested))
+            effective = inspect_values(directory, [default_file, override_file])
     # The public browser origin may be a workstation's port-forward. Workflow
     # containers need the gateway's cluster DNS address for logs and token refresh.
     configuration = effective['configuration']
@@ -867,14 +874,6 @@ def install(options, environment, directory, chart, user_values):
         raise ValueError('This installer is converged; use Helm directly for split-plane profiles')
     if not effective.get('fullnameOverride'):
         raise ValueError('Set a non-empty fullnameOverride for installer gateway verification')
-    if current:
-        for name in ['masterEncryptionKey', 'serviceAuth']:
-            reference = effective['secrets'][name]['existingSecret']
-            found = cluster.run('kubectl', 'get', 'secret', reference['name'], '-n', options.namespace,
-                                '--ignore-not-found', '-o', 'json', capture=True)
-            secret = json.loads(found or '{}')
-            if not secret.get('data', {}).get(reference['key']):
-                raise ValueError(f'Restore retained {name} Secret before upgrading; automatic replacement is disabled')
     if chart.is_dir():
         command(['helm', 'repo', 'add', 'osmo-dex', 'https://charts.dexidp.io', '--force-update'])
         command(['helm', 'repo', 'add', 'osmo-postgresql', 'https://cloudnative-pg.github.io/charts', '--force-update'])
@@ -896,13 +895,6 @@ def install(options, environment, directory, chart, user_values):
     prerequisites(cluster, options, effective, environment, directory)
     cluster.run('helm', 'upgrade', '--install', options.release, chart, '-n', options.namespace,
                 '-f', override_file, '--wait', '--wait-for-jobs', '--timeout', '25m')
-    bootstrap = [name for name in ['masterEncryptionKey', 'serviceAuth']
-                 if effective['secrets'][name]['bootstrap']['enabled']]
-    if bootstrap:
-        settings = [argument for name in bootstrap for argument in
-                    ['--set', f'secrets.{name}.bootstrap.enabled=false']]
-        cluster.run('helm', 'upgrade', options.release, chart, '-n', options.namespace,
-                    '--reuse-values', *settings, '--wait', '--wait-for-jobs', '--timeout', '25m')
     if not options.skip_verify and environment.get('SKIP_VERIFY') != '1':
         verification_credentials(cluster, options, effective, environment, directory)
     verify(cluster, options, effective, environment)

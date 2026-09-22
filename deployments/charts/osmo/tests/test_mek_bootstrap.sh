@@ -99,6 +99,9 @@ fi
 grep -Fxq 'currentMek: key1' "$generated_mek"
 grep -Fxq 'meks:' "$generated_mek"
 grep -Eq '^  key1: [A-Za-z0-9+/=]+$' "$generated_mek"
+grep -Fxq \
+    'annotate --local -f - osmo.nvidia.com/credential-source=osmo-chart-bootstrap -o yaml' \
+    "$FAKE_STATE_DIRECTORY/commands"
 
 encoded_jwk=$(awk '$1 == "key1:" { print $2 }' "$generated_mek")
 jwk_json=$(printf '%s' "$encoded_jwk" | base64 --decode)
@@ -109,6 +112,7 @@ if [[ ! "$jwk_json" =~ $jwk_pattern ]]; then
 fi
 
 first_digest=$(sha256sum "$generated_mek")
+: >"$FAKE_STATE_DIRECTORY/commands"
 output=$(run_bootstrap)
 if [[ "$first_digest" != "$(sha256sum "$generated_mek")" ]]; then
     echo 'Existing MEK was regenerated' >&2
@@ -116,6 +120,11 @@ if [[ "$first_digest" != "$(sha256sum "$generated_mek")" ]]; then
 fi
 if [[ "$output" != *'already exists; preserving it'* ]]; then
     echo 'Existing MEK was not reported as preserved' >&2
+    exit 1
+fi
+if grep -Eq '^(label|annotate) --local|^create -f' \
+        "$FAKE_STATE_DIRECTORY/commands"; then
+    echo 'Existing MEK metadata was modified' >&2
     exit 1
 fi
 

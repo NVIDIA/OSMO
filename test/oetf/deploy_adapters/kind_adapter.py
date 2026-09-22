@@ -41,7 +41,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 import yaml
@@ -71,8 +70,11 @@ OETF_HELM_CHART_PATH = "OETF_HELM_CHART_PATH"
 # kai-scheduler is a soft dependency of osmo/quick-start — its pods have
 # schedulerName=kai-scheduler and won't schedule without it installed. Version
 # matches the one documented in the public deploy_local.html guide.
-KAI_SCHEDULER_CHART = "oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler"
-KAI_SCHEDULER_VERSION = "v0.12.10"
+KAI_SCHEDULER_VERSION = "0.15.3"
+KAI_SCHEDULER_CHART = (
+    "https://github.com/NVIDIA/KAI-Scheduler/releases/download/"
+    f"v{KAI_SCHEDULER_VERSION}/kai-scheduler-v{KAI_SCHEDULER_VERSION}.tgz"
+)
 KAI_SCHEDULER_NAMESPACE = "kai-scheduler"
 
 # metrics-server is a hidden dependency of osmo/quick-start: the chart creates
@@ -90,12 +92,11 @@ CNPG_REPO_URL = "https://cloudnative-pg.github.io/charts"
 CNPG_CHART = "cnpg/cloudnative-pg"
 CNPG_VERSION = "0.29.0"
 CNPG_NAMESPACE = "cnpg-system"
-
-RUSTFS_REPO_NAME = "rustfs"
-RUSTFS_REPO_URL = "https://charts.rustfs.com"
-
-DEX_REPO_NAME = "dex"
-DEX_REPO_URL = "https://charts.dexidp.io"
+UNIFIED_CHART_REPOSITORIES = (
+    ("osmo-dex", "https://charts.dexidp.io"),
+    (CNPG_REPO_NAME, CNPG_REPO_URL),
+    ("osmo-rustfs", "https://charts.rustfs.com"),
+)
 
 # When ``--build-local`` is set, every osmo container's image points at the
 # pseudo-registry ``osmo.local/<svc>:latest-<arch>`` — the chart default
@@ -672,16 +673,22 @@ class KindAdapter:
         self._run(["helm", "repo", "update", OSMO_HELM_REPO_NAME], "Updating osmo helm repo")
 
     def _ensure_helm_repo(self, name: str, url: str) -> None:
-        """Idempotent ``helm repo add`` — a no-op if ``name`` is already registered."""
+        """Ensure ``name`` is registered with ``url``."""
         repos = self._helm_json(
             ["helm", "repo", "list", "-o", "json"],
             description=f"Checking helm repos for {name}",
         )
-        if repos and any(repo.get("name") == name for repo in repos):
+        existing = next(
+            (repo for repo in (repos or []) if repo.get("name") == name),
+            None,
+        )
+        if existing and existing.get("url") == url:
             return
+        update_args = ["--force-update"] if existing else []
+        operation = "Updating" if existing else "Adding"
         self._run(
-            ["helm", "repo", "add", name, url],
-            f"Adding helm repo {name}",
+            ["helm", "repo", "add", name, url, *update_args],
+            f"{operation} helm repo {name}",
         )
 
     def _helm_release_installed(self, release: str, namespace: str) -> bool:
@@ -760,6 +767,26 @@ class KindAdapter:
                     os.unlink(legacy_template)
             yield chart_directory
 
+    @contextlib.contextmanager
+    def _prepared_unified_chart_ref(self):
+        """Build locked dependencies in a temporary unified chart copy."""
+        source_chart = _local_osmo_chart_path()
+        if not os.path.isfile(os.path.join(source_chart, "Chart.yaml")):
+            raise RuntimeError(
+                f"Local unified OSMO chart is unavailable at {source_chart}"
+            )
+
+        with tempfile.TemporaryDirectory(prefix="osmo-unified-chart-") as directory:
+            chart_directory = os.path.join(directory, "osmo")
+            shutil.copytree(source_chart, chart_directory)
+            for repository_name, repository_url in UNIFIED_CHART_REPOSITORIES:
+                self._ensure_helm_repo(repository_name, repository_url)
+            self._run(
+                ["helm", "dependency", "build", chart_directory],
+                "Building unified chart dependencies",
+            )
+            yield chart_directory
+
     def _install_kai_scheduler(self) -> None:
         """Install kai-scheduler if it isn't already present.
 
@@ -770,6 +797,9 @@ class KindAdapter:
         if self._helm_release_installed("kai-scheduler", KAI_SCHEDULER_NAMESPACE):
             logger.info("▶ kai-scheduler already installed — skipping")
             return
+        kai_values = os.path.join(
+            _local_osmo_chart_path(), "examples", "kai-values.yaml",
+        )
         # Note: intentionally not passing ``--wait`` here. kai-scheduler's
         # ``SchedulingShard`` custom resource can stay in the ``Reconciling``
         # phase for 10+ minutes on CPU-only hosts even after all pods are
@@ -782,11 +812,10 @@ class KindAdapter:
         self._run(
             [
                 "helm", "upgrade", "--install", "kai-scheduler",
-                KAI_SCHEDULER_CHART, "--version", KAI_SCHEDULER_VERSION,
+                KAI_SCHEDULER_CHART,
                 "--create-namespace", "-n", KAI_SCHEDULER_NAMESPACE,
+                "--values", kai_values,
                 "--set", "global.nodeSelector.node_group=kai-scheduler",
-                "--set", "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s",
-                "--set", "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true",
             ],
             "Installing kai-scheduler (without --wait; pod readiness checked separately)",
         )
@@ -851,12 +880,8 @@ class KindAdapter:
         # metrics-server installed. We use ``kubectl wait`` on the actual
         # Deployments (more meaningful anyway).
         if self.build_local:
-            chart_ref = _local_osmo_chart_path()
-            if not os.path.isfile(os.path.join(chart_ref, "Chart.yaml")):
-                raise RuntimeError(
-                    f"Local unified OSMO chart is unavailable at {chart_ref}"
-                )
-            self._helm_install_chart(chart_ref, unified=True)
+            with self._prepared_unified_chart_ref() as chart_ref:
+                self._helm_install_chart(chart_ref, unified=True)
             return
         with self._quick_start_chart_ref() as chart_ref:
             self._helm_install_chart(chart_ref, unified=False)
@@ -892,12 +917,6 @@ class KindAdapter:
         readiness_timeout = "140m" if unified else "25m"
         if unified:
             chart_ref = self._retain_quick_start_chart(chart_ref)
-            self._ensure_helm_repo(RUSTFS_REPO_NAME, RUSTFS_REPO_URL)
-            self._ensure_helm_repo(DEX_REPO_NAME, DEX_REPO_URL)
-            self._run(
-                ["helm", "dependency", "build", chart_ref],
-                "Building unified OSMO chart dependencies",
-            )
         args = [
             "helm", "upgrade", "--install", "osmo", chart_ref,
             "--namespace", OSMO_NAMESPACE, "--create-namespace",
@@ -920,8 +939,6 @@ class KindAdapter:
                 "--set", "services.agent.resources.requests.memory=1Gi",
                 "--set", "services.agent.resources.limits.memory=1Gi",
             ]
-        if unified and self._new_cluster:
-            args += ["--set-string", f"bootstrap.initializationId=oetf-{uuid.uuid4().hex}"]
         if self.chart_version and not unified:
             args += ["--version", self.chart_version]
         if self.image_location:

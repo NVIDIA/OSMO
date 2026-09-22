@@ -185,14 +185,6 @@ fi
 kubectl create serviceaccount osmo-workflow --namespace osmo --dry-run=client --output yaml | kubectl apply -f -
 kubectl annotate serviceaccount osmo-workflow --namespace osmo \
     azure.workload.identity/client-id="$WORKLOAD_IDENTITY_CLIENT_ID" --overwrite
-BACKEND_TOKEN_SECRET="$(kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name)"
-if [[ -z "$BACKEND_TOKEN_SECRET" ]]; then
-    BACKEND_TOKEN="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
-    printf '%s' "$BACKEND_TOKEN" >"$SECRETS_DIR/backend-token"
-    kubectl create secret generic osmo-backend-token --namespace osmo \
-        --from-file=token="$SECRETS_DIR/backend-token" \
-        --dry-run=client --output yaml | kubectl apply -f -
-fi
 rm -rf -- "$SECRETS_DIR"
 
 jq --null-input \

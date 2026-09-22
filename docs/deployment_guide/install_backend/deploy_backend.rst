@@ -27,7 +27,7 @@ contains the backend listener and worker but no control-plane services or
 databases.
 
 Prerequisites
--------------
+=============
 
 Before continuing:
 
@@ -44,14 +44,25 @@ separate namespace:
 
 .. code-block:: bash
 
-   $ export CONTROL_CONTEXT=<control-context>
+   $ export CONTROL_CONTEXT="control-context"
    $ export CONTROL_NAMESPACE=osmo
-   $ export COMPUTE_CONTEXT=<compute-context>
+   $ export COMPUTE_CONTEXT="compute-context"
    $ export COMPUTE_NAMESPACE=osmo-compute
    $ export WORKLOAD_NAMESPACE=osmo-workflows
 
 This guide uses ``gb200-01`` as the backend name. Use the same backend name and
 workload namespace in every step.
+
+Install Cluster Dependencies
+============================
+
+Install KAI Scheduler by following :ref:`the canonical KAI instructions
+<installing_kai>`. Use the common ``kai-values.yaml`` behavior file, but do not
+apply the converged-cluster ``kai-selectors.yaml`` overlay: compute-cluster KAI
+components follow the placement policy of that cluster.
+
+Prepare Values and Secrets
+==========================
 
 Configure the control plane
 ---------------------------
@@ -85,17 +96,16 @@ Secret in the control-plane namespace. The commands do not print the token:
 .. code-block:: bash
 
    $ set -o pipefail
-   $ TOKEN_FILE=$(mktemp)
-   $ chmod 600 "$TOKEN_FILE"
-   $ if openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" &&
-       [ -s "$TOKEN_FILE" ]; then
-       kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
-         create secret generic osmo-gb200-01-backend-token \
-         --from-file=token="$TOKEN_FILE"
-     else
-       echo "Failed to generate backend token" >&2
-     fi
-   $ rm -f -- "$TOKEN_FILE"
+   $ TOKEN_FILE=$(mktemp) &&
+     chmod 600 "$TOKEN_FILE" &&
+     openssl rand -base64 32 | tr -d '\n=' | tr '/+' '_-' > "$TOKEN_FILE" &&
+     [ -s "$TOKEN_FILE" ] &&
+     kubectl --context "$CONTROL_CONTEXT" --namespace "$CONTROL_NAMESPACE" \
+       create secret generic osmo-gb200-01-backend-token \
+       --from-file=token="$TOKEN_FILE"
+   $ BACKEND_TOKEN_STATUS=$?
+   $ rm -f -- "${TOKEN_FILE:-}" || BACKEND_TOKEN_STATUS=$?
+   $ test "$BACKEND_TOKEN_STATUS" -eq 0
 
 For production, provision the same Secret through your approved secret
 manager. As a best practice, use a different token for each backend so that
@@ -163,11 +173,12 @@ and set ``create: false``.
    ``services.backendWorker.extraRBACRules``. See
    :ref:`group_template_permissions`.
 
-Deploy the compute plane
-------------------------
+Install OSMO
+============
 
 Pull the chart so the compute profile always matches the selected chart
-version, then install it:
+version, then install it. The command uses Helm 4's ``--wait=legacy`` strategy.
+With Helm 3, replace ``--wait=legacy`` with ``--wait``:
 
 .. code-block:: bash
 
@@ -181,17 +192,20 @@ version, then install it:
        --namespace "$COMPUTE_NAMESPACE" \
        --values osmo/profiles/split-plane-compute.yaml \
        --values osmo-compute-values.yaml \
-       --wait --timeout 10m
+       --wait=legacy --timeout 10m
 
 .. _configure_pool:
 
-Verify the backend
-------------------
+Verify the Deployment
+=====================
 
 Confirm that the backend listener and worker Deployments are available:
 
 .. code-block:: bash
 
+   # Verify the Helm release and compute-plane workloads
+   $ helm --kube-context "$COMPUTE_CONTEXT" status osmo-compute \
+       --namespace "$COMPUTE_NAMESPACE"
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        rollout status deployment \
        --selector app.kubernetes.io/instance=osmo-compute \
@@ -199,52 +213,51 @@ Confirm that the backend listener and worker Deployments are available:
    $ kubectl --context "$COMPUTE_CONTEXT" --namespace "$COMPUTE_NAMESPACE" \
        get deployments,pods \
        --selector app.kubernetes.io/instance=osmo-compute
+   $ kubectl --context "$COMPUTE_CONTEXT" --namespace kai-scheduler wait \
+       --for=condition=Available deployment --all --timeout=10m
 
 An authenticated OSMO CLI is not required to deploy the backend. Optionally,
-use it to confirm that the backend and pool are online and submit a small CPU
-workflow for end-to-end verification:
+use it to confirm that the backend and pool are online and submit both CPU
+verification workflows for end-to-end verification:
 
 .. code-block:: bash
 
+   # Verify the backend, pools, and resources
    $ osmo config show BACKEND gb200-01
    $ osmo pool list
    $ osmo resource list --pool default
-   $ osmo workflow submit cookbook/tutorials/hello_world.yaml --pool default
 
-Rotate the backend credential
------------------------------
+   # Verify workflow submission and operation
+   $ osmo workflow submit deployments/workflows/verify-hello.yaml \
+       --pool default --format-type json
+   $ osmo workflow submit deployments/workflows/verify-object-storage.yaml \
+       --pool default --format-type json
+   $ OSMO_WORKFLOW_ID=<returned-workflow-id>
+   $ osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 
-Use an overlap window so the control and compute planes can change credentials
-without losing registration:
-
-1. Update the control-plane Secret so ``token`` contains the new value and
-   ``previous-token`` contains the old value.
-2. Wait for every API replica to accept both credentials.
-3. Replace ``token`` in the compute-plane Secret with the new value.
-4. Restart the backend-listener and backend-worker Deployments and verify that
-   they reconnect.
-5. Remove ``previous-token`` from the control-plane Secret.
-6. Verify that the old credential is rejected by every API replica.
+For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
+repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
+or timed-out workflow is a validation failure.
 
 Troubleshooting
----------------
+===============
 
 Unknown backend
-~~~~~~~~~~~~~~~
+---------------
 
 If the backend listener reports that the backend is not configured, add the
 exact value of ``compute.backendName`` under ``configuration.backends`` in the
 control-plane values and apply the control-plane release.
 
 Namespace mismatch
-~~~~~~~~~~~~~~~~~~
+------------------
 
 If registration reports a namespace mismatch, make
 ``configuration.backends.<backend-name>.k8s_namespace`` identical to
 ``compute.workloadNamespace.name`` and apply the control-plane release.
 
 Backend authentication error
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------
 
 Verify that both Secrets contain identical token data without printing the
 decoded credential:
@@ -274,19 +287,48 @@ If the hashes differ, repeat the Secret-copy step and restart the backend
 listener and worker.
 
 Connection errors
-~~~~~~~~~~~~~~~~~
+-----------------
 
 From a compute-cluster Pod, verify DNS, TLS trust, firewall rules, and access
 to ``externalUrl``. The listener requires a persistent WebSocket connection to
 the OSMO gateway.
 
 Workflow remains pending or validation rejects its resources
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------------------------------------
 
 Check ``osmo resource list --pool <pool>`` and the workflow events. Account for
 the CPU and memory requested by OSMO sidecars as well as the user container.
 Confirm that KAI Scheduler is running and that the cluster has a node with
 enough available capacity for the complete workflow Pod.
+
+Upgrade and Recovery
+====================
+
+Rotate the backend credential
+-----------------------------
+
+Use an overlap window so the control and compute planes can change credentials
+without losing registration:
+
+1. Update the control-plane Secret so ``token`` contains the new value and
+   ``previous-token`` contains the old value.
+2. Wait for every API replica to accept both credentials.
+3. Replace ``token`` in the compute-plane Secret with the new value.
+4. Restart the backend-listener and backend-worker Deployments and verify that
+   they reconnect.
+5. Remove ``previous-token`` from the control-plane Secret.
+6. Verify that the old credential is rejected by every API replica.
+
+Cleanup
+========
+
+Remove the compute release only after its workflows have finished or been
+canceled. The workload namespace is retained when the chart created it:
+
+.. code-block:: bash
+
+   $ helm --kube-context "$COMPUTE_CONTEXT" uninstall osmo-compute \
+       --namespace "$COMPUTE_NAMESPACE" --wait
 
 .. seealso::
 

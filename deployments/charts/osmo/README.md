@@ -19,6 +19,9 @@ stateful dependencies and uses retained in-cluster credential generation. The
 standalone `backend-operator` chart remains available for existing two-chart
 installations, but it is not a dependency of this chart.
 
+All OSMO install and upgrade examples use Helm 4's `--wait=legacy` strategy.
+With Helm 3, replace `--wait=legacy` with `--wait`.
+
 ## Quick start
 
 `externalUrl` is the browser and authentication origin. Workflow containers use
@@ -48,6 +51,9 @@ below. Raw Helm installs and upgrades using generated internal TLS require Helm
 3.19 or newer for the explicit CA rotation hooks. Ordinary bootstrap uses one
 regular Job with ordered init containers. The cluster must have a default dynamic StorageClass. Install
 Helm, `kubectl`, KAI Scheduler, and the CloudNativePG operator before OSMO.
+Create and label the cluster's platform and compute nodes as shown in the
+[canonical Quickstart](../../../docs/deployment_guide/appendix/deploy_local.rst)
+before applying the selector overlays below.
 Select the development cluster context once; replace `kind-osmo` if your
 cluster has a different context. A GPU workflow also requires GPU-capable nodes
 and the NVIDIA GPU Operator.
@@ -57,11 +63,21 @@ kubectl config use-context kind-osmo
 kubectl get storageclass
 
 helm upgrade --install kai-scheduler \
-  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.14.0/kai-scheduler-v0.14.0.tgz \
+  https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.15.3/kai-scheduler-v0.15.3.tgz \
   --namespace kai-scheduler \
   --create-namespace \
+  --values deployments/charts/osmo/examples/kai-values.yaml \
+  --values deployments/charts/osmo/examples/kai-selectors.yaml \
   --wait \
   --timeout 10m
+kubectl --namespace kai-scheduler wait \
+  --for=condition=Available=True \
+  --timeout=10m config.kai.scheduler/kai-config
+kubectl wait --for=condition=Available \
+  --timeout=10m schedulingshard/default
+kubectl --namespace kai-scheduler wait \
+  --for=condition=Available \
+  --timeout=10m deployment --all
 
 helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo update cnpg
@@ -75,36 +91,34 @@ helm upgrade --install cnpg cnpg/cloudnative-pg \
 
 ### Install OSMO
 
-Install the chart defaults. Its bootstrap Job creates the shared development
-identity directly in Kubernetes. The defaults use `http://127.0.0.1` to
-match the quickstart Kind port mapping:
+Install the chart defaults with the shared converged-cluster selector overlay.
+Register the HTTP chart repositories and build the pinned dependencies from
+`Chart.lock` first. The bootstrap Job creates the shared development identity
+directly in Kubernetes. The defaults use `http://127.0.0.1` to match the
+quickstart Kind port mapping:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
-  --wait \
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
+  --wait=legacy \
   --wait-for-jobs \
   --timeout 140m
 ```
 
-The first installation uses ordered bootstrap steps to create the retained
-`osmo-master-encryption-key` and `osmo-service-auth` Secrets without putting key
-material in Helm state. After that installation succeeds, remove both temporary
-Secret-creation permissions and retain the remaining release values:
-
-```bash
-helm upgrade osmo deployments/charts/osmo \
-  --namespace osmo \
-  --reuse-values \
-  --set-string bootstrap.initializationId= \
-  --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --set secrets.serviceAuth.bootstrap.enabled=false \
-  --wait \
-  --timeout 140m
-```
+The bootstrap Job creates the retained `osmo-master-encryption-key` and
+`osmo-service-auth` Secrets without putting key material in Helm state.
+For maximum recovery robustness, keep each production credential in an external
+secret manager and provision its Kubernetes Secret before installation. The
+bootstrap mechanism remains available as a convenience when external
+provisioning is not used. Secrets created by bootstrap carry the
+`osmo.nvidia.com/credential-source` annotation; bootstrap does not add it to
+pre-existing Secrets.
 
 Embedded Dex uses volatile memory storage and is intended for development and
 evaluation only. Dex restarts invalidate active sessions and signing keys.
@@ -117,14 +131,13 @@ kubectl --namespace osmo get pods,pvc,services,jobs
 kubectl --namespace osmo get service osmo-gateway
 ```
 
-### Open the UI and use the CLI
+### Log in
 
 The gateway exposes the UI and API on NodePort `30080`, which the quickstart
-Kind configuration maps to host port `80`. Open the default URL in a browser:
+Kind configuration maps to host port `80`. Use that origin for the client:
 
 ```bash
-export OSMO_URL=http://127.0.0.1
-curl --fail "$OSMO_URL/api/version"
+OSMO_URL=http://127.0.0.1
 ```
 
 For another development cluster, set `externalUrl` to the exact URL that its
@@ -139,15 +152,13 @@ kubectl --namespace osmo \
 Use the same origin for the client:
 
 ```bash
-export OSMO_URL=http://127.0.0.1:8080
+OSMO_URL=http://127.0.0.1:8080
 ```
 
 The default embedded Dex account signs in as `admin@osmo.local` and appears in
 OSMO as `admin`. Configure those fields under
 `authentication.bootstrap.identities.admin`. Retrieve its random initial
-password only when you need to sign in. This intentionally writes the password
-to the terminal, so use a private terminal and do not paste it into shell
-history, issue trackers, or logs:
+password when you need to sign in:
 
 ```bash
 kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
@@ -155,24 +166,65 @@ kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin 
 printf '\n'
 ```
 
-Install the CLI if needed, sign in through the browser OIDC flow, and submit the
-canonical smoke workflow:
+Visit `$OSMO_URL` and sign in as `admin@osmo.local` with that password. Embedded
+Dex is for development and evaluation; use an external OIDC provider and a
+public HTTPS URL in production.
+
+To validate with the OSMO CLI, install it if needed and read the generated
+administrator token into a protected temporary file:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-osmo login "$OSMO_URL"
+set -o pipefail
+umask 077
+OSMO_TOKEN_FILE="$(mktemp)" &&
+kubectl --namespace osmo get secret osmo-admin-token \
+  --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE" &&
+osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+OSMO_LOGIN_STATUS=$?
+rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
+unset OSMO_TOKEN_FILE
+test "$OSMO_LOGIN_STATUS" -eq 0
+```
+
+### Verify the deployment
+
+Check the release, OSMO and KAI readiness, and the API before submitting both
+canonical CPU verification workflows:
+
+```bash
+# Verify the Helm release and Kubernetes workloads
+helm status osmo --namespace osmo
+kubectl --namespace osmo wait --for=condition=Available \
+  deployment --all --timeout=10m
+kubectl --namespace kai-scheduler wait --for=condition=Available \
+  deployment --all --timeout=10m
+
+# Verify API availability
+curl --fail "$OSMO_URL/api/version"
+```
+
+```bash
+# Verify pools and resources
+osmo pool list
+osmo resource list --pool default
+
+# Verify workflow submission and operation
 osmo workflow submit deployments/workflows/verify-hello.yaml \
   --pool default \
   --format-type json
 osmo workflow submit deployments/workflows/verify-object-storage.yaml \
   --pool default \
   --format-type json
-osmo workflow query <workflow-id> --format-type json
+OSMO_WORKFLOW_ID=<returned-workflow-id>
+osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 ```
 
-Repeat the query until the workflow status is `COMPLETED`.
-The workflow runs a small Alpine container, so completion validates CPU
-scheduling and backend status reporting.
+For each submission, set `OSMO_WORKFLOW_ID` to the returned workflow ID and
+repeat the query until its status is `COMPLETED`. A `FAILED`, `CANCELLED`, or
+timed-out workflow is a validation failure. The first workflow validates CPU
+scheduling and backend status reporting; the second also validates an object
+storage round trip between dependent tasks.
 
 ### Troubleshooting and cleanup
 
@@ -231,7 +283,7 @@ installing, or upgrade an existing quickstart:
 ```bash
 helm upgrade osmo deployments/charts/osmo \
   --namespace osmo --reset-then-reuse-values --set services.mcp.enabled=true \
-  --wait --wait-for-jobs --timeout 20m
+  --wait=legacy --wait-for-jobs --timeout 20m
 ```
 
 `--reset-then-reuse-values` merges existing overrides with new chart defaults.
@@ -285,6 +337,10 @@ PostgreSQL, Valkey, and object storage, while retaining the gateway as a
 URL, external dependency connections, and backend name. Ingress is deliberately
 an external, later step; enable and configure it only when the site has its
 ingress controller and public DNS ready.
+
+Follow the [canonical Single-plane guide](../../../docs/deployment_guide/appendix/deploy_single_plane.rst)
+to label platform and workflow nodes and install KAI with the shared
+`kai-selectors.yaml` overlay before using the command below.
 
 The profile configures Envoy to validate supplied OSMO access tokens against the
 API service's in-cluster `https://osmo-api/api/auth/keys` endpoint. It requires
@@ -341,11 +397,16 @@ externalDependencies:
 Install the generic profile first and a site-specific overlay second:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
+helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/single-plane.yaml \
-  --values <site-values.yaml>
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
+  --values <site-values.yaml> \
+  --wait=legacy --wait-for-jobs --timeout 30m
 ```
 
 ## Self-contained production
@@ -359,8 +420,14 @@ run Kubernetes 1.30 or newer and provide:
 - a default dynamic StorageClass;
 - a CNI that enforces Kubernetes NetworkPolicy;
 - the IPv4 pod and Service CIDRs used by the cluster network; and
-- at least four schedulable nodes, with enough failure-domain capacity for
-  three PostgreSQL pods, three Valkey pods, and four RustFS pods.
+- at least four platform nodes, with enough failure-domain capacity for three
+  PostgreSQL Pods, three Valkey Pods, and four RustFS Pods, plus at least one
+  compute node for workflows.
+
+Label platform nodes `osmo.nvidia.com/node-pool=control-plane` and workflow
+nodes `osmo.nvidia.com/node-pool=compute`, as shown in the
+[canonical Self-contained guide](../../../docs/deployment_guide/appendix/deploy_self_contained.rst),
+before applying the selector overlays below.
 
 The profile uses embedded Dex by default. The gateway remains a ClusterIP
 Service; put an operator-managed TLS edge in front of it and set `externalUrl`
@@ -373,21 +440,26 @@ bypassing Envoy to reach control-plane Services. See
 Before production use, run the CNI's NetworkPolicy enforcement smoke test; merely
 creating the policy objects does not prove that the cluster enforces them.
 
-Install OSMO with the production profile and the environment-specific inputs:
+Register the HTTP chart repositories, build the pinned dependencies from
+`Chart.lock`, and install OSMO with the production profile and the
+environment-specific inputs:
 
 ```bash
 kubectl create namespace osmo
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 cp deployments/charts/osmo/examples/self-contained-environment-values.yaml \
   self-contained-environment-values.yaml
 # Edit self-contained-environment-values.yaml for the target environment and,
 # for production, configure externalOidc and its existing Secret references.
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --values deployments/charts/osmo/profiles/self-contained.yaml \
+  --values deployments/charts/osmo/examples/node-selectors.yaml \
   --values self-contained-environment-values.yaml \
-  --wait \
+  --wait=legacy \
   --wait-for-jobs \
   --timeout 140m
 ```
@@ -449,6 +521,7 @@ Embedded PostgreSQL requires CloudNativePG chart `0.29.0` (operator `1.30.0`):
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo update cnpg
 helm upgrade --install cnpg cnpg/cloudnative-pg \
   --version 0.29.0 \
   --namespace cnpg-system \
@@ -476,14 +549,17 @@ secrets:
 Install the chart after the operator is Ready:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
-  --wait \
+  --wait=legacy \
+  --wait-for-jobs \
   --timeout 140m
 ```
 
@@ -587,14 +663,17 @@ split-plane control profile, then
 install the chart by layering the environment values after the profile:
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
-  --set-string bootstrap.initializationId=my-new-osmo-installation \
   --namespace osmo \
   --create-namespace \
   -f deployments/charts/osmo/profiles/split-plane-control.yaml \
   -f <environment-values.yaml> \
-  --wait \
+  --wait=legacy \
+  --wait-for-jobs \
   --timeout 140m
 ```
 
@@ -654,6 +733,9 @@ file. Each compute release attached to the same control plane must use a unique
 name.
 
 ```bash
+helm repo add osmo-dex https://charts.dexidp.io
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm --kube-context <compute-context> upgrade --install osmo-compute \
   deployments/charts/osmo \
@@ -661,7 +743,7 @@ helm --kube-context <compute-context> upgrade --install osmo-compute \
   --create-namespace \
   --values deployments/charts/osmo/profiles/split-plane-compute.yaml \
   --values <compute-values.yaml> \
-  --wait \
+  --wait=legacy \
   --timeout 10m
 ```
 
@@ -876,7 +958,7 @@ and runs the enabled init containers. It publishes `credentialsReady` only after
 all enabled outputs validate. Consumer init containers then copy those exact bytes
 to shared in-memory volumes. A final
 container waits for the requested consumer rollouts and records completion. This
-allows `helm --wait --wait-for-jobs` without a startup cycle.
+allows `helm --wait=legacy --wait-for-jobs` without a startup cycle.
 
 The shared service account can create Secrets in the release namespace while an
 enabled step needs to issue credentials. Kubernetes RBAC cannot limit Secret
@@ -885,34 +967,28 @@ rules. Every step with the projected token shares these permissions, so use a
 dedicated namespace and trusted step images. Protected credentials are created
 atomically after recording issuance intent; Helm-created empty placeholders are
 not a supported substitute. To avoid Secret creation permission, provide all
-credentials externally and disable every credential-generating bootstrap step.
+credentials externally and select external management for every credential.
 
 ### New installations and adoption
 
-For an intentionally new installation, provide a unique non-secret ID:
+An intentionally new installation needs no initialization ID. Bootstrap creates
+declared OSMO-managed credentials only after validating the installation state,
+fresh-database requirements, and consumer gates. Consumer application containers
+must not have started before initial issuance. External database users must also
+keep non-chart writers stopped during MEK creation.
 
-```yaml
-bootstrap:
-  initializationId: my-new-osmo-installation
-```
-
-Remove the ID after successful initialization. The ID does not override a recorded
-credential identity, a live execution Lease, or the MEK fresh-database checks.
-Consumer application containers must not have started before initial issuance.
-External database users must also keep non-chart writers stopped during MEK creation.
-
-For an upgrade from the previous chart, leave the ID empty and keep the existing
-credential declarations for the first upgrade. Bootstrap validates and adopts the
-retained credentials without changing their bytes. Missing, invalid, or foreign
-credentials stop adoption. Add new identity declarations in a later upgrade.
+On upgrade, keep the existing credential declarations. Bootstrap validates and
+adopts valid retained credentials without changing their bytes. It recreates an
+absent OSMO-managed credential through the credential's owning step. Invalid or
+foreign-owned credentials stop adoption, and bootstrap never adopts or mutates an
+externally managed Secret.
 
 The runtime-owned `<fullname>-bootstrap-state` ConfigMap stores Secret UIDs and
 key fingerprints, step receipts, generation, and completion state; it contains no
 credential bytes. Helm never renders or resets it. Keep it with the retained
-Secrets. A replacement Secret UID is deliberately rejected, even if its bytes
-match; disaster recovery that recreates objects requires an explicitly reviewed
-repair of the installation record after restoring and validating the original
-credentials. Merely deleting the record is not a supported reset procedure.
+Secrets. When an owning step recreates an absent managed Secret, bootstrap records
+the replacement UID and fingerprint. A live replacement with foreign ownership is
+rejected. Merely deleting the record is not a supported reset procedure.
 
 ### Upgrading during a CA rotation
 
@@ -957,15 +1033,14 @@ waiting for gated Deployments after a Job has failed. Diagnose the terminal Job
 condition and stopped Pod first; interrupt the Helm client before submitting an
 explicit retry. A Helm client timeout alone does not prove the Job stopped.
 
-A dependency failure before any credential write can be retried directly. A crash
-following an attempted Secret create is deliberately conservative: an existing
-valid output is reused, but a missing output with an issuance intent requires
-restoration or an explicitly reviewed recovery. A deleted/unreachable former Pod
-is not proof its processes stopped. After SIGKILL, OOM, or node loss, preserve the
-old Pod and Lease until terminal process state is established. A foreign Lease
-that remains held always requires explicit recovery, even if Kubernetes reports
-the old Pod as Failed or Succeeded; Pod phase alone cannot prove termination.
-Clear a stranded Lease only after establishing that its former owner cannot write.
+A dependency failure before any credential write can be retried directly. After a
+failed create, an existing valid output is reused and an absent managed output is
+reissued by its owning step. A deleted or unreachable former Pod is not proof its
+processes stopped. After SIGKILL, OOM, or node loss, preserve the old Pod and Lease
+until terminal process state is established. A foreign Lease that remains held
+always requires explicit recovery, even if Kubernetes reports the old Pod as
+Failed or Succeeded; Pod phase alone cannot prove termination. Clear a stranded
+Lease only after establishing that its former owner cannot write.
 
 Common scheduling settings default to the API Pod policy. Compatible existing
 service-auth overrides are accepted; conflicting overrides require an explicit
@@ -1062,9 +1137,12 @@ Helm uninstall does not delete the API-created Secrets.
 A separate `pre-install,pre-upgrade` Job runs before the ordinary OSMO bootstrap
 Job. It changes only the manager label of valid, release-owned managed token
 Secrets from `osmo-backend-token-bootstrap` or `osmo-embedded-dex-bootstrap` to
-`osmo-identity-bootstrap`. Secret identities, current and previous token bytes,
-and other metadata are preserved. Missing Secrets and already migrated Secrets
-require no writes. The migration does not generate credentials or change Dex.
+`osmo-identity-bootstrap`. As a narrow compatibility exception, it also adopts
+an exact-shape, unlabeled `osmo-backend-token` Secret from the legacy Azure
+helper by adding the release and manager labels. Secret identities, token bytes,
+and existing annotations are preserved. Missing Secrets and already migrated
+Secrets require no writes. The migration does not generate credentials or
+change Dex.
 
 `authentication.bootstrap.tokenMigration.enabled` defaults to `true`. The hook
 renders only for the control plane with at least one enabled identity containing
@@ -1084,7 +1162,7 @@ GitOps release. The next hook replaces the failed hook and safely finishes parti
 migration. Successful hooks are deleted. Existing token-format validation is
 unchanged; the migration accepts the same token format as the identity reconciler.
 
-Retrieve a credential only in a private terminal. For example:
+Retrieve a credential when needed. For example:
 
 ```bash
 kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin \
@@ -1092,10 +1170,12 @@ kubectl --context kind-osmo --namespace osmo get secret osmo-embedded-dex-admin 
 printf '\n'
 ```
 
-Managed credential loss fails closed after initialization or adoption. Deleting a
-Secret is no longer a rotation request. Use a new declarative token/identity
-reference for a replacement, validate it, and retire the old declaration. Retain
-the installation record with its credentials; see [One bootstrap Job](#one-bootstrap-job).
+Deleting a managed Secret is not a rotation request. The next reconciliation
+recreates it with new bytes and records its new identity. That can disconnect a
+compute plane or invalidate retained data, so restore the original Secret when
+continuity matters. Use a new declarative token or identity reference for an
+intentional replacement, validate it, and retire the old declaration. Retain the
+installation record with its credentials; see [One bootstrap Job](#one-bootstrap-job).
 Older
 `authentication.embeddedDex.admin`, credential-generation fields, and
 `secrets.backendApiTokens` values are removed. Revoke
@@ -1170,8 +1250,8 @@ Kubernetes-only step in the shared bootstrap Job. The step uses the configured O
 service image; its Secret permissions are get/create, and retries only preserve an existing
 Secret after validating its ownership, digest, and key pair.
 
-Single-plane, split-plane, and existing installations use
-`managementMode: external`. Create their Secret before install:
+Single-plane, split-plane, and existing installations may use
+`managementMode: external`. Create an externally managed Secret before install:
 
 ```bash
 OSMO_SERVICE_AUTH_DIRECTORY="$(mktemp -d)"
@@ -1186,9 +1266,10 @@ rm "${OSMO_SERVICE_AUTH_DIRECTORY}/authentication-config.json"
 rmdir "${OSMO_SERVICE_AUTH_DIRECTORY}"
 ```
 
-Quickstart and self-contained are install-only profiles. After bootstrap,
-disable `secrets.serviceAuth.bootstrap.enabled` to remove that step and its Secret permissions. Use the migration below
-for an older DB-backed identity.
+For maximum recovery robustness, keep service auth in an external secret
+manager and provision its Kubernetes Secret before installation. Bootstrap
+remains available as a convenience when external provisioning is not used. Use
+the migration below for an older DB-backed identity.
 
 For an existing PostgreSQL-backed installation, first establish a maintenance
 window using the full
@@ -1212,13 +1293,10 @@ kubectl --namespace "${OSMO_NAMESPACE}" delete hpa \
 kubectl --namespace "${OSMO_NAMESPACE}" scale deployment \
   "${OSMO_API_DEPLOYMENT}" --replicas=0
 kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
-  "${OSMO_API_DEPLOYMENT}" --timeout=5m
-if kubectl --namespace "${OSMO_NAMESPACE}" get pods \
-  --selector "${OSMO_API_SELECTOR}" \
-  --output=name | grep -q .; then
-  echo "old API pods still exist; do not continue" >&2
-  exit 1
-fi
+  "${OSMO_API_DEPLOYMENT}" --timeout=5m &&
+OSMO_API_PODS="$(kubectl --namespace "${OSMO_NAMESPACE}" get pods \
+  --selector "${OSMO_API_SELECTOR}" --output=name)" &&
+test -z "${OSMO_API_PODS}"
 ```
 
 With writers stopped, pre-provision an empty Secret and authorize it for the
@@ -1259,18 +1337,12 @@ continue if any consumer is unavailable.
 
 ```bash
 OSMO_CONFIG_CONSUMER_SELECTOR="app.kubernetes.io/instance=${OSMO_RELEASE_NAME},app.kubernetes.io/component in (worker,logger,agent,gateway-authz)"
-for deployment in $(kubectl --namespace "${OSMO_NAMESPACE}" get deployment \
-  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --output=name); do
-  kubectl --namespace "${OSMO_NAMESPACE}" rollout status \
-    "${deployment}" --timeout=10m || exit 1
-done
-for resource in deployment horizontalpodautoscaler pod; do
-  if kubectl --namespace "${OSMO_NAMESPACE}" get "${resource}" \
-    --selector "${OSMO_API_SELECTOR}" --output=name | grep -q .; then
-    echo "API ${resource} still exists; do not enable submissions" >&2
-    exit 1
-  fi
-done
+kubectl --namespace "${OSMO_NAMESPACE}" rollout status deployment \
+  --selector "${OSMO_CONFIG_CONSUMER_SELECTOR}" --timeout=10m &&
+OSMO_API_RESOURCES="$(kubectl --namespace "${OSMO_NAMESPACE}" get \
+  deployment,horizontalpodautoscaler,pod \
+  --selector "${OSMO_API_SELECTOR}" --output=name)" &&
+test -z "${OSMO_API_RESOURCES}"
 ```
 
 Run a second chart sync with the exact same candidate ConfigMap and image
@@ -1338,7 +1410,7 @@ helm upgrade osmo deployments/charts/osmo \
   --namespace "${OSMO_NAMESPACE}" \
   --reuse-values \
   --set secrets.masterEncryptionKey.bootstrap.enabled=false \
-  --wait \
+  --wait=legacy \
   --timeout 140m
 ```
 
@@ -1487,11 +1559,12 @@ the runtime-owned installation ConfigMap together.
 - For CA rotation, freeze consumer HPAs and use one unique rotation ID through `prepare`, `activate`,
   `retire`, then `stable`. Wait after every phase. Before `retire`, verify every live leaf and consumer uses the activated CA.
   Unfreeze HPAs only after `stable` completes.
-- A new installation requires an explicit `bootstrap.initializationId`. A release
-  without an installation record is adopted only when all declared protected
-  credentials already exist and validate. Adopt before adding credential declarations.
-  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` alone does not
-  authorize replacing retained credentials.
+- A new installation needs no initialization ID. Bootstrap creates missing
+  OSMO-managed TLS Secrets and adopts valid existing owned Secrets. It rejects
+  foreign-owned Secrets and never mutates externally managed credentials.
+- When first upgrading from process-local TLS with existing consumers, set
+  `gateway.tls.generated.bootstrap.allowInitialGeneration=true` for the upgrade
+  that creates the retained generated Secrets, then remove the override.
 - After a failed ordinary Job, correct the cause and change `bootstrap.attempt`.
   Capture failure evidence and clean up a retained terminal Job after replacement,
   as described in [Retry and scheduling](#retry-and-scheduling).

@@ -82,8 +82,8 @@ Clone the repository and run the remaining commands from its root:
    git clone https://github.com/NVIDIA/OSMO.git
    cd OSMO
 
-Step 1: Create KIND Cluster
-===========================
+Create KIND Cluster
+===================
 
 Choose the appropriate setup based on whether your workstation has a GPU.
 
@@ -233,31 +233,34 @@ the compute worker hosts submitted workflows.
    kind create cluster --config kind-osmo-cluster-config.yaml
    kubectl config use-context kind-osmo
 
-Install cluster dependencies
+Install Cluster Dependencies
 ============================
 
-Install KAI Scheduler v0.12.10 for OSMO workflow scheduling, then install the
+Install KAI Scheduler v0.15.3 for OSMO workflow scheduling, then install the
 CloudNativePG operator chart version 0.29.0 for the embedded PostgreSQL
-cluster. Keep both operators on the control worker. KAI v0.12.10 applies
-``global.nodeSelector`` to chart-managed pods and ``global.affinity`` to the
-components created by its operator, so both settings are required:
+cluster. Keep both operators on the control worker. The checked values files
+supply OSMO's scheduler behavior and the placement settings shared by the
+converged deployment guides:
 
 .. code-block:: bash
 
    helm upgrade --install kai-scheduler \
-     oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.12.10 \
-     --create-namespace -n kai-scheduler \
-     --set-string 'global.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=osmo.nvidia.com/node-pool' \
-     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In' \
-     --set-string 'global.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=control-plane' \
-     --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-     --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true"
+     https://github.com/NVIDIA/KAI-Scheduler/releases/download/v0.15.3/kai-scheduler-v0.15.3.tgz \
+     --namespace kai-scheduler \
+     --create-namespace \
+     --values deployments/charts/osmo/examples/kai-values.yaml \
+     --values deployments/charts/osmo/examples/kai-selectors.yaml \
+     --wait \
+     --timeout 10m
 
    kubectl --namespace kai-scheduler wait \
      --for=condition=Available=True \
-     --timeout=5m config.kai.scheduler/kai-config
+     --timeout=10m config.kai.scheduler/kai-config
+   kubectl wait --for=condition=Available \
+     --timeout=10m schedulingshard/default
+   kubectl --namespace kai-scheduler wait \
+     --for=condition=Available \
+     --timeout=10m deployment --all
 
    helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo update cnpg
@@ -269,44 +272,51 @@ components created by its operator, so both settings are required:
      --wait \
      --timeout 10m
 
+Prepare Values and Secrets
+==========================
+
+The Quickstart generates its development credentials in Kubernetes. No
+site-specific Secret or values file is required. The checked
+``node-selectors.yaml`` overlay places OSMO and its embedded dependencies on
+the control worker and workflow Pods on the compute worker.
+
 Install OSMO
 ============
 
 The chart defaults define a ``cpu`` platform and a ``gpu`` platform in the
 default pool. CPU workflows use a pod template without a GPU resource key.
 GPU workflows select the GPU platform, which requests ``nvidia.com/gpu`` in
-both the user-container requests and limits. No values overlay is required.
+both the user-container requests and limits.
 
-The chart defaults are the development Quickstart. Build its dependencies and
-install it without a profile or values overlay. The command-line selectors keep
-OSMO services and embedded dependencies on the control worker and submitted
-workflows on the compute worker. The chart uses the in-cluster gateway URL for
-workflow pods while retaining the public loopback URL for login. The scheduling
-overrides are specific to this cluster topology and are therefore not chart
-defaults:
+The chart defaults are the development Quickstart. Register the HTTP chart
+repositories, build the pinned dependencies from ``Chart.lock``, and install
+it without a profile, layering the shared selector file afterward. The chart
+uses the in-cluster gateway URL for workflow Pods while retaining the public
+loopback URL for login.
+
+The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
+``--wait=legacy`` with ``--wait``.
 
 .. code-block:: bash
 
+   helm repo add osmo-dex https://charts.dexidp.io
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm repo add osmo-rustfs https://charts.rustfs.com
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \
      --namespace osmo \
      --create-namespace \
-     --set-string 'podDefaults.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'postgresql.cluster.affinity.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'valkey.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'dex.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'rustfs.nodeSelector.osmo\.nvidia\.com/node-pool=control-plane' \
-     --set-string 'configuration.podTemplates.default_ctrl.spec.nodeSelector.osmo\.nvidia\.com/node-pool=compute' \
-     --wait \
+     --values deployments/charts/osmo/examples/node-selectors.yaml \
+     --wait=legacy \
      --wait-for-jobs \
      --timeout 20m
 
-Log in and run a workflow
-=========================
+Log In
+======
 
 The cluster configuration maps the gateway to ``http://127.0.0.1``. The default
 embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
-``admin``. Retrieve its generated initial password only in a private terminal:
+``admin``. Retrieve its generated initial password:
 
 .. code-block:: bash
 
@@ -314,22 +324,65 @@ embedded Dex account signs in as ``admin@osmo.local`` and appears in OSMO as
      --output jsonpath='{.data.password}' | base64 --decode
    printf '\n'
 
-Do not paste the password into shell history, logs, or issue trackers. Install
-the CLI if necessary, sign in through the browser OIDC flow, and submit both
-canonical CPU verification workflows:
+Visit ``http://127.0.0.1`` and sign in as ``admin@osmo.local`` with that password.
+Embedded Dex is for development and evaluation; use an external OIDC provider
+and a public HTTPS URL in production.
+
+To validate with the OSMO CLI, read the generated administrator token into a
+protected temporary file:
 
 .. code-block:: bash
 
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-   osmo login http://127.0.0.1
-   osmo profile set pool default
-   osmo workflow submit deployments/workflows/verify-hello.yaml
-   osmo workflow submit deployments/workflows/verify-object-storage.yaml
-   osmo workflow query <workflow-id>
+   OSMO_URL=http://127.0.0.1
+   set -o pipefail
+   umask 077
+   OSMO_TOKEN_FILE="$(mktemp)" &&
+   kubectl --namespace osmo get secret osmo-admin-token \
+     --output jsonpath='{.data.token}' | base64 --decode > "$OSMO_TOKEN_FILE" &&
+   osmo login "$OSMO_URL" --method token --token-file "$OSMO_TOKEN_FILE"
+   OSMO_LOGIN_STATUS=$?
+   rm -f -- "${OSMO_TOKEN_FILE:-}" || OSMO_LOGIN_STATUS=$?
+   unset OSMO_TOKEN_FILE
+   test "$OSMO_LOGIN_STATUS" -eq 0
 
-Query each returned workflow ID until its status is ``COMPLETED``. Both use the
-default ``cpu`` platform; the object-storage workflow also verifies a round trip
-between two dependent tasks.
+Verify the Deployment
+=====================
+
+Check the release, OSMO and KAI readiness, and the API before submitting the
+canonical CPU verification workflows:
+
+.. code-block:: bash
+
+   # Verify the Helm release and Kubernetes workloads
+   helm status osmo --namespace osmo
+   kubectl --namespace osmo wait --for=condition=Available \
+     deployment --all --timeout=10m
+   kubectl --namespace kai-scheduler wait --for=condition=Available \
+     deployment --all --timeout=10m
+
+   # Verify API availability
+   curl --fail "$OSMO_URL/api/version"
+
+.. code-block:: bash
+
+   # Verify pools and resources
+   osmo pool list
+   osmo resource list --pool default
+
+   # Verify workflow submission and operation
+   osmo workflow submit deployments/workflows/verify-hello.yaml \
+     --pool default --format-type json
+   osmo workflow submit deployments/workflows/verify-object-storage.yaml \
+     --pool default --format-type json
+   OSMO_WORKFLOW_ID=<returned-workflow-id>
+   osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
+
+For each submission, set ``OSMO_WORKFLOW_ID`` to the returned workflow ID and
+repeat the query until its status is ``COMPLETED``. A ``FAILED``, ``CANCELLED``,
+or timed-out workflow is a validation failure. Both use the default ``cpu``
+platform; the object-storage workflow also verifies a round trip between two
+dependent tasks.
 
 .. admonition:: Success!
    :class: tip
@@ -340,8 +393,10 @@ If you used Option A, submit the GPU verification workflow too:
 
 .. code-block:: bash
 
-   osmo workflow submit deployments/workflows/verify-gpu.yaml
-   osmo workflow query <workflow-id>
+   osmo workflow submit deployments/workflows/verify-gpu.yaml \
+     --pool default --format-type json
+   OSMO_WORKFLOW_ID=<returned-workflow-id>
+   osmo workflow query "$OSMO_WORKFLOW_ID" --format-type json
 
 The GPU workflow explicitly uses the ``gpu`` platform and runs ``nvidia-smi``
 in a CUDA container, proving that OSMO and KAI scheduled it onto the GPU node
@@ -391,8 +446,8 @@ long-lived environment.
    :ref:`Self-contained Deployment
    <deploy_self_contained>` guide.
 
-Clean up resources
-==================
+Cleanup
+========
 
 Remove the OSMO release, then delete the disposable cluster using the command
 for the option you selected:

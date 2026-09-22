@@ -8,7 +8,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "initializationId": { "type": "string", "maxLength": 128 },
         "attempt": { "type": "string", "maxLength": 128 },
         "coordinatorActiveDeadlineSeconds": { "type": "integer", "minimum": 1 },
         "storageActiveDeadlineSeconds": { "type": "integer", "minimum": 1 },
@@ -17,7 +16,7 @@
         "affinity": { "type": ["object", "null"] },
         "resources": { "type": "object" }
       },
-      "required": ["initializationId", "attempt", "coordinatorActiveDeadlineSeconds", "storageActiveDeadlineSeconds", "resources"]
+      "required": ["attempt", "coordinatorActiveDeadlineSeconds", "storageActiveDeadlineSeconds", "resources"]
     },
     "planes": {
       "type": "object",

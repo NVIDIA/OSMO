@@ -161,6 +161,45 @@ def _always_ok_opener(*_args, **_kwargs):
 class TestKindAdapter(unittest.TestCase):
     """KindAdapter drives kind + helm with correct flags via osmo/quick-start."""
 
+    def test_prepared_unified_chart_ref_builds_dependencies_in_temporary_copy(self):
+        def fake_run(args, **_kwargs):
+            if args[:3] == ["helm", "dependency", "build"]:
+                dependency_directory = os.path.join(args[3], "charts")
+                os.makedirs(dependency_directory, exist_ok=True)
+                with open(
+                    os.path.join(dependency_directory, "example-1.0.0.tgz"),
+                    "w", encoding="utf-8",
+                ) as archive:
+                    archive.write("downloaded dependency")
+            return _FakeCompleted()
+
+        adapter = KindAdapter(subprocess_runner=fake_run)
+        with tempfile.TemporaryDirectory() as source_directory:
+            source_chart = os.path.join(source_directory, "osmo")
+            os.makedirs(source_chart)
+            with open(
+                os.path.join(source_chart, "Chart.yaml"), "w", encoding="utf-8",
+            ) as chart_file:
+                chart_file.write("apiVersion: v2\nname: osmo\nversion: 0.1.0\n")
+
+            with unittest.mock.patch(
+                "test.oetf.deploy_adapters.kind_adapter._local_osmo_chart_path",
+                return_value=source_chart,
+            ):
+                # pylint: disable-next=protected-access
+                prepared_chart_ref = adapter._prepared_unified_chart_ref()
+                with prepared_chart_ref as chart_ref:
+                    prepared_chart = chart_ref
+                    self.assertNotEqual(chart_ref, source_chart)
+                    self.assertTrue(os.path.isfile(os.path.join(
+                        chart_ref, "charts", "example-1.0.0.tgz",
+                    )))
+                    self.assertFalse(os.path.exists(os.path.join(
+                        source_chart, "charts", "example-1.0.0.tgz",
+                    )))
+
+            self.assertFalse(os.path.exists(prepared_chart))
+
     def _adapter(
         self,
         calls: List[List[str]] | None = None,
@@ -313,6 +352,22 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(repo_add_calls, [],
                          msg="helm repo add should be skipped when already present")
 
+    def test_helm_repo_add_updates_existing_name_with_different_url(self):
+        existing_repos = '[{"name":"cnpg","url":"https://wrong.example/charts"}]'
+        adapter, calls = self._adapter(capture_stdouts=[existing_repos])
+
+        adapter._ensure_helm_repo(  # pylint: disable=protected-access
+            "cnpg", "https://cloudnative-pg.github.io/charts",
+        )
+
+        self.assertIn(
+            [
+                "helm", "repo", "add", "cnpg",
+                "https://cloudnative-pg.github.io/charts", "--force-update",
+            ],
+            calls,
+        )
+
     def test_kai_scheduler_install_skipped_when_already_present(self):
         existing_kai = '[{"name":"kai-scheduler","namespace":"kai-scheduler"}]'
         # Captures: kind get, helm list kai (found), helm repo list (osmo).
@@ -462,21 +517,17 @@ class TestKindAdapter(unittest.TestCase):
         self.assertEqual(env.url, "http://127.0.0.1")
         health_opener.assert_called_with("http://127.0.0.1/health", timeout=5)
         cmds = [tuple(c) for c in calls]
-        dependency_build = next(
-            index for index, command in enumerate(cmds)
-            if command[:3] == ("helm", "dependency", "build"))
-        rustfs_repo = next(
-            index for index, command in enumerate(cmds)
-            if command[:4] == ("helm", "repo", "add", "rustfs"))
-        dex_repo = next(
-            index for index, command in enumerate(cmds)
-            if command[:4] == ("helm", "repo", "add", "dex"))
         osmo_install = next(
             index for index, command in enumerate(cmds)
             if command[:4] == ("helm", "upgrade", "--install", "osmo"))
-        self.assertLess(rustfs_repo, dependency_build)
-        self.assertLess(dex_repo, dependency_build)
-        self.assertLess(dependency_build, osmo_install)
+        self.assertTrue(any(command[:3] == ("helm", "dependency", "build")
+                            for command in cmds))
+        self.assertTrue(any(command[:4] == (
+            "helm", "repo", "add", "osmo-dex",
+        ) for command in cmds))
+        self.assertTrue(any(command[:4] == (
+            "helm", "repo", "add", "osmo-rustfs",
+        ) for command in cmds))
         self.assertIn(
             ("kubectl", "rollout", "restart", "deployment", "-n", "osmo"),
             cmds,
@@ -531,8 +582,8 @@ class TestKindAdapter(unittest.TestCase):
         adapter.deploy(DeployParams(type="kind", env_name="kind"))
         installation = next(command for command in calls
                             if command[:4] == ["helm", "upgrade", "--install", "osmo"])
-        self.assertTrue(any(value.startswith("bootstrap.initializationId=oetf-")
-                            for value in installation))
+        self.assertFalse(any(value.startswith("bootstrap.initializationId=")
+                             for value in installation))
         rollout_calls = [c for c in calls if c[:3] == ["kubectl", "rollout", "restart"]]
         self.assertEqual(
             rollout_calls, [],

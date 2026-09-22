@@ -99,12 +99,11 @@ write_mock docker '#!/bin/bash' 'exit 31'
 
 write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     'for argument in "$@"; do' \
-    '  case "$argument" in *postgres-secret-sentinel*|*redis-secret-sentinel*|*backend-token-sentinel*) exit 32 ;; esac' \
+    '  case "$argument" in *postgres-secret-sentinel*|*redis-secret-sentinel*) exit 32 ;; esac' \
     'done' \
     'echo "kubectl $*" >>"$COMMAND_LOG"' \
     'if [[ "$1 $2" == "get secret" ]]; then' \
     '  case "$3" in' \
-    '    osmo-backend-token) case "$BACKEND_TOKEN_STATE" in absent) exit 0 ;; existing) echo secret/osmo-backend-token ;; error) exit 17 ;; esac ;;' \
     '    osmo-default-admin) case "$DEFAULT_ADMIN_SECRET_STATE" in' \
     '      absent) exit 0 ;;' \
     '      existing) if [[ "$*" == *"jsonpath="* ]]; then echo YWRtaW4tcGFzc3dvcmQtc2VudGluZWwtMTIzNDU2Nzg5MDEyMzQ1Njc4OQ==; else echo secret/osmo-default-admin; fi ;;' \
@@ -133,11 +132,6 @@ write_mock kubectl '#!/bin/bash' 'set -euo pipefail' \
     '  [[ "$(<"$password_file")" == "$ADMIN_PASSWORD_SENTINEL" ]] || exit 37' \
     '  printf "%s\n" "$password_file" >>"$SECRET_PATHS_LOG"' \
     'fi' \
-    'if [[ "$*" == *"create secret generic osmo-backend-token"* ]]; then' \
-    '  for argument in "$@"; do [[ "$argument" == --from-file=token=* ]] && token_file="${argument#--from-file=token=}"; done' \
-    '  [[ "$(<"$token_file")" == backend-token-sentinel ]] || exit 36' \
-    '  printf "%s\n" "$token_file" >>"$SECRET_PATHS_LOG"' \
-    'fi' \
     'if [[ "$*" == *"create secret generic"* ]]; then printf "apiVersion: v1\nkind: Secret\nmetadata:\n  name: mock\n"; fi' \
     'if [[ "$*" == *"port-forward"* ]]; then touch "$PORT_FORWARD_READY"; while true; do sleep 1; done; fi'
 
@@ -148,7 +142,7 @@ write_mock helm '#!/bin/bash' 'set -euo pipefail' 'echo "helm $*" >>"$COMMAND_LO
     '  previous="$argument"' \
     'done'
 write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMMAND_LOG"' \
-    'if [[ "$*" == "rand -base64 48" ]]; then printf "%s\n" "$ADMIN_PASSWORD_SENTINEL"; else echo backend-token-sentinel; fi'
+    'if [[ "$*" == "rand -base64 48" ]]; then printf "%s\n" "$ADMIN_PASSWORD_SENTINEL"; else echo digest-sentinel; fi'
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
 write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"' \
     'if [[ "$*" == *"/verify.sh"* ]]; then' \
@@ -181,7 +175,7 @@ terraform_vars="${TEST_SRCDIR}/_main/deployments/scripts/azure/single-plane.tfva
 terraform_example="${TEST_SRCDIR}/_main/deployments/terraform/azure/example/example.tf"
 [[ -x "$script" ]] || fail "deployment script is absent"
 
-export BACKEND_TOKEN_STATE=absent DEFAULT_ADMIN_SECRET_STATE=absent
+export DEFAULT_ADMIN_SECRET_STATE=absent
 if ! "$bash_binary" "$script" >"$test_directory/output.log" 2>&1; then
     cat "$test_directory/output.log" >&2
     fail "initial deployment-script run failed"
@@ -228,7 +222,7 @@ assert_not_contains "$static_values" '${'
 assert_contains "$terraform_example" 'name                          = "${local.name}-postgres-${random_string.suffix.result}"'
 
 for secret in postgres-secret-sentinel redis-secret-sentinel storage-key-sentinel \
-        backend-token-sentinel docker-auth-sentinel "$ADMIN_PASSWORD_SENTINEL" \
+        docker-auth-sentinel "$ADMIN_PASSWORD_SENTINEL" \
         provided-postgres-secret-sentinel; do
     assert_not_contains "$test_directory/output.log" "$secret"
     assert_not_contains "$command_log" "$secret"
@@ -237,6 +231,9 @@ done
 assert_not_contains "$command_log" 'storage_account_key'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-object-storage'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-service-auth'
+assert_not_contains "$command_log" 'kubectl get secret osmo-backend-token'
+assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
+assert_not_contains "$command_log" 'openssl rand -base64 32'
 assert_contains "$command_log" 'az aks get-credentials --resource-group test-resource-group --name test-aks --admin --overwrite-existing'
 assert_not_contains "$command_log" 'az aks command invoke'
 assert_not_contains "$command_log" 'az role assignment create'
@@ -259,7 +256,6 @@ assert_ordered \
     'kubectl create secret generic osmo-default-admin' \
     'kubectl create serviceaccount osmo-workflow' \
     'kubectl annotate serviceaccount osmo-workflow' \
-    'kubectl create secret generic osmo-backend-token' \
     'helm repo add osmo-dex https://charts.dexidp.io --force-update' \
     'helm repo add osmo-postgresql https://cloudnative-pg.github.io/charts --force-update' \
     'helm repo add osmo-rustfs https://charts.rustfs.com --force-update' \
@@ -276,13 +272,13 @@ assert_contains "$command_log" '--set secrets.masterEncryptionKey.bootstrap.enab
 
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
-export BACKEND_TOKEN_STATE=existing
 export DEFAULT_ADMIN_SECRET_STATE=existing
-if ! "$bash_binary" "$script" >"$test_directory/existing-token-output.log" 2>&1; then
-    cat "$test_directory/existing-token-output.log" >&2
-    fail "existing-token deployment-script run failed"
+if ! "$bash_binary" "$script" >"$test_directory/existing-admin-output.log" 2>&1; then
+    cat "$test_directory/existing-admin-output.log" >&2
+    fail "existing-admin deployment-script run failed"
 fi
-assert_contains "$command_log" 'kubectl get secret osmo-backend-token --namespace osmo --ignore-not-found --output name'
+assert_not_contains "$command_log" 'kubectl get secret osmo-backend-token'
+assert_not_contains "$command_log" 'kubectl patch secret osmo-backend-token'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
 assert_not_contains "$command_log" 'kubectl create secret generic osmo-default-admin'
 assert_not_contains "$command_log" 'openssl rand -base64 32'
@@ -290,7 +286,6 @@ assert_not_contains "$command_log" 'openssl rand -base64 32'
 : >"$command_log"
 rm -f "$PORT_FORWARD_READY"
 unset OSMO_IMAGE_PULL_SECRET OSMO_IMAGE_PULL_CONFIG
-export BACKEND_TOKEN_STATE=existing
 if ! "$bash_binary" "$script" >"$test_directory/no-pull-secret-output.log" 2>&1; then
     cat "$test_directory/no-pull-secret-output.log" >&2
     fail "no-pull-secret deployment-script run failed"
@@ -302,18 +297,10 @@ jq -e '
   .configuration.workflow.backend_images == {}
 ' "$CAPTURED_VALUES" >/dev/null || fail "empty pull-secret configuration was not preserved"
 assert_not_contains "$command_log" 'kubectl create secret generic 456'
+assert_not_contains "$command_log" 'kubectl patch secret osmo-backend-token'
 
 : >"$command_log"
-rm -f "$PORT_FORWARD_READY"
-export BACKEND_TOKEN_STATE=error
-if "$bash_binary" "$script" >"$test_directory/lookup-error-output.log" 2>&1; then
-    fail "backend-token lookup error unexpectedly succeeded"
-fi
-assert_not_contains "$command_log" 'kubectl create secret generic osmo-backend-token'
-assert_not_contains "$command_log" 'openssl rand -base64 32'
-
-: >"$command_log"
-export BACKEND_TOKEN_STATE=existing BLOB_PUBLIC_ACCESS=true
+export BLOB_PUBLIC_ACCESS=true
 if "$bash_binary" "$script" >"$test_directory/public-access-output.log" 2>&1; then
     fail "public Blob access unexpectedly passed verification"
 fi

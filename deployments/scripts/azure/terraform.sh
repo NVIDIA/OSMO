@@ -58,7 +58,7 @@ TF_REGION="${TF_REGION:-East US 2}"
 TF_ENVIRONMENT="${TF_ENVIRONMENT:-dev}"
 TF_PROJECT_NAME="${TF_PROJECT_NAME:-osmo}"
 # Pin to AKS 1.33.x — the most recent minor with Ubuntu 22.04 + containerd 1.7.x
-# defaults, validated against GPU Operator v25.10.1 and KAI Scheduler v0.14.0.
+# defaults, validated against GPU Operator v25.10.1 and KAI Scheduler v0.15.3.
 # AKS 1.34+ on Ubuntu 24.04 nodes ships containerd 2.x which the current
 # NVIDIA toolchain in install-gpu-operator.sh has not been validated against.
 # AKS 1.32 and older are LTS-only as of 2026-03-31 and cannot be used to

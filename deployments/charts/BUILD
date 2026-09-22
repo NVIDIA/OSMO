@@ -23,7 +23,12 @@ py_test(
     srcs = ["osmo/tests/test_single_bootstrap.py"],
     main = "osmo/tests/test_single_bootstrap.py",
     data = [":osmo"],
-    deps = [requirement("pyyaml")],
+    deps = [
+        "//src/utils:bootstrap_lib",
+        "//src/utils:identity_bootstrap_lib",
+        requirement("kubernetes"),
+        requirement("pyyaml"),
+    ],
     tags = ["local"],
 )
 

@@ -242,6 +242,13 @@ class IdentityBootstrapTest(unittest.TestCase):
             'OSMO_DEX_PASSWORD_HASH_DEVELOPER',
         }, set(hashes.data))
         self.assertIn('osmo-embedded-dex-oauth', self.api.secrets)
+        for secret in self.api.secrets.values():
+            self.assertEqual(
+                secret.metadata.annotations[
+                    'osmo.nvidia.com/credential-source'
+                ],
+                'osmo-identity-bootstrap',
+            )
 
     def reconcile_mcp(
         self, *, enabled: bool = True,
@@ -521,6 +528,28 @@ class IdentityBootstrapTest(unittest.TestCase):
             admin.metadata.labels['app.kubernetes.io/managed-by'],
             'osmo-embedded-dex-bootstrap',
         )
+        for secret in (admin, oauth):
+            self.assertEqual(
+                secret.metadata.annotations[
+                    'osmo.nvidia.com/credential-source'
+                ],
+                'osmo-embedded-dex-bootstrap',
+            )
+
+    def test_rotation_does_not_backfill_credential_source(self) -> None:
+        self.reconcile()
+        for secret in self.api.secrets.values():
+            secret.metadata.annotations.pop(
+                'osmo.nvidia.com/credential-source', None
+            )
+
+        self.reconcile(password_generation=2, cookie_generation=2)
+
+        for secret in self.api.secrets.values():
+            self.assertNotIn(
+                'osmo.nvidia.com/credential-source',
+                secret.metadata.annotations,
+            )
 
     def test_equal_generations_preserve_all_secret_bytes(self) -> None:
         self.reconcile()
@@ -839,6 +868,9 @@ class IdentityBootstrapTest(unittest.TestCase):
             {
                 'osmo.nvidia.com/browser-client-secret-generation': '2',
                 'osmo.nvidia.com/cookie-secret-generation': '2',
+                'osmo.nvidia.com/credential-source': (
+                    'osmo-embedded-dex-bootstrap'
+                ),
             })
 
     def test_argument_parser_rejects_nonpositive_generation(self) -> None:
@@ -1136,20 +1168,34 @@ class TokenMigrationTest(unittest.TestCase):
                 },
             ],
         )
-        self.assertEqual(
-            body[2:],
-            [
-                {
+        if secret.metadata.labels:
+            self.assertEqual(
+                body[2:],
+                [{
                     'op': 'replace',
                     'path': '/metadata/labels/app.kubernetes.io~1managed-by',
                     'value': 'osmo-identity-bootstrap',
-                }
-            ],
-        )
+                }],
+            )
+            secret.metadata.labels['app.kubernetes.io/managed-by'] = (
+                'osmo-identity-bootstrap'
+            )
+        else:
+            self.assertEqual(
+                body[2:],
+                [
+                    {
+                        'op': 'add',
+                        'path': '/metadata/labels',
+                        'value': {
+                            'app.kubernetes.io/instance': 'release',
+                            'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
+                        },
+                    },
+                ],
+            )
+            secret.metadata.labels = body[2]['value']
         self.patches.append(name)
-        secret.metadata.labels['app.kubernetes.io/managed-by'] = (
-            'osmo-identity-bootstrap'
-        )
         secret.metadata.resource_version = str(
             int(secret.metadata.resource_version) + 1
         )
@@ -1178,6 +1224,66 @@ class TokenMigrationTest(unittest.TestCase):
                 self.assertEqual(self.values['token'].to_dict(), original.to_dict())
                 self.api.create_namespaced_secret.assert_not_called()
                 self.api.replace_namespaced_secret.assert_not_called()
+
+    def test_exact_azure_helper_token_is_adopted_without_changing_data(self):
+        name = 'release-backend-token'
+        secret = self.add_secret(name)
+        secret.metadata.labels = None
+        secret.metadata.annotations = {
+            'kubectl.kubernetes.io/last-applied-configuration': 'legacy'
+        }
+        secret.metadata.owner_references = None
+        secret.data.pop('previous-token')
+        original_data = copy.deepcopy(secret.data)
+
+        self.migrate(name)
+
+        self.assertEqual(self.values[name].data, original_data)
+        self.assertEqual(
+            self.values[name].metadata.labels,
+            {
+                'app.kubernetes.io/instance': 'release',
+                'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
+            },
+        )
+        self.assertEqual(
+            self.values[name].metadata.annotations,
+            {
+                'kubectl.kubernetes.io/last-applied-configuration': 'legacy',
+            },
+        )
+
+    def test_unlabeled_token_near_misses_are_not_adopted(self):
+        for invalid in ('name', 'annotation', 'owner', 'data'):
+            with self.subTest(invalid=invalid):
+                self.values.clear()
+                self.api.patch_namespaced_secret.reset_mock()
+                name = 'release-backend-token'
+                secret = self.add_secret(name)
+                secret.metadata.labels = None
+                secret.metadata.annotations = None
+                secret.metadata.owner_references = None
+                secret.data.pop('previous-token')
+                if invalid == 'name':
+                    secret.metadata.name = 'another-backend-token'
+                elif invalid == 'annotation':
+                    secret.metadata.annotations = {'foreign': 'annotation'}
+                elif invalid == 'owner':
+                    secret.metadata.owner_references = [
+                        kubernetes_client.V1OwnerReference(
+                            api_version='v1', kind='ConfigMap', name='owner',
+                            uid='owner-uid',
+                        )
+                    ]
+                else:
+                    secret.data['extra'] = base64.b64encode(b'extra').decode()
+
+                with self.assertRaisesRegex(
+                    identity_bootstrap.BootstrapError,
+                    'not owned|invalid credentials',
+                ):
+                    self.migrate(name)
+                self.api.patch_namespaced_secret.assert_not_called()
 
     def test_absent_and_canonical_tokens_make_no_writes(self):
         self.migrate()

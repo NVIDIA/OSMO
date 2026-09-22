@@ -46,6 +46,7 @@ _INSTANCE_LABEL = 'app.kubernetes.io/instance'
 _PASSWORD_GENERATION = 'osmo.nvidia.com/password-generation'
 _CLIENT_GENERATION = 'osmo.nvidia.com/browser-client-secret-generation'
 _COOKIE_GENERATION = 'osmo.nvidia.com/cookie-secret-generation'
+_CREDENTIAL_SOURCE = 'osmo.nvidia.com/credential-source'
 _BCRYPT_COST = 12
 _MAX_RECONCILE_ATTEMPTS = 5
 
@@ -230,6 +231,9 @@ def _identity_secret(
     resource_version: str | None = None,
     annotations: dict[str, str] | None = None,
 ) -> kubernetes_client.V1Secret:
+    metadata_annotations = dict(annotations or {})
+    if resource_version is None:
+        metadata_annotations[_CREDENTIAL_SOURCE] = _IDENTITY_MANAGED_BY
     return kubernetes_client.V1Secret(
         metadata=kubernetes_client.V1ObjectMeta(
             name=name,
@@ -238,7 +242,7 @@ def _identity_secret(
                 _MANAGED_BY_LABEL: _IDENTITY_MANAGED_BY,
                 _INSTANCE_LABEL: release_name,
             },
-            annotations=dict(annotations or {}),
+            annotations=metadata_annotations,
         ),
         type='Opaque',
         data=_encode(data),
@@ -248,11 +252,23 @@ def _identity_secret(
 def _require_identity_owned(
     secret: kubernetes_client.V1Secret,
     release_name: str,
+    allow_unlabeled_backend: bool = False,
 ) -> bool:
     metadata = secret.metadata
     labels = metadata.labels if metadata else None
     name = metadata.name if metadata and metadata.name else 'credential Secret'
     manager = labels.get(_MANAGED_BY_LABEL) if labels else None
+    annotations = metadata.annotations if metadata else None
+    if (
+        allow_unlabeled_backend
+        and name == f'{release_name}-backend-token'
+        and secret.type == 'Opaque'
+        and not labels
+        and set(annotations or {}) <= {'kubectl.kubernetes.io/last-applied-configuration'}
+        and not metadata.owner_references
+        and set(secret.data or {}) == {'token'}
+    ):
+        return True
     if (
         secret.type != 'Opaque'
         or not labels
@@ -277,7 +293,7 @@ def migrate_tokens(
         secret = _read_secret(api, namespace, name)
         if secret is None:
             continue
-        _require_identity_owned(secret, release_name)
+        _require_identity_owned(secret, release_name, allow_unlabeled_backend=True)
         _validate_token(name, _decode(secret))
         if not secret.metadata.uid or not secret.metadata.resource_version:
             raise BootstrapError(f'{name} has no Kubernetes object identity')
@@ -290,7 +306,8 @@ def migrate_tokens(
             secret = _read_secret(api, namespace, name)
             if secret is None or secret.metadata.uid != expected_uid:
                 raise BootstrapError(f'{name} was removed or replaced during token migration')
-            legacy = _require_identity_owned(secret, release_name)
+            legacy = _require_identity_owned(
+                secret, release_name, allow_unlabeled_backend=True)
             _validate_token(name, _decode(secret))
             if not legacy:
                 break
@@ -298,9 +315,22 @@ def migrate_tokens(
                 {'op': 'test', 'path': '/metadata/uid', 'value': expected_uid},
                 {'op': 'test', 'path': '/metadata/resourceVersion',
                  'value': secret.metadata.resource_version},
-                {'op': 'replace', 'path': '/metadata/labels/app.kubernetes.io~1managed-by',
-                 'value': _IDENTITY_MANAGED_BY},
             ]
+            if secret.metadata.labels:
+                patch.append({
+                    'op': 'replace',
+                    'path': '/metadata/labels/app.kubernetes.io~1managed-by',
+                    'value': _IDENTITY_MANAGED_BY,
+                })
+            else:
+                patch.append({
+                    'op': 'add',
+                    'path': '/metadata/labels',
+                    'value': {
+                        _INSTANCE_LABEL: release_name,
+                        _MANAGED_BY_LABEL: _IDENTITY_MANAGED_BY,
+                    },
+                })
             try:
                 api.patch_namespaced_secret(name, namespace, patch)
                 break
@@ -497,6 +527,8 @@ def _new_secret(
         annotation: str(generation)
         for annotation, generation in state.generations.items()
     })
+    if resource_version is None:
+        annotations[_CREDENTIAL_SOURCE] = _MANAGED_BY
     return kubernetes_client.V1Secret(
         metadata=kubernetes_client.V1ObjectMeta(
             name=name,

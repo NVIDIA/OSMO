@@ -107,7 +107,7 @@
 {{- $effectiveSteps = append $effectiveSteps (dict "step" .step "command" $container.command "args" $arguments "env" $environment) -}}
 {{- end -}}
 {{- $_ := set $generationInputs "effectiveSteps" $effectiveSteps -}}
-{{- $configuration := dict "namespace" .Release.Namespace "release" .Release.Name "record" (include "osmo.bootstrap.recordName" .) "generation" (toJson $generationInputs | sha256sum) "initialization_id" .Values.bootstrap.initializationId "secrets" $secrets "consumers" $consumers "steps" $names "tls_rotation" $tlsRotation -}}
+{{- $configuration := dict "namespace" .Release.Namespace "release" .Release.Name "record" (include "osmo.bootstrap.recordName" .) "generation" (toJson $generationInputs | sha256sum) "secrets" $secrets "consumers" $consumers "steps" $names "tls_rotation" $tlsRotation -}}
 {{- toYaml (dict "steps" $steps "configuration" $configuration "rotationSecrets" $rotationSecrets) -}}
 {{- end -}}
 

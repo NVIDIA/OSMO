@@ -449,9 +449,9 @@ class ServiceAuthBootstrapTest(unittest.TestCase):
             'osmo.nvidia.com/service-auth-bootstrap-placeholder',
             updated_secret.metadata.annotations,
         )
-        self.assertEqual(
-            updated_secret.metadata.annotations['osmo.nvidia.com/credential-source'],
-            'legacy-db-migration',
+        self.assertNotIn(
+            'osmo.nvidia.com/credential-source',
+            updated_secret.metadata.annotations,
         )
         self.assertEqual(
             updated_secret.metadata.labels['app.kubernetes.io/managed-by'],

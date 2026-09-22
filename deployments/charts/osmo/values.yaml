@@ -441,8 +441,8 @@ secrets:
     # Change after intentionally updating the externally managed Secret.
     rolloutNonce: ''
     bootstrap:
-      # Quickstart is install-only. Disable after successful bootstrap to
-      # remove the one-time Secret-creation RBAC and Job from desired state.
+      # Keep enabled for OSMO-managed credentials so upgrades validate and
+      # reuse retained Secrets or recreate a missing managed Secret.
       enabled: true
       # Increment after a failed GitOps attempt or credential correction.
       attempt: "1"
@@ -2190,7 +2190,7 @@ rustfs:
   image:
     rustfs:
       repository: rustfs/rustfs
-      tag: "1.0.0-rc.2@sha256:7d6d361c49c08d427250fb59aae5d78df83d644c3405d9ccf4b21cda0b0692d0"
+      tag: "1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff"
     initImage:
       repository: busybox
       tag: "stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
@@ -2229,9 +2229,6 @@ rustfs:
 
 # One ordinary Job sequences only enabled bootstrap operations.
 bootstrap:
-  # Explicit authorization for a new installation with missing protected credentials.
-  # Use a unique non-secret ID and remove it after successful initialization.
-  initializationId: ""
   attempt: ""
   coordinatorActiveDeadlineSeconds: 300
   storageActiveDeadlineSeconds: 600

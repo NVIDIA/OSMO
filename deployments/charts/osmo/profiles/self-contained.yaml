@@ -3,9 +3,10 @@
 
 # Converged profile for self-hosting OSMO on Kubernetes. The cluster
 # must provide KAI Scheduler, the CloudNativePG operator, a default dynamic
-# StorageClass, a NetworkPolicy-enforcing CNI, and at least four schedulable
-# nodes for distributed RustFS. The default embedded Dex provider is suitable
-# only for development and evaluation because it uses volatile memory storage.
+# StorageClass, a NetworkPolicy-enforcing CNI, at least four platform nodes for
+# distributed RustFS, and at least one compute node. The default embedded Dex
+# provider is suitable only for development and evaluation because it uses
+# volatile memory storage.
 # Production installations must use authentication.provider=externalOidc. The OSMO release owns
 # the control plane, compute plane, PostgreSQL Cluster, replicated fixed-primary
 # Valkey, and distributed RustFS.

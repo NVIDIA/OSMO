@@ -205,7 +205,6 @@ def _populate_or_verify_secret(
             canonical_payload.encode('utf-8')).decode('ascii'),
     }
     annotations.pop(_PLACEHOLDER_ANNOTATION)
-    annotations[_CREDENTIAL_SOURCE_ANNOTATION] = 'legacy-db-migration'
     metadata.annotations = annotations
     labels = dict(metadata.labels or {})
     labels['app.kubernetes.io/managed-by'] = 'osmo-service-auth-db-migration'

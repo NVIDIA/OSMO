@@ -3,15 +3,23 @@
 
 """Semantic render regressions for the unified, ordinary bootstrap Job."""
 
+import copy
+import dataclasses
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from typing import Any, cast
 import unittest
+from unittest import mock
 
+from kubernetes import client as kubernetes_client
+from kubernetes.client import exceptions as kubernetes_exceptions
 import yaml
+
+from src.utils import bootstrap, identity_bootstrap
 
 
 CHART = Path(__file__).parents[1]
@@ -114,7 +122,247 @@ def bootstrap_jobs(resources: list[dict]) -> list[dict]:
     ]
 
 
+class FakeCoreApi:
+    def __init__(self) -> None:
+        self.secrets: dict[str, kubernetes_client.V1Secret] = {}
+        self.config_maps: dict[str, kubernetes_client.V1ConfigMap] = {}
+        self.revision = 0
+
+    def _persist(self, resource: Any) -> Any:
+        self.revision += 1
+        metadata = resource.metadata
+        if not metadata.uid:
+            metadata.uid = f'uid-{self.revision}'
+        metadata.resource_version = str(self.revision)
+        return copy.deepcopy(resource)
+
+    def read_namespaced_secret(
+        self, name: str, namespace: str, **_kwargs: object
+    ) -> kubernetes_client.V1Secret:
+        del namespace
+        try:
+            return copy.deepcopy(self.secrets[name])
+        except KeyError as error:
+            raise kubernetes_exceptions.ApiException(status=404) from error
+
+    def create_namespaced_secret(
+        self,
+        namespace: str,
+        body: kubernetes_client.V1Secret,
+        **_kwargs: object,
+    ) -> kubernetes_client.V1Secret:
+        del namespace
+        name = body.metadata.name
+        if name in self.secrets:
+            raise kubernetes_exceptions.ApiException(status=409)
+        self.secrets[name] = self._persist(body)
+        return copy.deepcopy(self.secrets[name])
+
+    def replace_namespaced_secret(
+        self,
+        name: str,
+        namespace: str,
+        body: kubernetes_client.V1Secret,
+        **_kwargs: object,
+    ) -> kubernetes_client.V1Secret:
+        del namespace
+        if name not in self.secrets:
+            raise kubernetes_exceptions.ApiException(status=404)
+        body.metadata.uid = self.secrets[name].metadata.uid
+        self.secrets[name] = self._persist(body)
+        return copy.deepcopy(self.secrets[name])
+
+    def read_namespaced_config_map(
+        self, name: str, namespace: str, **_kwargs: object
+    ) -> kubernetes_client.V1ConfigMap:
+        del namespace
+        try:
+            return copy.deepcopy(self.config_maps[name])
+        except KeyError as error:
+            raise kubernetes_exceptions.ApiException(status=404) from error
+
+    def create_namespaced_config_map(
+        self,
+        namespace: str,
+        body: kubernetes_client.V1ConfigMap,
+        **_kwargs: object,
+    ) -> kubernetes_client.V1ConfigMap:
+        del namespace
+        name = body.metadata.name
+        if name in self.config_maps:
+            raise kubernetes_exceptions.ApiException(status=409)
+        self.config_maps[name] = self._persist(body)
+        return copy.deepcopy(self.config_maps[name])
+
+    def replace_namespaced_config_map(
+        self,
+        name: str,
+        namespace: str,
+        body: kubernetes_client.V1ConfigMap,
+        **_kwargs: object,
+    ) -> kubernetes_client.V1ConfigMap:
+        del namespace
+        if name not in self.config_maps:
+            raise kubernetes_exceptions.ApiException(status=404)
+        body.metadata.uid = self.config_maps[name].metadata.uid
+        self.config_maps[name] = self._persist(body)
+        return copy.deepcopy(self.config_maps[name])
+
+
+class FakeCoordinationApi:
+    def __init__(self) -> None:
+        self.lease: kubernetes_client.V1Lease | None = None
+        self.revision = 0
+
+    def read_namespaced_lease(
+        self, name: str, namespace: str, **_kwargs: object
+    ) -> kubernetes_client.V1Lease:
+        del name, namespace
+        if self.lease is None:
+            raise kubernetes_exceptions.ApiException(status=404)
+        return copy.deepcopy(self.lease)
+
+    def create_namespaced_lease(
+        self, namespace: str, body: dict, **_kwargs: object
+    ) -> kubernetes_client.V1Lease:
+        del namespace
+        self.revision += 1
+        self.lease = kubernetes_client.V1Lease(
+            metadata=kubernetes_client.V1ObjectMeta(
+                name=body['metadata']['name'], resource_version=str(self.revision)
+            ),
+            spec=kubernetes_client.V1LeaseSpec(),
+        )
+        return copy.deepcopy(self.lease)
+
+    def patch_namespaced_lease(
+        self, name: str, namespace: str, body: dict, **_kwargs: object
+    ) -> kubernetes_client.V1Lease:
+        del name, namespace
+        if self.lease is None:
+            raise kubernetes_exceptions.ApiException(status=404)
+        self.revision += 1
+        self.lease.metadata.resource_version = str(self.revision)
+        self.lease.spec.holder_identity = body['spec']['holderIdentity']
+        return copy.deepcopy(self.lease)
+
+
+class RenderedIdentityLifecycle:
+    def __init__(self) -> None:
+        self.core = FakeCoreApi()
+        self.coordination = FakeCoordinationApi()
+        self.attempt = 0
+        self.generations: list[str] = []
+
+    def run(
+        self, resources: list[dict]
+    ) -> dict[str, tuple[str, dict[str, str]]]:
+        job = bootstrap_jobs(resources)[0]
+        configuration_json = next(
+            item['data']['config.json']
+            for item in resources
+            if item['kind'] == 'ConfigMap'
+            and item['metadata']['name'] == job['metadata']['name'] + '-config'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.json'
+            path.write_text(configuration_json, encoding='utf-8')
+            configuration = bootstrap.Configuration.read(str(path))
+        configuration = dataclasses.replace(configuration, consumers=[])
+        self.generations.append(configuration.generation)
+
+        identity_container = next(
+            item
+            for item in job['spec']['template']['spec']['initContainers']
+            if item['name'] == 'identity-bootstrap'
+        )
+        arguments = identity_container['args']
+        token_specs = []
+        for index, argument in enumerate(arguments):
+            if argument != '--token':
+                continue
+            identity, secret_name = arguments[index + 1].split('=', 1)
+            identity_id, token_name = identity.split('/', 1)
+            token_specs.append(
+                identity_bootstrap.TokenSpec(identity_id, token_name, secret_name)
+            )
+
+        self.attempt += 1
+        coordinator = bootstrap.Coordinator(
+            configuration,
+            self.core,
+            None,
+            self.coordination,
+            f'pod-{self.attempt}',
+            f'pod-uid-{self.attempt}',
+        )
+        coordinator.begin()
+        coordinator.prepare('identity')
+        with mock.patch.object(
+            identity_bootstrap,
+            'record_issuance_if_configured',
+            side_effect=coordinator.record_issuance,
+        ):
+            identity_bootstrap.reconcile_identities(
+                cast(kubernetes_client.CoreV1Api, self.core),
+                namespace=configuration.namespace,
+                release_name=configuration.release,
+                password_specs=(),
+                token_specs=tuple(token_specs),
+                oauth_secret_name=None,
+                dex_hash_secret_name=None,
+            )
+        coordinator.finish('identity')
+        coordinator.ready()
+        coordinator.complete()
+        return {
+            specification.name: (
+                self.core.secrets[specification.name].metadata.uid,
+                copy.deepcopy(self.core.secrets[specification.name].data),
+            )
+            for specification in configuration.secrets
+            if specification.step == 'identity'
+        }
+
+    def delete(self, name: str) -> None:
+        del self.core.secrets[name]
+
+    def secret(self, name: str) -> kubernetes_client.V1Secret:
+        return copy.deepcopy(self.core.secrets[name])
+
+
 class SingleBootstrapTests(unittest.TestCase):
+    def test_rendered_coordinator_preserves_then_recreates_managed_secret(
+        self,
+    ) -> None:
+        lifecycle = RenderedIdentityLifecycle()
+        first = lifecycle.run(render(2))
+        second = lifecycle.run(render(2, [
+            '--set-string', 'gateway.tls.generated.leafRotationNonce=second',
+        ]))
+        self.assertNotEqual(lifecycle.generations[0], lifecycle.generations[1])
+        self.assertEqual(second, first)
+
+        missing = 'osmo-backend-token'
+        lifecycle.delete(missing)
+        third = lifecycle.run(render(2, [
+            '--set-string', 'gateway.tls.generated.leafRotationNonce=third',
+        ]))
+        self.assertNotEqual(third[missing][0], first[missing][0])
+        self.assertNotEqual(third[missing][1], first[missing][1])
+        secret = lifecycle.secret(missing)
+        self.assertEqual(
+            secret.metadata.labels,
+            {
+                'app.kubernetes.io/managed-by': 'osmo-identity-bootstrap',
+                'app.kubernetes.io/instance': 'bootstrap-matrix',
+            },
+        )
+        self.assertEqual(
+            secret.metadata.annotations['osmo.nvidia.com/credential-source'],
+            'osmo-identity-bootstrap',
+        )
+
     def test_all_32_enable_combinations(self) -> None:
         for mask in range(32):
             with self.subTest(mask=mask):
@@ -129,6 +377,14 @@ class SingleBootstrapTests(unittest.TestCase):
                 if not jobs:
                     continue
                 job = jobs[0]
+                configuration = json.loads(next(
+                    item['data']['config.json']
+                    for item in resources
+                    if item['kind'] == 'ConfigMap'
+                    and item['metadata']['name']
+                    == job['metadata']['name'] + '-config'
+                ))
+                self.assertNotIn('initialization_id', configuration)
                 specification = job['spec']
                 pod = specification['template']['spec']
                 self.assertEqual(specification['backoffLimit'], 0)
