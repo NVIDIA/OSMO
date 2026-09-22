@@ -413,6 +413,26 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(tokens['USER_STORAGE'], '20Gi')
         self.assertEqual(tokens['USER_GPU'], 1)
 
+    def test_zero_gpu_overrides_default_during_validation_and_rendering(self):
+        for gpu, expected in ((0, 0), (None, 2), (1, 1)):
+            with self.subTest(gpu=gpu):
+                resource = connectors.ResourceSpec(gpu=gpu)
+                tokens = resource.get_allocatable_tokens({'USER_GPU': 2})
+                assertion = connectors.ResourceAssertion(
+                    operator='LE', left_operand='{{USER_GPU}}',
+                    right_operand=str(expected), assert_message='too many GPUs')
+                assertion.evaluate(tokens, 'user')
+                pod: Dict[str, Any] = {'spec': {'containers': [{
+                    'name': 'user', 'resources': {
+                        'requests': {'nvidia.com/gpu': '{{USER_GPU}}'},
+                        'limits': {'nvidia.com/gpu': '{{USER_GPU}}'},
+                    },
+                }]}}
+                task.substitute_pod_template_tokens(pod, tokens)
+                resources = pod['spec']['containers'][0]['resources']
+                self.assertEqual(resources['requests']['nvidia.com/gpu'], str(expected))
+                self.assertEqual(resources['limits']['nvidia.com/gpu'], str(expected))
+
 
     def test_node_exclusion(self):
         """

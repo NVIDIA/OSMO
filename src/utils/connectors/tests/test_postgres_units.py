@@ -1321,6 +1321,23 @@ class TestResourceSpecTokens(unittest.TestCase):
     """Covers ResourceSpec.update, unitless conversion and get_allocatable_tokens
     (lines 1824-1826, 1847, 1875, 1878, 1903-1909, 1928-1941)."""
 
+    def test_explicit_zero_overrides_defaults_but_omission_preserves_them(self):
+        defaults = {'USER_CPU': 8, 'USER_GPU': 2, 'USER_MEMORY': '4Gi',
+                    'USER_STORAGE': '20Gi'}
+        for value in (None, 0, 1, 2):
+            with self.subTest(value=value):
+                spec = postgres.ResourceSpec(cpu=value, gpu=value)
+                tokens = spec.get_allocatable_tokens(defaults)
+                self.assertEqual(tokens['USER_CPU'], 8 if value is None else value)
+                self.assertEqual(tokens['USER_GPU'], 2 if value is None else value)
+                self.assertEqual(tokens['USER_MEMORY'], '4Gi')
+                self.assertEqual(tokens['USER_STORAGE'], '20Gi')
+        self.assertEqual(defaults['USER_CPU'], 8)
+        self.assertEqual(defaults['USER_GPU'], 2)
+        tokens = postgres.ResourceSpec(cpu=0, gpu=0).get_allocatable_tokens({})
+        self.assertEqual(tokens['USER_CPU'], 0)
+        self.assertEqual(tokens['USER_GPU'], 0)
+
     def test_update_overlays_fields_from_the_other_spec(self):
         base = postgres.ResourceSpec(cpu=2, memory='8Gi')
 

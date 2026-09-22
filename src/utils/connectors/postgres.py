@@ -1885,8 +1885,8 @@ class ResourceSpec(pydantic.BaseModel):
                     common.convert_resource_value_str(f'{num}{unit}', target=target_unit) \
                     if num and unit else None
 
-        mapping['USER_CPU'] = float(self.cpu) if self.cpu else None
-        mapping['USER_GPU'] = int(self.gpu) if self.gpu else None
+        mapping['USER_CPU'] = float(self.cpu) if self.cpu is not None else None
+        mapping['USER_GPU'] = int(self.gpu) if self.gpu is not None else None
 
         mapping['USER_STORAGE'] = self.storage
         num, unit = split_num_units(self.storage)
