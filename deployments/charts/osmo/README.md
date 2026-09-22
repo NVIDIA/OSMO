@@ -116,7 +116,9 @@ The bootstrap Job creates the retained `osmo-master-encryption-key` and
 For maximum recovery robustness, keep each production credential in an external
 secret manager and provision its Kubernetes Secret before installation. The
 bootstrap mechanism remains available as a convenience when external
-provisioning is not used.
+provisioning is not used. Secrets created by bootstrap carry the
+`osmo.nvidia.com/credential-source` annotation; bootstrap does not add it to
+pre-existing Secrets.
 
 Embedded Dex uses volatile memory storage and is intended for development and
 evaluation only. Dex restarts invalidate active sessions and signing keys.

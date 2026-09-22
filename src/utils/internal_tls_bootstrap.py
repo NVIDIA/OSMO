@@ -39,6 +39,7 @@ from src.utils.bootstrap import (BoundedApiClient, SecretSpec, record_issuance_i
 _MANAGED_BY = 'osmo-internal-tls-bootstrap'
 _MANAGED_BY_LABEL = 'app.kubernetes.io/managed-by'
 _INSTANCE_LABEL = 'app.kubernetes.io/instance'
+_CREDENTIAL_SOURCE_ANNOTATION = 'osmo.nvidia.com/credential-source'
 _RETENTION_ANNOTATIONS = {
     'helm.sh/resource-policy': 'keep',
     'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
@@ -371,7 +372,10 @@ def _create_secret(
                 _MANAGED_BY_LABEL: _MANAGED_BY,
                 _INSTANCE_LABEL: release_name,
             },
-            annotations=dict(_RETENTION_ANNOTATIONS),
+            annotations={
+                **_RETENTION_ANNOTATIONS,
+                _CREDENTIAL_SOURCE_ANNOTATION: _MANAGED_BY,
+            },
         ),
         type='Opaque',
         data=_encode_secret_data(values) if values is not None else None,

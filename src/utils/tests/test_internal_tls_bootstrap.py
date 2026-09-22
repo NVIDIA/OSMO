@@ -246,6 +246,9 @@ class InternalTlsBootstrapTest(unittest.TestCase):
                     'argocd.argoproj.io/sync-options': (
                         'Prune=false,Delete=false'
                     ),
+                    'osmo.nvidia.com/credential-source': (
+                        'osmo-internal-tls-bootstrap'
+                    ),
                 },
             )
 

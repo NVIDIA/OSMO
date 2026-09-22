@@ -163,6 +163,9 @@ create_secret() {
                 app.kubernetes.io/managed-by=osmo-mek-bootstrap \
                 "app.kubernetes.io/instance=$release_name" \
                 -o yaml \
+            | kubectl annotate --local -f - \
+                osmo.nvidia.com/credential-source=osmo-chart-bootstrap \
+                -o yaml \
             | kubectl create -f - >/dev/null; then
         rm -rf "$temporary_directory"
         trap - EXIT INT TERM

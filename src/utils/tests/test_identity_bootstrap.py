@@ -242,6 +242,13 @@ class IdentityBootstrapTest(unittest.TestCase):
             'OSMO_DEX_PASSWORD_HASH_DEVELOPER',
         }, set(hashes.data))
         self.assertIn('osmo-embedded-dex-oauth', self.api.secrets)
+        for secret in self.api.secrets.values():
+            self.assertEqual(
+                secret.metadata.annotations[
+                    'osmo.nvidia.com/credential-source'
+                ],
+                'osmo-identity-bootstrap',
+            )
 
     def reconcile_mcp(
         self, *, enabled: bool = True,
@@ -521,6 +528,28 @@ class IdentityBootstrapTest(unittest.TestCase):
             admin.metadata.labels['app.kubernetes.io/managed-by'],
             'osmo-embedded-dex-bootstrap',
         )
+        for secret in (admin, oauth):
+            self.assertEqual(
+                secret.metadata.annotations[
+                    'osmo.nvidia.com/credential-source'
+                ],
+                'osmo-embedded-dex-bootstrap',
+            )
+
+    def test_rotation_does_not_backfill_credential_source(self) -> None:
+        self.reconcile()
+        for secret in self.api.secrets.values():
+            secret.metadata.annotations.pop(
+                'osmo.nvidia.com/credential-source', None
+            )
+
+        self.reconcile(password_generation=2, cookie_generation=2)
+
+        for secret in self.api.secrets.values():
+            self.assertNotIn(
+                'osmo.nvidia.com/credential-source',
+                secret.metadata.annotations,
+            )
 
     def test_equal_generations_preserve_all_secret_bytes(self) -> None:
         self.reconcile()
@@ -839,6 +868,9 @@ class IdentityBootstrapTest(unittest.TestCase):
             {
                 'osmo.nvidia.com/browser-client-secret-generation': '2',
                 'osmo.nvidia.com/cookie-secret-generation': '2',
+                'osmo.nvidia.com/credential-source': (
+                    'osmo-embedded-dex-bootstrap'
+                ),
             })
 
     def test_argument_parser_rejects_nonpositive_generation(self) -> None:

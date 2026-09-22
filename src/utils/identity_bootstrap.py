@@ -46,6 +46,7 @@ _INSTANCE_LABEL = 'app.kubernetes.io/instance'
 _PASSWORD_GENERATION = 'osmo.nvidia.com/password-generation'
 _CLIENT_GENERATION = 'osmo.nvidia.com/browser-client-secret-generation'
 _COOKIE_GENERATION = 'osmo.nvidia.com/cookie-secret-generation'
+_CREDENTIAL_SOURCE = 'osmo.nvidia.com/credential-source'
 _BCRYPT_COST = 12
 _MAX_RECONCILE_ATTEMPTS = 5
 
@@ -230,6 +231,9 @@ def _identity_secret(
     resource_version: str | None = None,
     annotations: dict[str, str] | None = None,
 ) -> kubernetes_client.V1Secret:
+    metadata_annotations = dict(annotations or {})
+    if resource_version is None:
+        metadata_annotations[_CREDENTIAL_SOURCE] = _IDENTITY_MANAGED_BY
     return kubernetes_client.V1Secret(
         metadata=kubernetes_client.V1ObjectMeta(
             name=name,
@@ -238,7 +242,7 @@ def _identity_secret(
                 _MANAGED_BY_LABEL: _IDENTITY_MANAGED_BY,
                 _INSTANCE_LABEL: release_name,
             },
-            annotations=dict(annotations or {}),
+            annotations=metadata_annotations,
         ),
         type='Opaque',
         data=_encode(data),
@@ -523,6 +527,8 @@ def _new_secret(
         annotation: str(generation)
         for annotation, generation in state.generations.items()
     })
+    if resource_version is None:
+        annotations[_CREDENTIAL_SOURCE] = _MANAGED_BY
     return kubernetes_client.V1Secret(
         metadata=kubernetes_client.V1ObjectMeta(
             name=name,

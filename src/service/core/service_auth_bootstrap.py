@@ -40,6 +40,7 @@ from src.utils.secret_manager import Encrypted, SecretManager
 
 
 _PLACEHOLDER_ANNOTATION = 'osmo.nvidia.com/service-auth-db-migration-placeholder'
+_CREDENTIAL_SOURCE_ANNOTATION = 'osmo.nvidia.com/credential-source'
 _BOOTSTRAP_INSTALLATION_ANNOTATION = (
     'osmo.nvidia.com/service-auth-bootstrap-installation')
 _BOOTSTRAP_DIGEST_ANNOTATION = 'osmo.nvidia.com/service-auth-bootstrap-digest'
@@ -297,6 +298,7 @@ def _create_bootstrap_secret(
             annotations={
                 _BOOTSTRAP_INSTALLATION_ANNOTATION: installation,
                 _BOOTSTRAP_DIGEST_ANNOTATION: _stable_authority_digest(service_auth),
+                _CREDENTIAL_SOURCE_ANNOTATION: 'osmo-chart-bootstrap',
             },
         ),
         string_data={arguments.target_key: canonical_payload},

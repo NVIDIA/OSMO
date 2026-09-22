@@ -133,6 +133,10 @@ class ServiceAuthBootstrapTest(unittest.TestCase):
             'osmo/prod',
         )
         self.assertEqual(
+            created.metadata.annotations['osmo.nvidia.com/credential-source'],
+            'osmo-chart-bootstrap',
+        )
+        self.assertEqual(
             created.metadata.labels['app.kubernetes.io/managed-by'],
             'osmo-service-auth-bootstrap',
         )
@@ -443,6 +447,10 @@ class ServiceAuthBootstrapTest(unittest.TestCase):
         )
         self.assertNotIn(
             'osmo.nvidia.com/service-auth-bootstrap-placeholder',
+            updated_secret.metadata.annotations,
+        )
+        self.assertNotIn(
+            'osmo.nvidia.com/credential-source',
             updated_secret.metadata.annotations,
         )
         self.assertEqual(

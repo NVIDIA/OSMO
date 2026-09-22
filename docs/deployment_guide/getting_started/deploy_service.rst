@@ -370,7 +370,9 @@ For maximum recovery robustness, keep each production credential's source of
 truth in your organization's secret manager and provision its Kubernetes Secret
 before installation. The chart's bootstrap mechanism remains available as a
 convenience when external provisioning is not used. Back up every credential
-together with the state it protects.
+together with the state it protects. Secrets created by bootstrap carry the
+``osmo.nvidia.com/credential-source`` annotation; bootstrap does not add it to
+pre-existing Secrets.
 
 MEK
 ^^^
