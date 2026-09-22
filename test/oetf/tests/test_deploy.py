@@ -22,7 +22,7 @@ from typing import List
 import yaml
 
 from test.oetf import breadcrumb, local_images, teardown_main
-from test.oetf.deploy_adapters import factory
+from test.oetf.deploy_adapters import factory, kind_adapter
 from test.oetf.deploy_adapters.base import (
     DeployParams,
     DeploySession,
@@ -160,6 +160,24 @@ def _always_ok_opener(*_args, **_kwargs):
 
 class TestKindAdapter(unittest.TestCase):
     """KindAdapter drives kind + helm with correct flags via osmo/quick-start."""
+
+    def test_unified_chart_runfiles_include_pinned_dependencies(self):
+        chart_directory = kind_adapter._local_osmo_chart_path()  # pylint: disable=protected-access
+        with open(
+            os.path.join(chart_directory, "Chart.lock"), encoding="utf-8",
+        ) as chart_lock_file:
+            dependencies = yaml.safe_load(chart_lock_file)["dependencies"]
+
+        expected_archives = {
+            f"{dependency['name']}-{dependency['version']}.tgz"
+            for dependency in dependencies
+        }
+        packaged_archives = set(os.listdir(os.path.join(chart_directory, "charts")))
+        self.assertTrue(
+            expected_archives.issubset(packaged_archives),
+            f"missing pinned unified-chart dependencies: "
+            f"{sorted(expected_archives - packaged_archives)}",
+        )
 
     def _adapter(
         self,
