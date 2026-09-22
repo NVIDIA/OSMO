@@ -169,7 +169,7 @@ class TestKindAdapter(unittest.TestCase):
             dependencies = yaml.safe_load(chart_lock_file)["dependencies"]
 
         expected_archives = {
-            f"{dependency['name']}-{dependency['version']}.tgz"
+            f"{dependency["name"]}-{dependency["version"]}.tgz"
             for dependency in dependencies
         }
         packaged_archives = set(os.listdir(os.path.join(chart_directory, "charts")))
