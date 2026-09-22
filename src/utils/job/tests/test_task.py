@@ -306,6 +306,15 @@ class TaskTest(unittest.TestCase):
         pod = task.apply_pod_template(pod, {})
         self.assertEqual(pod, answer)
 
+    def test_substitute_tokens_preserves_typed_list_values(self):
+        pod = {'spec': {'securityContext': {'supplementalGroups': [2375]},
+                        'values': [0, False, None, 1.5, '{{USER_GPU}}',
+                                   {'name': '{{USER_CONTAINER_NAME}}'}]}}
+        task.substitute_pod_template_tokens(pod, {'USER_GPU': 0, 'USER_CONTAINER_NAME': 'user'})
+        self.assertEqual(pod, {
+            'spec': {'securityContext': {'supplementalGroups': [2375]},
+                     'values': [0, False, None, 1.5, '0', {'name': 'user'}]}})
+
     def test_substitute_tokens_different_units(self):
         """ Evaluate the values for different units in storage and memory. """
         resource = connectors.ResourceSpec(cpu=2, storage='10Gi', memory='10.5Mi')

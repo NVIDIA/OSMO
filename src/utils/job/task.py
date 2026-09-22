@@ -1447,7 +1447,7 @@ def substitute_pod_template_tokens(pod_template: Dict, tokens: Dict[str, Any]):
             for i, list_item in enumerate(value):
                 if isinstance(list_item, dict):
                     substitute_pod_template_tokens(list_item, tokens)
-                elif not isinstance(pod_template[key], bool):
+                elif isinstance(list_item, str):
                     value[i] = replace_helper(value[i], tokens)
         else:
             if isinstance(pod_template[key], str):
