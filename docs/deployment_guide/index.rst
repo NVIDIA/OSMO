@@ -168,7 +168,7 @@ An OSMO deployment consists of two main components:
   Self-contained Deployment <appendix/deploy_self_contained>
   Single-plane Deployment <appendix/deploy_single_plane>
   appendix/workflow_execution
-  appendix/keycloak_setup
+  appendix/external_dex_setup
   appendix/authentication/index
 
 ..
