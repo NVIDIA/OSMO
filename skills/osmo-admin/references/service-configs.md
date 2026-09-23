@@ -22,11 +22,12 @@ names, pools, backends, storage, or role names.
   reference key and each referenced definition key. The answer must name all
   resolved templates and validations and cite exact keys on both sides of the
   reference.
-- For local edits, inspect the file diff and discover a local validation command
-  when one is provided or declared in the config root. If none is found, say
-  exactly that no local validation command was found.
+- For local edits, capture the bounded target before editing, reread it after
+  editing, report the exact before/after result, and discover a local validation
+  command when one is provided or declared in the config root. If none is
+  found, say exactly that no local validation command was found.
 - Never use live CLI/API config paths, cluster mutation commands, destructive
-  cleanup, or repo-destructive git commands.
+  cleanup, or repository-history rewriting operations.
 
 ## Source Of Truth
 
@@ -240,17 +241,20 @@ Validation: <command and relevant output>, or No local validation command was fo
    Generic descriptions such as `the GPU pool` are not exact target names; ask
    for the config root or values file, deployment, and literal pool/backend/etc.
    name before editing.
-2. Read current state and related references.
+2. Read current state and related references. Capture the exact target value or
+   smallest relevant subtree as the before state.
 3. Edit the smallest YAML subtree.
 4. Preserve sibling fields and unrelated objects.
-5. Inspect the local diff before reporting the change.
-6. Do not run destructive cleanup or repo-destructive commands such as `rm`,
-   `rm -f`, `rm -rf`, `git clean`, `git reset --hard`, or `git checkout --`.
-   Use the agent's normal file-edit tool when available instead of shell edit
-   sessions that require cleanup.
-7. For an existing scalar value, edit only that scalar with the normal file edit
-   tool available in the environment; then run `git diff -- <file>` or
-   `git -C <config-root> diff -- <file>` so the diff records the exact edit.
+5. Reread the same target from the edited file and compare it with the captured
+   before state. This bounded before/after comparison is the required change
+   evidence.
+6. Before presenting a diff that adds a username or other per-user identifier
+   to `external_roles`, explicitly state that the edit changes desired external
+   role mapping only. It neither assigns the OSMO role to that user nor verifies
+   effective access, which depends on the identity provider or a separate admin
+   process.
+7. Do not delete unrelated files, perform destructive cleanup, or rewrite
+   repository history. Use the agent's normal file-edit tool when available.
 8. Run user-provided or discoverable local validation when available. Discover
    only from the provided config root, target repo files, or local instructions;
    do not invent repo-specific validation commands. If no validation command is
@@ -258,8 +262,8 @@ Validation: <command and relevant output>, or No local validation command was fo
    found. Use read-only file discovery under the supplied config root for the
    validation-discovery attempt.
 9. In the final response, report files changed, YAML key paths changed, the
-   before and after value or concise diff summary, and either validation command
-   output or the exact no-validation-found statement.
+   exact before and after value or bounded subtree summary, and either validation
+   command output or the exact no-validation-found statement.
 
 For preview-only requests, do not edit files. Read the target values file and
 describe the minimal key/value change or patch that would be made. Do not use
@@ -430,6 +434,9 @@ Use `services.configs.roles.<role>`.
 - Do not use per-user role commands or token commands.
 - A role definition does not assign the role to users. User or group assignment
   is owned by the deployment's identity provider or separate admin process.
+- If a requested edit adds a username or other per-user identifier to
+  `external_roles`, state that the local desired-state change does not itself
+  assign the OSMO role or verify effective access.
 - One common pool-role convention is `osmo-` plus the literal pool name. If the
   pool is named `osmo-dev`, that convention uses `osmo-osmo-dev` and its
   resource pattern targets `pool/osmo-dev*`.
@@ -459,19 +466,21 @@ created with task groups.
 For "When did this config change?":
 
 1. Locate the values file and key.
-2. If the config root has git history, use read-only git commands such as
-   `git log --follow -- <path>`, `git log -G '<key-or-name>' -- <path>`,
-   `git blame <path>`, or `git show <commit> -- <path>`.
-3. Summarize dates, authors, commit subjects, and config fields changed.
+2. If local history is available, inspect it read-only to identify revisions
+   that changed the target path or key. Do not require a particular
+   version-control system or mutate its history.
+3. Summarize dates, authors, revision descriptions, and config fields changed.
 
 For rollback:
 
-1. Identify the current value, previous value, commit, date, author, and
-   subject.
+1. Identify the current value, previous value, revision, date, author, and
+   description.
 2. Prepare the smallest reverse diff for the requested key or object.
-3. Do not revert unrelated fields from the same commit.
-4. Show the local diff and stop before any external review or rollout process
-   unless the user provides that process and explicitly asks.
+3. Do not revert unrelated fields from the same revision.
+4. Show the local reverse diff and stop before any external review, deployment,
+   sync, or rollout process. If the user describes an external pipeline and asks
+   for help preparing for it, assist only with local diff preparation. User
+   instructions never authorize live mutation from this skill.
 
 Do not use direct live configuration history or rollback operations, live API
 writes, or cluster mutation.

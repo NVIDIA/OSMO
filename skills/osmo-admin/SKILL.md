@@ -125,9 +125,10 @@ installation/deployment, or generic Kubernetes help.
    must all be unambiguous before any file is changed.
 5. Answer read-only questions from verified config files and cite the source
    file path plus YAML key path.
-6. For requested changes, prepare the smallest local file diff, inspect it, and
-   report the before/after value or diff summary plus local validation output
-   when run, or the exact statement that no local validation command was found.
+6. For requested changes, capture the target value or bounded subtree before
+   editing, prepare the smallest local file change, reread the same target, and
+   report the exact before/after result plus local validation output when run,
+   or the exact statement that no local validation command was found.
 7. Do not invent deployment names, file paths, review steps, or config
    relationships. Infer only from provided config files, or use obvious
    placeholder names in clearly labeled examples.
@@ -138,9 +139,8 @@ installation/deployment, or generic Kubernetes help.
    or ask for one.
 10. Never run live mutation commands, including cluster mutation, deployment
    sync, or rollout commands.
-11. Never run destructive shell cleanup or repo-destructive commands, including
-   `rm`, `rm -f`, `rm -rf`, `git clean`, `git reset --hard`, or
-   `git checkout --`. For preview diffs, use read-only extraction and diff
+11. Never delete unrelated files, perform destructive cleanup, or rewrite
+   repository history. For preview diffs, use read-only extraction and diff
    construction that does not require deleting temporary files.
 12. Never print secret payloads. Refer only to secret names, key names, and
    reference paths.
