@@ -679,11 +679,11 @@ Before continuing, follow
 :doc:`../appendix/authentication/identity_provider_setup` to register the
 required confidential browser and public CLI clients and collect their IDs,
 endpoints, and claims. Then save the browser client secret and a random
-32-byte cookie secret as ``external-oidc-secret.yaml``:
+32-character cookie secret (16 random bytes) as ``external-oidc-secret.yaml``:
 
 .. code-block:: bash
 
-   $ openssl rand -base64 32
+   $ openssl rand -hex 16
 
 Use the command output as ``cookie_secret``:
 
@@ -697,7 +697,7 @@ Use the command output as ``cookie_secret``:
    type: Opaque
    stringData:
      client_secret: <oidc-browser-client-secret>
-     cookie_secret: <random-32-byte-cookie-secret>
+     cookie_secret: <32-character-cookie-secret>
 
 .. code-block:: bash
 

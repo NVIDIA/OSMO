@@ -27,8 +27,8 @@ uses volatile Dex storage and is intended only to speed up development and
 evaluation. For production, disable embedded Dex and configure an external
 **identity provider (IdP)** so users log in with your organization's credentials
 (for example, Microsoft Entra ID, Google Workspace, or AWS IAM Identity
-Center). OSMO connects directly to the IdP; there is no Keycloak or other
-broker in the middle.
+Center). OSMO connects directly to the IdP. For a separately deployed Dex
+broker, see :doc:`../external_dex_setup`.
 
 External OIDC configures two client IDs. ``browserClientId`` is used by both
 OAuth2 Proxy's confidential browser flow and the CLI's default authorization
@@ -62,11 +62,11 @@ redirect URI, register a fixed port and pass it to ``osmo login`` with
    name, and honor an explicit URI port. See
    :doc:`migrating_to_embedded_dex` for the complete migration contract.
 
-Generate a random 32-byte cookie secret:
+Generate a 32-character cookie secret (16 random bytes):
 
 .. code-block:: bash
 
-   $ openssl rand -base64 32
+   $ openssl rand -hex 16
 
 Save the browser client secret and command output as
 ``external-oidc-secret.yaml``. Restrict access to this file and do not commit
@@ -82,7 +82,7 @@ it to source control:
    type: Opaque
    stringData:
      client_secret: <oidc-browser-client-secret>
-     cookie_secret: <random-32-byte-cookie-secret>
+     cookie_secret: <32-character-cookie-secret>
 
 .. code-block:: bash
 
