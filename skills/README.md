@@ -28,7 +28,7 @@ Compatible with Claude Code, Cursor, Codex, GitHub Copilot, Gemini CLI, and [30+
 
 - `osmo-user`: the OSMO CLI must be installed and authenticated. See the [Getting Started](https://nvidia.github.io/OSMO/main/user_guide/getting_started/install/index.html) guide.
 - `osmo-deploy`: deployment tools such as `kubectl`, `helm`, and provider CLIs may be required depending on the target.
-- `osmo-admin`: work from a user-provided config root that stores OSMO service config values.
+- `osmo-admin`: work from a user-provided config folder or values file.
 
 ## Installation
 
@@ -75,8 +75,8 @@ skills/
 ```
 
 Use `osmo-user` for live workflow operations, `osmo-deploy` for standing up OSMO, and `osmo-admin` for config-file
-service administration in a user-provided config root. `osmo-admin` does not use direct live configuration APIs, mutate
-live Kubernetes resources, run deployment syncs, or print secret payloads.
+service administration from a user-provided config folder or values file. `osmo-admin` does not use direct live
+configuration APIs, mutate live Kubernetes resources, run deployment syncs, or print secret payloads.
 
 ## License
 
