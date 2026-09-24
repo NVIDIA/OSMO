@@ -30,8 +30,10 @@ services:
             results:
               path: /results
               writable: true
-      default_backend_image: ghcr.io/example/osmo/backend:6.3.0
-      max_workflow_runtime: 30d
+      backend_images:
+        init: ghcr.io/example/osmo/init:6.3.0
+        client: ghcr.io/example/osmo/client:6.3.0
+      max_exec_timeout: 30d
     backends:
       gpu-backend-a:
         scheduler_settings:

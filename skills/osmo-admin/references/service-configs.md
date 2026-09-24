@@ -3,17 +3,17 @@
 ## Scope
 
 This reference covers OSMO `services.configs` values under an explicit
-user-provided config root or values file. It is config-root agnostic: discover
+user-provided config folder or values file. It is config-path agnostic: discover
 source files from that provided location instead of assuming paths, environment
 names, pools, backends, storage, or role names.
 
 ## Critical Gates
 
-- If no config root or values file was provided for a file-specific question,
+- If no config folder or values file was provided for a file-specific question,
   stop and ask for it. Do not inspect the working directory to infer one.
-- Use the user-provided root string for source paths in answers. A tool may run
+- Use the user-provided config path string for source paths in answers. A tool may run
   from another working directory, but do not present that directory as the
-  user's config root.
+  user's config path.
 - Keep reads bounded: read the relevant section, source file, or YAML key path
   instead of dumping this whole reference or whole values files.
 - For scalar answers, report the source path, exact `services.configs...` key
@@ -24,7 +24,7 @@ names, pools, backends, storage, or role names.
   reference.
 - For local edits, capture the bounded target before editing, reread it after
   editing, report the exact before/after result, and discover a local validation
-  command when one is provided or declared in the config root. If none is
+  command when one is provided or declared in the config path. If none is
   found, say exactly that no local validation command was found.
 - Never use live CLI/API config paths, cluster mutation commands, destructive
   cleanup, or repository-history rewriting operations.
@@ -32,7 +32,7 @@ names, pools, backends, storage, or role names.
 ## Source Of Truth
 
 Use only the config files the user identifies or files reached from the provided
-config root. Some deployments render `services.configs` into service config
+config path. Some deployments render `services.configs` into service config
 data, but this public skill does not assume a deployment mechanism. Do not use
 direct live configuration API paths for this skill, including read-only query,
 history, or rollback operations.
@@ -43,42 +43,50 @@ Use the public OSMO docs as the canonical source for config shapes, especially
 Deployment Guide > References > Configuration API:
 
 - `pool`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/pool.html
+- `workflow`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/workflow.html
 - `pod_template`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/pod_template.html
 - `resource_validation`: https://nvidia.github.io/OSMO/main/deployment_guide/references/configs_definitions/resource_validation.html
 - Resource pools: https://nvidia.github.io/OSMO/main/deployment_guide/advanced_config/pool.html
 - Roles and policies: https://nvidia.github.io/OSMO/main/deployment_guide/appendix/authentication/roles_policies.html
 
-Use the user-provided config root or values file as the source for current
+Use the user-provided config folder or values file as the source for current
 deployment values. If public docs and local files conflict, cite the docs for
 schema expectations and the local file for the current value. Do not invent
 fields.
 
-Preserve the exact config root string the user provides. Build paths under that
-string and cite results with that root or paths relative to it. If local tooling
-maps the same root through another real filesystem path, use that mapped path
-only to read files; do not call it the config root or cite it as the source root
-unless the user supplied it. In reported output, preserve the
-user-root-relative path, such as `repo/...`. When a tool can read through the
-user-provided root string directly, prefer that form for discovery and read
+Preserve the exact config path string the user provides. Build paths under that
+string and cite results with that path or paths relative to it. If local tooling
+maps the same path through another real filesystem path, use that mapped path
+only to read files; do not cite it as the source unless the user supplied it.
+In reported output, preserve the user-provided path, such as `repo/...`. When a
+tool can read through the user-provided path string directly, prefer that form
+for discovery and read
 commands too. If a mapped filesystem path is required for the read, keep that
 mapping internal and translate reported source paths back to the user-provided
-root.
+config path.
 
 To find the source of truth:
 
-1. Start from the config root or values file supplied by the user. If neither
+1. Start from the config folder or values file supplied by the user. If neither
    is available, stop and ask for it before listing, searching, reading, editing,
    or making file-specific claims.
    Do not substitute the current working directory, an unrelated checkout, or a
-   sibling directory for the supplied root.
-2. Look for a manifest, Helmfile, Kustomize overlay, values index, application
-   file, or local docs that list the active values files.
-3. Read the active values files for the target deployment.
-4. Search for `services.configs` only as a discovery aid. `rg`, `grep`, `find`,
+   sibling directory for the supplied config path.
+2. When the user supplies a values file, use that file directly. Do not require
+   a manifest for a standalone values-file request.
+3. When the user supplies a config folder, look in that folder in the current
+   turn
+   for a manifest, Helmfile, Kustomize overlay, values index, application file,
+   or local docs that identify active values files. If one exists, use it to
+   resolve the target deployment's active files; do not reuse a path remembered
+   from an earlier turn. If no index exists and discovery leaves multiple
+   plausible deployments or values files, ask one targeted question.
+4. Read the active values files for the resolved target deployment.
+5. Search for `services.configs` only as a discovery aid. `rg`, `grep`, `find`,
    `ls`, and file listings may locate candidate files or lines, but they are
    never evidence for an answer. Verify by reading the exact value subtree from
    the active values file before answering.
-5. If the requested deployment has no available `services.configs` block, say so
+6. If the requested deployment has no available `services.configs` block, say so
    and do not silently answer from another deployment.
 
 Useful generic evidence includes:
@@ -118,26 +126,31 @@ and live availability are live output. Do not add them to service values.
 
 ## Read Procedure
 
-1. Identify the config root or target values file from the user's explicit
+1. Identify the config folder or target values file from the user's explicit
    request. If it is missing, ask for it and do not inspect the working
    directory to infer a default.
-2. Read the smallest relevant YAML file, then expand to sibling files only when
-   needed to resolve references.
-3. Use the `services.configs.<section>` key path.
-4. When answering from a YAML entry, collect compact exact evidence: source
+2. For every file-specific answer, resolve the active values files in the
+   current turn by following Source Of Truth, even if the same deployment was
+   queried earlier in the conversation. A prior turn's path or value is not
+   evidence for the current answer.
+3. Read the smallest relevant active YAML file, then expand to sibling files
+   only when needed to resolve references.
+4. Use the `services.configs.<section>` key path.
+5. When answering from a YAML entry, collect fresh compact exact evidence for
+   every value or subtree asserted in the response: source
    file, key path, and the relevant value or small subtree.
    Use direct file reads with bounded YAML extraction when possible. Prefer
    focused extraction over full-file dumps; do not rely on truncated output,
    broad `rg` or `grep` matches, `find` or `ls` output, or isolated line
    snippets for claims.
-   Keep discovery scoped to the supplied config root. Do not search unrelated
+   Keep discovery scoped to the supplied config path. Do not search unrelated
    directories, hidden repository metadata, or sibling copies unless the user
-   explicitly identifies one of those as the config root.
+   explicitly identifies one of those as the config path.
    For any scalar value, including pool `backend` or `enable_maintenance`, first
    print the source path, exact full key path, and value from a bounded direct
    read or YAML extraction. If output truncates or shows only a matching source
    line, retry with a smaller extraction before answering.
-5. Resolve relationships when answering derived questions:
+6. Resolve relationships when answering derived questions:
    - pools reference templates through `common_pod_template` and platform
      `override_pod_template`
    - pools reference validations through `common_resource_validations` and
@@ -146,7 +159,7 @@ and live availability are live output. Do not add them to service values.
      question asks for group templates or all pool references
    - backends reference tests through `tests`
    - roles reference pools/backends through policy `resources`
-6. For derived pool/template/validation questions, first read and record only
+7. For derived pool/template/validation questions, first read and record only
    the exact pool key paths needed for the answer from the values file
    containing that pool. For template and validation questions, those usually
    include `services.configs.pools.<pool>.common_pod_template`,
@@ -158,7 +171,7 @@ and live availability are live output. Do not add them to service values.
    answer needs group templates.
    Do not dump large files, entire pools, or whole values files when exact keys
    are enough.
-7. Read and record compact definition evidence for each referenced
+8. Read and record compact definition evidence for each referenced
    `services.configs.podTemplates.<template>`,
    `services.configs.resourceValidations.<validation>`, and, when relevant,
    `services.configs.groupTemplates.<template>` entry from the values files that
@@ -176,17 +189,17 @@ and live availability are live output. Do not add them to service values.
    `pool-configs.yaml` and template or validation definitions in
    `template-configs.yaml`, read the definition file by exact key path before
    citing the definition.
-8. Before answering derived pool/template/validation questions, verify that
+9. Before answering derived pool/template/validation questions, verify that
    the collected evidence includes each exact pool reference key and every
    referenced podTemplate and resourceValidation entry used in the answer.
    Include groupTemplate evidence only when group templates are part of the
    question or answer.
-9. Verify the response includes every resolved pod template and resource
+10. Verify the response includes every resolved pod template and resource
    validation name, its common or platform-specific origin, and file/key-path
    citations for both the pool reference and the referenced definition.
-10. For inventory or reverse lookup, inspect the complete relevant mapping rather
+11. For inventory or reverse lookup, inspect the complete relevant mapping rather
    than relying on partial terminal output.
-11. Cite file path and YAML key path in the answer.
+12. Cite file path and YAML key path in the answer.
 
 Focused evidence pattern, replacing names and paths with the target entries.
 Use a YAML-aware parser or a short bounded read to fill in the values; the point
@@ -237,10 +250,10 @@ Validation: <command and relevant output>, or No local validation command was fo
 
 ## Local Edit Procedure
 
-1. Confirm the config root, target values file, and exact config key.
+1. Confirm the config folder or target values file and exact config key.
    Generic descriptions such as `the GPU pool` are not exact target names; ask
-   for the config root or values file, deployment, and literal pool/backend/etc.
-   name before editing.
+   for the config folder or values file, deployment, and literal
+   pool/backend/etc. name before editing.
 2. Read current state and related references. Capture the exact target value or
    smallest relevant subtree as the before state.
 3. Edit the smallest YAML subtree.
@@ -256,10 +269,10 @@ Validation: <command and relevant output>, or No local validation command was fo
 7. Do not delete unrelated files, perform destructive cleanup, or rewrite
    repository history. Use the agent's normal file-edit tool when available.
 8. Run user-provided or discoverable local validation when available. Discover
-   only from the provided config root, target repo files, or local instructions;
+   only from the provided config path, target repo files, or local instructions;
    do not invent repo-specific validation commands. If no validation command is
    provided or discoverable, report exactly that no local validation command was
-   found. Use read-only file discovery under the supplied config root for the
+   found. Use read-only file discovery under the supplied config path for the
    validation-discovery attempt.
 9. In the final response, report files changed, YAML key paths changed, the
    exact before and after value or bounded subtree summary, and either validation
@@ -271,7 +284,7 @@ temporary-file cleanup commands to build the preview.
 
 ## Generic Examples
 
-For generic example requests, no config root is required. Label the answer as an
+For generic example requests, no config path is required. Label the answer as an
 illustrative `services.configs` structure, use placeholder names, and state that
 real backend names, node labels, identity-provider mappings, config paths, and
 validation commands come from the admin's environment.
