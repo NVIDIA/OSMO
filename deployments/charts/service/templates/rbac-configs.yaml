@@ -33,10 +33,12 @@ rules:
 # configmap` filters associated events by involvedObject.uid, so without
 # this the events wouldn't appear in that view (though they'd still be
 # visible in `kubectl get events --field-selector` and the ArgoCD UI).
+# Patch this ConfigMap's annotations to persist the API's backend
+# reconciliation checkpoint before accepting its startup snapshot.
 - apiGroups: [""]
   resources: ["configmaps"]
   resourceNames: ["{{ .Values.services.service.serviceName }}-configs"]
-  verbs: ["get"]
+  verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
