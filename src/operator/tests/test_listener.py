@@ -15,12 +15,15 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import copy
 import unittest
+from unittest import mock
 
 from kubernetes.client import (
     V1Pod, V1ObjectMeta, V1PodSpec, V1Container, V1PodStatus, V1ContainerStatus,
     V1ContainerState, V1ContainerStateRunning, V1ContainerStateTerminated,
-    V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec)  # type: ignore
+    V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec,
+    V1ListMeta, V1PodList, V1ResourceRequirements)  # type: ignore
 from src.operator import backend_listener
 from src.utils.job import task
 
@@ -187,6 +190,182 @@ class TestBackendListener(unittest.TestCase):
         pod_event = self.create_good_ctrl_error_user_pod()
         status, _, _ = backend_listener.calculate_pod_status(pod_event)
         self.assertEqual(status, task.TaskGroupStatus.RUNNING)
+
+
+class StopPodWatch(BaseException):
+    """End a finite test stream without entering the listener's error/retry handlers."""
+
+
+class TestPodWatchResourceUsage(unittest.TestCase):
+    """Exercise namespace routing with the real Pod cache and resource calculator."""
+
+    def setUp(self):
+        self.config = backend_listener.objects.BackendListenerConfig(
+            backend='own-backend', namespace='own', include_namespace_usage=['included'])
+        self.node_send_queue = mock.Mock()
+        self.pod_send_queue = mock.Mock()
+        self.event_send_queue = mock.Mock()
+        self.watcher = mock.Mock()
+        self.patch(backend_listener.objects.BackendListenerConfig, 'load',
+                   return_value=self.config)
+        self.patch(backend_listener, 'get_thread_local_api', return_value=mock.Mock())
+        self.patch(backend_listener.kubernetes.watch, 'Watch', return_value=self.watcher)
+        self.patch(backend_listener.helpers, 'send_log_through_queue')
+        for name in ('send_backend_message_count', 'send_histogram_for_processing_times',
+                     'send_stream_event_count'):
+            self.patch(backend_listener, name)
+        self.calculate_status = self.patch(
+            backend_listener, 'calculate_pod_status',
+            return_value=(task.TaskGroupStatus.RUNNING, '', None))
+        self.send_status = self.patch(backend_listener, 'send_pod_status')
+        self.send_monitor = self.patch(backend_listener, 'send_pod_monitor')
+        # An unexpected exception should fail this test, not signal the entire test runner.
+        self.patch(backend_listener.os, 'kill',
+                   side_effect=AssertionError('Unexpected exception in pod watch'))
+
+    def patch(self, target, name, **kwargs):
+        patcher = mock.patch.object(target, name, **kwargs)
+        patched = patcher.start()
+        self.addCleanup(patcher.stop)
+        return patched
+
+    @staticmethod
+    def create_pod(namespace, *, phase='Running', labelled=False, node_name='worker-1'):
+        labels = {'osmo.workflow_uuid': f'{namespace}-workflow',
+                  'osmo.task_uuid': f'{namespace}-task'} if labelled else None
+        return V1Pod(
+            metadata=V1ObjectMeta(name=f'{namespace}-pod', namespace=namespace,
+                                  resource_version='2', labels=labels),
+            spec=V1PodSpec(
+                node_name=node_name,
+                containers=[V1Container(name='user', resources=V1ResourceRequirements(
+                    requests={'cpu': '1', 'memory': '1Gi', 'ephemeral-storage': '1Gi',
+                              'nvidia.com/gpu': '1'}))]),
+            status=V1PodStatus(phase=phase))
+
+    def run_watch(self, events, initial_pods=None):
+        for callback in (self.node_send_queue, self.pod_send_queue, self.calculate_status,
+                         self.send_status, self.send_monitor):
+            callback.reset_mock()
+        self.all_pods = backend_listener.PodList()
+        for pod in initial_pods or []:
+            self.all_pods.update_pod(pod)
+
+        def stream(*_args, **_kwargs):
+            for event_type, pod in events:
+                yield {'type': event_type, 'object': pod}
+            raise StopPodWatch()
+
+        self.watcher.stream.side_effect = stream
+        listing = V1PodList(metadata=V1ListMeta(resource_version='1'),
+                            items=initial_pods or [])
+        with self.assertRaises(StopPodWatch):
+            backend_listener.watch_pod_events(
+                mock.Mock(), self.pod_send_queue, self.node_send_queue, self.event_send_queue,
+                self.config, listing, mock.Mock(), self.all_pods, mock.Mock())
+
+        messages = [call.args[0] for call in self.node_send_queue.call_args_list]
+        for message in messages:
+            self.assertEqual(message.type,
+                             backend_listener.backend_messages.MessageType.RESOURCE_USAGE)
+            self.assertIsInstance(message.body, dict)
+            self.assertEqual(message.body['hostname'], 'worker-1')
+        return [message.body for message in messages]
+
+    def assert_usage(self, messages, total_gpu, non_workflow_gpu):
+        self.assertEqual([message['usage_fields']['nvidia.com/gpu'] for message in messages],
+                         [str(value) for value in total_gpu])
+        self.assertEqual(
+            [message['non_workflow_usage_fields']['nvidia.com/gpu'] for message in messages],
+            [str(value) for value in non_workflow_gpu])
+
+    def assert_no_task_handling(self):
+        self.calculate_status.assert_not_called()
+        self.send_status.assert_not_called()
+        self.send_monitor.assert_not_called()
+        self.pod_send_queue.assert_not_called()
+
+    def test_included_namespace_add_and_delete_publish_usage_only(self):
+        for labelled in (False, True):
+            for phase in ('Running', 'Pending'):
+                with self.subTest(labelled=labelled, phase=phase):
+                    pod = self.create_pod('included', phase=phase, labelled=labelled)
+                    messages = self.run_watch([('ADDED', pod), ('DELETED', pod)])
+                    self.assert_usage(messages, [1, 0], [0, 0])
+                    self.assertEqual(list(self.all_pods.get_pods_by_node('worker-1')), [])
+                    self.assert_no_task_handling()
+
+    def test_included_terminal_pod_releases_usage(self):
+        for phase in ('Succeeded', 'Failed'):
+            with self.subTest(phase=phase):
+                running = self.create_pod('included', labelled=True)
+                terminal = copy.deepcopy(running)
+                terminal.status.phase = phase
+                terminal.metadata.resource_version = '3'
+                messages = self.run_watch([('ADDED', running), ('MODIFIED', terminal)])
+                self.assert_usage(messages, [1, 0], [0, 0])
+                self.assert_no_task_handling()
+
+    def test_own_workflow_retains_status_and_monitor_handling(self):
+        for phase in ('Running', 'Pending'):
+            with self.subTest(phase=phase):
+                pod = self.create_pod('own', phase=phase, labelled=True)
+                messages = self.run_watch([('ADDED', pod)])
+                self.assert_usage(messages, [1], [0])
+                self.calculate_status.assert_called_once_with(pod)
+                self.send_status.assert_called_once()
+                self.assertIs(self.send_status.call_args.args[2], pod)
+                self.assertEqual(self.send_status.call_args.args[-1], 'own-backend')
+                if phase == 'Pending':
+                    self.send_monitor.assert_called_once_with(
+                        self.pod_send_queue, self.event_send_queue, pod, '')
+                else:
+                    self.send_monitor.assert_not_called()
+
+    def test_own_pod_without_workflow_labels_still_publishes_usage(self):
+        for labels in (None, {}, {'osmo.workflow_uuid': 'workflow'},
+                       {'osmo.task_uuid': 'task'}):
+            with self.subTest(labels=labels):
+                pod = self.create_pod('own')
+                pod.metadata.labels = labels
+                messages = self.run_watch([('ADDED', pod)])
+                self.assert_usage(messages, [1], [0])
+                self.assert_no_task_handling()
+
+    def test_excluded_events_update_cache_and_remain_non_workflow_usage(self):
+        excluded = self.create_pod('excluded', labelled=True)
+        included = self.create_pod('included')
+        messages = self.run_watch([
+            ('ADDED', excluded), ('ADDED', included),
+            ('DELETED', excluded), ('MODIFIED', included)])
+        self.assert_usage(messages, [2, 1], [1, 0])
+        self.assertEqual(list(self.all_pods.get_pods_by_node('worker-1')), [included])
+        self.assert_no_task_handling()
+
+    def test_unassigned_included_pod_does_not_publish_node_usage(self):
+        pod = self.create_pod('included', phase='Pending', labelled=True, node_name=None)
+        messages = self.run_watch([('ADDED', pod), ('DELETED', pod)])
+        self.assertEqual(messages, [])
+        self.assertEqual(list(self.all_pods.get_pods_by_node('worker-1')), [])
+        self.assert_no_task_handling()
+
+    def test_initial_replay_includes_configured_namespace_without_task_handling(self):
+        for labelled in (False, True):
+            with self.subTest(labelled=labelled):
+                included = self.create_pod('included', labelled=labelled)
+                excluded = self.create_pod('excluded')
+                messages = self.run_watch([], initial_pods=[included, excluded])
+                self.assert_usage(messages, [2], [1])
+                self.assert_no_task_handling()
+
+    def test_included_pod_without_resource_requests_publishes_zero_usage(self):
+        for resources in (None, V1ResourceRequirements()):
+            with self.subTest(resources=resources):
+                pod = self.create_pod('included')
+                pod.spec.containers[0].resources = resources
+                messages = self.run_watch([('ADDED', pod), ('DELETED', pod)])
+                self.assert_usage(messages, [0, 0], [0, 0])
+                self.assert_no_task_handling()
 
 
 class TestNodeAvailability(unittest.TestCase):
