@@ -3,7 +3,7 @@
 
 """Execute rendered provenance filters with Helm, PyYAML and Lua/LuaJIT.
 
-Run: python3 deployments/charts/tests/test_token_source.py
+Run: python3 deployments/charts/osmo/tests/test_token_source.py
 """
 
 import os
@@ -16,7 +16,7 @@ import unittest
 import yaml
 
 
-CHARTS = Path(__file__).resolve().parents[1]
+CHARTS = Path(__file__).resolve().parents[2]
 
 
 class TokenSourceTest(unittest.TestCase):
