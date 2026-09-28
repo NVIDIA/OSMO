@@ -743,6 +743,17 @@ data:
                       if (meta == nil) then
                         return
                       end
+                      -- Never combine identity headers from different verified providers.
+                      local verified_providers = 0
+                      {{- range $i, $provider := $envoy.jwt.providers }}
+                      if (meta.verified_jwt_{{$i}} ~= nil) then
+                        verified_providers = verified_providers + 1
+                      end
+                      {{- end }}
+                      if (verified_providers > 1) then
+                        request_handle:respond({[":status"] = "401"}, "Ambiguous authentication credentials")
+                        return
+                      end
                       {{- range $i, $provider := $envoy.jwt.providers }}
                       local jwt = meta.verified_jwt_{{$i}}
                       if (jwt ~= nil) then
