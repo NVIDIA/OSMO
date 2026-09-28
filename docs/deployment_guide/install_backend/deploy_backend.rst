@@ -29,7 +29,7 @@ databases.
 Deployment Diagram
 ==================
 
-.. image:: deployment_compute.drawio.svg
+.. image:: deployment_compute.svg
    :align: center
    :width: 80%
 

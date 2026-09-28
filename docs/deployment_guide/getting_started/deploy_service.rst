@@ -29,7 +29,7 @@ storage.
 Deployment Diagram
 ==================
 
-.. image:: deployment_control.drawio.svg
+.. image:: deployment_control.svg
    :align: center
    :width: 80%
 

@@ -40,7 +40,7 @@ isolation.
 Deployment Diagram
 ==================
 
-.. image:: deployment_minimal.drawio.svg
+.. image:: deployment_minimal.svg
    :align: center
    :width: 80%
 

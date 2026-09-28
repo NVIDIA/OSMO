@@ -31,7 +31,7 @@ and deploys the unified ``osmo`` Helm chart.
 Deployment Diagram
 ==================
 
-.. image:: deployment_quickstart.drawio.svg
+.. image:: deployment_quickstart.svg
    :align: center
    :width: 80%
 

@@ -32,7 +32,7 @@ The unified ``osmo`` chart installs both planes in one Helm release.
 Deployment Diagram
 ==================
 
-.. image:: deployment_single_plane.drawio.svg
+.. image:: deployment_single_plane.svg
    :align: center
    :width: 80%
 
