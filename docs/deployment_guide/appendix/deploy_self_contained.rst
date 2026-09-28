@@ -37,6 +37,13 @@ replicas, distributed RustFS with erasure coding, PodDisruptionBudgets,
 topology rules, OIDC authentication, authorization, internal TLS, and network
 isolation.
 
+Deployment Architecture
+=======================
+
+.. image:: deployment_self_contained.svg
+   :align: center
+   :width: 80%
+
 .. important::
 
    A highly available deployment still requires highly available nodes,
