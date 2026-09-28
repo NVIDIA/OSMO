@@ -34,6 +34,9 @@ from src.utils import auth
 class TestProfileService(unittest.TestCase):
     """Exercise token provenance and backwards-compatible HTTP responses."""
 
+    service_auth: auth.AuthenticationConfig
+    other_auth: auth.AuthenticationConfig
+
     @classmethod
     def setUpClass(cls):
         cls.service_auth = auth.AuthenticationConfig.generate_default()
@@ -140,7 +143,7 @@ class TestProfileService(unittest.TestCase):
     def test_invalid_provenance_cannot_claim_non_expiring(self):
         self.fetch_token.side_effect = osmo_errors.OSMOUserError('Token not found')
         now = int(time.time())
-        cases = [
+        cases: list[dict[str, object]] = [
             {'iss': 'external'}, {'aud': 'external'},
             {'exp': now - 1}, {'iat': now + 300}, {'nbf': now + 300},
             {'unique_name': 'another-user'}, {'osmo_token_name': 'another-token'},
