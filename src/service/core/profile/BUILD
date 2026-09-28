@@ -24,6 +24,8 @@ osmo_py_library(
     srcs = ["profile_service.py"],
     deps = [
         requirement("fastapi"),
+        requirement("pyjwt"),
+        "//src/utils:auth",
         "//src/lib/api:profile",
         "//src/utils/connectors",
         "//src/service/core/auth",

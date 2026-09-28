@@ -38,7 +38,6 @@ OSMO_AUTH_HEADER = 'Authorization'
 OSMO_USER_HEADER = 'x-osmo-user'
 OSMO_USER_ROLES = 'x-osmo-roles'
 OSMO_TOKEN_NAME_HEADER = 'x-osmo-token-name'
-OSMO_TOKEN_SOURCE_HEADER = 'x-osmo-token-source'
 OSMO_ALLOWED_POOLS = 'x-osmo-allowed-pools'
 # Don't use a token that will expire within the next N seconds
 EXPIRE_WINDOW = 3

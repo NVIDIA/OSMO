@@ -28,6 +28,8 @@ osmo_py_test(
         "//src/lib/utils:osmo_errors",
         "//src/service/core/profile",
         requirement("fastapi"),
+        requirement("pyjwt"),
+        "//src/utils:auth",
         tests_requirement("httpx"),
     ],
 )
