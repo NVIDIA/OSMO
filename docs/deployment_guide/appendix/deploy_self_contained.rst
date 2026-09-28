@@ -37,8 +37,8 @@ replicas, distributed RustFS with erasure coding, PodDisruptionBudgets,
 topology rules, OIDC authentication, authorization, internal TLS, and network
 isolation.
 
-Deployment Diagram
-==================
+Deployment Architecture
+=======================
 
 .. image:: deployment_minimal.svg
    :align: center

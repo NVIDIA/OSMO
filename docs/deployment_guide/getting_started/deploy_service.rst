@@ -26,15 +26,12 @@ components on a Kubernetes cluster. It uses the unified ``osmo`` Helm chart in
 control-plane-only mode and externally managed PostgreSQL, Valkey, and object
 storage.
 
-Deployment Diagram
-==================
+Deployment Architecture
+=======================
 
 .. image:: deployment_control.svg
    :align: center
    :width: 80%
-
-Components Overview
-===================
 
 OSMO deployment consists of several main components:
 
@@ -60,10 +57,6 @@ OSMO deployment consists of several main components:
      - Monitoring and managing delayed background jobs
    * - Gateway
      - Authentication, authorization, and routing into the control plane
-
-.. image:: service_components.svg
-   :width: 80%
-   :align: center
 
 Prerequisites
 =============

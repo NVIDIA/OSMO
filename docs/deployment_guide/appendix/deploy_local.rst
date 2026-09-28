@@ -28,8 +28,8 @@ This Quickstart is the fastest way to try the complete OSMO platform locally.
 It creates a multi-node Kubernetes-in-Docker cluster with KIND or ``nvkind``
 and deploys the unified ``osmo`` Helm chart.
 
-Deployment Diagram
-==================
+Deployment Architecture
+=======================
 
 .. image:: deployment_quickstart.svg
    :align: center

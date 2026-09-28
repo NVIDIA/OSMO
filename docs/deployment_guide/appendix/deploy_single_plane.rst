@@ -29,8 +29,8 @@ compute clusters.
 
 The unified ``osmo`` chart installs both planes in one Helm release.
 
-Deployment Diagram
-==================
+Deployment Architecture
+=======================
 
 .. image:: deployment_single_plane.svg
    :align: center
