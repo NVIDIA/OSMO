@@ -157,7 +157,7 @@ Exploring Different SDG Workflows
 Isaac Sim offers many standalone examples that you can use to generate different types of synthetic data.
 You can browse through all the available examples in the Isaac Sim `documentation <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/replicator_tutorials/tutorial_replicator_overview.html>`_.
 
-For example, instead of using the scene-based SDG workflow, you can use the `object-based SDG workflow <https://docs.isaacsim.omniverse.nvidia.com/5.0.0/replicator_tutorials/tutorial_replicator_object_based_sdg.html>`_.
+For example, instead of using the scene-based SDG workflow, you can use the `object-based SDG workflow <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/replicator_tutorials/tutorial_replicator_object_based_sdg.html>`_.
 
 Modify the Isaac Sim command of the entrypoint script:
 
