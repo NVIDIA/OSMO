@@ -202,6 +202,7 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
+              - x-osmo-token-source
               {{- if or $gw.authz.enabled $gw.oauth2Proxy.enabled $envoy.jwt.providers }}
               - x-osmo-user
               - x-osmo-roles
@@ -677,7 +678,7 @@ data:
                     - {{ $mcpResourceUrl }}
                     {{- end }}
                     forward: true
-                    payload_in_metadata: verified_jwt
+                    payload_in_metadata: verified_jwt_{{$i}}
                     from_headers:
                     - name: authorization
                       value_prefix: "Bearer "
@@ -737,26 +738,39 @@ data:
                 default_source_code:
                   inline_string: |
                     function envoy_on_request(request_handle)
+                      request_handle:headers():remove('x-osmo-token-source')
                       local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
-                      if (meta == nil or meta.verified_jwt == nil) then
+                      if (meta == nil) then
                         return
                       end
-                      local roles = meta.verified_jwt.roles
-                      if (roles ~= nil and type(roles) == 'table') then
-                        local safe_roles = {}
-                        for _, role in ipairs(roles) do
-                          if (type(role) == 'string' and #role <= 256 and not string.find(role, '[,%c]')) then
-                            table.insert(safe_roles, role)
+                      {{- range $i, $provider := $envoy.jwt.providers }}
+                      local jwt = meta.verified_jwt_{{$i}}
+                      if (jwt ~= nil) then
+                        local roles = jwt.roles
+                        if (roles ~= nil and type(roles) == 'table') then
+                          local safe_roles = {}
+                          for _, role in ipairs(roles) do
+                            if (type(role) == 'string' and #role <= 256 and not string.find(role, '[,%c]')) then
+                              table.insert(safe_roles, role)
+                            end
                           end
+                          request_handle:headers():replace('x-osmo-roles', table.concat(safe_roles, ','))
                         end
-                        request_handle:headers():replace('x-osmo-roles', table.concat(safe_roles, ','))
+                        {{- if and $envoy.internalJwks.enabled (eq $provider.cluster $envoy.internalJwks.cluster) }}
+                        local source = jwt.osmo_token_source
+                        if (source == 'bootstrap' or source == 'database') then
+                          request_handle:headers():replace('x-osmo-token-source', source)
+                        end
+                        {{- end }}
+                        if (jwt.osmo_token_name ~= nil) then
+                          request_handle:headers():replace('x-osmo-token-name', tostring(jwt.osmo_token_name))
+                        end
+                        if (jwt.osmo_workflow_id ~= nil) then
+                          request_handle:headers():replace('x-osmo-workflow-id', tostring(jwt.osmo_workflow_id))
+                        end
+                        return
                       end
-                      if (meta.verified_jwt.osmo_token_name ~= nil) then
-                        request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
-                      end
-                      if (meta.verified_jwt.osmo_workflow_id ~= nil) then
-                        request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
-                      end
+                      {{- end }}
                     end
 
             {{- if $gw.authz.enabled }}

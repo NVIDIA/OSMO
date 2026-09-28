@@ -57,7 +57,8 @@ class TestProfileList(unittest.TestCase):
                 contextlib.redirect_stdout(output):
             args.func(self.service_client, args)
         self.service_client.request.assert_called_once_with(
-            client.RequestMethod.GET, 'api/profile/settings')
+            client.RequestMethod.GET, 'api/profile/settings',
+            params={'include_token_expiration': 'true'})
         return output.getvalue()
 
     def test_null_expiry_prints_unknown_and_continues_to_roles(self):
@@ -78,6 +79,22 @@ class TestProfileList(unittest.TestCase):
         output = self.run_list('--format-type', 'text')
         self.assertIn('token: dated-token\n  expires_at: 2026-10-15\n', output)
         self.assertIn('roles:\n  - osmo-admin\n', output)
+
+    def test_explicit_non_expiring_token_prints_never(self):
+        self.response['token']['expiration_status'] = 'never'
+        self.assertIn('expires_at: never\n', self.run_list())
+        self.assertEqual(json.loads(self.run_list('--format-type', 'json')), self.response)
+
+    def test_timestamp_takes_precedence_over_status(self):
+        self.response['token'].update(
+            expires_at='2026-10-15T23:45:00Z', expiration_status='never')
+        self.assertIn('expires_at: 2026-10-15\n', self.run_list())
+
+    def test_only_explicit_never_status_implies_non_expiring(self):
+        for status in ('unknown', 'scheduled', 'future-status', None):
+            with self.subTest(status=status):
+                self.response['token']['expiration_status'] = status
+                self.assertIn('expires_at: unknown\n', self.run_list())
 
     def test_absent_or_null_token_omits_token_block(self):
         for present in (True, False):

@@ -242,6 +242,7 @@ data:
               # identity/context headers. Minimal/demo deployments with no
               # auth source keep their legacy client-header behavior.
               internal_only_headers:
+              - x-osmo-token-source
               - x-osmo-user
               - x-osmo-roles
               - x-osmo-token-name
@@ -766,6 +767,7 @@ data:
                 default_source_code:
                   inline_string: |
                     function envoy_on_request(request_handle)
+                      request_handle:headers():remove('x-osmo-token-source')
                       local meta = request_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
                       if (meta == nil) then
                         return
@@ -794,6 +796,12 @@ data:
                         if (roles ~= nil and type(roles) == 'table') then
                           request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
                         end
+                        {{- if and $envoy.internalJwks.enabled (eq $provider.cluster $envoy.internalJwks.cluster) }}
+                        local source = jwt.osmo_token_source
+                        if (source == 'bootstrap' or source == 'database') then
+                          request_handle:headers():replace('x-osmo-token-source', source)
+                        end
+                        {{- end }}
                         if (jwt.osmo_token_name ~= nil) then
                           request_handle:headers():replace('x-osmo-token-name', tostring(jwt.osmo_token_name))
                         end

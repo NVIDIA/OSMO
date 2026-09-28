@@ -15,7 +15,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-from typing import Optional
+from typing import Literal, Optional
 
 import fastapi
 
@@ -30,14 +30,18 @@ router = fastapi.APIRouter(
 )
 
 
-@router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse)
+@router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse,
+            response_model_exclude_unset=True)
 def get_notification_settings(
+    include_token_expiration: bool = False,
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
     roles_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_ROLES, default=None),
     token_name_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_TOKEN_NAME_HEADER, default=None),
+    token_source_header: Optional[str] =
+        fastapi.Header(alias=login.OSMO_TOKEN_SOURCE_HEADER, default=None),
     allowed_pools_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_ALLOWED_POOLS, default=None),
 ) -> profile_contract.ProfileResponse:
@@ -48,13 +52,21 @@ def get_notification_settings(
     token_identity = None
     if token_name_header:
         expires_at = None
-        try:
-            expires_at = auth_objects.AccessToken.fetch_from_db(
-                postgres, token_name_header, user_name).expires_at
-        except osmo_errors.OSMOUserError:
-            pass
+        expiration_status: Literal['scheduled', 'never', 'unknown'] = 'unknown'
+        if token_source_header == 'bootstrap':
+            expiration_status = 'never'
+        else:
+            try:
+                expires_at = auth_objects.AccessToken.fetch_from_db(
+                    postgres, token_name_header, user_name).expires_at
+                expiration_status = 'scheduled'
+            except osmo_errors.OSMOUserError:
+                pass
         token_identity = profile_contract.TokenIdentity(
             name=token_name_header, expires_at=expires_at)
+        # Older MCP clients reject extra fields, so expose metadata only on request.
+        if include_token_expiration:
+            token_identity.expiration_status = expiration_status
     return profile_contract.ProfileResponse(
         profile=profile_contract.UserProfile.model_validate(
             connectors.UserProfile.fetch_from_db(postgres, user_name).model_dump()

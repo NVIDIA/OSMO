@@ -61,6 +61,10 @@ class TokenIdentity(pydantic.BaseModel):
 
     name: str
     expires_at: datetime.datetime | None = None
+    expiration_status: Literal['scheduled', 'never', 'unknown'] = pydantic.Field(
+        default='unknown',
+        description='Expiration of the underlying credential, independent of JWT session expiry.',
+    )
 
 
 class ProfileResult(pydantic.BaseModel):

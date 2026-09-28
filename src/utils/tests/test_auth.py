@@ -93,6 +93,27 @@ class TestAuth(unittest.TestCase):
         parsed_token = jwt.JWT.from_jose_token(token)
         parsed_token.validate(jwk.JWK.from_json(loaded.get_current_key().public_key))
 
+    def test_token_source_is_signed_without_changing_session_expiry(self):
+        service_auth = auth.AuthenticationConfig.generate_default()
+        for source in ('bootstrap', 'database', None):
+            with self.subTest(source=source):
+                token = service_auth.create_idtoken_jwt(
+                    2**31, 'admin', ['osmo-admin'], token_name='same-name',
+                    token_source=source)
+                parsed = jwt.JWT.from_jose_token(token)
+                parsed.validate(jwk.JWK.from_json(service_auth.get_current_key().public_key))
+                claims = json.loads(parsed.claims)
+                self.assertEqual(claims['exp'], 2**31)
+                self.assertEqual(claims['osmo_token_name'], 'same-name')
+                self.assertEqual(claims.get('osmo_token_source'), source)
+                if source is None:
+                    self.assertNotIn('osmo_token_source', claims)
+        workflow_token = service_auth.create_idtoken_jwt(
+            2**31, 'admin', ['osmo-user'], workflow_id='workflow')
+        parsed = jwt.JWT.from_jose_token(workflow_token)
+        parsed.validate(jwk.JWK.from_json(service_auth.get_current_key().public_key))
+        self.assertNotIn('osmo_token_source', json.loads(parsed.claims))
+
     def test_invalid_secret_file_error_is_sanitized(self):
         sentinel = 'private-key-sentinel'
         with tempfile.TemporaryDirectory() as temporary_directory:

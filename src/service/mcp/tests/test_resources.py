@@ -274,6 +274,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request_json.await_args_list, [
             mock.call(
                 path='/api/profile/settings',
+                query={'include_token_expiration': 'true'},
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
@@ -366,6 +367,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request_json.await_args_list, [
             mock.call(
                 path='/api/profile/settings',
+                query={'include_token_expiration': 'true'},
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
@@ -402,6 +404,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
 
         request_json.assert_awaited_once_with(
             path='/api/profile/settings',
+            query={'include_token_expiration': 'true'},
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
@@ -584,6 +587,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request_json.await_args_list, [
             mock.call(
                 path='/api/profile/settings',
+                query={'include_token_expiration': 'true'},
                 operation='read the active user profile',
                 max_response_bytes=64 * 1024,
             ),
@@ -724,6 +728,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
 
         request_json.assert_awaited_once_with(
             path='/api/profile/settings',
+            query={'include_token_expiration': 'true'},
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
@@ -753,6 +758,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
         )
         request_json.assert_awaited_once_with(
             path='/api/profile/settings',
+            query={'include_token_expiration': 'true'},
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )
@@ -810,6 +816,7 @@ class ResourceToolTest(unittest.IsolatedAsyncioTestCase):
 
         request_json.assert_awaited_once_with(
             path='/api/profile/settings',
+            query={'include_token_expiration': 'true'},
             operation='read the active user profile',
             max_response_bytes=64 * 1024,
         )

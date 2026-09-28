@@ -290,6 +290,7 @@ class BackendSecretAuthServiceTest(unittest.TestCase):
         self.assertEqual(call_args.args[1], 'backend-operator-default')
         self.assertEqual(call_args.kwargs['roles'], ['osmo-backend'])
         self.assertEqual(call_args.kwargs['token_name'], 'backend-bootstrap-default')
+        self.assertEqual(call_args.kwargs['token_source'], 'bootstrap')
 
     def test_projection_error_preserves_database_access_token_login(self) -> None:
         token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
@@ -324,6 +325,8 @@ class BackendSecretAuthServiceTest(unittest.TestCase):
         self.assertIn('projection unavailable', '\n'.join(logs.output))
         validate_token.assert_called_once_with(postgres, token)
         service_auth.create_idtoken_jwt.assert_called_once()
+        self.assertEqual(
+            service_auth.create_idtoken_jwt.call_args.kwargs['token_source'], 'database')
 
 
 if __name__ == '__main__':

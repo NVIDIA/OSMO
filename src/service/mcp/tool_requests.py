@@ -171,6 +171,7 @@ async def request_active_profile() -> ActiveProfile:
     """Read and validate the active caller's profile and token pool scope."""
     response = await request_json_object(
         path=_PROFILE_PATH,
+        query={'include_token_expiration': 'true'},
         operation='read the active user profile',
         max_response_bytes=_MAX_PROFILE_RESPONSE_BYTES,
     )
