@@ -118,8 +118,12 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
         token_result = result.get('token')
         if token_result:
             print(f'token: {token_result.get('name', '')}')
-            expires_at = common.convert_str_to_time(token_result['expires_at'].split('T')[0],
-                                                    '%Y-%m-%d').date()
+            expires_at = token_result.get('expires_at')
+            if expires_at is None:
+                expires_at = 'n/a'
+            else:
+                expires_at = common.convert_str_to_time(expires_at.split('T')[0],
+                                                        '%Y-%m-%d').date()
             print(f'{common.TAB}expires_at: {expires_at}')
         print('roles:')
         for role in result.get('roles', []):

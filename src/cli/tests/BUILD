@@ -19,6 +19,16 @@ SPDX-License-Identifier: Apache-2.0
 load("@rules_python//python:defs.bzl", "py_test")
 load("//bzl:py.bzl", "osmo_py_test")
 
+osmo_py_test(
+    name = "test_profile",
+    srcs = ["test_profile.py"],
+    deps = [
+        "//src/cli:cli_lib",
+        "//src/lib/utils:client",
+        "//src/lib/utils:client_configs",
+    ],
+)
+
 py_test(
     name = "test_cli",
     srcs = [
