@@ -40,7 +40,7 @@ isolation.
 Deployment Architecture
 =======================
 
-.. image:: deployment_minimal.svg
+.. image:: deployment_self_contained.svg
    :align: center
    :width: 80%
 
