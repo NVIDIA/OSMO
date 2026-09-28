@@ -26,6 +26,13 @@ connect a Kubernetes cluster to an existing OSMO control plane. The release
 contains the backend listener and worker but no control-plane services or
 databases.
 
+Deployment Diagram
+==================
+
+.. image:: deployment_compute.drawio.svg
+   :align: center
+   :width: 80%
+
 Prerequisites
 =============
 

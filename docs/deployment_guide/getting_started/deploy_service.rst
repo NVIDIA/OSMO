@@ -26,6 +26,13 @@ components on a Kubernetes cluster. It uses the unified ``osmo`` Helm chart in
 control-plane-only mode and externally managed PostgreSQL, Valkey, and object
 storage.
 
+Deployment Diagram
+==================
+
+.. image:: deployment_control.drawio.svg
+   :align: center
+   :width: 80%
+
 Components Overview
 ===================
 

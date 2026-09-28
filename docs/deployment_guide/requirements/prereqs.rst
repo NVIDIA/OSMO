@@ -65,7 +65,7 @@ Before deploying OSMO, ensure you have the following cloud components:
 
           **Required for**: Secure communication between components
 
-.. image:: cloud_components.svg
+.. image:: cloud_components.drawio.svg
    :width: 70%
    :align: center
 
