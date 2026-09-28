@@ -120,7 +120,7 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
             print(f'token: {token_result.get('name', '')}')
             expires_at = token_result.get('expires_at')
             if expires_at is None:
-                expires_at = 'n/a'
+                expires_at = 'unknown'
             else:
                 expires_at = common.convert_str_to_time(expires_at.split('T')[0],
                                                         '%Y-%m-%d').date()

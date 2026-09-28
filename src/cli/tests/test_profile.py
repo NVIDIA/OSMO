@@ -60,16 +60,16 @@ class TestProfileList(unittest.TestCase):
             client.RequestMethod.GET, 'api/profile/settings')
         return output.getvalue()
 
-    def test_null_expiry_prints_unavailable_and_continues_to_roles(self):
+    def test_null_expiry_prints_unknown_and_continues_to_roles(self):
         output = self.run_list()
-        self.assertIn('token: bootstrap-admin-primary\n  expires_at: n/a\n', output)
+        self.assertIn('token: bootstrap-admin-primary\n  expires_at: unknown\n', output)
         self.assertIn('roles:\n  - osmo-admin\n', output)
         self.assertIn('user:\n  email: admin\n', output)
 
-    def test_missing_expiry_prints_unavailable(self):
+    def test_missing_expiry_prints_unknown(self):
         del self.response['token']['expires_at']
         output = self.run_list()
-        self.assertIn('token: bootstrap-admin-primary\n  expires_at: n/a\n', output)
+        self.assertIn('token: bootstrap-admin-primary\n  expires_at: unknown\n', output)
         self.assertIn('roles:\n  - osmo-admin\n', output)
 
     def test_dated_token_preserves_date_only_output(self):
