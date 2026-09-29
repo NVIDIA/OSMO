@@ -231,6 +231,9 @@ authentication:
           email: admin@osmo.local
         tokens:
           primary:
+            # Deadline is persisted once. Increase generation to explicitly reissue.
+            lifetimeSeconds: 86400
+            generation: 1
             managedSecret:
               name: osmo-admin-token
       backend-operator-default:

@@ -189,7 +189,8 @@ class AuthenticationConfig(pydantic.BaseModel):
                            roles: List[str],
                            token_name: str | None = None,
                            workflow_id: str | None = None,
-                           token_source: Literal['bootstrap', 'database'] | None = None) -> str:
+                           token_source: Literal['bootstrap', 'database'] | None = None,
+                           token_expires_at: int | None = None) -> str:
         '''
         aud: Audience
         iss: Issuer
@@ -206,7 +207,7 @@ class AuthenticationConfig(pydantic.BaseModel):
             'exp': expire_timestamp
         }
 
-        template_payload = {
+        template_payload: Dict[str, Any] = {
             'unique_name': username,
             'roles': roles
         }
@@ -214,6 +215,8 @@ class AuthenticationConfig(pydantic.BaseModel):
             template_payload['osmo_token_name'] = token_name
             if token_source is not None:
                 template_payload['osmo_token_source'] = token_source
+                if token_source == 'bootstrap':
+                    template_payload['osmo_token_expires_at'] = token_expires_at
         if workflow_id:
             template_payload['osmo_workflow_id'] = workflow_id
 

@@ -11,12 +11,13 @@ from pathlib import Path
 import tempfile
 import types
 import unittest
+from typing import Any
 from unittest import mock
 
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
-from src.utils import bootstrap, identity_bootstrap
+from src.utils import bootstrap, identity_bootstrap, token_expiry
 
 
 def configuration() -> bootstrap.Configuration:
@@ -59,7 +60,7 @@ class CoordinatorTests(unittest.TestCase):
             metadata=client.V1ObjectMeta(resource_version='1'),
             spec=client.V1LeaseSpec(holder_identity='pod/uid'),
         )
-        self.state = {
+        self.state: dict[str, Any] = {
             'installation': 'namespace/release',
             'podUID': 'uid',
             'generation': 'generation',
@@ -70,6 +71,60 @@ class CoordinatorTests(unittest.TestCase):
             'committed': {},
         }
         self.set_state()
+
+    def test_admin_expiry_migration_and_reissue_receipts_survive_retry(self):
+        specification = bootstrap.SecretSpec(
+            'root', 'identity', 'owner', ['token'], token_generation=1,
+            optional_keys=['token-metadata'])
+        self.runtime.configuration = dataclasses.replace(
+            self.runtime.configuration, secrets=[specification], steps=['identity'])
+        current = secret()
+        current.data = {'token': base64.b64encode(b'a'*43).decode()}
+        self.core.read_namespaced_secret.return_value = current
+        self.state['committed']['root'] = self.runtime.inventory()['root']
+        self.set_state()
+        self.runtime.prepare('identity')
+        current.data['token-metadata'] = base64.b64encode(
+            token_expiry.TokenExpiry.issue(60, 1).encode()).decode()
+        # A crash after the atomic Secret update but before receipt completion.
+        self.runtime.prepare('identity')
+        self.runtime.finish('identity')
+        self.runtime.prepare('identity')
+        self.runtime.finish('identity')
+        migrated = copy.deepcopy(current)
+        self.runtime.configuration = dataclasses.replace(
+            self.runtime.configuration,
+            secrets=[dataclasses.replace(specification, token_generation=2)])
+        self.runtime.prepare('identity')
+        current.data = {'token': base64.b64encode(b'b'*43).decode(),
+                        'token-metadata': base64.b64encode(
+                            token_expiry.TokenExpiry.issue(60, 2).encode()).decode()}
+        self.runtime.prepare('identity')
+        self.runtime.finish('identity')
+        self.assertEqual(self.runtime.state['committed']['root']['tokenGeneration'], 2)
+        self.core.read_namespaced_secret.return_value = migrated
+        with self.assertRaises(bootstrap.BootstrapError):
+            self.runtime.prepare('identity')
+
+    def test_admin_metadata_removal_and_unrequested_changes_fail_closed(self):
+        specification = bootstrap.SecretSpec(
+            'root', 'identity', 'owner', ['token'], token_generation=1,
+            optional_keys=['token-metadata'])
+        self.runtime.configuration = dataclasses.replace(
+            self.runtime.configuration, secrets=[specification], steps=['identity'])
+        current = secret()
+        current.data = {'token': base64.b64encode(b'a'*43).decode(),
+                        'token-metadata': base64.b64encode(
+                            token_expiry.TokenExpiry.issue(60, 1).encode()).decode()}
+        self.core.read_namespaced_secret.return_value = current
+        self.state['committed']['root'] = self.runtime.inventory()['root']
+        self.set_state()
+        for key in ('token', 'token-metadata'):
+            changed = copy.deepcopy(current)
+            changed.data.pop(key)
+            self.core.read_namespaced_secret.return_value = changed
+            with self.subTest(key=key), self.assertRaises(bootstrap.BootstrapError):
+                self.runtime.prepare('identity')
 
     def set_state(self) -> None:
         self.core.read_namespaced_config_map.return_value = client.V1ConfigMap(

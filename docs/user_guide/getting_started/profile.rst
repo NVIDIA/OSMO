@@ -51,10 +51,13 @@ Token Expiration
 ----------------
 
 When using an access token, ``osmo profile list`` shows its expiration date,
-``never`` for a Secret-backed bootstrap credential with no scheduled expiration,
+``never`` for a Secret-backed credential with no scheduled expiration,
 or ``unknown`` when expiration metadata is unavailable (including older servers).
 A credential shown as ``never`` can still be rotated or removed. The short-lived
 JWT issued at login has its own expiration and is refreshed independently.
+The default temporary admin bootstrap token has a scheduled expiration; its
+issued JWT expiration is capped at the credential deadline. Gateway validation
+allows an additional 60 seconds of clock skew for already-issued sessions.
 
 API clients can request ``GET /api/profile/settings?include_token_expiration=true``
 to receive ``token.expiration_status`` as ``scheduled``, ``never``, or ``unknown``.

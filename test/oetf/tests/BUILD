@@ -181,3 +181,9 @@ osmo_py_test(
         requirement("requests"),
     ],
 )
+
+osmo_py_test(
+    name = "test_embedded_auth",
+    srcs = ["test_embedded_auth.py"],
+    deps = ["//test/oetf:embedded_auth"],
+)

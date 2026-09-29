@@ -10,6 +10,7 @@ redacted Kubernetes evidence through the shared OETF fixture.
 
 import base64
 import copy
+import datetime
 import hashlib
 import json
 import os
@@ -120,7 +121,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             self.assertFalse(self.record().get('complete', False))
         return job
 
-    def assert_application_files(self) -> None:
+    def assert_application_files(self, only_secrets: set[str] | None = None) -> None:
         pod = self.kube_json(['get', 'pods', '-l', 'app.kubernetes.io/component=api'])[
             'items'
         ][0]
@@ -139,6 +140,8 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         application = pod['spec']['containers'][0]
         expected = {}
         for mapping in mappings:
+            if only_secrets is not None and mapping['secret'] not in only_secrets:
+                continue
             gate_mount = next(
                 item
                 for item in gate['volumeMounts']
@@ -181,6 +184,88 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             ]
         ).stdout
         self.assertEqual(json.loads(actual), expected)
+
+    def test_admin_token_expiry_and_recovery(self) -> None:
+        self.values.setdefault('authentication', {}).setdefault('bootstrap', {}).setdefault(
+            'identities', {}).setdefault('admin', {}).setdefault('tokens', {})['primary'] = {
+                'lifetimeSeconds': 180, 'generation': 1}
+        self.install(self.values)
+        secret = self.kube_json(['get', 'secret', 'osmo-admin-token'])
+        token = base64.b64decode(secret['data']['token']).decode()
+        metadata = json.loads(base64.b64decode(secret['data']['token-metadata']))
+        deadline = datetime.datetime.fromisoformat(metadata['expires_at']).timestamp()
+        backend_secret = self.kube_json(['get', 'secret', 'osmo-backend-token'])
+        backend = base64.b64decode(backend_secret['data']['token']).decode()
+        with self.port_forward('service/osmo-gateway', 80, self.port):
+            status, exchanged = self.credential_request(
+                self.values['externalUrl'], access_token=token)
+            self.assertEqual(status, 200, 'Fresh admin token must authenticate before expiry')
+            self.assertLessEqual(exchanged['expires_at'], deadline)
+            status, profile = self.credential_request(
+                self.values['externalUrl'], jwt_token=exchanged['token'])
+            self.assertEqual(status, 200)
+            self.assertEqual(profile['token']['expiration_status'], 'scheduled')
+            self.assertEqual(datetime.datetime.fromisoformat(
+                profile['token']['expires_at']).timestamp(), deadline)
+            self.wait_for(lambda: time.time() >= deadline + 1, 'admin deadline', timeout=200)
+            status, _ = self.credential_request(self.values['externalUrl'], access_token=token)
+            self.assertIn(status, (400, 401, 403), 'Expired admin credential was accepted')
+            # The unchanged gateway permits 60 seconds of JWT clock skew.
+            self.wait_for(lambda: time.time() >= deadline + 61, 'JWT clock-skew window', timeout=65)
+            status, _ = self.credential_request(
+                self.values['externalUrl'], jwt_token=exchanged['token'])
+            self.assertEqual(status, 401, 'Admin JWT outlived the gateway clock-skew window')
+            status, _ = self.credential_request(self.values['externalUrl'], access_token=backend)
+            self.assertEqual(status, 200, 'Backend credentials must remain unaffected')
+        self.authenticate()
+        # Ordinary upgrade of an expired token must not renew its deadline.
+        self.values['bootstrap']['attempt'] = 'expired-retry'
+        self.install(self.values)
+        retried = self.kube_json(['get', 'secret', 'osmo-admin-token'])
+        self.assertTrue(retried['data'] == secret['data'], 'Retry renewed expired credentials')
+        admin = self.values['authentication']['bootstrap']['identities']['admin']
+        policy = admin['tokens']['primary']
+        policy.update(generation=2, lifetimeSeconds=600)
+        self.install(self.values)
+        renewed = self.kube_json(['get', 'secret', 'osmo-admin-token'])
+        self.assertEqual(renewed['metadata']['uid'], secret['metadata']['uid'])
+        self.assertTrue(renewed['data']['token'] != secret['data']['token'], 'Reissue reused bytes')
+        self.assertEqual(json.loads(base64.b64decode(
+            renewed['data']['token-metadata']))['generation'], 2)
+        with self.port_forward('service/osmo-gateway', 80, self.port):
+            status, _ = self.credential_request(self.values['externalUrl'], access_token=token)
+            self.assertIn(status, (400, 401, 403))
+            status, _ = self.credential_request(
+                self.values['externalUrl'],
+                access_token=base64.b64decode(renewed['data']['token']).decode())
+            self.assertEqual(status, 200, 'Explicit admin recovery failed')
+        self.values['bootstrap']['attempt'] = 'reissue-retry'
+        self.install(self.values)
+        self.assertTrue(self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
+                        == renewed['data'], 'Retry repeated credential reissue')
+        self.assert_application_files({'osmo-admin-token', 'osmo-backend-token'})
+
+    def test_admin_token_expiry_upgrade(self) -> None:
+        baseline = copy.deepcopy(self.values)
+        self.set_image(baseline, os.environ['OETF_BOOTSTRAP_BASELINE_IMAGE'])
+        self.install(baseline, chart=Path(os.environ['OETF_BOOTSTRAP_BASELINE_CHART']))
+        before = self.kube_json(['get', 'secret', 'osmo-admin-token'])
+        self.assertNotIn('token-metadata', before['data'])
+        backend = self.secret_identities(['osmo-backend-token'])
+        self.authenticate()
+        self.install(self.values)
+        after = self.kube_json(['get', 'secret', 'osmo-admin-token'])
+        self.assertEqual(before['metadata']['uid'], after['metadata']['uid'])
+        self.assertTrue(before['data']['token'] == after['data']['token'],
+                        'Migration changed token')
+        self.assertIn('token-metadata', after['data'])
+        self.assert_identities_preserved(backend)
+        self.values['bootstrap']['attempt'] = 'expiry-migration-retry'
+        self.install(self.values)
+        self.assertTrue(self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
+                        == after['data'], 'Migration deadline was reset')
+        self.authenticate()
+        self.assert_application_files({'osmo-admin-token', 'osmo-backend-token'})
 
     def test_bootstrap_fresh_install(self) -> None:
         self.assertEqual(self.kube_json(['get', 'secrets'])['items'], [])
@@ -265,7 +350,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         )
         self.assert_identities_preserved(retained)
         self.assertTrue(
-            self.record()['committed'][missing] == recreated,
+            self.record()['committed'][missing] == dict(recreated, tokenGeneration=1),
             'Coordinator did not commit the recreated credential identity.',
         )
         self.assert_sequence()
@@ -322,7 +407,10 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
                     '--overwrite',
                 ]
             )
-        before = self.secret_identities(names)
+        before = self.secret_identities([name for name in names if name != 'osmo-admin-token'])
+        self.values.setdefault('authentication', {}).setdefault('bootstrap', {}).setdefault(
+            'identities', {}).setdefault('admin', {}).setdefault('tokens', {}).setdefault(
+                'primary', {})['generation'] = 2
         self.install(self.values)
         self.assertEqual(self.record()['mode'], 'adopt')
         for name in ('osmo-admin-token', 'osmo-backend-token'):
@@ -334,7 +422,8 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             )
         tokens = self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
         with self.port_forward('service/osmo-gateway', 80, self.port):
-            for key in ('token', 'previous-token'):
+            self.assertNotIn('previous-token', tokens)
+            for key in ('token',):
                 exchange = urllib.request.Request(
                     self.values['externalUrl'] + '/api/auth/jwt/access_token',
                     data=json.dumps(

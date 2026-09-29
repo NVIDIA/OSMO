@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 from src.service.core.auth import auth_service, backend_secret_auth
+from src.utils import token_expiry
 from src.utils.job import task as task_lib
 
 
@@ -327,6 +328,85 @@ class BackendSecretAuthServiceTest(unittest.TestCase):
         service_auth.create_idtoken_jwt.assert_called_once()
         self.assertEqual(
             service_auth.create_idtoken_jwt.call_args.kwargs['token_source'], 'database')
+
+
+class AdminTokenExpiryTests(unittest.TestCase):
+    """Expiry is checked on cache hits and denied tokens cannot fall back to the DB."""
+
+    def setUp(self):
+        # pylint: disable-next=consider-using-with
+        directory = self.enterContext(tempfile.TemporaryDirectory())
+        self.root = Path(directory)
+        self.token = secrets.token_urlsafe(32)
+        self.credential = self.root / 'admin' / 'primary'
+        self.credential.mkdir(parents=True)
+        (self.credential / 'token').write_text(self.token)
+        self.config = self.root / 'config.json'
+        self.config.write_text(json.dumps({'identities': {'admin': {
+            'username': 'admin', 'roles': ['osmo-admin'],
+            'tokens': {'primary': {'key': 'token', 'expiryGeneration': 1}}}}}))
+        self.clock = self.enterContext(mock.patch('time.time', return_value=1800000000))
+        self.metadata = token_expiry.TokenExpiry.issue(60, 1)
+        (self.credential / 'token-metadata').write_bytes(self.metadata.encode())
+        self.authenticator = backend_secret_auth.BootstrapSecretAuthenticator(
+            str(self.config), str(self.root))
+
+    def test_expiry_on_cached_token_at_boundary_and_before_issuance(self):
+        identity = self.authenticator.authenticate(self.token)
+        assert identity is not None
+        self.assertEqual(identity.expires_at, self.metadata.expires_at)
+        for now in (self.metadata.expires_at, self.metadata.expires_at+1,
+                    self.metadata.issued_at-1):
+            with self.subTest(now=now):
+                self.clock.return_value = now
+                with self.assertRaises(backend_secret_auth.BootstrapTokenRejectedError):
+                    self.authenticator.authenticate(self.token)
+        self.assertIsNone(self.authenticator.authenticate(secrets.token_urlsafe(32)))
+
+    def test_missing_malformed_or_wrong_generation_is_denied(self):
+        for raw in (None, b'{}', token_expiry.TokenExpiry.issue(60, 2).encode()):
+            with self.subTest(raw=raw):
+                path = self.credential / 'token-metadata'
+                if raw is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(raw)
+                with self.assertRaises(backend_secret_auth.BootstrapTokenRejectedError):
+                    self.authenticator.authenticate(self.token)
+        (self.credential / 'token-metadata').write_bytes(self.metadata.encode())
+        self.assertIsNotNone(self.authenticator.authenticate(self.token))
+
+    def test_previous_token_cannot_inherit_expiry(self):
+        previous = secrets.token_urlsafe(32)
+        (self.credential / 'previous-token').write_text(previous)
+        for token in (self.token, previous):
+            with self.assertRaises(backend_secret_auth.BootstrapTokenRejectedError):
+                self.authenticator.authenticate(token)
+
+    def test_expired_token_does_not_reach_database(self):
+        self.clock.return_value = self.metadata.expires_at
+        with mock.patch.object(backend_secret_auth, 'authenticate',
+                               side_effect=self.authenticator.authenticate), \
+             mock.patch.object(auth_service.connectors.PostgresConnector, 'get_instance'), \
+             mock.patch.object(auth_service.objects.AccessToken,
+                               'validate_access_token') as database:
+            with self.assertRaisesRegex(auth_service.osmo_errors.OSMOUserError, 'expired'):
+                # pylint: disable-next=protected-access
+                auth_service._create_jwt_from_access_token(self.token)
+            database.assert_not_called()
+
+    def test_jwt_and_response_are_bounded_by_credential_deadline(self):
+        postgres = mock.Mock()
+        signer = postgres.get_service_configs.return_value.service_auth.create_idtoken_jwt
+        signer.return_value = 'jwt'
+        with mock.patch.object(backend_secret_auth, 'authenticate',
+                               side_effect=self.authenticator.authenticate), \
+             mock.patch.object(auth_service.connectors.PostgresConnector, 'get_instance',
+                               return_value=postgres):
+            result = auth_service._create_jwt_from_access_token(self.token)  # pylint: disable=protected-access
+        self.assertEqual(result['expires_at'], self.metadata.expires_at)
+        self.assertEqual(signer.call_args.args[0], self.metadata.expires_at)
+        self.assertEqual(signer.call_args.kwargs['token_expires_at'], self.metadata.expires_at)
 
 
 if __name__ == '__main__':

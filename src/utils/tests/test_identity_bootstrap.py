@@ -28,7 +28,7 @@ import bcrypt
 from kubernetes import client as kubernetes_client
 from kubernetes.client import exceptions as kubernetes_exceptions
 
-from src.utils import identity_bootstrap
+from src.utils import identity_bootstrap, token_expiry
 
 
 class FakeCoreApi:
@@ -1435,6 +1435,82 @@ class TokenMigrationTest(unittest.TestCase):
                         option,
                     ]
                 )
+
+
+class ExpiringAdminTokenTests(unittest.TestCase):
+    """Finite admin credentials survive retries and renew only on explicit reissue."""
+
+    def setUp(self):
+        self.api = FakeCoreApi()
+        self.clock = self.enterContext(mock.patch('time.time', return_value=1800000000))
+
+    def reconcile(self, lifetime=86400, generation=1):
+        identity_bootstrap.reconcile_identities(
+            self.api,  # type: ignore[arg-type]
+            namespace='osmo', release_name='release', password_specs=(),
+            token_specs=(identity_bootstrap.TokenSpec(
+                'admin', 'primary', 'admin-token', lifetime, generation),),
+            oauth_secret_name=None, dex_hash_secret_name=None)
+        return {key: base64.b64decode(value)
+                for key, value in self.api.secrets['admin-token'].data.items()}
+
+    def test_issuance_retry_expiry_and_explicit_recovery(self):
+        initial = self.reconcile()
+        metadata = token_expiry.TokenExpiry.decode(initial['token-metadata'])
+        self.assertEqual(metadata.expires_at, 1800086400)
+        self.clock.return_value = metadata.expires_at + 1
+        self.assertEqual(self.reconcile(lifetime=604800), initial)
+        replacement = self.reconcile(generation=2)
+        self.assertNotEqual(replacement['token'], initial['token'])
+        self.assertEqual(token_expiry.TokenExpiry.decode(
+            replacement['token-metadata']).generation, 2)
+        self.assertEqual(self.reconcile(generation=2), replacement)
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'cannot decrease'):
+            self.reconcile(generation=1)
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'cannot be removed'):
+            self.reconcile(lifetime=0)
+
+    def test_legacy_adoption_sets_one_deadline_preserving_bytes(self):
+        legacy = self.reconcile(lifetime=0)
+        migrated = self.reconcile()
+        self.assertEqual(migrated['token'], legacy['token'])
+        self.clock.return_value += 600
+        self.assertEqual(self.reconcile(), migrated)
+
+    def test_concurrent_issuance_preserves_winners_deadline(self):
+        self.api = ConcurrentCreateCoreApi()
+        issued = self.reconcile()
+        self.clock.return_value += 100
+        self.assertEqual(self.reconcile(), issued)
+        self.api = ConcurrentReplaceCoreApi()
+        self.reconcile(lifetime=0)
+        migrated = self.reconcile()
+        self.assertEqual(self.reconcile(), migrated)
+
+    def test_existing_overlap_requires_explicit_reissue(self):
+        self.reconcile(lifetime=0)
+        self.api.secrets['admin-token'].data['previous-token'] = base64.b64encode(b'x'*43).decode()
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'generation increase'):
+            self.reconcile()
+        issued = self.reconcile(generation=2)
+        self.assertNotIn('previous-token', issued)
+
+    def test_invalid_metadata_never_reissued_implicitly(self):
+        self.reconcile()
+        self.api.secrets['admin-token'].data['token-metadata'] = base64.b64encode(b'{}').decode()
+        with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'invalid expiry'):
+            self.reconcile()
+
+    def test_expiry_cli_policy(self):
+        args = ['--namespace=osmo', '--release-name=release', '--token=admin/primary=admin-token']
+        # pylint: disable=protected-access
+        parsed = identity_bootstrap._parse_arguments(args + ['--token-expiry=admin/primary=60/2'])
+        self.assertEqual(parsed.token_specs[0].lifetime_seconds, 60)
+        self.assertEqual(parsed.token_specs[0].generation, 2)
+        for policy in ('admin/primary=0/1', 'admin/primary=60/0', 'admin/primary=604801/1',
+                       'other/primary=60/1', 'admin/primary=true/1'):
+            with self.subTest(policy=policy), self.assertRaises(SystemExit):
+                identity_bootstrap._parse_arguments(args + ['--token-expiry='+policy])
 
 
 if __name__ == '__main__':

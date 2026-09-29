@@ -205,6 +205,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "lifetimeSeconds": { "type": "integer", "minimum": 60, "maximum": 604800 },
+        "generation": { "type": "integer", "minimum": 1 },
         "managedSecret": { "$ref": "#/definitions/bootstrapManagedSecret" },
         "existingSecret": { "$ref": "#/definitions/bootstrapExistingSecret" }
       }

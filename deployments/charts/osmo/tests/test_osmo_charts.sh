@@ -690,6 +690,22 @@ test_control_umbrella() {
         '"admin/primary=osmo-admin-token"'
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         'mountPath: /etc/osmo/bootstrap-tokens/developer/cli'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" 'admin/primary=86400/1'
+    require_secret_snapshot "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" osmo-admin-token token-metadata
+    helm_template admin-recovery "$charts_copy/osmo" \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set authentication.bootstrap.identities.admin.tokens.primary.generation=2 \
+        --set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=60 \
+        >"$TEST_DIRECTORY/admin-recovery.yaml"
+    require_contains "$TEST_DIRECTORY/admin-recovery.yaml" 'admin/primary=60/2'
+    for invalid_lifetime in 0 59 604801; do
+        if helm_template invalid-admin-lifetime "$charts_copy/osmo" \
+            --api-versions postgresql.cnpg.io/v1 \
+            --set "authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=$invalid_lifetime" \
+            >"$TEST_DIRECTORY/invalid-admin-lifetime.out" 2>&1; then
+            fail "expected invalid admin lifetime to fail schema validation"
+        fi
+    done
     require_secret_snapshot "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" osmo-developer-token token
     require_no_resource "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" Secret \
         osmo-developer-token

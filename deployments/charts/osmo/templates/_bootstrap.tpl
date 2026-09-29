@@ -48,7 +48,12 @@
 {{- end -}}
 {{- if has "identity" $names -}}
 {{- range (include "osmo.bootstrap.managedTokens" . | fromJsonArray) -}}
-{{- $secrets = append $secrets (dict "name" .secretName "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "token") "optional_keys" (list "previous-token")) -}}
+{{- $tokenSecret := dict "name" .secretName "step" "identity" "owner" "osmo-identity-bootstrap" "keys" (list "token") "optional_keys" (list "previous-token") -}}
+{{- if .lifetimeSeconds -}}
+{{- $_ := set $tokenSecret "optional_keys" (list "previous-token" "token-metadata") -}}
+{{- $_ := set $tokenSecret "token_generation" .generation -}}
+{{- end -}}
+{{- $secrets = append $secrets $tokenSecret -}}
 {{- end -}}
 {{- end -}}
 {{- if has "service-auth" $names -}}

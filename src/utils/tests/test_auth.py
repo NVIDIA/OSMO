@@ -106,6 +106,11 @@ class TestAuth(unittest.TestCase):
                 self.assertEqual(claims['exp'], 2**31)
                 self.assertEqual(claims['osmo_token_name'], 'same-name')
                 self.assertEqual(claims.get('osmo_token_source'), source)
+                if source == 'bootstrap':
+                    self.assertIn('osmo_token_expires_at', claims)
+                    self.assertIsNone(claims['osmo_token_expires_at'])
+                else:
+                    self.assertNotIn('osmo_token_expires_at', claims)
                 if source is None:
                     self.assertNotIn('osmo_token_source', claims)
         workflow_token = service_auth.create_idtoken_jwt(
@@ -113,6 +118,17 @@ class TestAuth(unittest.TestCase):
         parsed = jwt.JWT.from_jose_token(workflow_token)
         parsed.validate(jwk.JWK.from_json(service_auth.get_current_key().public_key))
         self.assertNotIn('osmo_token_source', json.loads(parsed.claims))
+
+    def test_bootstrap_credential_deadline_is_signed(self):
+        service_auth = auth.AuthenticationConfig.generate_default()
+        token = service_auth.create_idtoken_jwt(
+            2**31, 'admin', ['osmo-admin'], token_name='primary',
+            token_source='bootstrap', token_expires_at=2**31 + 600)
+        parsed = jwt.JWT.from_jose_token(token)
+        parsed.validate(jwk.JWK.from_json(service_auth.get_current_key().public_key))
+        claims = json.loads(parsed.claims)
+        self.assertEqual(claims['exp'], 2**31)
+        self.assertEqual(claims['osmo_token_expires_at'], 2**31 + 600)
 
     def test_invalid_secret_file_error_is_sanitized(self):
         sentinel = 'private-key-sentinel'

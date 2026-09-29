@@ -1132,6 +1132,46 @@ install and upgrade, including declarative Helm or Argo CD reconciliation.
 Helm rollback changes declarations but does not roll credential bytes back.
 Helm uninstall does not delete the API-created Secrets.
 
+### Temporary admin bootstrap token
+
+The default `admin/primary` token expires **24 hours after issuance**;
+`osmo profile list` shows its deadline. Backend tokens and Dex/OIDC login are
+unaffected. Confirm normal admin login works before upgrading.
+
+`lifetimeSeconds` (60–604800 seconds) applies at issuance. Retries, upgrades,
+reconciliation, and lifetime changes never extend an existing deadline.
+Existing token-only managed admin Secrets receive one deadline during migration,
+preserving their token bytes.
+
+To reissue a token, increase its `generation` and sync or upgrade the release:
+
+```yaml
+authentication:
+  bootstrap:
+    identities:
+      admin:
+        tokens:
+          primary:
+            lifetimeSeconds: 86400
+            generation: 2
+```
+
+Reissue requires Kubernetes/Helm or GitOps admin access and restarts gated API
+consumers. Read the replacement token from its Secret once the release is ready.
+Repeating a generation preserves the token and deadline; decreasing it fails.
+Do not recover by deleting the Secret or editing its deadline.
+
+For `existingSecret`, provide version 1 `token-metadata` JSON with UTC `issued_at`
+and `expires_at`, a supported lifetime, and a `generation` matching the chart.
+Missing or invalid metadata denies that credential; external Secrets are never
+modified. Expiring admin tokens cannot have `previous-token`; legacy overlap
+requires an explicit generation increase.
+
+Enforcement requires upgraded API replicas. Expired tokens cannot obtain new
+JWTs. New JWTs are capped at the token deadline, with the gateway's existing 60-second clock-skew allowance. Older
+sessions retain their original lifetime; expiry does not close every existing
+stream. Rollback to a version without expiry support is not a recovery path.
+
 ### Legacy managed-token migration
 
 A separate `pre-install,pre-upgrade` Job runs before the ordinary OSMO bootstrap
@@ -1193,7 +1233,7 @@ may reference a separate Secret. The defaults expect these keys:
 | `secrets.objectStorage` | `object-storage.yaml` | Workflow data, logs, and apps |
 | `secrets.masterEncryptionKey` | `mek.yaml` | OSMO encryption-key configuration |
 | `secrets.serviceAuth` | `authentication-config.json` | Stable JWT signing identity |
-| `authentication.bootstrap.identities.*.tokens.*` | `token`, optional `previous-token` | User or backend bootstrap authentication |
+| `authentication.bootstrap.identities.*.tokens.*` | `token`, `token-metadata` for expiring admin tokens; optional `previous-token` for non-expiring tokens | User or backend bootstrap authentication |
 | `osmo-embedded-dex-<identity-id>` | `password`, `password-hash` | Retained embedded-Dex user credential |
 | `osmo-embedded-dex-oauth` | `browser-client-secret`, `cookie-secret` | Retained browser OAuth and session-cookie credentials |
 | `osmo-embedded-dex-password-hashes` | bcrypt hashes for current and previously configured Dex users | Dex runtime input; contains no plaintext passwords; historical hashes are retained so failed upgrades can roll back safely |

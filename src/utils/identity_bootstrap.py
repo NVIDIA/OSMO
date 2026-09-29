@@ -32,6 +32,7 @@ from kubernetes import client as kubernetes_client  # type: ignore
 from kubernetes import config as kubernetes_config  # type: ignore
 from kubernetes.client import exceptions as kubernetes_exceptions  # type: ignore
 
+from src.utils import token_expiry
 from src.utils.bootstrap import BoundedApiClient, record_issuance_if_configured
 
 
@@ -80,6 +81,8 @@ class TokenSpec:
     identity_id: str
     token_name: str
     secret_name: str
+    lifetime_seconds: int = 0
+    generation: int = 1
 
 
 def credential_identity(domain: str, *values: bytes) -> str:
@@ -213,15 +216,66 @@ def _validate_mcp(name: str, data: dict[str, bytes]) -> None:
 
 
 def _validate_token(name: str, data: dict[str, bytes]) -> None:
-    if set(data) not in ({'token'}, {'token', 'previous-token'}):
+    keys = set(data) - {token_expiry.METADATA_KEY}
+    if keys not in ({'token'}, {'token', 'previous-token'}):
         raise BootstrapError(f'{name} contains invalid credentials')
-    for token in data.values():
+    if token_expiry.METADATA_KEY in data:
+        try:
+            token_expiry.TokenExpiry.decode(data[token_expiry.METADATA_KEY])
+        except ValueError as error:
+            raise BootstrapError(f'{name} contains invalid expiry metadata') from error
+        if 'previous-token' in data:
+            raise BootstrapError(f'{name} expiring tokens cannot contain previous-token')
+    tokens = [data[key] for key in keys]
+    for token in tokens:
         if len(token) != 43 or any(
                 character not in b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
                 for character in token):
             raise BootstrapError(f'{name} contains invalid credentials')
-    if len(set(data.values())) != len(data):
+    if len(set(tokens)) != len(tokens):
         raise BootstrapError(f'{name} contains invalid credentials')
+
+
+def _reconcile_token(api: kubernetes_client.CoreV1Api, *, namespace: str,
+                     release_name: str, specification: TokenSpec) -> dict[str, bytes]:
+    name = specification.secret_name
+    for _ in range(_MAX_RECONCILE_ATTEMPTS):
+        existing = _read_secret(api, namespace, name)
+        data = _decode(existing) if existing is not None else {}
+        adopt = False
+        if existing is not None:
+            adopt = _require_identity_owned(existing, release_name)
+            _validate_token(name, data)
+        metadata = data.get(token_expiry.METADATA_KEY)
+        stored = token_expiry.TokenExpiry.decode(metadata) if metadata else None
+        if stored and not specification.lifetime_seconds:
+            raise BootstrapError(f'{name} expiry policy cannot be removed')
+        if stored and specification.generation < stored.generation:
+            raise BootstrapError(f'{name} token generation cannot decrease')
+        changed = existing is None or adopt
+        if specification.lifetime_seconds and (
+                stored is None or specification.generation > stored.generation):
+            # Legacy adoption preserves bytes; explicit reissue always replaces them.
+            if existing is None or specification.generation > (stored.generation if stored else 1):
+                data = {'token': secrets.token_urlsafe(32).encode('ascii')}
+            elif 'previous-token' in data:
+                raise BootstrapError(
+                    f'{name} legacy overlap requires an explicit token generation increase')
+            data[token_expiry.METADATA_KEY] = token_expiry.TokenExpiry.issue(
+                specification.lifetime_seconds, specification.generation).encode()
+            changed = True
+        elif existing is None:
+            data = {'token': secrets.token_urlsafe(32).encode('ascii')}
+        _validate_token(name, data)
+        if not changed:
+            return data
+        secret = _identity_secret(
+            name, release_name, data,
+            existing.metadata.resource_version if existing else None,
+            existing.metadata.annotations if existing else None)
+        if _write_secret(api, namespace, secret, existing is not None):
+            return data
+    raise BootstrapError(f'Unable to reconcile token {name} after concurrent updates')
 
 
 def _identity_secret(
@@ -452,15 +506,11 @@ def reconcile_identities(
 
     observed_tokens = set()
     for token_spec in token_specs:
-        data = _reconcile_identity_secret(
-            api,
-            namespace=namespace,
-            release_name=release_name,
-            name=token_spec.secret_name,
-            generate=lambda: {'token': secrets.token_urlsafe(32).encode('ascii')},
-            validate=_validate_token,
-        )
-        for token in data.values():
+        data = _reconcile_token(
+            api, namespace=namespace, release_name=release_name, specification=token_spec)
+        for key, token in data.items():
+            if key == token_expiry.METADATA_KEY:
+                continue
             if token in observed_tokens:
                 raise BootstrapError('Managed bootstrap token values must be unique')
             observed_tokens.add(token)
@@ -925,6 +975,8 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         '--token', dest='token_specs', type=_token_spec,
         action='append', default=[])
+    parser.add_argument('--token-expiry', action='append', default=[],
+                        metavar='IDENTITY/TOKEN=SECONDS/GENERATION')
     parser.add_argument('--dex-hash-secret-name')
     parser.add_argument(
         '--allow-initial-generation', action=argparse.BooleanOptionalAction,
@@ -951,6 +1003,26 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
         ):
             parser.error('--migrate-tokens-only requires tokens and permits only '
                          '--namespace, --release-name, and --token')
+    policies = {}
+    for policy in parsed.token_expiry:
+        try:
+            identity, settings = policy.split('=', 1)
+            lifetime, generation = (int(value) for value in settings.split('/'))
+            if (identity in policies or not token_expiry.MIN_LIFETIME <= lifetime
+                    <= token_expiry.MAX_LIFETIME or generation < 1):
+                raise ValueError()
+        except ValueError:
+            parser.error('Invalid --token-expiry; use IDENTITY/TOKEN=SECONDS/GENERATION '
+                         '(60..604800 seconds, positive generation)')
+        policies[identity] = (lifetime, generation)
+    for index, specification in enumerate(parsed.token_specs):
+        identity = f'{specification.identity_id}/{specification.token_name}'
+        if identity in policies:
+            lifetime, generation = policies.pop(identity)
+            parsed.token_specs[index] = dataclasses.replace(
+                specification, lifetime_seconds=lifetime, generation=generation)
+    if policies:
+        parser.error('--token-expiry must reference a declared --token')
     return parsed
 
 

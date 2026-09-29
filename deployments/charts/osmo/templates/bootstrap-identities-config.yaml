@@ -10,7 +10,9 @@
 {{- if and (hasKey $token "existingSecret") (hasKey $token.existingSecret "key") -}}
 {{- $key = $token.existingSecret.key -}}
 {{- end -}}
-{{- $_ := set $tokens $tokenName (dict "key" $key) -}}
+{{- $tokenConfig := dict "key" $key -}}
+{{- if $token.lifetimeSeconds -}}{{- $_ := set $tokenConfig "expiryGeneration" ($token.generation | default 1) -}}{{- end -}}
+{{- $_ := set $tokens $tokenName $tokenConfig -}}
 {{- end -}}
 {{- $_ := set $identities $identityID (dict "username" $identity.username "roles" $identity.roles "tokens" $tokens) -}}
 {{- end -}}

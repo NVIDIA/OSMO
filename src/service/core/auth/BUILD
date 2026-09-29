@@ -35,6 +35,7 @@ osmo_py_library(
         "//src/utils/connectors",
         "//src/utils:configmap_state",
         "//src/utils:auth",
+        "//src/utils:token_expiry",
         "//src/utils/job",
     ],
     visibility = ["//visibility:public"],
