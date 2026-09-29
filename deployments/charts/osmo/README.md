@@ -1134,25 +1134,16 @@ Helm uninstall does not delete the API-created Secrets.
 
 ### Temporary admin bootstrap token
 
-The default `admin/primary` API token expires **24 hours after issuance**. Its
-Secret stores `token` and a `token-metadata` JSON document containing version 1,
-UTC `issued_at` and `expires_at` timestamps, and a positive `generation`.
-`osmo profile list` displays its actual credential expiration date. The API
-rejects expired credentials and bounds issued JWTs by that same deadline.
+The default `admin/primary` token expires **24 hours after issuance**;
+`osmo profile list` shows its deadline. Backend tokens and Dex/OIDC login are
+unaffected. Confirm normal admin login works before upgrading.
 
-Configure `authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds`
-(60 through 604800 seconds) before issuance. The lifetime applies to new
-credentials only. Install retries, Helm upgrades, Argo CD reconciliation, and
-changing the lifetime do not extend an existing deadline, even after it expires.
-An upgrade from token-only managed admin Secrets preserves the token bytes and
-records a single transition deadline starting when the identity step migrates it.
-Validate normal admin login before upgrading: the default embedded Dex account
-remains available independently through `osmo login --method pkce` or `--method code`
-login, and external OIDC deployments must supply their own admin access.
+`lifetimeSeconds` (60–604800 seconds) applies at issuance. Retries, upgrades,
+reconciliation, and lifetime changes never extend an existing deadline.
+Existing token-only managed admin Secrets receive one deadline during migration,
+preserving their token bytes.
 
-Recovery is an explicit credential reissue. Increment the retained generation
-in your desired values, then sync or upgrade the release. For example, if the
-current generation is 1:
+To reissue a token, increase its `generation` and sync or upgrade the release:
 
 ```yaml
 authentication:
@@ -1165,33 +1156,21 @@ authentication:
             generation: 2
 ```
 
-The unified bootstrap Job replaces the token bytes and deadline atomically on
-the same Secret, updates the installation receipt, and restarts the gated API
-consumers. Read the new token from the Secret after the release is ready.
-Repeating the same generation is a no-op; decreasing it fails. Reissue requires
-Kubernetes/Helm or GitOps administrative access, not a valid OSMO token. Never
-recover by deleting the Secret or manually modifying its deadline. Recovery can
-roll the service cohort; perform it as a release operation.
+Reissue requires Kubernetes/Helm or GitOps admin access and restarts gated API
+consumers. Read the replacement token from its Secret once the release is ready.
+Repeating a generation preserves the token and deadline; decreasing it fails.
+Do not recover by deleting the Secret or editing its deadline.
 
-For `existingSecret`, supply `token-metadata` alongside the configured token key,
-with a generation matching the chart policy and a lifetime within the supported
-range. The chart does not modify externally owned Secrets. Missing, malformed,
-or mismatched metadata denies that credential; healthy backend credentials
-continue to authenticate. Expiring admin Secrets cannot contain `previous-token`.
-A legacy admin Secret with an overlap token requires an explicit generation
-increase to issue a replacement. Backend token lifetime and overlap behavior
-are unchanged.
+For `existingSecret`, provide version 1 `token-metadata` JSON with UTC `issued_at`
+and `expires_at`, a supported lifetime, and a `generation` matching the chart.
+Missing or invalid metadata denies that credential; external Secrets are never
+modified. Expiring admin tokens cannot have `previous-token`; legacy overlap
+requires an explicit generation increase.
 
-Expiry enforcement requires the upgraded API replicas. Older JWTs may remain
-valid for their previously issued session lifetime during migration/reissue.
-New token exchanges stop at the credential deadline. The unchanged gateway
-allows 60 seconds of clock skew when validating already-issued JWTs, so new
-requests using those sessions may remain accepted for that additional minute.
-Expiry does not retroactively undo completed administrative actions or terminate every already
-open streaming connection. An administrator can create other credentials while
-the bootstrap token is valid; those credentials have their own lifecycle.
-Rolling back to a version that does not support expiry metadata can disable
-enforcement or fail validation and is not a supported credential recovery path.
+Enforcement requires upgraded API replicas. Expired tokens cannot obtain new
+JWTs. New JWTs are capped at the token deadline, with the gateway's existing 60-second clock-skew allowance. Older
+sessions retain their original lifetime; expiry does not close every existing
+stream. Rollback to a version without expiry support is not a recovery path.
 
 ### Legacy managed-token migration
 
