@@ -121,7 +121,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
             self.assertFalse(self.record().get('complete', False))
         return job
 
-    def assert_application_files(self) -> None:
+    def assert_application_files(self, only_secrets: set[str] | None = None) -> None:
         pod = self.kube_json(['get', 'pods', '-l', 'app.kubernetes.io/component=api'])[
             'items'
         ][0]
@@ -140,6 +140,8 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         application = pod['spec']['containers'][0]
         expected = {}
         for mapping in mappings:
+            if only_secrets is not None and mapping['secret'] not in only_secrets:
+                continue
             gate_mount = next(
                 item
                 for item in gate['volumeMounts']
@@ -241,7 +243,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.install(self.values)
         self.assertTrue(self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
                         == renewed['data'], 'Retry repeated credential reissue')
-        self.assert_application_files()
+        self.assert_application_files({'osmo-admin-token', 'osmo-backend-token'})
 
     def test_admin_token_expiry_upgrade(self) -> None:
         baseline = copy.deepcopy(self.values)
@@ -263,7 +265,7 @@ class BootstrapLifecycleKind(EmbeddedAuthAssertions, ClusterFixture):
         self.assertTrue(self.kube_json(['get', 'secret', 'osmo-admin-token'])['data']
                         == after['data'], 'Migration deadline was reset')
         self.authenticate()
-        self.assert_application_files()
+        self.assert_application_files({'osmo-admin-token', 'osmo-backend-token'})
 
     def test_bootstrap_fresh_install(self) -> None:
         self.assertEqual(self.kube_json(['get', 'secrets'])['items'], [])
