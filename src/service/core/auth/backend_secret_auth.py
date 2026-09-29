@@ -9,8 +9,10 @@ import json
 import logging
 from pathlib import Path
 import re
+import time
 from typing import Final
 
+from src.utils import token_expiry
 from src.utils.job import task as task_lib
 
 
@@ -20,6 +22,10 @@ _TOKEN_PATTERN: Final = re.compile(r'^[A-Za-z0-9_-]+$')
 _CURRENT_TOKEN_KEY: Final = 'token'
 _PREVIOUS_TOKEN_KEY: Final = 'previous-token'
 logger = logging.getLogger(__name__)
+
+
+class BootstrapTokenRejectedError(ValueError):
+    """A known bootstrap credential cannot authenticate or fall back to another store."""
 
 
 class BackendTokenConfigurationError(ValueError):
@@ -33,6 +39,7 @@ class BackendTokenIdentity:
     username: str
     roles: tuple[str, ...]
     token_name: str
+    expires_at: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,6 +49,7 @@ class BootstrapTokenIdentity:
     username: str
     roles: tuple[str, ...]
     token_name: str
+    expires_at: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,12 +59,14 @@ class _BootstrapTokenSpec:
     current_key: str
     directory: Path
     identity: BootstrapTokenIdentity
+    expiry_generation: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
 class _BootstrapTokenCandidate:
     token: str
-    identity: BootstrapTokenIdentity
+    identity: BootstrapTokenIdentity | None
+    issued_at: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -304,10 +314,18 @@ class BootstrapSecretAuthenticator:
         candidates = self._load_candidates()
         encoded_access_token = access_token.encode('utf-8')
         matched_identity = None
+        rejected = False
+        now = time.time()
         for candidate in candidates:
-            if hmac.compare_digest(
-                    encoded_access_token, candidate.token.encode('utf-8')):
-                matched_identity = candidate.identity
+            if hmac.compare_digest(encoded_access_token, candidate.token.encode('utf-8')):
+                identity = candidate.identity
+                if (identity is None or now < candidate.issued_at
+                        or (identity.expires_at is not None and now >= identity.expires_at)):
+                    rejected = True
+                else:
+                    matched_identity = identity
+        if rejected:
+            raise BootstrapTokenRejectedError('Bootstrap credential is expired or unavailable')
         return matched_identity
 
     @staticmethod
@@ -363,7 +381,10 @@ class BootstrapSecretAuthenticator:
                     not isinstance(token_name, str)
                     or not _CREDENTIAL_NAME_PATTERN.fullmatch(token_name)
                     or not isinstance(token_config, dict)
-                    or set(token_config) != {'key'}
+                    or not {'key'} <= set(token_config) <= {'key', 'expiryGeneration'}
+                    or not isinstance(token_config.get('expiryGeneration', 0), int)
+                    or isinstance(token_config.get('expiryGeneration', 0), bool)
+                    or token_config.get('expiryGeneration', 0) < 0
                     or not isinstance(token_config['key'], str)
                     or not re.fullmatch(r'^[A-Za-z0-9._-]+$', token_config['key'])
                 ):
@@ -373,6 +394,7 @@ class BootstrapSecretAuthenticator:
                     identity_id=identity_id,
                     token_name=token_name,
                     current_key=token_config['key'],
+                    expiry_generation=token_config.get('expiryGeneration', 0),
                     directory=token_directory / identity_id / token_name,
                     identity=BootstrapTokenIdentity(
                         username=username,
@@ -400,7 +422,7 @@ class BootstrapSecretAuthenticator:
                     token_spec, generation_directory, projection_error))
             else:
                 projections.append((token_spec, generation_directory, None))
-            for key in (token_spec.current_key, _PREVIOUS_TOKEN_KEY):
+            for key in (token_spec.current_key, _PREVIOUS_TOKEN_KEY, token_expiry.METADATA_KEY):
                 path = (generation_directory or token_spec.directory) / key
                 try:
                     state = path.stat()
@@ -427,8 +449,8 @@ class BootstrapSecretAuthenticator:
                     token_spec.identity_id, token_spec.token_name,
                     stored_error)
                 continue
+            tokens = []
             try:
-                tokens = []
                 for key, required in (
                         (token_spec.current_key, True),
                         (_PREVIOUS_TOKEN_KEY, False)):
@@ -443,22 +465,43 @@ class BootstrapSecretAuthenticator:
                     raise BackendTokenConfigurationError(
                         f'Duplicate bootstrap token in {token_spec.identity_id}/'
                         f'{token_spec.token_name}')
+                metadata_path = generation_directory / token_expiry.METADATA_KEY
+                metadata = None
+                try:
+                    raw_metadata = metadata_path.read_bytes()
+                except FileNotFoundError:
+                    if token_spec.expiry_generation:
+                        raise BackendTokenConfigurationError('Required token expiry is missing') \
+                            from None
+                else:
+                    metadata = token_expiry.TokenExpiry.decode(raw_metadata)
+                    if (len(tokens) != 1 or (token_spec.expiry_generation
+                            and metadata.generation != token_spec.expiry_generation)):
+                        raise BackendTokenConfigurationError('Invalid token expiry generation')
+                identity = dataclasses.replace(
+                    token_spec.identity, expires_at=metadata.expires_at if metadata else None)
                 candidates_by_token.extend(
-                    _BootstrapTokenCandidate(token=token, identity=token_spec.identity)
+                    _BootstrapTokenCandidate(
+                        token=token, identity=identity,
+                        issued_at=metadata.issued_at if metadata else 0)
                     for token in tokens)
-            except BackendTokenConfigurationError as token_error:
+            except (BackendTokenConfigurationError, ValueError, OSError) as token_error:
                 logger.warning(
                     'Ignoring invalid bootstrap token %s/%s: %s',
                     token_spec.identity_id, token_spec.token_name, token_error)
+                # Retain known bytes as denied candidates to prevent DB/legacy fallback.
+                candidates_by_token.extend(
+                    _BootstrapTokenCandidate(token=token, identity=None) for token in tokens)
 
         token_counts: dict[str, int] = {}
         for candidate in candidates_by_token:
             token_counts[candidate.token] = token_counts.get(candidate.token, 0) + 1
         candidates = [
-            candidate for candidate in candidates_by_token
-            if token_counts[candidate.token] == 1
+            candidate if token_counts[candidate.token] == 1
+            else dataclasses.replace(candidate, identity=None)
+            for candidate in candidates_by_token
         ]
-        if len(candidates) != len(candidates_by_token):
+        if any(count > 1 for count in token_counts.values()):
             logger.warning('Ignoring duplicate bootstrap token values')
         self._cache = (state_tuple, tuple(candidates))
         return candidates

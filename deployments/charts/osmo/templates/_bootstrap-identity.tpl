@@ -7,7 +7,7 @@
 {{- if $identity.enabled -}}
 {{- range $tokenName, $token := $identity.tokens -}}
 {{- if hasKey $token "managedSecret" -}}
-{{- $managedTokens = append $managedTokens (dict "identityID" $identityID "tokenName" $tokenName "secretName" $token.managedSecret.name) -}}
+{{- $managedTokens = append $managedTokens (dict "identityID" $identityID "tokenName" $tokenName "secretName" $token.managedSecret.name "lifetimeSeconds" ($token.lifetimeSeconds | default 0) "generation" ($token.generation | default 1)) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -38,6 +38,10 @@ container: |-
     {{- range $managedTokens }}
     - --token
     - {{ printf "%s/%s=%s" .identityID .tokenName .secretName | quote }}
+    {{- if .lifetimeSeconds }}
+    - --token-expiry
+    - {{ printf "%s/%s=%v/%v" .identityID .tokenName .lifetimeSeconds .generation | quote }}
+    {{- end }}
     {{- end }}
     volumeMounts:
     - name: kubernetes-api

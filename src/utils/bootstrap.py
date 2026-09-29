@@ -23,6 +23,8 @@ from typing import Any
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
+from src.utils import token_expiry
+
 
 GENERATION = 'osmo.nvidia.com/bootstrap-generation'
 API_TIMEOUT = (5, 10)
@@ -57,6 +59,7 @@ class SecretSpec:
     keys: list[str]
     protected: bool = True
     rotation_id: str = ''
+    token_generation: int = 0
     optional_keys: list[str] = dataclasses.field(default_factory=list)
 
 
@@ -108,7 +111,40 @@ def secret_identity(
         if not value:
             raise BootstrapError(f'Secret {specification.name} has empty key {key}.')
         fingerprints[key] = hashlib.sha256(value).hexdigest()
-    return {'uid': secret.metadata.uid, 'keys': fingerprints}
+    identity: dict[str, Any] = {'uid': secret.metadata.uid, 'keys': fingerprints}
+    if specification.token_generation and token_expiry.METADATA_KEY in values:
+        try:
+            metadata = token_expiry.TokenExpiry.decode(
+                base64.b64decode(values[token_expiry.METADATA_KEY], validate=True))
+        except ValueError as error:
+            raise BootstrapError(
+                f'Secret {specification.name} has invalid token expiry.') from error
+        identity['tokenGeneration'] = metadata.generation
+    return identity
+
+
+def verify_token_transition(previous: dict[str, Any], current: dict[str, Any],
+                            specification: SecretSpec) -> None:
+    """Allow only the declared admin issuance transition on the retained Secret UID."""
+    desired = specification.token_generation
+    old_generation = previous.get('tokenGeneration', 0)
+    new_generation = current.get('tokenGeneration', 0)
+    if (current['uid'] != previous['uid'] or desired < old_generation
+            or new_generation not in (old_generation, desired)):
+        raise BootstrapError(f'Invalid token transition for {specification.name}.')
+    if new_generation == old_generation:
+        if current != previous:
+            raise BootstrapError(f'Committed token {specification.name} changed unexpectedly.')
+        return
+    old_token = previous['keys'].get('token')
+    new_token = current['keys'].get('token')
+    if old_generation == 0 and desired == 1:
+        if old_token != new_token or 'previous-token' in previous['keys']:
+            raise BootstrapError(f'Token migration changed credentials for {specification.name}.')
+    elif old_token == new_token:
+        raise BootstrapError(f'Token reissue must replace credentials for {specification.name}.')
+    if set(current['keys']) != {'token', token_expiry.METADATA_KEY}:
+        raise BootstrapError(f'Invalid expiring token keys for {specification.name}.')
 
 
 def initialization_mode(configuration: Configuration, inventory: dict[str, Any]) -> str:
@@ -208,6 +244,9 @@ class Coordinator:
                 if allow_missing or specification.name in allow_missing_committed:
                     continue
                 verify_committed({specification.name: previous}, inventory)
+                continue
+            if specification.token_generation:
+                verify_token_transition(previous, current, specification)
                 continue
             if (
                 specification.rotation_id
@@ -544,13 +583,23 @@ class Coordinator:
                 if specification.step in later_steps
             ),
         )
-        verify_committed(pending['existing'], inventory)
+        specifications = {item.name: item for item in self.configuration.secrets}
+        for secret_name, previous in pending['existing'].items():
+            specification = specifications[secret_name]
+            if specification.token_generation and secret_name in inventory:
+                verify_token_transition(previous, inventory[secret_name], specification)
+            else:
+                verify_committed({secret_name: previous}, inventory)
         for specification in self.configuration.secrets:
             if specification.step == name:
                 if specification.name not in inventory:
                     raise BootstrapError(
                         f'Step {name} did not issue {specification.name}.'
                     )
+                if (specification.token_generation and inventory[specification.name].get(
+                        'tokenGeneration') != specification.token_generation):
+                    raise BootstrapError(
+                        f'Step {name} did not issue the requested token generation.')
                 if specification.protected:
                     self.state['committed'][specification.name] = inventory[
                         specification.name

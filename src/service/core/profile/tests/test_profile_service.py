@@ -69,7 +69,7 @@ class TestProfileService(unittest.TestCase):
             'iss': self.service_auth.issuer, 'aud': self.service_auth.audience,
             'iat': now, 'nbf': now, 'exp': now + 300,
             'unique_name': 'admin', 'osmo_token_name': 'bootstrap-admin-primary',
-            'osmo_token_source': source,
+            'osmo_token_source': source, 'osmo_token_expires_at': None,
         }
         claims.update(overrides)
         return self.service_auth.get_current_key().create_jwt(claims)
@@ -214,6 +214,30 @@ class TestProfileService(unittest.TestCase):
                     headers=[*self.headers.items(), *credentials])
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json()['token']['expiration_status'], 'unknown')
+
+    def test_bootstrap_credential_expiry_is_distinct_from_session_expiry(self):
+        expiry = int(time.time()) + 3600
+        self.use_token(osmo_token_expires_at=expiry)
+        token = self.get_token()
+        self.assertEqual(token['expiration_status'], 'scheduled')
+        self.assertEqual(datetime.datetime.fromisoformat(token['expires_at']).timestamp(), expiry)
+        self.fetch_token.assert_not_called()
+        legacy = self.get_token(extended=False)
+        self.assertNotIn('expiration_status', legacy)
+        self.assertEqual(legacy['expires_at'], token['expires_at'])
+
+    def test_old_bootstrap_jwt_does_not_claim_never(self):
+        claims = jwt.decode(self.signed_token(), options={'verify_signature': False})
+        del claims['osmo_token_expires_at']
+        self.headers['Authorization'] = 'Bearer ' + (
+            self.service_auth.get_current_key().create_jwt(claims))
+        self.assertEqual(self.get_token()['expiration_status'], 'unknown')
+        self.fetch_token.assert_not_called()
+
+    def test_invalid_signed_credential_expiry_is_unknown(self):
+        for expiry in (True, 'never', -1, 2**65):
+            self.use_token(osmo_token_expires_at=expiry)
+            self.assertEqual(self.get_token()['expiration_status'], 'unknown')
 
     def test_database_failure_is_not_reported_as_unknown(self):
         self.fetch_token.side_effect = RuntimeError('Database unavailable')

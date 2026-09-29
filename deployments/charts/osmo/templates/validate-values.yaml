@@ -301,6 +301,12 @@
 {{- if or (gt (len $tokenName) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $tokenName)) -}}
 {{- fail (printf "authentication.bootstrap.identities.%s.tokens.%s must use a DNS-compatible key of at most 63 characters" $identityID $tokenName) -}}
 {{- end -}}
+{{- if and (hasKey $token "generation") (not (hasKey $token "lifetimeSeconds")) -}}
+{{- fail "bootstrap token generation requires lifetimeSeconds" -}}
+{{- end -}}
+{{- if and (hasKey $token "lifetimeSeconds") (not (has "osmo-admin" $identity.roles)) -}}
+{{- fail "bootstrap token lifetimeSeconds is currently supported only for admin identities" -}}
+{{- end -}}
 {{- $managed := hasKey $token "managedSecret" -}}
 {{- $existing := hasKey $token "existingSecret" -}}
 {{- if eq $managed $existing -}}

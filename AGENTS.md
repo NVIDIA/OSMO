@@ -150,6 +150,7 @@ Installer regression tests: `bazel test //deployments/scripts/tests:all`.
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
 | `utils/bootstrap.py` | `Coordinator` | Retained installation receipts, execution ownership, adoption, and verified consumer credential snapshots for the unified bootstrap Job. |
 | `utils/identity_bootstrap.py` | `PasswordSpec`, `TokenSpec` | Reconciles retained embedded-Dex passwords, OAuth credentials, and Secret-backed OSMO bootstrap tokens. |
+| `utils/token_expiry.py` | `TokenExpiry` | Persisted admin bootstrap credential deadlines and generation validation. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 

@@ -22,6 +22,7 @@ osmo_py_test(
     name = "test_backend_secret_auth",
     srcs = ["test_backend_secret_auth.py"],
     deps = [
+        "//src/utils:token_expiry",
         "//src/service/core/auth:auth",
         "//src/utils/job:job",
     ],

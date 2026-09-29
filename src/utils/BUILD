@@ -39,9 +39,15 @@ go_library(
 ################################################################
 
 osmo_py_library(
+    name = "token_expiry",
+    srcs = ["token_expiry.py"],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "bootstrap_lib",
     srcs = ["bootstrap.py"],
-    deps = [requirement("kubernetes")],
+    deps = [requirement("kubernetes"), ":token_expiry"],
     visibility = ["//visibility:public"],
 )
 
@@ -151,6 +157,7 @@ osmo_py_library(
     name = "identity_bootstrap_lib",
     srcs = ["identity_bootstrap.py"],
     deps = [
+        ":token_expiry",
         "//src/utils:bootstrap_lib",
         requirement("bcrypt"),
         requirement("kubernetes"),

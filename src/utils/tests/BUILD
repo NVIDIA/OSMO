@@ -23,7 +23,7 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 osmo_py_test(
     name = "test_bootstrap",
     srcs = ["test_bootstrap.py"],
-    deps = ["//src/utils:bootstrap_lib", "//src/utils:identity_bootstrap_lib", requirement("kubernetes")],
+    deps = ["//src/utils:bootstrap_lib", "//src/utils:identity_bootstrap_lib", "//src/utils:token_expiry", requirement("kubernetes")],
 )
 
 osmo_py_test(
@@ -75,8 +75,14 @@ osmo_py_test(
     name = "test_identity_bootstrap",
     srcs = ["test_identity_bootstrap.py"],
     deps = [
-        "//src/utils:identity_bootstrap_lib",
+        "//src/utils:identity_bootstrap_lib", "//src/utils:token_expiry",
         requirement("bcrypt"),
         requirement("kubernetes"),
     ],
+)
+
+osmo_py_test(
+    name = "test_token_expiry",
+    srcs = ["test_token_expiry.py"],
+    deps = ["//src/utils:token_expiry"],
 )

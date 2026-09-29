@@ -43,6 +43,26 @@ class _LoopbackRedirectHandler(urllib.request.HTTPRedirectHandler):
 class EmbeddedAuthAssertions(unittest.TestCase):
     """Use with a unittest fixture; credentials stay in memory."""
 
+    def credential_request(self, external_url, *, access_token=None, jwt_token=None):
+        """Return a sanitized status and JSON payload for token exchange or profile."""
+        headers = {}
+        data = None
+        path = '/api/profile/settings?include_token_expiration=true'
+        if access_token is not None:
+            path = '/api/auth/jwt/access_token'
+            data = json.dumps({'token': access_token}).encode()
+            headers['Content-Type'] = 'application/json'
+        if jwt_token is not None:
+            headers['Authorization'] = 'Bearer ' + jwt_token
+        request = urllib.request.Request(external_url + path, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            status = error.code
+            error.close()
+            return status, {}
+
     def _authenticate_embedded_admin(
         self, external_url, password, *, login_email='admin@osmo.local'
     ):

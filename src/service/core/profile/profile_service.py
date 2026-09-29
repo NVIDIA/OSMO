@@ -15,6 +15,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import datetime
 from typing import Literal, Optional
 
 import fastapi
@@ -31,18 +32,18 @@ router = fastapi.APIRouter(
 )
 
 
-def _is_bootstrap_token(request: fastapi.Request, service_auth: auth.AuthenticationConfig,
-                        username: str, token_name: str) -> bool:
+def _bootstrap_token_identity(request: fastapi.Request, service_auth: auth.AuthenticationConfig,
+                        username: str, token_name: str) -> profile_contract.TokenIdentity | None:
     """Verify credential provenance without changing gateway authentication policy."""
     authorization = request.headers.getlist(login.OSMO_AUTH_HEADER)
     alternate = request.headers.getlist('x-osmo-auth')
     # Do not guess which credential the gateway selected from ambiguous headers.
     if len(authorization) + len(alternate) != 1:
-        return False
+        return None
     if authorization:
         scheme, separator, token = authorization[0].partition(' ')
         if not separator or scheme.lower() != 'bearer':
-            return False
+            return None
     else:
         token = alternate[0]
 
@@ -57,11 +58,28 @@ def _is_bootstrap_token(request: fastapi.Request, service_auth: auth.Authenticat
         except jwt.InvalidSignatureError:
             continue
         except jwt.InvalidTokenError:
-            return False
-        return (claims.get('unique_name') == username
-                and claims.get('osmo_token_name') == token_name
-                and claims.get('osmo_token_source') == 'bootstrap')
-    return False
+            return None
+        if (claims.get('unique_name') != username
+                or claims.get('osmo_token_name') != token_name
+                or claims.get('osmo_token_source') != 'bootstrap'):
+            return None
+        result = profile_contract.TokenIdentity(name=token_name, expires_at=None)
+        if 'osmo_token_expires_at' not in claims:
+            result.expiration_status = 'unknown'
+        elif claims['osmo_token_expires_at'] is None:
+            result.expiration_status = 'never'
+        else:
+            expiry = claims['osmo_token_expires_at']
+            try:
+                if (not isinstance(expiry, int) or isinstance(expiry, bool)
+                        or expiry < claims['exp']):
+                    raise ValueError()
+                result.expires_at = datetime.datetime.fromtimestamp(expiry, datetime.timezone.utc)
+                result.expiration_status = 'scheduled'
+            except (ValueError, OverflowError, OSError):
+                result.expiration_status = 'unknown'
+        return result
+    return None
 
 
 @router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse,
@@ -86,9 +104,11 @@ def get_notification_settings(
     if token_name_header:
         expires_at = None
         expiration_status: Literal['scheduled', 'never', 'unknown'] = 'unknown'
-        if _is_bootstrap_token(request, postgres.get_service_configs().service_auth,
-                               user_name, token_name_header):
-            expiration_status = 'never'
+        bootstrap_identity = _bootstrap_token_identity(
+            request, postgres.get_service_configs().service_auth, user_name, token_name_header)
+        if bootstrap_identity is not None:
+            expires_at = bootstrap_identity.expires_at
+            expiration_status = bootstrap_identity.expiration_status
         else:
             try:
                 expires_at = auth_objects.AccessToken.fetch_from_db(
