@@ -47,6 +47,20 @@ profile, including bucket and pool defaults.
   - osmo-user
   - osmo-ml-team
 
+Token Expiration
+----------------
+
+When using an access token, ``osmo profile list`` shows its expiration date,
+``never`` for a Secret-backed bootstrap credential with no scheduled expiration,
+or ``unknown`` when expiration metadata is unavailable (including older servers).
+A credential shown as ``never`` can still be rotated or removed. The short-lived
+JWT issued at login has its own expiration and is refreshed independently.
+
+API clients can request ``GET /api/profile/settings?include_token_expiration=true``
+to receive ``token.expiration_status`` as ``scheduled``, ``never``, or ``unknown``.
+``expires_at`` remains a timestamp or null; clients that omit this option retain
+the existing response shape.
+
 Default Pool
 ------------
 

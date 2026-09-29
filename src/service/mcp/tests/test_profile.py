@@ -42,6 +42,7 @@ _PROFILE_RESULT = {
     'token': {
         'name': 'desktop-client-token',
         'expires_at': '2026-07-10T12:30:00Z',
+        'expiration_status': 'scheduled',
     },
 }
 
@@ -173,7 +174,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(upstream_request.method, 'GET')
         self.assertEqual(
             str(upstream_request.url),
-            'https://gateway.test/api/profile/settings',
+            'https://gateway.test/api/profile/settings?include_token_expiration=true',
         )
         self.assertEqual(
             upstream_request.headers['authorization'],
@@ -185,6 +186,30 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(login.OSMO_USER_HEADER, upstream_request.headers)
         self.assertNotIn('cookie', upstream_request.headers)
+
+    async def test_get_profile_preserves_expiration_states_and_old_server_fallback(self) -> None:
+        for status in ('never', 'unknown', None):
+            with self.subTest(status=status):
+                upstream = dict(_PROFILE_RESULT)
+                token = {'name': 'bootstrap-admin-primary', 'expires_at': None}
+                if status is not None:
+                    token['expiration_status'] = status
+                upstream['token'] = token
+
+                async def handler(
+                    request: httpx.Request,
+                    response: httpx.Response = httpx.Response(200, json=upstream),
+                ) -> httpx.Response:
+                    self.assertEqual(request.url.params['include_token_expiration'], 'true')
+                    return response
+
+                response, _ = await self._invoke_tool(handler)
+                result = response.json()['result']
+                self.assertFalse(result['isError'], result)
+                self.assertEqual(result['structuredContent']['token'], {
+                    'name': 'bootstrap-admin-primary', 'expires_at': None,
+                    'expiration_status': status or 'unknown',
+                })
 
     async def test_set_profile_pool_relays_one_closed_mutation(self) -> None:
         captured_requests: list[httpx.Request] = []
@@ -473,7 +498,7 @@ class ProfileToolProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(
             str(captured_requests[0].url),
-            'https://gateway.test/api/profile/settings',
+            'https://gateway.test/api/profile/settings?include_token_expiration=true',
         )
         self.assertEqual(
             captured_requests[0].headers['authorization'],

@@ -15,14 +15,15 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-from typing import Optional
+from typing import Literal, Optional
 
 import fastapi
+import jwt
 
 from src.lib.api import profile as profile_contract
 from src.lib.utils import login, osmo_errors
 from src.service.core.auth import objects as auth_objects
-from src.utils import connectors
+from src.utils import auth, connectors
 
 
 router = fastapi.APIRouter(
@@ -30,8 +31,44 @@ router = fastapi.APIRouter(
 )
 
 
-@router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse)
+def _is_bootstrap_token(request: fastapi.Request, service_auth: auth.AuthenticationConfig,
+                        username: str, token_name: str) -> bool:
+    """Verify credential provenance without changing gateway authentication policy."""
+    authorization = request.headers.getlist(login.OSMO_AUTH_HEADER)
+    alternate = request.headers.getlist('x-osmo-auth')
+    # Do not guess which credential the gateway selected from ambiguous headers.
+    if len(authorization) + len(alternate) != 1:
+        return False
+    if authorization:
+        scheme, separator, token = authorization[0].partition(' ')
+        if not separator or scheme.lower() != 'bearer':
+            return False
+    else:
+        token = alternate[0]
+
+    # OSMO JWTs have no kid; try all configured keys to support key rotation.
+    for key_pair in service_auth.keys.values():
+        try:
+            claims = jwt.decode(
+                token, key=jwt.PyJWK.from_json(key_pair.public_key).key,
+                algorithms=['RS256'], issuer=service_auth.issuer,
+                audience=service_auth.audience,
+                options={'require': ['exp', 'iat', 'nbf', 'iss', 'aud']})
+        except jwt.InvalidSignatureError:
+            continue
+        except jwt.InvalidTokenError:
+            return False
+        return (claims.get('unique_name') == username
+                and claims.get('osmo_token_name') == token_name
+                and claims.get('osmo_token_source') == 'bootstrap')
+    return False
+
+
+@router.get('/api/profile/settings', response_model=profile_contract.ProfileResponse,
+            response_model_exclude_unset=True)
 def get_notification_settings(
+    request: fastapi.Request,
+    include_token_expiration: bool = False,
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
     roles_header: Optional[str] =
@@ -48,13 +85,22 @@ def get_notification_settings(
     token_identity = None
     if token_name_header:
         expires_at = None
-        try:
-            expires_at = auth_objects.AccessToken.fetch_from_db(
-                postgres, token_name_header, user_name).expires_at
-        except osmo_errors.OSMOUserError:
-            pass
+        expiration_status: Literal['scheduled', 'never', 'unknown'] = 'unknown'
+        if _is_bootstrap_token(request, postgres.get_service_configs().service_auth,
+                               user_name, token_name_header):
+            expiration_status = 'never'
+        else:
+            try:
+                expires_at = auth_objects.AccessToken.fetch_from_db(
+                    postgres, token_name_header, user_name).expires_at
+                expiration_status = 'scheduled'
+            except osmo_errors.OSMOUserError:
+                pass
         token_identity = profile_contract.TokenIdentity(
             name=token_name_header, expires_at=expires_at)
+        # Older MCP clients reject extra fields, so expose metadata only on request.
+        if include_token_expiration:
+            token_identity.expiration_status = expiration_status
     return profile_contract.ProfileResponse(
         profile=profile_contract.UserProfile.model_validate(
             connectors.UserProfile.fetch_from_db(postgres, user_name).model_dump()

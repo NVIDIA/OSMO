@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,20 +16,20 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-load("//bzl:py.bzl", "osmo_py_library")
+load("//bzl:py.bzl", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
+load("@osmo_tests_python_deps//:requirements.bzl", tests_requirement = "requirement")
 
-osmo_py_library(
-    name = "profile",
-    srcs = ["profile_service.py"],
+osmo_py_test(
+    name = "test_profile_service",
+    srcs = ["test_profile_service.py"],
     deps = [
+        "//src/lib/api:profile",
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/profile",
         requirement("fastapi"),
         requirement("pyjwt"),
         "//src/utils:auth",
-        "//src/lib/api:profile",
-        "//src/utils/connectors",
-        "//src/service/core/auth",
-        "//src/service/core/workflow",
+        tests_requirement("httpx"),
     ],
-    visibility = ["//visibility:public"],
 )

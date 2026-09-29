@@ -178,7 +178,8 @@ def _create_jwt_from_access_token(access_token: str):
             end_timeout,
             backend_identity.username,
             roles=list(backend_identity.roles),
-            token_name=backend_identity.token_name)
+            token_name=backend_identity.token_name,
+            token_source='bootstrap')
         return {'token': jwt_token,
                 'expires_at': end_timeout,
                 'error': None}
@@ -201,7 +202,8 @@ def _create_jwt_from_access_token(access_token: str):
     end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
     jwt_token = service_config.service_auth.create_idtoken_jwt(end_timeout, token.user_name,
                                                                roles=roles,
-                                                               token_name=token.token_name)
+                                                               token_name=token.token_name,
+                                                               token_source='database')
     return {'token': jwt_token,
             'expires_at': end_timeout,
             'error': None}

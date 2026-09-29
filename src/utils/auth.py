@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 import uuid
 import time
 
@@ -188,7 +188,8 @@ class AuthenticationConfig(pydantic.BaseModel):
     def create_idtoken_jwt(self, expire_timestamp: int, username: str,
                            roles: List[str],
                            token_name: str | None = None,
-                           workflow_id: str | None = None) -> str:
+                           workflow_id: str | None = None,
+                           token_source: Literal['bootstrap', 'database'] | None = None) -> str:
         '''
         aud: Audience
         iss: Issuer
@@ -211,6 +212,8 @@ class AuthenticationConfig(pydantic.BaseModel):
         }
         if token_name:
             template_payload['osmo_token_name'] = token_name
+            if token_source is not None:
+                template_payload['osmo_token_source'] = token_source
         if workflow_id:
             template_payload['osmo_workflow_id'] = workflow_id
 
