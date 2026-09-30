@@ -378,7 +378,9 @@ class AdminTokenExpiryTests(unittest.TestCase):
         path.write_bytes(self.metadata.encode())
         # Same-size rewrites can retain the timestamp on coarse-resolution filesystems.
         os.utime(path, ns=(previous_stat.st_atime_ns,
-                           previous_stat.st_mtime_ns + 1_000_000_000))
+                           previous_stat.st_mtime_ns + 2_000_000_000))
+        self.assertNotEqual(path.stat().st_mtime_ns,
+                            previous_stat.st_mtime_ns)
         self.assertIsNotNone(self.authenticator.authenticate(self.token))
 
     def test_previous_token_cannot_inherit_expiry(self):
