@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 from jwcrypto import jwk  # type: ignore
 import psycopg2  # type: ignore
@@ -135,6 +136,41 @@ class TestMekReconciliationPostgres(unittest.TestCase):
     def tearDown(self) -> None:
         assert self.database._pool is not None
         self.database._pool.closeall()
+
+    def test_jsonb_merge_initialization_preserves_existing_function(self) -> None:
+        bootstrap = object.__new__(connectors.PostgresConnector)
+        bootstrap.config = self.database.config
+        with mock.patch.object(bootstrap, "execute_commit_command") as commands, \
+                mock.patch.object(bootstrap, "execute_autocommit_command"):
+            bootstrap._init_tables()
+        command = next(
+            call.args[0] for call in commands.call_args_list
+            if "CREATE OR REPLACE FUNCTION" in call.args[0]
+            and "jsonb_recursive_merge" in call.args[0]
+        )
+        self.database.execute_commit_command(
+            "DROP FUNCTION IF EXISTS public.jsonb_recursive_merge(jsonb, jsonb)", ())
+        self.database.execute_commit_command(command, ())
+        rows = self.database.execute_fetch_command(
+            "SELECT public.jsonb_recursive_merge(%s::jsonb, %s::jsonb) AS merged",
+            ('{"nested":{"a":1,"b":2}}', '{"nested":{"b":3}}'), return_raw=True)
+        self.assertEqual(rows[0]["merged"], {"nested": {"a": 1, "b": 3}})
+        version_query = (
+            "SELECT xmin::text AS version FROM pg_proc WHERE oid = "
+            "'public.jsonb_recursive_merge(jsonb,jsonb)'::regprocedure")
+        before = self.database.execute_fetch_command(version_query, (), return_raw=True)
+        self.database.execute_commit_command(command, ())
+        self.assertEqual(
+            self.database.execute_fetch_command(version_query, (), return_raw=True), before)
+        self.database.execute_commit_command(
+            "CREATE OR REPLACE FUNCTION public.jsonb_recursive_merge("
+            "receivingJson jsonb, givingJson jsonb) "
+            "RETURNS jsonb LANGUAGE SQL AS 'SELECT $1'", ())
+        self.database.execute_commit_command(command, ())
+        rows = self.database.execute_fetch_command(
+            "SELECT public.jsonb_recursive_merge(%s::jsonb, %s::jsonb) AS merged",
+            ('{"a":1}', '{"b":2}'), return_raw=True)
+        self.assertEqual(rows[0]["merged"], {"a": 1})
 
     def _mek_relations(self) -> list[str]:
         rows = self.database.execute_fetch_command(
