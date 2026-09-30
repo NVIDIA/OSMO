@@ -373,7 +373,14 @@ class AdminTokenExpiryTests(unittest.TestCase):
                     path.write_bytes(raw)
                 with self.assertRaises(backend_secret_auth.BootstrapTokenRejectedError):
                     self.authenticator.authenticate(self.token)
-        (self.credential / 'token-metadata').write_bytes(self.metadata.encode())
+        path = self.credential / 'token-metadata'
+        previous_stat = path.stat()
+        path.write_bytes(self.metadata.encode())
+        # Same-size rewrites can retain the timestamp on coarse-resolution filesystems.
+        os.utime(path, ns=(previous_stat.st_atime_ns,
+                           previous_stat.st_mtime_ns + 2_000_000_000))
+        self.assertNotEqual(path.stat().st_mtime_ns,
+                            previous_stat.st_mtime_ns)
         self.assertIsNotNone(self.authenticator.authenticate(self.token))
 
     def test_previous_token_cannot_inherit_expiry(self):
