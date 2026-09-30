@@ -1163,19 +1163,28 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
+        # Replacing an unchanged function makes pgroll record an inferred migration.
+        # Changes to an existing definition belong in an explicit migration.
         create_cmd = '''
-            CREATE OR REPLACE FUNCTION jsonb_recursive_merge(receivingJson jsonb, givingJson jsonb)
-            RETURNS jsonb LANGUAGE SQL AS $$
-            SELECT jsonb_object_agg(coalesce(kr, kg),
-                CASE
-                WHEN vr isnull THEN vg
-                WHEN vg isnull THEN vr
-                WHEN jsonb_typeof(vr) <> 'object' OR jsonb_typeof(vg) <> 'object' THEN vg
-                ELSE jsonb_recursive_merge(vr, vg) END
-            )
-            FROM jsonb_each(receivingJson) temptable1(kr, vr)
-            FULL JOIN jsonb_each(givingJson) temptable2(kg, vg) ON kr = kg
-            $$;
+            DO $init$
+            BEGIN
+                IF to_regprocedure('public.jsonb_recursive_merge(jsonb,jsonb)') IS NULL THEN
+                    CREATE OR REPLACE FUNCTION public.jsonb_recursive_merge(
+                        receivingJson jsonb, givingJson jsonb)
+                    RETURNS jsonb LANGUAGE SQL AS $$
+                    SELECT jsonb_object_agg(coalesce(kr, kg),
+                        CASE
+                        WHEN vr isnull THEN vg
+                        WHEN vg isnull THEN vr
+                        WHEN jsonb_typeof(vr) <> 'object' OR jsonb_typeof(vg) <> 'object' THEN vg
+                        ELSE jsonb_recursive_merge(vr, vg) END
+                    )
+                    FROM jsonb_each(receivingJson) temptable1(kr, vr)
+                    FULL JOIN jsonb_each(givingJson) temptable2(kg, vg) ON kr = kg
+                    $$;
+                END IF;
+            END
+            $init$;
         '''
         self.execute_commit_command(create_cmd, ())
 
