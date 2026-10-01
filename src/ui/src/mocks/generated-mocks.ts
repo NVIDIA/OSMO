@@ -88,6 +88,7 @@ export type BackendSchedulerType = (typeof BackendSchedulerType)[keyof typeof Ba
 
 export const BackendSchedulerType = {
   kai: "kai",
+  none: "none",
 } as const;
 
 /**
