@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -47,9 +48,9 @@ var DataTimeout time.Duration = 10 * time.Minute
 var CpuCount string = "1"
 
 const (
-	Download         string = "download"
-	NotApplicable    string = "N/A"
-	BenchmarkSuffix  string = "_benchmark.json"
+	Download        string = "download"
+	NotApplicable   string = "N/A"
+	BenchmarkSuffix string = "_benchmark.json"
 )
 
 // BenchmarkPath is the directory under which the OSMO data CLI writes its
@@ -58,7 +59,7 @@ const (
 var BenchmarkPath = "/osmo/data/benchmarks/"
 
 const (
-	URLOperation     string = "Url"
+	URLOperation string = "Url"
 )
 
 type WebsocketConnectionInfo struct {
@@ -117,31 +118,49 @@ func (f WebsocketConnectionInfo) TimeLeft() time.Duration {
 
 var WebsocketConnection WebsocketConnectionInfo
 
+// createOutCommandStream monitors stdout inactivity until the process is reaped,
+// even if the process closes stdout before exiting.
 func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
-	*bufio.Scanner, *sync.WaitGroup, chan bool) {
+	*bufio.Scanner, *sync.WaitGroup, chan bool, <-chan struct{}) {
 	streamOutCommand := func(cmd *exec.Cmd, scanner *bufio.Scanner,
-		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool) {
+		waitStreamLogs *sync.WaitGroup, timeoutChan chan bool, commandDone <-chan struct{}) {
 		defer waitStreamLogs.Done()
 
+		var progressMutex sync.Mutex
 		lastMessageTime := time.Now()
-		quit := make(chan bool)
+		timeout := DataTimeout
 
 		go func() {
+			timedOut := false
+			defer func() { timeoutChan <- timedOut }()
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
 			for {
 				select {
-				case <-quit:
+				case <-commandDone:
 					return
-				default:
-					if time.Since(lastMessageTime) >= DataTimeout {
-						if err := cmd.Process.Kill(); err != nil {
+				case <-ticker.C:
+					progressMutex.Lock()
+					idleTime := time.Since(lastMessageTime)
+					progressMutex.Unlock()
+					if idleTime >= timeout {
+						var err error
+						if cmd.SysProcAttr != nil && cmd.SysProcAttr.Setpgid {
+							// Descendants may still hold stderr open after the parent exits.
+							err = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+						} else {
+							err = cmd.Process.Kill()
+						}
+						if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
+							return
+						}
+						if err != nil {
 							osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 							panic(fmt.Sprintf("Failed to kill process: %s", err))
 						}
-						timeoutChan <- true
+						timedOut = true
 						return
 					}
-					// Wait a second between checks
-					time.Sleep(time.Second)
 				}
 			}
 		}()
@@ -149,15 +168,14 @@ func createOutCommandStream(osmoChan chan string) func(*exec.Cmd,
 		for scanner.Scan() {
 			log.Println(scanner.Text())
 			osmoChan <- scanner.Text()
+			progressMutex.Lock()
 			lastMessageTime = time.Now()
+			progressMutex.Unlock()
 		}
 		if err := scanner.Err(); err != nil {
 			osmo_errors.SetExitCode(osmo_errors.CMD_FAILED_CODE)
 			panic(err)
 		}
-
-		quit <- true
-		timeoutChan <- false
 	}
 	return streamOutCommand
 }
@@ -201,6 +219,7 @@ func RunOSMOCommandStreamingWithRetry(command []string, retryCommand []string,
 				continue
 			}
 			cmd := exec.Command(commandInput[0], commandInput[1:]...)
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			msg, err = common.RunCommand(cmd,
 				createOutCommandStream(osmoChan), createErrCommandStream(osmoChan))
 			if err != nil {
