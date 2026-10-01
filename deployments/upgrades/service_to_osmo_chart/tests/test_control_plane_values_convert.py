@@ -30,6 +30,31 @@ from deployments.upgrades.service_to_osmo_chart import control_plane_values_conv
 class ControlPlaneValuesConvertTest(unittest.TestCase):
     """Tests lossless mappings and explicit conversion boundaries."""
 
+    def test_strips_embedded_pool_name_from_legacy_config(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'configs': {'pools': {
+                'team-gpu': {
+                    'name': 'team-gpu',
+                    'backend': 'gpu-backend',
+                    'enable_maintenance': True,
+                },
+            }}},
+        })
+
+        self.assertEqual(
+            result.values['configuration']['pools']['team-gpu'],
+            {'backend': 'gpu-backend', 'enable_maintenance': True})
+
+    def test_reports_mismatched_embedded_pool_name(self):
+        result = control_plane_values_convert.convert_values({
+            'services': {'configs': {'pools': {
+                'team-gpu': {'name': 'other-pool', 'backend': 'gpu-backend'},
+            }}},
+        })
+
+        self.assertIn('services.configs.pools.team-gpu.name',
+                      [issue.path for issue in result.issues])
+
     def test_maps_control_plane_values(self):
         legacy = {
             'global': {
