@@ -446,6 +446,14 @@ class _Converter:
                         'backends', 'pools', 'backendTests', 'groupTemplates'):
                     if key in configs:
                         converted_config = configs.pop(key)
+                        if key == 'pools' and isinstance(converted_config, dict):
+                            for pool_name, pool in converted_config.items():
+                                if isinstance(pool, dict) and 'name' in pool:
+                                    if pool['name'] != pool_name:
+                                        self.issue(
+                                            f'services.configs.pools.{pool_name}.name',
+                                            'embedded pool name differs from its map key')
+                                    pool.pop('name')
                         if (key == 'podTemplates'
                                 and isinstance(converted_config, dict)
                                 and 'default_gpu_user' not in converted_config):
