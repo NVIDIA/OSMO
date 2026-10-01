@@ -111,7 +111,9 @@ global:
     ##
     logFormat: text
 
-  ## Comma-separated list of namespaces to include in usage monitoring
+  ## Comma-separated list of additional namespaces counted as workflow usage.
+  ## Pod events in these namespaces also trigger node usage updates.
+  ## The backend namespace is always included; task status is monitored only there.
   ##
   includeNamespaceUsage: 'osmo-staging,osmo-prod'
 
