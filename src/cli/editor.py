@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -61,7 +62,7 @@ def get_editor_input(content: str | None= None) -> str:
             tf.write(content.encode())
             tf.flush()
         try:
-            subprocess.call([editor, tf.name])
+            subprocess.call(shlex.split(editor) + [tf.name])
         except FileNotFoundError as e:
             raise osmo_errors.OSMOUserError(
                 'Error: Editor not found. Please set the EDITOR environment variable.') from e
