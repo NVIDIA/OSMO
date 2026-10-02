@@ -10,9 +10,10 @@ lifting — workflow generation, resource selection, submission, and failure
 diagnosis — then return control so the calling agent can monitor inline
 with live status updates visible to the user.
 
-Read `SKILL.md`, then the reference(s) for your use case
+Read `SKILL.md`, `references/interface-routing.md`, then the reference(s) for your use case
 (`references/workflow-submit.md` and any additional files the routing tables
-name). Use those procedures directly; do not reinvent them.
+name). Keep the caller's assigned interface for every OSMO operation. Use those
+procedures directly; do not reinvent them.
 
 ## Mode 1: Setup and Submit (default)
 
