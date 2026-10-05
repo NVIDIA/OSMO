@@ -301,12 +301,16 @@ osmo_py_library(
     name = "deploy_and_run_main_lib",
     srcs = ["deploy_and_run_main.py"],
     deps = [
+        ":auth",
         ":breadcrumb",
         ":cli_args",
         ":deploy_adapters_base",
         ":deploy_adapters_kind",
         ":deploy_pipeline",
         ":models",
+        "//src/lib/utils:client",
+        "//src/lib/utils:osmo_errors",
+        requirement("requests"),
     ],
 )
 

@@ -19,9 +19,15 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from typing import List
 
+import requests
+
+from src.lib.utils import osmo_errors
+from src.lib.utils.client import RequestMethod, ServiceClient
 from test.oetf import breadcrumb
+from test.oetf.auth import create_service_client
 from test.oetf.cli_args import (
     add_deploy_args,
     add_env_args,
@@ -32,7 +38,7 @@ from test.oetf.cli_args import (
 from test.oetf.deploy_adapters.base import DeploySession, install_signal_shim
 from test.oetf.deploy_adapters.kind_adapter import print_chart_versions
 from test.oetf.deploy_pipeline import prepare_deploy
-from test.oetf.models import EnvironmentConfig
+from test.oetf.models import EnvironmentConfig, OetfConfig
 
 EXIT_SUCCESS = 0
 EXIT_TEST_FAILURE = 1
@@ -40,6 +46,7 @@ EXIT_FRAMEWORK_ERROR = 2
 EXIT_INTERRUPTED = 130  # convention: 128 + SIGINT(2)
 ADMIN_TOKEN_SECRET = "osmo-admin-token"
 OSMO_NAMESPACE = "osmo"
+POOL_READY_TIMEOUT_SECONDS = 180
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +68,34 @@ def parse_arguments(arguments: List[str] | None = None) -> argparse.Namespace:
     # CI flow's expected behavior); ``oetf:run`` keeps the empty default.
     parser.set_defaults(tags="smoke")
     return parser.parse_args(arguments)
+
+
+def _wait_for_pool_resources(service_client: ServiceClient, pool: str) -> bool:
+    """Wait for the backend's node inventory before starting workflow tests."""
+    logger.info("Waiting for KIND pool %s to report resources", pool)
+    deadline = time.monotonic() + POOL_READY_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        response = service_client.request(
+            method=RequestMethod.GET,
+            endpoint="api/resources",
+            params={"pools": [pool]},
+            # Disable implicit GET retries; only an empty inventory is polled.
+            version_header=False,
+        )
+        if (not isinstance(response, dict)
+                or not isinstance(response.get("resources"), list)
+                or not all(isinstance(resource, dict) for resource in response["resources"])):
+            logger.error("KIND pool %s returned a malformed resources response", pool)
+            return False
+        if response["resources"]:
+            logger.info("KIND pool %s is ready (%s resources)", pool, len(response["resources"]))
+            return True
+        time.sleep(2)
+    logger.error(
+        "KIND pool %s reported no resources within %s seconds",
+        pool, POOL_READY_TIMEOUT_SECONDS,
+    )
+    return False
 
 
 def _run_tests(args: argparse.Namespace, deployed_env: EnvironmentConfig) -> int:
@@ -116,6 +151,24 @@ def _run_tests(args: argparse.Namespace, deployed_env: EnvironmentConfig) -> int
             return EXIT_FRAMEWORK_ERROR
         cmd.extend(["--auth-method", "token"])
         test_environment["OSMO_ACCESS_TOKEN"] = token
+        pool = getattr(args, "pool", "") or deployed_env.pool
+        if not pool:
+            logger.error("Source-built KIND tests require a pool for resource readiness")
+            return EXIT_FRAMEWORK_ERROR
+        try:
+            service_client = create_service_client(OetfConfig(
+                url=deployed_env.url,
+                auth_method="token",
+                auth_token=getattr(args, "auth_token", "") or token,
+            ))
+            if not _wait_for_pool_resources(service_client, pool):
+                return EXIT_FRAMEWORK_ERROR
+        except (ValueError, osmo_errors.OSMOError, requests.RequestException) as error:
+            logger.error(
+                "Unable to check KIND pool %s readiness (%s)",
+                pool, type(error).__name__,
+            )
+            return EXIT_FRAMEWORK_ERROR
     elif deployed_env.auth.strategy == "dev":
         cmd.extend(["--auth-method", "dev"])
         cmd.extend(["--auth-username", deployed_env.auth.username])
