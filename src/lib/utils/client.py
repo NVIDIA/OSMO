@@ -501,10 +501,9 @@ class ServiceClient():
         headers['User-Agent'] = self._user_agent
 
         # Enable streaming for chunked transfer encoding
-        extra_args = {}
+        stream = mode == ResponseMode.STREAMING
         timeout: Optional[int] = login.TIMEOUT
-        if mode == ResponseMode.STREAMING:
-            extra_args['stream'] = True
+        if stream:
             timeout = None
 
         retry_count = 0
@@ -529,7 +528,7 @@ class ServiceClient():
                     json=payload,
                     headers=headers,
                     timeout=timeout,
-                    **extra_args,
+                    stream=stream,
                 )
             case RequestMethod.POST:
                 response = session.post(
@@ -538,7 +537,7 @@ class ServiceClient():
                     json=payload,
                     headers=headers,
                     timeout=timeout,
-                    **extra_args,
+                    stream=stream,
                 )
             case RequestMethod.PUT:
                 response = session.put(
@@ -547,7 +546,7 @@ class ServiceClient():
                     json=payload,
                     headers=headers,
                     timeout=timeout,
-                    **extra_args,
+                    stream=stream,
                 )
             case RequestMethod.DELETE:
                 response = session.delete(
@@ -556,7 +555,7 @@ class ServiceClient():
                     json=payload,
                     headers=headers,
                     timeout=timeout,
-                    **extra_args,
+                    stream=stream,
                 )
             case RequestMethod.PATCH:
                 response = session.patch(
@@ -565,7 +564,7 @@ class ServiceClient():
                     json=payload,
                     headers=headers,
                     timeout=timeout,
-                    **extra_args,
+                    stream=stream,
                 )
             case _ as unreachable:
                 assert_never(unreachable)

@@ -56,15 +56,15 @@ jsonref>=1.1.0
 joserfc>=1.7.4
 packaging>=24.0
 py-key-value-aio[filetree,memory,redis,wrappers-encryption]>=0.4.4,<0.5.0
-python-multipart>=0.0.26
+python-multipart>=0.0.32
 uncalled-for>=0.2.0
 
 # JWT
-pyjwt==2.13.0
+pyjwt==2.15.1
 
 # Requests
-requests==2.33.1
-urllib3==2.7.0
+requests==2.34.2
+urllib3==2.8.0
 idna==3.16
 
 # Jinja
@@ -133,3 +133,4 @@ azure-identity==1.23.1
 
 # Async
 aiofiles==25.1.0
+anyio==4.15.1

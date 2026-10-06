@@ -19,8 +19,10 @@
 # pip install pip-tools
 # pip-compile ./requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
+anyio==4.15.1
 bcrypt==4.2.1
 httpx==0.28.1
+requests==2.34.2
 testcontainers==4.13.2
-urllib3==2.7.0
+urllib3==2.8.0
 idna==3.16 # Security floor for CVE-2026-45409
