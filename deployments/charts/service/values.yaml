@@ -2346,8 +2346,8 @@ gateway:
     serviceAccountName: ""
 
   ## -----------------------------------------------------------------------
-  ## Gateway Authz — gRPC authorization service evaluating semantic RBAC
-  ## policies against PostgreSQL. Uses the shared services.postgres config.
+  ## Gateway Authz — gRPC authorization service loading roles and pools from
+  ## the ConfigMap, with runtime state in the shared services.postgres database.
   ## -----------------------------------------------------------------------
   authz:
     enabled: true
@@ -2386,9 +2386,6 @@ gateway:
       maxConns: 10
       minConns: 2
       maxConnLifetimeMin: 5
-    cache:
-      ttl: 300
-      maxSize: 1000
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

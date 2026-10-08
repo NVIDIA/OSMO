@@ -465,7 +465,9 @@ spec:
           - "--grpc-port={{ $gw.authz.grpcPort }}"
           {{- if .Values.services.configs.enabled }}
           - "--roles-file=/etc/osmo/configs/config.yaml"
-          {{- else }}
+          {{- end }}
+          # Runtime authorization state still comes from PostgreSQL when roles
+          # and pools are loaded from the ConfigMap.
           - "--postgres-host={{ .Values.services.postgres.serviceName }}"
           - "--postgres-port={{ .Values.services.postgres.port }}"
           - "--postgres-database={{ .Values.services.postgres.db }}"
@@ -474,9 +476,6 @@ spec:
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
-          {{- end }}
-          - "--cache-ttl={{ $gw.authz.cache.ttl }}"
-          - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
           {{- with .Values.global.logs.logFormat }}
           - "--log-format={{ . }}"
           {{- end }}
