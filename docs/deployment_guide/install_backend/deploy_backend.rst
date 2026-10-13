@@ -88,9 +88,16 @@ following into the complete values used to manage your control-plane release:
      backends:
        gb200-01:
          k8s_namespace: osmo-workflows
+         router_address: wss://osmo.example.com
      pools:
        default:
          backend: gb200-01
+
+The control and compute clusters must both reach ``router_address`` through
+the gateway. Browsers and CLI clients use the same address unless you set
+``router_client_address`` separately. Use ``ws://`` for an HTTP gateway and
+``wss://`` for HTTPS. These addresses are required for Shell, exec,
+port-forward, and rsync; workflow submission and completion do not require them.
 
 .. _provision_backend_secret:
 

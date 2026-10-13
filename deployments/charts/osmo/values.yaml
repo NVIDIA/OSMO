@@ -1965,6 +1965,8 @@ configuration:
   backends:
     default:
       description: Default backend
+      # Converged releases fill missing router addresses from the internal
+      # gateway Service and externalUrl. Set router_address: '' to disable it.
       scheduler_settings:
         scheduler_type: kai
         scheduler_name: kai-scheduler

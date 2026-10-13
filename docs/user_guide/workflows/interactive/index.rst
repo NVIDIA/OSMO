@@ -35,6 +35,8 @@ Once your task is running, you can interact with it using:
 .. note::
   Interacting with a remote task relies on OSMO's routing system to manage network traffic.
   There could be a slight delay compared to directly interacting with a local task.
+  Operators must configure the backend's internal ``router_address`` and a
+  client-reachable ``router_client_address`` when the addresses differ.
 
 .. toctree::
   :hidden:

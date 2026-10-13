@@ -118,6 +118,18 @@ data:
       {{- if and (kindIs "map" $backend) (not (index $backend "k8s_namespace")) }}
       {{- $_ := set $backend "k8s_namespace" (include "osmo.compute.backendNamespace" $) }}
       {{- end }}
+      {{- if and (kindIs "map" $backend) $.Values.planes.compute.enabled
+          $.Values.services.router.enabled $.Values.gateway.upstreams.router.enabled
+          (eq $.Values.configuration.snapshot nil) }}
+      {{- if not (hasKey $backend "router_address") }}
+      {{- $gatewayUrl := include "osmo.compute.serviceUrl" $ }}
+      {{- $_ := set $backend "router_address" (regexReplaceAll "^https?" $gatewayUrl (ternary "wss" "ws" (hasPrefix "https://" $gatewayUrl))) }}
+      {{- end }}
+      {{- if and (index $backend "router_address") (not (hasKey $backend "router_client_address")) }}
+      {{- $externalUrl := trimSuffix "/" $.Values.externalUrl }}
+      {{- $_ := set $backend "router_client_address" (regexReplaceAll "^https?" $externalUrl (ternary "wss" "ws" (hasPrefix "https://" $externalUrl))) }}
+      {{- end }}
+      {{- end }}
       {{- end }}
       {{- toYaml $backends | nindent 6 }}
     {{- else }}

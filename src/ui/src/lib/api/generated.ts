@@ -144,6 +144,7 @@ export interface Backend {
   created_date: string;
   router_address: string;
   online: boolean;
+  router_client_address?: string;
 }
 
 /**
@@ -158,6 +159,7 @@ export interface BackendConfig {
   scheduler_settings?: BackendSchedulerSettings | null;
   node_conditions?: BackendNodeConditions | null;
   router_address?: string | null;
+  router_client_address?: string | null;
 }
 
 /**

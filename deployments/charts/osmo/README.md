@@ -33,6 +33,14 @@ complete configuration snapshot, set the same field under
 `configuration.snapshot.service`. Scripted converged installs set a
 namespace-qualified internal endpoint while preserving explicit overrides.
 
+In converged releases, backend `router_address` defaults to the internal
+gateway Service and `router_client_address` defaults to `externalUrl` with
+`ws://` or `wss://`. The API and workflow Pods use the first address;
+browsers and CLI clients use the second. Set either field explicitly to override
+its default, or set `router_address: ''` to disable interactive routing for a
+backend. Control-only releases must configure a router address reachable from
+their compute cluster when Shell, exec, port-forward, or rsync is needed.
+
 The default values are a development-only path to trying the complete OSMO
 browser, CLI, API, CPU workflow, and GPU workflow experience in one converged
 release. They install:

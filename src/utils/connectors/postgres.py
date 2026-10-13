@@ -2537,6 +2537,7 @@ class Backend(pydantic.BaseModel):
     created_date: datetime.datetime
     router_address: str
     online: bool
+    router_client_address: str = ''
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector,
@@ -2600,6 +2601,7 @@ class Backend(pydantic.BaseModel):
             last_heartbeat=runtime['last_heartbeat'],
             created_date=runtime['created_date'],
             router_address=config.get('router_address', ''),
+            router_client_address=config.get('router_client_address', ''),
             online=(runtime['last_heartbeat'] is not None
                     and common.heartbeat_online(runtime['last_heartbeat'])),
         )

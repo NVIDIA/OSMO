@@ -79,7 +79,11 @@ Backend
      - Default configuration
    * - ``router_address``
      - String
-     - WebSocket address for backend communication.
+     - WebSocket gateway origin used by the API and workflow Pods for Shell, exec, port-forward, and rsync. For example, ``ws://osmo-gateway.osmo.svc:80`` in a converged release. An empty value disables interactive routing.
+     - ``None``
+   * - ``router_client_address``
+     - String
+     - WebSocket gateway origin used by browsers and CLI clients. For example, ``wss://osmo.example.com``. If omitted, clients use ``router_address``.
      - ``None``
 
 

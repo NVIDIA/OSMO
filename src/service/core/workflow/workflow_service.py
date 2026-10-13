@@ -1162,14 +1162,17 @@ def action_request_helper(action_type: ActionType, payload: Dict[str, Any], name
     total_timeout = job_common.calculate_total_timeout(
         workflow_id, workflow_result.queue_timeout, workflow_result.exec_timeout)
     cookie = helpers.get_router_cookie(router_address)
+    router_client_address = backend_config.router_client_address or router_address
 
     router_infos = {}
     for task_obj in tasks:  # type: ignore
         key = f'{action_type.name}-{common.generate_unique_id()}'
-        router_info = objects.RouterResponse(router_address=router_address, key=key, cookie=cookie)
+        router_info = objects.RouterResponse(
+            router_address=router_client_address, key=key, cookie=cookie)
         router_infos[task_obj.name] = router_info
         action_attributes: Dict[str, Any] = {
-            'action': action_type.value, **router_info.model_dump(), **payload}
+            'action': action_type.value, **router_info.model_dump(), **payload,
+            'router_address': router_address}
 
         # Create redis object
         redis_client.set(key, json.dumps(action_attributes))
