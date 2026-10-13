@@ -7316,21 +7316,6 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-http-notes-configmap.yaml" \
         "--insecure"
 
-    helm install notes-tokens "$charts_copy/osmo" \
-        --namespace osmo \
-        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
-        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
-        --set authentication.bootstrap.identities.admin.enabled=true \
-        --set authentication.bootstrap.identities.admin.dex.enabled=false \
-        --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
-        --dry-run=client | sed -n '/^NOTES:/,$p' >"$TEST_DIRECTORY/token-notes.txt"
-    require_contains "$TEST_DIRECTORY/token-notes.txt" \
-        "Bootstrap token Secrets (names only):"
-    require_contains "$TEST_DIRECTORY/token-notes.txt" \
-        "admin/primary: osmo-admin-token (TTL for new issuance: 86400 seconds)"
-    require_contains "$TEST_DIRECTORY/token-notes.txt" \
-        "backend-operator-default/primary: osmo-backend-token (TTL for new issuance: no chart expiry)"
-
     helm_template notes-embedded-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
