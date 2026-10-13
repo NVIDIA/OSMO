@@ -19,6 +19,12 @@ class TokenExpiryTests(unittest.TestCase):
         with mock.patch('time.time', return_value=1900000000):
             self.assertEqual(token_expiry.TokenExpiry.decode(lifetime.encode()), lifetime)
 
+    def test_90_day_lifetime_round_trip(self):
+        with mock.patch('time.time', return_value=1800000000):
+            lifetime = token_expiry.TokenExpiry.issue(7776000, 1)
+        self.assertEqual(lifetime.expires_at, 1807776000)
+        self.assertEqual(token_expiry.TokenExpiry.decode(lifetime.encode()), lifetime)
+
     def test_malformed_contract_is_rejected(self):
         valid = json.loads(token_expiry.TokenExpiry(1800000000, 1800086400, 1).encode())
         cases = [
@@ -35,7 +41,7 @@ class TokenExpiryTests(unittest.TestCase):
                 token_expiry.TokenExpiry.decode(raw)
 
     def test_invalid_issuance_policy_is_rejected(self):
-        for lifetime, generation in ((True, 1), (60, True), (59, 1), (604801, 1), (60, 0)):
+        for lifetime, generation in ((True, 1), (60, True), (59, 1), (7776001, 1), (60, 0)):
             with self.subTest(lifetime=lifetime, generation=generation):
                 with self.assertRaises(ValueError):
                     token_expiry.TokenExpiry.issue(lifetime, generation)

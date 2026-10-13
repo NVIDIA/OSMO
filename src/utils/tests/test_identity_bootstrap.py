@@ -1460,11 +1460,12 @@ class ExpiringAdminTokenTests(unittest.TestCase):
         self.assertEqual(metadata.expires_at, 1800086400)
         self.clock.return_value = metadata.expires_at + 1
         self.assertEqual(self.reconcile(lifetime=604800), initial)
-        replacement = self.reconcile(generation=2)
+        replacement = self.reconcile(lifetime=7776000, generation=2)
         self.assertNotEqual(replacement['token'], initial['token'])
-        self.assertEqual(token_expiry.TokenExpiry.decode(
-            replacement['token-metadata']).generation, 2)
-        self.assertEqual(self.reconcile(generation=2), replacement)
+        replacement_metadata = token_expiry.TokenExpiry.decode(replacement['token-metadata'])
+        self.assertEqual(replacement_metadata.generation, 2)
+        self.assertEqual(replacement_metadata.expires_at, self.clock.return_value + 7776000)
+        self.assertEqual(self.reconcile(lifetime=7776000, generation=2), replacement)
         with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'cannot decrease'):
             self.reconcile(generation=1)
         with self.assertRaisesRegex(identity_bootstrap.BootstrapError, 'cannot be removed'):
@@ -1507,7 +1508,10 @@ class ExpiringAdminTokenTests(unittest.TestCase):
         parsed = identity_bootstrap._parse_arguments(args + ['--token-expiry=admin/primary=60/2'])
         self.assertEqual(parsed.token_specs[0].lifetime_seconds, 60)
         self.assertEqual(parsed.token_specs[0].generation, 2)
-        for policy in ('admin/primary=0/1', 'admin/primary=60/0', 'admin/primary=604801/1',
+        parsed = identity_bootstrap._parse_arguments(
+            args + ['--token-expiry=admin/primary=7776000/2'])
+        self.assertEqual(parsed.token_specs[0].lifetime_seconds, 7776000)
+        for policy in ('admin/primary=0/1', 'admin/primary=60/0', 'admin/primary=7776001/1',
                        'other/primary=60/1', 'admin/primary=true/1'):
             with self.subTest(policy=policy), self.assertRaises(SystemExit):
                 identity_bootstrap._parse_arguments(args + ['--token-expiry='+policy])

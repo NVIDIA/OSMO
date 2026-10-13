@@ -1132,16 +1132,21 @@ Helm uninstall does not delete the API-created Secrets.
 
 ### Temporary admin bootstrap token
 
-The default `admin/primary` token expires **24 hours after issuance**;
-`osmo profile list` shows its deadline. Backend tokens and Dex/OIDC login are
+The default `admin/primary` token expires **90 days after issuance**;
+`osmo profile list` shows its expiration date, and the Secret's `token-metadata`
+contains the exact UTC deadline. Backend tokens and Dex/OIDC login are
 unaffected. Confirm normal admin login works before upgrading.
 
-`lifetimeSeconds` (60–604800 seconds) applies at issuance. Retries, upgrades,
-reconciliation, and lifetime changes never extend an existing deadline.
+Set `authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds`
+in your Helm values to choose a lifetime from 60 to 7776000 seconds (90 days).
+It applies when a token is issued. Retries, upgrades, reconciliation, and
+lifetime changes never extend an existing deadline.
 Existing token-only managed admin Secrets receive one deadline during migration,
 preserving their token bytes.
 
-To reissue a token, increase its `generation` and sync or upgrade the release:
+To rotate an issued token or apply a new lifetime, increase its `generation`
+and sync or upgrade the release. This example changes the lifetime to 30 days
+and rotates generation 1 to generation 2:
 
 ```yaml
 authentication:
@@ -1150,7 +1155,7 @@ authentication:
       admin:
         tokens:
           primary:
-            lifetimeSeconds: 86400
+            lifetimeSeconds: 2592000
             generation: 2
 ```
 

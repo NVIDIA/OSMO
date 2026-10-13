@@ -40,7 +40,7 @@ container: |-
     - {{ printf "%s/%s=%s" .identityID .tokenName .secretName | quote }}
     {{- if .lifetimeSeconds }}
     - --token-expiry
-    - {{ printf "%s/%s=%v/%v" .identityID .tokenName .lifetimeSeconds .generation | quote }}
+    - {{ printf "%s/%s=%d/%d" .identityID .tokenName (int .lifetimeSeconds) (int .generation) | quote }}
     {{- end }}
     {{- end }}
     volumeMounts:
