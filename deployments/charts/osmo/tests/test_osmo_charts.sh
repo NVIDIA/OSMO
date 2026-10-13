@@ -7321,6 +7321,46 @@ EOF
     require_not_contains "$TEST_DIRECTORY/osmo-http-notes-configmap.yaml" \
         "--insecure"
 
+    helm install notes-tokens "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set authentication.bootstrap.identities.admin.enabled=true \
+        --set authentication.bootstrap.identities.admin.dex.enabled=false \
+        --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
+        --dry-run=client --hide-secret >"$TEST_DIRECTORY/token-notes-install.out"
+    sed -n '/^NOTES:/,$p' "$TEST_DIRECTORY/token-notes-install.out" \
+        >"$TEST_DIRECTORY/token-notes.txt"
+    require_contains "$TEST_DIRECTORY/token-notes.txt" \
+        "Bootstrap token Secrets (names only):"
+    require_contains "$TEST_DIRECTORY/token-notes.txt" \
+        "admin/primary: osmo-admin-token (TTL for new issuance: 7776000 seconds)"
+    require_contains "$TEST_DIRECTORY/token-notes.txt" \
+        "backend-operator-default/primary: osmo-backend-token (TTL for new issuance: no chart expiry)"
+
+    helm install notes-short-token "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set authentication.bootstrap.identities.admin.enabled=true \
+        --set authentication.bootstrap.identities.admin.dex.enabled=false \
+        --set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=60 \
+        --dry-run=client --hide-secret >"$TEST_DIRECTORY/short-token-notes-install.out"
+    sed -n '/^NOTES:/,$p' "$TEST_DIRECTORY/short-token-notes-install.out" \
+        >"$TEST_DIRECTORY/short-token-notes.txt"
+    require_contains "$TEST_DIRECTORY/short-token-notes.txt" \
+        "admin/primary: osmo-admin-token (TTL for new issuance: 60 seconds)"
+
+    helm install notes-no-tokens "$charts_copy/osmo" \
+        --namespace osmo \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --dry-run=client --hide-secret >"$TEST_DIRECTORY/no-token-notes-install.out"
+    sed -n '/^NOTES:/,$p' "$TEST_DIRECTORY/no-token-notes-install.out" \
+        >"$TEST_DIRECTORY/no-token-notes.txt"
+    require_not_contains "$TEST_DIRECTORY/no-token-notes.txt" \
+        "Bootstrap token Secrets (names only):"
+
     helm_template notes-embedded-release "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \

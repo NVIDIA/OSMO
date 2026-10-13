@@ -39,6 +39,17 @@ For an HTTPS JWKS URI, Envoy validates the certificate with its system CA bundle
 and requires the exact DNS SAN configured in authentication.externalOidc.jwksHost.
 {{- end }}
 
+{{- $managedTokens := include "osmo.bootstrap.managedTokens" . | fromJsonArray }}
+{{- if $managedTokens }}
+
+Bootstrap token Secrets (names only):
+{{- range $managedTokens }}
+
+  {{ .identityID }}/{{ .tokenName }}: {{ .secretName }} (TTL for new issuance: {{ if .lifetimeSeconds }}{{ int .lifetimeSeconds }} seconds{{ else }}no chart expiry{{ end }})
+{{- end }}
+Configured TTLs do not change the deadline of an already issued token.
+{{- end }}
+
 {{- if .Values.services.mcp.enabled }}
 
 MCP endpoint: {{ include "osmo.mcp.resourceUrl" . }}
