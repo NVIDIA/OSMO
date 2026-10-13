@@ -833,10 +833,10 @@ instead be used from a protected temporary file:
    $ unset OSMO_TOKEN_FILE
    $ test "$OSMO_LOGIN_STATUS" -eq 0
 
-When enabled, the chart-managed ``osmo-admin-token`` expires 90 days after
+When enabled, the chart-managed ``osmo-admin-token`` expires 24 hours after
 issuance by default. Set
 ``authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds`` in
-your Helm values to change the lifetime for newly issued tokens (60–7776000
+your Helm values to change the lifetime for newly issued tokens (60–604800
 seconds). For an existing token, increase
 ``authentication.bootstrap.identities.admin.tokens.primary.generation`` and
 repeat the Helm upgrade above to rotate it and apply the new lifetime. An

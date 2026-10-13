@@ -690,7 +690,7 @@ test_control_umbrella() {
         '"admin/primary=osmo-admin-token"'
     require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" \
         'mountPath: /etc/osmo/bootstrap-tokens/developer/cli'
-    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" 'admin/primary=7776000/1'
+    require_contains "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" 'admin/primary=86400/1'
     require_secret_snapshot "$TEST_DIRECTORY/bootstrap-identities-contract.yaml" osmo-admin-token token-metadata
     helm_template admin-recovery "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
@@ -700,10 +700,10 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/admin-recovery.yaml" 'admin/primary=60/2'
     helm_template valid-admin-lifetime "$charts_copy/osmo" \
         --api-versions postgresql.cnpg.io/v1 \
-        --set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=7776000 \
+        --set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=604800 \
         >"$TEST_DIRECTORY/valid-admin-lifetime.yaml"
-    require_contains "$TEST_DIRECTORY/valid-admin-lifetime.yaml" 'admin/primary=7776000/1'
-    for invalid_lifetime in 0 59 7776001; do
+    require_contains "$TEST_DIRECTORY/valid-admin-lifetime.yaml" 'admin/primary=604800/1'
+    for invalid_lifetime in 0 59 604801; do
         if helm_template invalid-admin-lifetime "$charts_copy/osmo" \
             --api-versions postgresql.cnpg.io/v1 \
             --set "authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=$invalid_lifetime" \
@@ -7334,7 +7334,7 @@ EOF
     require_contains "$TEST_DIRECTORY/token-notes.txt" \
         "Bootstrap token Secrets (names only):"
     require_contains "$TEST_DIRECTORY/token-notes.txt" \
-        "admin/primary: osmo-admin-token (TTL for new issuance: 7776000 seconds)"
+        "admin/primary: osmo-admin-token (TTL for new issuance: 86400 seconds)"
     require_contains "$TEST_DIRECTORY/token-notes.txt" \
         "backend-operator-default/primary: osmo-backend-token (TTL for new issuance: no chart expiry)"
 

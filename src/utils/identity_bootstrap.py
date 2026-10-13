@@ -1013,7 +1013,7 @@ def _parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
                 raise ValueError()
         except ValueError:
             parser.error('Invalid --token-expiry; use IDENTITY/TOKEN=SECONDS/GENERATION '
-                         '(60..7776000 seconds, positive generation)')
+                         '(60..604800 seconds, positive generation)')
         policies[identity] = (lifetime, generation)
     for index, specification in enumerate(parsed.token_specs):
         identity = f'{specification.identity_id}/{specification.token_name}'

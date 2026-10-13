@@ -10,7 +10,7 @@ import time
 
 METADATA_KEY = 'token-metadata'
 MIN_LIFETIME = 60
-MAX_LIFETIME = 90 * 24 * 60 * 60
+MAX_LIFETIME = 7 * 24 * 60 * 60
 
 
 @dataclasses.dataclass(frozen=True)
