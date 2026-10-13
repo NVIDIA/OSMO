@@ -7323,9 +7323,7 @@ EOF
         --set authentication.bootstrap.identities.admin.enabled=true \
         --set authentication.bootstrap.identities.admin.dex.enabled=false \
         --set authentication.bootstrap.identities.backend-operator-default.enabled=true \
-        --dry-run=client --hide-secret >"$TEST_DIRECTORY/token-notes-install.out"
-    sed -n '/^NOTES:/,$p' "$TEST_DIRECTORY/token-notes-install.out" \
-        >"$TEST_DIRECTORY/token-notes.txt"
+        --dry-run=client | sed -n '/^NOTES:/,$p' >"$TEST_DIRECTORY/token-notes.txt"
     require_contains "$TEST_DIRECTORY/token-notes.txt" \
         "Bootstrap token Secrets (names only):"
     require_contains "$TEST_DIRECTORY/token-notes.txt" \
