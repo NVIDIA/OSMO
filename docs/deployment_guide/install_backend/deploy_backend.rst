@@ -92,15 +92,6 @@ following into the complete values used to manage your control-plane release:
        default:
          backend: gb200-01
 
-The control-only chart derives both router addresses from ``externalUrl``, using
-``ws://`` for HTTP and ``wss://`` for HTTPS. The control and compute clusters
-must both reach that gateway. Set ``router_address`` explicitly if workflow Pods
-need a different route; if you omit ``router_client_address``, clients use that
-same address. Set ``router_client_address`` separately when clients need a
-different route. To disable interactive routing, set ``router_address: ''``.
-Shell, exec, port-forward, and rsync require a router; workflow submission and
-completion do not.
-
 .. _provision_backend_secret:
 
 Provision the backend credential

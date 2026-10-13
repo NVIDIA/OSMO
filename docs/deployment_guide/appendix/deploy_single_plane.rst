@@ -163,8 +163,6 @@ after ``profiles/single-plane.yaml``:
      service:
        service_base_url: http://osmo-gateway.osmo.svc:80
 
-The converged chart fills the default backend's ``router_address`` with the
-in-cluster gateway URL and its ``router_client_address`` from ``externalUrl``.
 Keep the local gateway port-forward running for Shell, exec, port-forward, and
 rsync. For a public deployment, use a client-reachable HTTPS ``externalUrl``.
 

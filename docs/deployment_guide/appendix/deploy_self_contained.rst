@@ -175,9 +175,8 @@ Review the environment settings in that file:
 
 * Keep ``externalUrl: http://127.0.0.1:8080`` for the local evaluation path, or
   replace it with the public HTTPS URL for an operator-managed edge.
-  The default backend uses the in-cluster gateway for workflow Pods and derives
-  its client router address from this URL. Keep the port-forward running for
-  local Shell, exec, port-forward, and rsync sessions.
+  Keep the port-forward running for local Shell, exec, port-forward, and rsync
+  sessions.
 * Replace ``compute.workflowNetworkPolicy.clusterCIDRs`` with every IPv4 Pod
   and Service CIDR used by the cluster. Omit duplicate entries when both
   networks are covered by one CIDR.

@@ -317,10 +317,8 @@ The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
      --wait-for-jobs \
      --timeout 20m
 
-The chart configures the default backend's interactive router through the
-in-cluster gateway for workflow Pods and the public ``ws://127.0.0.1`` gateway
-address for your browser and CLI. Keep the KIND port mapping active to use
-Shell, ``osmo workflow exec``, port-forward, or rsync.
+Keep the KIND port mapping active to use Shell, ``osmo workflow exec``,
+port-forward, or rsync.
 
 Log In
 ======
