@@ -354,17 +354,15 @@ protected temporary file:
 
 .. note::
 
-   The chart-managed ``osmo-admin-token`` expires 24 hours after issuance by
-   default. ``osmo profile list`` shows the expiration date; the Secret's
-   ``token-metadata`` contains the exact UTC deadline. Add
-   ``--set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=<seconds>``
-   to the Helm command above to change the lifetime for newly issued tokens
-   (60–604800 seconds). For an existing token, also add
-   ``--set authentication.bootstrap.identities.admin.tokens.primary.generation=<next-generation>``
-   and repeat the Helm upgrade to rotate it and apply the new lifetime. An ordinary
-   upgrade does not extend the deadline; do not delete the Secret or edit
-   ``token-metadata``. After expiry, token login reports ``Bootstrap credential is
-   expired or unavailable``. Configured Dex/OIDC login is unaffected.
+   **Expiry:** The chart-managed ``osmo-admin-token`` expires 24 hours after
+   issuance. Check its deadline with ``osmo profile list`` or Secret
+   ``token-metadata``.
+
+   **Rotate or change expiry:** To generate a new token, run ``helm upgrade``
+   with ``--set authentication.bootstrap.identities.admin.tokens.primary.generation=<next-generation>``.
+   Optionally add ``--set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=<seconds>``
+   to change its lifetime. An ordinary upgrade does not extend expiry. Do not
+   delete the Secret or edit ``token-metadata``.
 
 Verify the Deployment
 =====================
