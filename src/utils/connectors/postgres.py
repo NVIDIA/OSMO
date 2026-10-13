@@ -2601,7 +2601,9 @@ class Backend(pydantic.BaseModel):
             last_heartbeat=runtime['last_heartbeat'],
             created_date=runtime['created_date'],
             router_address=config.get('router_address', ''),
-            router_client_address=config.get('router_client_address', ''),
+            router_client_address=(
+                config['router_client_address']
+                if config.get('router_client_address') is not None else ''),
             online=(runtime['last_heartbeat'] is not None
                     and common.heartbeat_online(runtime['last_heartbeat'])),
         )

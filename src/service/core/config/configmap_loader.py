@@ -586,7 +586,9 @@ def _backend_from_snapshot(
         last_heartbeat=config.get('last_heartbeat', now),
         created_date=config.get('created_date', now),
         router_address=config.get('router_address', ''),
-        router_client_address=config.get('router_client_address', ''),
+        router_client_address=(
+            config['router_client_address']
+            if config.get('router_client_address') is not None else ''),
         online=False,
     )
 
@@ -962,7 +964,9 @@ def _validate_backend_entry(name: str, value: Any) -> connectors.Backend:
         last_heartbeat=now,
         created_date=now,
         router_address=value.get('router_address', ''),
-        router_client_address=value.get('router_client_address', ''),
+        router_client_address=(
+            value['router_client_address']
+            if value.get('router_client_address') is not None else ''),
         online=False,
     )
 

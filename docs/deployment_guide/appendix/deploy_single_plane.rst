@@ -163,8 +163,8 @@ after ``profiles/single-plane.yaml``:
      service:
        service_base_url: http://osmo-gateway.osmo.svc:80
 
-Keep the local gateway port-forward running for Shell, exec, port-forward, and
-rsync. For a public deployment, use a client-reachable HTTPS ``externalUrl``.
+Keep the port-forward running for local Shell, exec, port-forward, and rsync
+sessions. For a public deployment, use a client-reachable HTTPS ``externalUrl``.
 
 The checked ``kai-selectors.yaml`` overlay places KAI on ``control-plane``
 nodes. The ``node-selectors.yaml`` overlay places OSMO platform Pods there and
