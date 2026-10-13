@@ -45,8 +45,8 @@ function createWorkflowDetailForSpec(name: string) {
     uuid: `uuid-${name}`,
     submitted_by: "test-user",
     cancelled_by: null,
-    spec: `/api/workflow/${name}/spec`,
-    template_spec: `/api/workflow/${name}/template_spec`,
+    spec: `http://osmo-gateway.osmo.svc/api/workflow/${name}/spec`,
+    template_spec: `http://osmo-gateway.osmo.svc/api/workflow/${name}/spec?use_template=true`,
     logs: `/api/workflow/${name}/logs`,
     events: `/api/workflow/${name}/events`,
     overview: `/api/workflow/${name}/overview`,
@@ -116,8 +116,8 @@ async function setupWorkflowAndSpec(page: Parameters<typeof setupDefaultMocks>[0
     }),
   );
 
-  // Mock the template_spec endpoint
-  await page.route(`**/api/workflow/${name}/template_spec`, (route) =>
+  // Mock the template spec endpoint
+  await page.route(`**/api/workflow/${name}/spec?use_template=true`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "text/plain",
@@ -126,11 +126,11 @@ async function setupWorkflowAndSpec(page: Parameters<typeof setupDefaultMocks>[0
   );
 
   // Mock the workflow detail endpoint — registered LAST so LIFO tries it first for the base URL
-  // but the more specific spec/template_spec routes above will match first for those sub-paths
+  // but the more specific spec routes above will match first for those sub-paths
   await page.route(`**/api/workflow/${name}*`, (route) => {
     const url = route.request().url();
-    // Let spec/template_spec requests fall through to their specific handlers
-    if (url.includes(`/workflow/${name}/spec`) || url.includes(`/workflow/${name}/template_spec`)) {
+    // Let spec requests fall through to their specific handlers
+    if (url.includes(`/workflow/${name}/spec`)) {
       return route.fallback();
     }
     return route.fulfill({
@@ -233,5 +233,16 @@ test.describe("Workflow Spec Viewer Interactions", () => {
     // ASSERT — open in new tab link is visible (renders as <a> link, not button)
     const openLink = page.getByRole("link", { name: /open raw.*in new tab/i });
     await expect(openLink).toBeVisible();
+  });
+
+  test("open raw links use the UI origin for internal spec URLs", async ({ page }) => {
+    await page.goto(`/workflows/${wfName}`);
+    await page.getByRole("tab", { name: "Spec" }).click();
+
+    const openLink = page.getByRole("link", { name: /open raw.*in new tab/i });
+    await expect(openLink).toHaveAttribute("href", `/api/workflow/${wfName}/spec`);
+
+    await page.getByRole("radio", { name: /template/i }).click();
+    await expect(openLink).toHaveAttribute("href", `/api/workflow/${wfName}/spec?use_template=true`);
   });
 });

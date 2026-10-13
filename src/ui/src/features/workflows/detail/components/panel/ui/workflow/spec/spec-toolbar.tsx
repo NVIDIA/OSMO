@@ -32,7 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { useCopy } from "@/hooks/use-copy";
 import { useServices } from "@/contexts/service-context";
 import { toast } from "sonner";
-import { getBasePathUrl } from "@/lib/config";
+import { getBasePathUrl, toProxiedPath } from "@/lib/config";
 import type { SpecView } from "@/features/workflows/detail/hooks/use-spec-data";
 
 // =============================================================================
@@ -119,7 +119,7 @@ export const SpecToolbar = memo(function SpecToolbar({
   const hasContent = Boolean(content);
 
   const rawUrl = activeView === "yaml" ? specUrl : templateSpecUrl;
-  const openUrl = rawUrl.startsWith("http://") || rawUrl.startsWith("https://") ? rawUrl : getBasePathUrl(rawUrl);
+  const openUrl = getBasePathUrl(toProxiedPath(rawUrl));
 
   return (
     <div
