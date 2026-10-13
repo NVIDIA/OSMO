@@ -79,11 +79,11 @@ Backend
      - Default configuration
    * - ``router_address``
      - String
-     - WebSocket gateway origin used by the API and workflow Pods for Shell, exec, port-forward, and rsync. For example, ``ws://osmo-gateway.osmo.svc:80`` in a converged release. An empty value disables interactive routing.
+     - WebSocket gateway origin used by the API and workflow Pods for Shell, exec, port-forward, and rsync. The chart defaults to the gateway Service in a converged release and ``externalUrl`` in a control-only release. Omit the key for the chart default; an empty string disables interactive routing.
      - ``None``
    * - ``router_client_address``
      - String
-     - WebSocket gateway origin used by browsers and CLI clients. For example, ``wss://osmo.example.com``. If omitted, clients use ``router_address``.
+     - WebSocket gateway origin used by browsers and CLI clients. For example, ``wss://osmo.example.com``. The chart defaults it to ``externalUrl`` when it defaults ``router_address``; otherwise, an omitted value uses ``router_address``.
      - ``None``
 
 

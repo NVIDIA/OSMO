@@ -35,11 +35,13 @@ namespace-qualified internal endpoint while preserving explicit overrides.
 
 In converged releases, backend `router_address` defaults to the internal
 gateway Service and `router_client_address` defaults to `externalUrl` with
-`ws://` or `wss://`. The API and workflow Pods use the first address;
-browsers and CLI clients use the second. Set either field explicitly to override
-its default, or set `router_address: ''` to disable interactive routing for a
-backend. Control-only releases must configure a router address reachable from
-their compute cluster when Shell, exec, port-forward, or rsync is needed.
+`ws://` or `wss://`. In control-only releases, both default to `externalUrl`.
+The API and workflow Pods use the first address; browsers and CLI clients use
+the second. If you set `router_address` explicitly and omit
+`router_client_address`, clients use the explicit address too. Omit
+`router_address` to use the chart default, or set `router_address: ''` to
+disable interactive routing for a backend. In split-plane deployments, the
+control and compute clusters must both reach the chosen router address.
 
 The default values are a development-only path to trying the complete OSMO
 browser, CLI, API, CPU workflow, and GPU workflow experience in one converged

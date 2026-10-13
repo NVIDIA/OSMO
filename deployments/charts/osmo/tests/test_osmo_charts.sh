@@ -1637,6 +1637,17 @@ test_control_umbrella() {
     require_contains "$TEST_DIRECTORY/custom-router-config.yaml" \
         "router_client_address: wss://public.example.com"
 
+    helm_template internal-only-router "$charts_copy/osmo" --namespace osmo \
+        --api-versions postgresql.cnpg.io/v1 \
+        --set-string configuration.backends.default.router_address=wss://internal.example.com \
+        >"$TEST_DIRECTORY/internal-only-router.yaml"
+    resource_document "$TEST_DIRECTORY/internal-only-router.yaml" ConfigMap \
+        "osmo-api-config" >"$TEST_DIRECTORY/internal-only-router-config.yaml"
+    require_contains "$TEST_DIRECTORY/internal-only-router-config.yaml" \
+        "router_address: wss://internal.example.com"
+    require_not_contains "$TEST_DIRECTORY/internal-only-router-config.yaml" \
+        "router_client_address:"
+
     helm_template control-only-router "$charts_copy/osmo" \
         -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
         -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
@@ -1644,9 +1655,22 @@ test_control_umbrella() {
     resource_document "$TEST_DIRECTORY/control-only-router.yaml" ConfigMap \
         "control-only-router-osmo-api-config" \
         >"$TEST_DIRECTORY/control-only-router-config.yaml"
-    require_not_contains "$TEST_DIRECTORY/control-only-router-config.yaml" \
-        "router_address:"
-    require_not_contains "$TEST_DIRECTORY/control-only-router-config.yaml" \
+    require_contains "$TEST_DIRECTORY/control-only-router-config.yaml" \
+        "router_address: ws://osmo-gateway"
+    require_contains "$TEST_DIRECTORY/control-only-router-config.yaml" \
+        "router_client_address: ws://osmo-gateway"
+
+    helm_template control-only-no-router "$charts_copy/osmo" \
+        -f "$charts_copy/osmo/profiles/split-plane-control.yaml" \
+        -f "$CHARTS_ROOT/osmo/tests/control-external-values.yaml" \
+        --set-string configuration.backends.default.router_address= \
+        >"$TEST_DIRECTORY/control-only-no-router.yaml"
+    resource_document "$TEST_DIRECTORY/control-only-no-router.yaml" ConfigMap \
+        "control-only-no-router-osmo-api-config" \
+        >"$TEST_DIRECTORY/control-only-no-router-config.yaml"
+    require_contains "$TEST_DIRECTORY/control-only-no-router-config.yaml" \
+        'router_address: ""'
+    require_not_contains "$TEST_DIRECTORY/control-only-no-router-config.yaml" \
         "router_client_address:"
     require_occurrences "$TEST_DIRECTORY/quickstart-config.yaml" \
         "osmo.nvidia.com/node-pool: compute" 3
