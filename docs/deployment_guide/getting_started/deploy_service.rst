@@ -833,6 +833,18 @@ instead be used from a protected temporary file:
    $ unset OSMO_TOKEN_FILE
    $ test "$OSMO_LOGIN_STATUS" -eq 0
 
+.. note::
+
+   **Expiry:** When enabled, the chart-managed ``osmo-admin-token`` expires
+   24 hours after issuance. Check its deadline with ``osmo profile list`` or
+   Secret ``token-metadata``.
+
+   **Rotate or change expiry:** To generate a new token, run ``helm upgrade``
+   with ``--set authentication.bootstrap.identities.admin.tokens.primary.generation=<next-generation>``.
+   Optionally add ``--set authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds=<seconds>``
+   to change its lifetime. An ordinary upgrade does not extend expiry. Do not
+   delete the Secret or edit ``token-metadata``.
+
 For embedded-Dex evaluation, retrieve the generated password, visit
 ``$OSMO_URL``, and sign in as ``admin@osmo.local``:
 
