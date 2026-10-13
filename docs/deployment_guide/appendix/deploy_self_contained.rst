@@ -208,7 +208,6 @@ resources report Ready. With Helm 3, replace ``--wait=legacy`` with ``--wait``.
 
    kubectl create namespace osmo
    helm repo add osmo-dex https://charts.dexidp.io
-   helm repo add cnpg https://cloudnative-pg.github.io/charts
    helm repo add osmo-rustfs https://charts.rustfs.com
    helm dependency build deployments/charts/osmo
    helm upgrade --install osmo deployments/charts/osmo \

@@ -99,7 +99,6 @@ quickstart Kind port mapping:
 
 ```bash
 helm repo add osmo-dex https://charts.dexidp.io
-helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
@@ -550,7 +549,6 @@ Install the chart after the operator is Ready:
 
 ```bash
 helm repo add osmo-dex https://charts.dexidp.io
-helm repo add cnpg https://cloudnative-pg.github.io/charts
 helm repo add osmo-rustfs https://charts.rustfs.com
 helm dependency build deployments/charts/osmo
 helm upgrade --install osmo deployments/charts/osmo \
