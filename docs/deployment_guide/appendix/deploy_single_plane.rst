@@ -243,7 +243,8 @@ a protected temporary file, then use token login:
 .. note::
 
    The chart-managed ``osmo-admin-token`` expires 24 hours after issuance by
-   default. Set
+   default. ``osmo profile list`` shows the expiration date; the Secret's
+   ``token-metadata`` contains the exact UTC deadline. Set
    ``authentication.bootstrap.identities.admin.tokens.primary.lifetimeSeconds`` in
    your Helm values to change the lifetime for newly issued tokens (60–604800
    seconds). For an existing token, increase
