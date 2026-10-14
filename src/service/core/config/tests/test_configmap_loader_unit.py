@@ -496,6 +496,48 @@ class TestNamedSecretReferenceBoundary(unittest.TestCase):
 class TestValidateConfigs(unittest.TestCase):
     """Tests for _validate_configs."""
 
+    def test_null_client_router_address_is_valid(self):
+        backend_config = {
+            'k8s_namespace': 'osmo-workflows',
+            'router_address': 'wss://gateway.example.com',
+            'router_client_address': None,
+        }
+        self.assertEqual(configmap_loader._validate_configs({
+            'backends': {'default': backend_config},
+        }), [])
+
+    def test_invalid_client_router_address_remains_invalid(self):
+        errors = configmap_loader._validate_configs({
+            'backends': {'default': {
+                'k8s_namespace': 'osmo-workflows',
+                'router_client_address': False,
+            }},
+        })
+        self.assertEqual(len(errors), 1)
+        self.assertIn('router_client_address', errors[0])
+
+    def test_snapshot_hydration_normalizes_null_client_router_address(self):
+        snapshot = {'backends': {'default': {
+            'k8s_namespace': 'osmo-workflows',
+            'router_address': 'wss://gateway.example.com',
+            'router_client_address': None,
+        }}}
+        backend = configmap_loader._backend_from_snapshot(snapshot, 'default')
+        assert backend is not None
+        self.assertEqual(backend.router_client_address, '')
+
+    def test_backend_reconstruction_normalizes_null_client_router_address(self):
+        snapshot = {'backends': {'default': {
+            'k8s_namespace': 'osmo-workflows',
+            'router_address': 'wss://gateway.example.com',
+            'router_client_address': None,
+        }}}
+        database = mock.Mock()
+        database.execute_fetch_command.return_value = []
+        backend = connectors.Backend._fetch_from_snapshot(
+            database, 'default', snapshot)
+        self.assertEqual(backend.router_client_address, '')
+
     def test_valid_named_config_section(self):
         configs: Dict[str, Any] = {
             'pod_templates': {'tmpl1': {'spec': {}}},

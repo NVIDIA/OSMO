@@ -244,6 +244,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             'backends': {
                 'test-be': {
                     'description': 'Test backend',
+                    'router_address': 'ws://osmo-gateway.osmo.svc:80',
+                    'router_client_address': 'ws://127.0.0.1',
                     'scheduler_settings': {
                         'scheduler_type': 'kai',
                         'scheduler_name': 'kai-scheduler',
@@ -256,6 +258,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         result = connectors.Backend.list_from_db(postgres)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, 'test-be')
+        self.assertEqual(result[0].router_address, 'ws://osmo-gateway.osmo.svc:80')
+        self.assertEqual(result[0].router_client_address, 'ws://127.0.0.1')
         self.assertEqual(
             result[0].scheduler_settings.scheduler_type.value, 'kai')
 

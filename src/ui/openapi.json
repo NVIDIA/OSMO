@@ -7692,6 +7692,11 @@
           "online": {
             "type": "boolean",
             "title": "Online"
+          },
+          "router_client_address": {
+            "type": "string",
+            "title": "Router Client Address",
+            "default": ""
           }
         },
         "type": "object",
@@ -7804,6 +7809,17 @@
               }
             ],
             "title": "Router Address"
+          },
+          "router_client_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Client Address"
           }
         },
         "type": "object",

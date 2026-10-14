@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import http
+import json
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -1397,7 +1398,9 @@ class TestActionRequestHelper(unittest.TestCase):
     def test_action_helper_task_dispatches_single_task(self):
         workflow_result = _make_workflow_response(
             name='wf-1', status=job_workflow.WorkflowStatus.RUNNING)
-        backend_config = SimpleNamespace(router_address='wss://router')
+        backend_config = SimpleNamespace(
+            router_address='ws://osmo-gateway.osmo.svc:80',
+            router_client_address='ws://127.0.0.1')
         redis_client = mock.Mock()
         redis_instance = SimpleNamespace(client=redis_client)
         target_task = _make_task_query(name='t1', retry_id=2)
@@ -1416,7 +1419,7 @@ class TestActionRequestHelper(unittest.TestCase):
                                'calculate_total_timeout',
                                return_value=60), \
              mock.patch.object(workflow_service.helpers, 'get_router_cookie',
-                               return_value='c=v'), \
+                               return_value='c=v') as get_router_cookie, \
              mock.patch.object(workflow_service.common,
                                'generate_unique_id',
                                return_value='ID1'):
@@ -1426,17 +1429,21 @@ class TestActionRequestHelper(unittest.TestCase):
                 cached_workflow_response=workflow_result)
 
         self.assertIn('t1', result)
-        self.assertEqual(result['t1'].router_address, 'wss://router')
+        self.assertEqual(result['t1'].router_address, 'ws://127.0.0.1')
         self.assertEqual(result['t1'].key, 'EXEC-ID1')
         self.assertEqual(result['t1'].cookie, 'c=v')
         get_task.assert_called_once_with(workflow_result, 't1')
         redis_client.set.assert_called_once()
+        get_router_cookie.assert_called_once_with('ws://osmo-gateway.osmo.svc:80')
+        self.assertEqual(json.loads(redis_client.set.call_args.args[1])['router_address'],
+                         'ws://osmo-gateway.osmo.svc:80')
         redis_client.lpush.assert_called_once()
 
     def test_action_helper_group_dispatches_group_tasks(self):
         workflow_result = _make_workflow_response(
             name='wf-1', status=job_workflow.WorkflowStatus.RUNNING)
-        backend_config = SimpleNamespace(router_address='wss://router')
+        backend_config = SimpleNamespace(
+            router_address='wss://router', router_client_address='')
         redis_client = mock.Mock()
         redis_instance = SimpleNamespace(client=redis_client)
         task_1 = _make_task_query(name='t1', retry_id=0)
@@ -1467,12 +1474,14 @@ class TestActionRequestHelper(unittest.TestCase):
                 cached_workflow_response=workflow_result)
 
         self.assertEqual(set(result.keys()), {'t1', 't2'})
+        self.assertEqual(result['t1'].router_address, 'wss://router')
         get_group.assert_called_once_with(workflow_result, 'g1')
 
     def test_action_helper_no_task_or_group_dispatches_all(self):
         workflow_result = _make_workflow_response(
             name='wf-1', status=job_workflow.WorkflowStatus.RUNNING)
-        backend_config = SimpleNamespace(router_address='wss://router')
+        backend_config = SimpleNamespace(
+            router_address='wss://router', router_client_address='')
         redis_client = mock.Mock()
         redis_instance = SimpleNamespace(client=redis_client)
         wf_task = _make_task_query(name='wf-task', retry_id=1)

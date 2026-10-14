@@ -180,6 +180,7 @@ class BackendConfig(pydantic.BaseModel):
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
     node_conditions: connectors.BackendNodeConditions | None = None
     router_address: str | None = None
+    router_client_address: str | None = None
 
     def plaintext_dict(self, *args, **kwargs):
         """Convert the BackendConfig to a dictionary."""

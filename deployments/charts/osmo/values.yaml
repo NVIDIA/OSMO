@@ -1965,6 +1965,10 @@ configuration:
   backends:
     default:
       description: Default backend
+      # Missing router_address uses the gateway Service in converged releases
+      # and externalUrl in control-only releases. The chart fills the client
+      # address from externalUrl when it defaults router_address.
+      # Set router_address: '' to disable interactive routing.
       scheduler_settings:
         scheduler_type: kai
         scheduler_name: kai-scheduler

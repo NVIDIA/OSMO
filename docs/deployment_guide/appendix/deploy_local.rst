@@ -317,6 +317,9 @@ The command uses Helm 4's ``--wait=legacy`` strategy. With Helm 3, replace
      --wait-for-jobs \
      --timeout 20m
 
+Keep the KIND port mapping active for local Shell, exec, port-forward, and rsync
+sessions.
+
 Log In
 ======
 
