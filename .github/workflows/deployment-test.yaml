@@ -28,7 +28,7 @@ name: Deployment Test (Azure)
 # auth-check is workflow_dispatch only — it's a developer-driven smoke for
 # the OIDC chain, not something we want to run automatically per PR.
 #
-# Scheduled trigger (PRIMARY mode of operation on main):
+# Scheduled trigger (currently DISABLED — see the commented `schedule:` block below):
 #   - Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
 #     is UTC, doesn't adjust for DST). github.event_name='schedule' runs
 #     build-images + full-deployment end-to-end on main, the same path
@@ -86,11 +86,9 @@ on:
       - 'bzl/tests/**'
       - 'src/operator/BUILD'
       - 'src/operator/backend_test_runner/BUILD'
-  schedule:
-    # Daily at 00:00 UTC = 5pm PDT (16:00 PST during winter — GitHub cron
-    # is UTC, doesn't track DST). Schedule fires only on main, not on
-    # feature branches.
-    - cron: '0 0 * * *'
+  # Daily schedule temporarily disabled. To re-enable, uncomment:
+  # schedule:
+  #   - cron: '0 0 * * *'
 
 # Full runs share one resource group and queue in one concurrency group.
 # Auth checks and non-matching label events use unique groups, so they never
