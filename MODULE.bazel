@@ -21,7 +21,7 @@ BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
 
 IMAGE_TAG = ""
 
-PYTHON_VERSION = "3.14.7"
+PYTHON_VERSION = "3.14.8"
 
 ################
 #  Workspace   #
@@ -139,34 +139,34 @@ python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
     python_version = PYTHON_VERSION,
-    sha256 = "cefba034445d2875408d1fd4d5700ae6731563aeb54dcb39fd8164ab5c457533",
+    sha256 = "d9ec7a6935ade8b671a57ebaf111083d7314eab8dae5071d167054dadd2b97d6",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.14.8%2B20261003-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
     ],
 )
 python.single_version_platform_override(
     platform = "aarch64-unknown-linux-gnu",
     python_version = PYTHON_VERSION,
-    sha256 = "86dfb106b303fa6a1991f7da42ced3e11576f777be299b3162e06617b6d22542",
+    sha256 = "ece2bf3d4b47c80c2403c5f32fa51a9458abaee93c10def8acafb5f45163e77d",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.14.8%2B20261003-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
     ],
 )
 python.single_version_platform_override(
     platform = "aarch64-apple-darwin",
     python_version = PYTHON_VERSION,
-    sha256 = "423717c485b9ee7822590b9d973c1b5fb2cda0fe43448ab82a3d44f823bd329c",
+    sha256 = "ed14e9042f36c0aa18383f5d9729bcbf17847e842666a793b5a5a5d8505c0ca1",
     strip_prefix = "python",
     urls = [
-        "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.14.7%2B20260814-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.14.8%2B20261003-aarch64-apple-darwin-install_only_stripped.tar.gz",
     ],
 )
 use_repo(
     python,
-    "python_3_14_7_aarch64-unknown-linux-gnu",
-    "python_3_14_7_x86_64-unknown-linux-gnu",
+    "python_3_14_8_aarch64-unknown-linux-gnu",
+    "python_3_14_8_x86_64-unknown-linux-gnu",
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
