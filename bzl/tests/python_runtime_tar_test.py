@@ -62,6 +62,10 @@ class PythonRuntimeTarTest(unittest.TestCase):
     def test_is_compressed_for_registry_transfer(self) -> None:
         self.assertLess(pathlib.Path(sys.argv[1]).stat().st_size, _MAXIMUM_COMPRESSED_SIZE)
 
+    def test_excludes_bundled_package_installers(self) -> None:
+        self.assertFalse(any("/site-packages/" in name for name in self.members))
+        self.assertFalse(any("/ensurepip/" in name for name in self.members))
+
     def test_contains_expected_interpreter(self) -> None:
         runtime_binary = self.archive.extractfile(self.members[_BINARY_PATH])
         if runtime_binary is None:

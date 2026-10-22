@@ -55,8 +55,8 @@
 # =============================================================================
 # Stage 1: Dependencies (cached unless package.json/pnpm-lock.yaml change)
 # =============================================================================
-ARG NODE_BUILD_IMAGE=node:24-slim
-ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.1.7
+ARG NODE_BUILD_IMAGE=node:24.22.1-slim
+ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.1.8
 
 FROM ${NODE_BUILD_IMAGE} AS deps
 
