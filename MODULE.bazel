@@ -370,8 +370,8 @@ apt.install(
 
 oci.pull(
     name = "distroless_cc",
-    digest = "sha256:1c3f23958b14384dd07e57696954c6722861c3ee5de372fdc2af75a8e4b75313",
-    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.1.6",
+    digest = "sha256:c00b17d366579fa94e43398e9cbdc017647188491709e661104cfe69a6f283e7",
+    image = BASE_DISTROLESS_IMAGE_URL + "cc:v4.1.7",
     platforms = [
         "linux/arm64/v8",
         "linux/amd64",

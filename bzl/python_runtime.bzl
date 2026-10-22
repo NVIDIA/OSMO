@@ -32,6 +32,8 @@ def _python_runtime_files_impl(ctx):
             file
             for file in ctx.files.runtime
             if "/lib/python3.14/" in file.short_path
+            and "/site-packages/" not in file.short_path
+            and "/ensurepip/" not in file.short_path
         ]
         if not selected:
             fail("expected files beneath lib/python3.14")

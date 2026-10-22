@@ -89,13 +89,13 @@
 					"version": "3.0.2-0ubuntu1"
 				}
 			],
-			"key": "ca-certificates_20211016_amd64",
+			"key": "ca-certificates_20260816ubuntu0.22.04.1_amd64",
 			"name": "ca-certificates",
-			"sha256": "1eb968fb717640d4661f777a3e1ffb4c4fef956bcd24e1084ff1a7e5ee2f4a03",
+			"sha256": "29ca037f49f7a4b41d67ad72946c2e541f3ae52d8f6ab1495d2af09aa391144b",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/c/ca-certificates/ca-certificates_20211016_all.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/c/ca-certificates/ca-certificates_20260816ubuntu0.22.04.1_all.deb"
 			],
-			"version": "20211016"
+			"version": "20260816ubuntu0.22.04.1"
 		},
 		{
 			"arch": "amd64",
