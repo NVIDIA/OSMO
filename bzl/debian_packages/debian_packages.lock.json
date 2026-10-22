@@ -4,9 +4,9 @@
 			"arch": "amd64",
 			"dependencies": [
 				{
-					"key": "libc6_2.35-0ubuntu3.15_amd64",
+					"key": "libc6_2.35-0ubuntu3_amd64",
 					"name": "libc6",
-					"version": "2.35-0ubuntu3.15"
+					"version": "2.35-0ubuntu3"
 				},
 				{
 					"key": "libcrypt1_1-4.4.27-1_amd64",
@@ -14,14 +14,14 @@
 					"version": "1:4.4.27-1"
 				},
 				{
-					"key": "libgcc-s1_12.3.0-1ubuntu1_22.04.3_amd64",
+					"key": "libgcc-s1_12-20220319-1ubuntu1_amd64",
 					"name": "libgcc-s1",
-					"version": "12.3.0-1ubuntu1~22.04.3"
+					"version": "12-20220319-1ubuntu1"
 				},
 				{
-					"key": "gcc-12-base_12.3.0-1ubuntu1_22.04.3_amd64",
+					"key": "gcc-12-base_12-20220319-1ubuntu1_amd64",
 					"name": "gcc-12-base",
-					"version": "12.3.0-1ubuntu1~22.04.3"
+					"version": "12-20220319-1ubuntu1"
 				}
 			],
 			"key": "tree_2.0.2-1_amd64",
@@ -35,13 +35,13 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "libc6_2.35-0ubuntu3.15_amd64",
+			"key": "libc6_2.35-0ubuntu3_amd64",
 			"name": "libc6",
-			"sha256": "79e35256227e16a607c154cdeb8d76ff12d20e31de286ea7fd9ad3b96fe0452d",
+			"sha256": "ea9a27e0ebdd0cfc9c750d94f8074f3a35d1f97dcc77ae04c370fb498a6b6db2",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/libc6_2.35-0ubuntu3.15_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/libc6_2.35-0ubuntu3_amd64.deb"
 			],
-			"version": "2.35-0ubuntu3.15"
+			"version": "2.35-0ubuntu3"
 		},
 		{
 			"arch": "amd64",
@@ -57,24 +57,24 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "libgcc-s1_12.3.0-1ubuntu1_22.04.3_amd64",
+			"key": "libgcc-s1_12-20220319-1ubuntu1_amd64",
 			"name": "libgcc-s1",
-			"sha256": "d383e642d83263147f7b4b69fb92cf1036e5246c6be3accf10b77f986684589a",
+			"sha256": "c9a93721431be07557c810d7e1b24c3b3c51f398334ded104362a68a415b9e61",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/libgcc-s1_12.3.0-1ubuntu1~22.04.3_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/libgcc-s1_12-20220319-1ubuntu1_amd64.deb"
 			],
-			"version": "12.3.0-1ubuntu1~22.04.3"
+			"version": "12-20220319-1ubuntu1"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "gcc-12-base_12.3.0-1ubuntu1_22.04.3_amd64",
+			"key": "gcc-12-base_12-20220319-1ubuntu1_amd64",
 			"name": "gcc-12-base",
-			"sha256": "7f9253b7e0976f0526fc21346c73ee006e185a7b2f2f865048ea78a2af55bc8d",
+			"sha256": "37990a768ecb1b40ce87c12fb7c7994877bb1256bde286c8e9bf5d4b51a17ca9",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/gcc-12-base_12.3.0-1ubuntu1~22.04.3_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/gcc-12-base_12-20220319-1ubuntu1_amd64.deb"
 			],
-			"version": "12.3.0-1ubuntu1~22.04.3"
+			"version": "12-20220319-1ubuntu1"
 		},
 		{
 			"arch": "amd64",
@@ -85,19 +85,19 @@
 					"version": "1.5.79ubuntu1"
 				},
 				{
-					"key": "perl-base_5.34.0-3ubuntu1.9_amd64",
+					"key": "perl-base_5.34.0-3ubuntu1_amd64",
 					"name": "perl-base",
-					"version": "5.34.0-3ubuntu1.9"
+					"version": "5.34.0-3ubuntu1"
 				},
 				{
-					"key": "dpkg_1.21.1ubuntu2.6_amd64",
+					"key": "dpkg_1.21.1ubuntu2_amd64",
 					"name": "dpkg",
-					"version": "1.21.1ubuntu2.6"
+					"version": "1.21.1ubuntu2"
 				},
 				{
-					"key": "tar_1.34-p-dfsg-1ubuntu0.1.22.04.6_amd64",
+					"key": "tar_1.34-p-dfsg-1build3_amd64",
 					"name": "tar",
-					"version": "1.34+dfsg-1ubuntu0.1.22.04.6"
+					"version": "1.34+dfsg-1build3"
 				},
 				{
 					"key": "libselinux1_3.3-1build2_amd64",
@@ -105,14 +105,14 @@
 					"version": "3.3-1build2"
 				},
 				{
-					"key": "libpcre2-8-0_10.39-3ubuntu0.1_amd64",
+					"key": "libpcre2-8-0_10.39-3build1_amd64",
 					"name": "libpcre2-8-0",
-					"version": "10.39-3ubuntu0.1"
+					"version": "10.39-3build1"
 				},
 				{
-					"key": "libc6_2.35-0ubuntu3.15_amd64",
+					"key": "libc6_2.35-0ubuntu3_amd64",
 					"name": "libc6",
-					"version": "2.35-0ubuntu3.15"
+					"version": "2.35-0ubuntu3"
 				},
 				{
 					"key": "libcrypt1_1-4.4.27-1_amd64",
@@ -120,14 +120,14 @@
 					"version": "1:4.4.27-1"
 				},
 				{
-					"key": "libgcc-s1_12.3.0-1ubuntu1_22.04.3_amd64",
+					"key": "libgcc-s1_12-20220319-1ubuntu1_amd64",
 					"name": "libgcc-s1",
-					"version": "12.3.0-1ubuntu1~22.04.3"
+					"version": "12-20220319-1ubuntu1"
 				},
 				{
-					"key": "gcc-12-base_12.3.0-1ubuntu1_22.04.3_amd64",
+					"key": "gcc-12-base_12-20220319-1ubuntu1_amd64",
 					"name": "gcc-12-base",
-					"version": "12.3.0-1ubuntu1~22.04.3"
+					"version": "12-20220319-1ubuntu1"
 				},
 				{
 					"key": "libacl1_2.3.1-1_amd64",
@@ -135,9 +135,9 @@
 					"version": "2.3.1-1"
 				},
 				{
-					"key": "zlib1g_1-1.2.11.dfsg-2ubuntu9.2_amd64",
+					"key": "zlib1g_1-1.2.11.dfsg-2ubuntu9_amd64",
 					"name": "zlib1g",
-					"version": "1:1.2.11.dfsg-2ubuntu9.2"
+					"version": "1:1.2.11.dfsg-2ubuntu9"
 				},
 				{
 					"key": "libzstd1_1.4.8-p-dfsg-3build1_amd64",
@@ -145,24 +145,24 @@
 					"version": "1.4.8+dfsg-3build1"
 				},
 				{
-					"key": "liblzma5_5.2.5-2ubuntu1.2_amd64",
+					"key": "liblzma5_5.2.5-2ubuntu1_amd64",
 					"name": "liblzma5",
-					"version": "5.2.5-2ubuntu1.2"
+					"version": "5.2.5-2ubuntu1"
 				},
 				{
-					"key": "libbz2-1.0_1.0.8-5ubuntu0.1_amd64",
+					"key": "libbz2-1.0_1.0.8-5build1_amd64",
 					"name": "libbz2-1.0",
-					"version": "1.0.8-5ubuntu0.1"
+					"version": "1.0.8-5build1"
 				},
 				{
-					"key": "openssl_3.0.2-0ubuntu1.30_amd64",
+					"key": "openssl_3.0.2-0ubuntu1_amd64",
 					"name": "openssl",
-					"version": "3.0.2-0ubuntu1.30"
+					"version": "3.0.2-0ubuntu1"
 				},
 				{
-					"key": "libssl3_3.0.2-0ubuntu1.30_amd64",
+					"key": "libssl3_3.0.2-0ubuntu1_amd64",
 					"name": "libssl3",
-					"version": "3.0.2-0ubuntu1.30"
+					"version": "3.0.2-0ubuntu1"
 				}
 			],
 			"key": "ca-certificates_20260816ubuntu0.22.04.1_amd64",
@@ -187,35 +187,35 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "perl-base_5.34.0-3ubuntu1.9_amd64",
+			"key": "perl-base_5.34.0-3ubuntu1_amd64",
 			"name": "perl-base",
-			"sha256": "966bbdd49966b37912496526de94cb5d197c6d1ce457b6c330204ef36c9b3a6e",
+			"sha256": "1af46dbc6b00bbcff8b5e72eeedbb2bafdec48bf0d470ce461c1e453c2ecdfe8",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl-base_5.34.0-3ubuntu1.9_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl-base_5.34.0-3ubuntu1_amd64.deb"
 			],
-			"version": "5.34.0-3ubuntu1.9"
+			"version": "5.34.0-3ubuntu1"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "dpkg_1.21.1ubuntu2.6_amd64",
+			"key": "dpkg_1.21.1ubuntu2_amd64",
 			"name": "dpkg",
-			"sha256": "8759f60fc173cb4ab85599dd66a633dce9473b9c7655128863a214325f52a7bd",
+			"sha256": "457a683c3209ac30338461b0f3f7641879a4ce15adff15fbcbc20f3430d0c84b",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/d/dpkg/dpkg_1.21.1ubuntu2.6_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/d/dpkg/dpkg_1.21.1ubuntu2_amd64.deb"
 			],
-			"version": "1.21.1ubuntu2.6"
+			"version": "1.21.1ubuntu2"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "tar_1.34-p-dfsg-1ubuntu0.1.22.04.6_amd64",
+			"key": "tar_1.34-p-dfsg-1build3_amd64",
 			"name": "tar",
-			"sha256": "9e7a93d96b2c3ed82aa5959933bec3e5082c264b0ae45e86ab450f83886faace",
+			"sha256": "d6e4ef9e5793a271764209047ebb78970404b035fd1490cb513302744cfe9a25",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.34+dfsg-1ubuntu0.1.22.04.6_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.34+dfsg-1build3_amd64.deb"
 			],
-			"version": "1.34+dfsg-1ubuntu0.1.22.04.6"
+			"version": "1.34+dfsg-1build3"
 		},
 		{
 			"arch": "amd64",
@@ -231,13 +231,13 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "libpcre2-8-0_10.39-3ubuntu0.1_amd64",
+			"key": "libpcre2-8-0_10.39-3build1_amd64",
 			"name": "libpcre2-8-0",
-			"sha256": "01a5a74f3d305cad32fffffdc200c2a92fd8e5a01bff97de76ac598fb444d53e",
+			"sha256": "166e1162c3e86facf11bd31a3e10ffa67641f9ac295bc8e72e6cdfc494fc64c3",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/p/pcre2/libpcre2-8-0_10.39-3ubuntu0.1_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/p/pcre2/libpcre2-8-0_10.39-3build1_amd64.deb"
 			],
-			"version": "10.39-3ubuntu0.1"
+			"version": "10.39-3build1"
 		},
 		{
 			"arch": "amd64",
@@ -253,13 +253,13 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "zlib1g_1-1.2.11.dfsg-2ubuntu9.2_amd64",
+			"key": "zlib1g_1-1.2.11.dfsg-2ubuntu9_amd64",
 			"name": "zlib1g",
-			"sha256": "9dc17e51a1be2d9ed63b7b84ef0e4e29c5abe6f1bc62cb03e7181483cce8a2f2",
+			"sha256": "52449467942cc943d651fd16867014e9339f3657935fc09b75b3347aa5a78066",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9.2_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9_amd64.deb"
 			],
-			"version": "1:1.2.11.dfsg-2ubuntu9.2"
+			"version": "1:1.2.11.dfsg-2ubuntu9"
 		},
 		{
 			"arch": "amd64",
@@ -275,46 +275,46 @@
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "liblzma5_5.2.5-2ubuntu1.2_amd64",
+			"key": "liblzma5_5.2.5-2ubuntu1_amd64",
 			"name": "liblzma5",
-			"sha256": "a88fca7506963c443c42a578db6c35424336ae28abcdaa60c89f06d30aeb625b",
+			"sha256": "8f1c46e7d3f5102a5e4fdca7c949728a343ba71c2a7c124118df2c13d4c444f7",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1.2_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1_amd64.deb"
 			],
-			"version": "5.2.5-2ubuntu1.2"
+			"version": "5.2.5-2ubuntu1"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "libbz2-1.0_1.0.8-5ubuntu0.1_amd64",
+			"key": "libbz2-1.0_1.0.8-5build1_amd64",
 			"name": "libbz2-1.0",
-			"sha256": "2fd35bb1ac601fa1bf35da2fa08dba3541766ca791927342b5efcb18ef17aecb",
+			"sha256": "3bfeaf4259eadbb7faa09feee86cd6cad172cd95907d7465afd0eb5aebb5433f",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/b/bzip2/libbz2-1.0_1.0.8-5ubuntu0.1_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/b/bzip2/libbz2-1.0_1.0.8-5build1_amd64.deb"
 			],
-			"version": "1.0.8-5ubuntu0.1"
+			"version": "1.0.8-5build1"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "openssl_3.0.2-0ubuntu1.30_amd64",
+			"key": "openssl_3.0.2-0ubuntu1_amd64",
 			"name": "openssl",
-			"sha256": "a5b9484a287aba47096fa9ea9821c5c98cf95b8dd726786e7c3a3311fb8eb3b4",
+			"sha256": "ade3df4e82f3e13b6f0248d06d0652646c39f4dbb97b2cf470d04fbec30acb2a",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/openssl_3.0.2-0ubuntu1.30_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/openssl_3.0.2-0ubuntu1_amd64.deb"
 			],
-			"version": "3.0.2-0ubuntu1.30"
+			"version": "3.0.2-0ubuntu1"
 		},
 		{
 			"arch": "amd64",
 			"dependencies": [],
-			"key": "libssl3_3.0.2-0ubuntu1.30_amd64",
+			"key": "libssl3_3.0.2-0ubuntu1_amd64",
 			"name": "libssl3",
-			"sha256": "d1b4636e32ac6d3b95d583ac05ac548b1aa248414bae1c51b14f54be0f8fd7bc",
+			"sha256": "11a83260542e05aebbbafce9164d594287d2584be80972e08708528fe06f80d3",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1.30_amd64.deb"
+				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_amd64.deb"
 			],
-			"version": "3.0.2-0ubuntu1.30"
+			"version": "3.0.2-0ubuntu1"
 		}
 	],
 	"version": 1
