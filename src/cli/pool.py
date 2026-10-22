@@ -82,9 +82,7 @@ def fetch_default_pool(service_client: client.ServiceClient) -> str:
     # rather than a transport stack trace.
     try:
         pool_response = list_pools(service_client)
-        pool_names = {pool['name']
-                      for nodeset in pool_response.get('node_sets', [])
-                      for pool in nodeset.get('pools', [])}
+        pool_names = set(pool_response.get('pools', {}).keys())
         if len(pool_names) == 1:
             return next(iter(pool_names))
     except Exception:  # pylint: disable=broad-except
