@@ -134,3 +134,4 @@ azure-identity==1.23.1
 # Async
 aiofiles==25.1.0
 anyio==4.15.1
+certifi==2026.10.19
