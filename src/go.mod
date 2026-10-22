@@ -1,6 +1,6 @@
 module go.corp.nvidia.com/osmo
 
-go 1.26.10
+go 1.27.2
 
 require (
 	// Runtime dependencies
