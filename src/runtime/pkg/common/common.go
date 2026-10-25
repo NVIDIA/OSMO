@@ -210,13 +210,16 @@ func min(a int, b int) int {
 	return b
 }
 
+// RunCommand drains output before reaping the subprocess. The stdout callback
+// must report one timeout result and may monitor commandDone until it closes.
 func RunCommand(cmd *exec.Cmd,
-	streamOutCommand func(*exec.Cmd, *bufio.Scanner, *sync.WaitGroup, chan bool),
+	streamOutCommand func(*exec.Cmd, *bufio.Scanner, *sync.WaitGroup, chan bool, <-chan struct{}),
 	streamErrCommand func(*bufio.Scanner, *sync.WaitGroup)) (string, error) {
 	var waitStreamLogs sync.WaitGroup
-	// Buffered so streamOutCommand's send does not block its deferred wg.Done()
-	// (RunCommand only reads timeoutChan after waitStreamLogs.Wait() returns).
+	// A watchdog can report a timeout before the streams finish draining.
+	// RunCommand consumes the result after reaping the subprocess.
 	timeoutChan := make(chan bool, 1)
+	commandDone := make(chan struct{})
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -253,18 +256,17 @@ func RunCommand(cmd *exec.Cmd,
 
 	cmd.Start()
 	waitStreamLogs.Add(2)
-	go streamOutCommand(cmd, stdoutScanner, &waitStreamLogs, timeoutChan)
+	go streamOutCommand(cmd, stdoutScanner, &waitStreamLogs, timeoutChan, commandDone)
 	go streamErrCommand(stderrScanner, &waitStreamLogs)
 	waitStreamLogs.Wait()
 
+	// Reap the subprocess even when the stdout watchdog killed it on timeout.
+	err = cmd.Wait()
+	close(commandDone)
 	if <-timeoutChan {
-		if err := cmd.Process.Signal(os.Interrupt); err != nil {
-			log.Printf("Error sending interrupt signal: %s\n", err)
-		}
 		return "", &osmo_errors.TimeoutError{S: "Command timed out"}
 	}
 
-	err = cmd.Wait()
 	return fmt.Sprintf("Command failed with error: %v\n", err), err
 }
 
