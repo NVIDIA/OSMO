@@ -141,7 +141,7 @@ Generated: 2026-10-26 · Packages audited: **228** · Scope: production (server 
 | `@radix-ui/rect` | 1.1.1 | [link](https://radix-ui.com/primitives) |
 | `@react-hookz/web` | 25.2.0 | [link](https://github.com/react-hookz/web#readme) |
 | `@replit/codemirror-indentation-markers` | 6.5.3 | [link](https://github.com/replit/codemirror-indentation-markers#readme) |
-| `@standard-schema/spec` | 1.0.0 | [link](https://standardschema.dev) |
+| `@standard-schema/spec` | 1.1.0 | [link](https://standardschema.dev) |
 | `@tanstack/query-core` | 5.90.20 | [link](https://tanstack.com/query) |
 | `@tanstack/react-query` | 5.90.21 | [link](https://tanstack.com/query) |
 | `@tanstack/react-table` | 8.21.3 | [link](https://tanstack.com/table) |
@@ -198,7 +198,7 @@ Generated: 2026-10-26 · Packages audited: **228** · Scope: production (server 
 | `next` | 16.4.3 | [link](https://nextjs.org) |
 | `next-themes` | 0.4.6 | [link](https://github.com/pacocoursey/next-themes#readme) |
 | `node-releases` | 2.0.53 | [link](https://github.com/chicoxyzzy/node-releases#readme) |
-| `nuqs` | 2.8.8 | [link](https://nuqs.dev) |
+| `nuqs` | 2.10.2 | [link](https://nuqs.dev) |
 | `postcss` | 8.5.23 | [link](https://postcss.org/) |
 | `radix-ui` | 1.4.3 | [link](https://radix-ui.com/primitives) |
 | `react` | 19.2.8 | [link](https://react.dev/) |
