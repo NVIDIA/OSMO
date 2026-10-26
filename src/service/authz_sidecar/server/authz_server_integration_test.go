@@ -69,6 +69,49 @@ func requireAuthzCode(
 	}
 }
 
+func TestTokenWorkflowOperationsResolveNameAndUUID(t *testing.T) {
+	postgresFixture := database.StartPostgresWithSchema(t)
+	postgresFixture.ResetSchema(t)
+	postgresFixture.ExecSQLFile(t, "testdata/seed.sql")
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	fileStore := roles.NewFileRoleStore("testdata/config.yaml", logger)
+	if err := fileStore.Load(); err != nil {
+		t.Fatalf("load ConfigMap authority: %v", err)
+	}
+	authzServer := server.NewFileBackedAuthzServer(fileStore, postgresFixture.Client, logger)
+
+	workflows := []struct {
+		name       string
+		identifier string
+		wantCode   codes.Code
+	}{
+		{"allowed name", "team-a-workflow", codes.OK},
+		{"allowed UUID", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", codes.OK},
+		{"other pool name", "team-b-workflow", codes.PermissionDenied},
+		{"other pool UUID", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", codes.PermissionDenied},
+		{"unknown UUID", "cccccccccccccccccccccccccccccccc", codes.PermissionDenied},
+	}
+	for _, operation := range []struct {
+		name   string
+		suffix string
+	}{
+		{"exec", "/exec/task/master?entry_command=echo+test"},
+		{"cancel", "/cancel"},
+	} {
+		for _, workflow := range workflows {
+			t.Run(operation.name+"/"+workflow.name, func(t *testing.T) {
+				request := runtimeAuthorityRequest("operator-token", workflow.identifier, "scoped-operator")
+				httpRequest := request.Attributes.Request.Http
+				httpRequest.Path += operation.suffix
+				httpRequest.Method = "POST"
+				httpRequest.Headers["x-osmo-token-name"] = "operator-token"
+				requireAuthzCode(t, authzServer, request, workflow.wantCode)
+			})
+		}
+	}
+}
+
 func TestRuntimeStateCannotOverrideConfigMapAuthority(t *testing.T) {
 	postgresFixture := database.StartPostgresWithSchema(t)
 	postgresFixture.ResetSchema(t)

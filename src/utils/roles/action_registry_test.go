@@ -225,6 +225,80 @@ func TestExtractResourceFromPath(t *testing.T) {
 	}
 }
 
+func TestPluginConfigsResolveWithoutPool(t *testing.T) {
+	for _, path := range []string{
+		"/api/plugins/configs",
+		"/api/plugins/configs/",
+		"/api/plugins/configs?client=test",
+	} {
+		t.Run(path, func(t *testing.T) {
+			action, resource := ResolvePathToAction(context.Background(), path, "GET", nil)
+			if action != ActionWorkflowRsync || resource != "" {
+				t.Errorf("ResolvePathToAction() = (%q, %q), want (%q, %q)",
+					action, resource, ActionWorkflowRsync, "")
+			}
+		})
+	}
+}
+
+func TestPluginConfigsAccess(t *testing.T) {
+	tests := []struct {
+		name        string
+		action      string
+		path        string
+		method      string
+		deny        bool
+		wantAllowed bool
+	}{
+		{
+			name: "scoped rsync permission", action: ActionWorkflowRsync,
+			path: "/api/plugins/configs", method: "GET", wantAllowed: true,
+		},
+		{
+			name: "scoped workflow wildcard", action: "workflow:*",
+			path: "/api/plugins/configs?client=test", method: "GET", wantAllowed: true,
+		},
+		{
+			name: "unrelated action", action: ActionWorkflowRead,
+			path: "/api/plugins/configs", method: "GET",
+		},
+		{
+			name: "explicit deny overrides allow", action: "workflow:*",
+			path: "/api/plugins/configs", method: "GET", deny: true,
+		},
+		{
+			name: "workflow rsync still needs a resolved pool", action: ActionWorkflowRsync,
+			path: "/api/workflow/unknown/rsync", method: "POST",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			role := &Role{
+				Name: "scoped-role",
+				Policies: []RolePolicy{{
+					Effect:    EffectAllow,
+					Actions:   RoleActions{{Action: tt.action}},
+					Resources: []string{"pool/team-a"},
+				}},
+			}
+			if tt.deny {
+				role.Policies = append(role.Policies, RolePolicy{
+					Effect:    EffectDeny,
+					Actions:   RoleActions{{Action: ActionWorkflowRsync}},
+					Resources: []string{"pool/team-a"},
+				})
+			}
+			result := CheckRolesAccess(context.Background(), []*Role{role}, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("CheckRolesAccess().Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+			if result.Denied != tt.deny {
+				t.Errorf("CheckRolesAccess().Denied = %v, want %v", result.Denied, tt.deny)
+			}
+		})
+	}
+}
+
 func TestDefaultRolesWithRegistry(t *testing.T) {
 	// Test common access patterns for default roles using ActionRegistry
 

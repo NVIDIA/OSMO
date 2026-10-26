@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS pools (
 
 CREATE TABLE IF NOT EXISTS workflows (
     workflow_id TEXT PRIMARY KEY,
+    workflow_uuid TEXT UNIQUE,
     pool TEXT NOT NULL DEFAULT '',
     labels JSONB
 );
