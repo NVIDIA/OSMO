@@ -624,6 +624,10 @@ func extractResourceFromPath(
 		return "config/" + extractScopedResourceID(parts, "configs")
 
 	case ResourceTypeWorkflow:
+		// Plugin configuration is global; it has no workflow pool to resolve.
+		if path == "/api/plugins/configs" && action == ActionWorkflowRsync {
+			return ""
+		}
 		// List action doesn't need resource scope check
 		if actionName == "List" {
 			return ""
@@ -736,7 +740,7 @@ func getPoolForWorkflow(
 ) (string, error) {
 	var pool string
 	err := client.Pool().QueryRow(
-		ctx, `SELECT pool FROM workflows WHERE workflow_id = $1`, workflowID,
+		ctx, `SELECT pool FROM workflows WHERE workflow_id = $1 OR workflow_uuid = $1`, workflowID,
 	).Scan(&pool)
 	if err != nil {
 		return "", fmt.Errorf("failed to get pool for workflow %s: %w", workflowID, err)
