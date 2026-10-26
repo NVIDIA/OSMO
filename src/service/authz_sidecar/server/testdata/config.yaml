@@ -1,4 +1,11 @@
 roles:
+  scoped-operator:
+    description: Workflow operator limited to team-a
+    policies:
+    - effect: Allow
+      actions: [workflow:Exec, workflow:Cancel]
+      resources: [pool/team-a]
+    external_roles: []
   scoped-reader:
     description: Reader limited to team-a
     policies:

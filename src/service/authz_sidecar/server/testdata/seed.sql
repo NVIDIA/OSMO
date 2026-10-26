@@ -18,6 +18,6 @@ INSERT INTO user_roles (user_id, role_name, assigned_by) VALUES
     ('force-manual@example.com', 'force-reader', 'operator@example.com'),
     ('db-only@example.com', 'db-only-admin', 'operator@example.com');
 
-INSERT INTO workflows (workflow_id, pool) VALUES
-    ('team-a-workflow', 'team-a'),
-    ('team-b-workflow', 'team-b');
+INSERT INTO workflows (workflow_id, workflow_uuid, pool) VALUES
+    ('team-a-workflow', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'team-a'),
+    ('team-b-workflow', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'team-b');
