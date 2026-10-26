@@ -27,7 +27,8 @@ concurrency:
 jobs:
   oetf-kind:
     name: oetf:deploy_and_run --env kind --tags kind
-    runs-on: ubuntu-latest
+    # Keep KIND on Ubuntu 24.04 while investigating kube-proxy crashes on 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout
