@@ -1,0 +1,85 @@
+version = "1.0.0"
+
+[[pulse-trufflehog.files]]
+file = "BUILD_AND_TEST.md"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas********************************ORD\""]
+
+[[pulse-trufflehog.files]]
+file = "deployments/scripts/common.sh"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas******\"$1\""]
+
+[[pulse-trufflehog.files]]
+file = "deployments/scripts/deploy-osmo-single-plane.sh"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas**********************************ord\"", "pas*******************************ord\"", "pas*********************ILE\""]
+
+[[pulse-trufflehog.files]]
+file = "deployments/scripts/tests/test_unified_deploy.py"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas**************ing'"]
+
+[[pulse-trufflehog.files]]
+file = "docs/deployment_guide/appendix/authentication/index.rst"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas********************************rd>'"]
+
+[[pulse-trufflehog.files]]
+file = "docs/deployment_guide/appendix/keycloak_setup.rst"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas**********************rd>'"]
+
+[[pulse-trufflehog.files]]
+file = "src/lib/utils/tests/test_login.py"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas***********er2'"]
+
+[[pulse-trufflehog.files]]
+file = "src/service/core/config/tests/test_configmap_loader_unit.py"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["'pa**********************lue'"]
+
+[[pulse-trufflehog.files]]
+file = "src/ui/src/lib/api/adapter/hooks.ts"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas*********ass\""]
+
+[[pulse-trufflehog.files]]
+file = "src/utils/job/tests/test_workflow_units.py"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["'pa************lue'"]
+
+[[pulse-trufflehog.files]]
+file = "src/utils/postgres/postgres_client_test.go"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas********************/Ij\"", "pas*******************ord\"", "pas******************ord\"", "pas****************/rd\""]
+
+[[pulse-trufflehog.files]]
+file = "test/smoke/bootstrap_lifecycle_kind.py"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["'pa***************ord'"]
