@@ -39,6 +39,22 @@ helm_args=(
     --set 'services.backendApiTokens.enabled=true'
 )
 
+# ConfigMap mode still needs PostgreSQL runtime state and a durable API checkpoint.
+startup_render=$(helm template startup-test "$CHART_DIR" --namespace osmo \
+    --set 'services.configs.enabled=true' \
+    --set 'services.postgres.serviceName=runtime-postgres.example.com')
+grep -q -- '--roles-file=/etc/osmo/configs/config.yaml' <<<"$startup_render"
+grep -q -- '--postgres-host=runtime-postgres.example.com' <<<"$startup_render"
+if grep -q -- '--cache-ttl\|--cache-max-size' <<<"$startup_render"; then
+    echo 'Authz still receives cache flags removed from the 6.4 binary' >&2
+    exit 1
+fi
+startup_config=$(resource_document "$startup_render" ConfigMap osmo-service-configs)
+grep -A1 '^    backend_tests:' <<<"$startup_config" | grep -q '{}'
+startup_role=$(resource_document "$startup_render" Role osmo-service-configmap-events)
+grep -q 'resourceNames: \["osmo-service-configs"\]' <<<"$startup_role"
+grep -q 'verbs: \["get", "patch"\]' <<<"$startup_role"
+
 managed_render=$(helm template managed-test "$CHART_DIR" "${helm_args[@]}" \
     --set 'services.backendApiTokens.credentials[0].name=default' \
     --set 'services.backendApiTokens.credentials[0].managedSecret.name=agent-token')
