@@ -586,7 +586,7 @@ def update_resource_usage(node_send_queue: helpers.EnqueueCallback,
         workflow_pod_namespaces = backend_config.include_namespace_usage + [workflow_namespace]
 
         for container in pod.spec.containers:
-            if not container.resources.requests:
+            if not container.resources or not container.resources.requests:
                 continue
 
             requests = container.resources.requests
@@ -1134,6 +1134,7 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
     last_resource_version = kube_pod_list.metadata.resource_version
     last_successful = datetime.datetime.now()
     refreshed_resource_state = True
+    usage_namespaces = {config.namespace, *config.include_namespace_usage}
     while True:
         try:
             time_diff = datetime.datetime.now() - last_successful
@@ -1167,7 +1168,7 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
 
                 if refreshed_resource_state:
                     for pod in kube_pod_list.items:
-                        if pod.metadata.namespace == config.namespace:
+                        if pod.metadata.namespace in usage_namespaces:
                             yield pod
                     refreshed_resource_state = False
 
@@ -1183,22 +1184,27 @@ def watch_pod_events(progress_writer: progress.ProgressWriter,
                     else:
                         all_pods.update_pod(event['object'])
 
-                    if event['object'].metadata.namespace == config.namespace:
+                    if event['object'].metadata.namespace in usage_namespaces:
                         yield event['object']
 
             for pod in watch_events(kube_pod_list):
                 start_time = datetime.datetime.now()
+
+                # Resource updates include peer namespaces and pods without OSMO labels.
+                if pod.spec.node_name:
+                    current_pods = all_pods.get_pods_by_node(pod.spec.node_name)
+                    update_resource_usage(
+                        node_send_queue, pod.spec.node_name, current_pods, config.namespace)
+
+                # Only the owning backend may publish workflow task status.
+                if pod.metadata.namespace != config.namespace:
+                    continue
                 if not pod.metadata.labels:
                     continue
                 if 'osmo.task_uuid' not in pod.metadata.labels:
                     continue
                 if 'osmo.workflow_uuid' not in pod.metadata.labels:
                     continue
-
-                if pod.spec.node_name:
-                    current_pods = all_pods.get_pods_by_node(pod.spec.node_name)
-                    update_resource_usage(
-                        node_send_queue, pod.spec.node_name, current_pods, config.namespace)
 
                 # Ignore pods with Unknown phase status (usually due to temporary connection issue)
                 if pod.status.phase == 'Unknown':

@@ -53,7 +53,7 @@ helm upgrade --install osmo-backend-operator osmo/backend-operator \
 | `global.accountTokenSecretKey` | Secret key for account token | `token` |
 | `global.loginMethod` | Login method | `password` |
 | `global.nodeConditionPrefix` | Node condition prefix | `""` (empty) |
-| `global.includeNamespaceUsage` | Namespaces to include in usage monitoring | `osmo-staging,osmo-prod` |
+| `global.includeNamespaceUsage` | Additional namespaces counted as workflow usage whose pod events trigger node usage updates. The backend namespace is always included; task status is monitored only there. | `osmo-staging,osmo-prod` |
 | `global.enableClusterRoles` | Enable cluster roles | `true` |
 | `global.enableNonClusterRoles` | Enable non-cluster roles | `true` |
 
