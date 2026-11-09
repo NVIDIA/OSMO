@@ -18,9 +18,9 @@ version: 1
 
 sources:
   - channel: jammy-security main universe
-    url: https://archive.ubuntu.com/ubuntu
+    url: https://snapshot.ubuntu.com/ubuntu/20261101T000000Z
   - channel: jammy main universe
-    url: https://archive.ubuntu.com/ubuntu
+    url: https://snapshot.ubuntu.com/ubuntu/20261101T000000Z
   - channel: jammy stable
     url: https://download.docker.com/linux/ubuntu
     key: https://download.docker.com/linux/ubuntu/gpg

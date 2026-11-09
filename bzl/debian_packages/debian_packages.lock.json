@@ -28,7 +28,7 @@
 			"name": "tree",
 			"sha256": "08dee87871da761246a8dd9223c094e1c9bf75baf4f24028558426229ada7ab5",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/universe/t/tree/tree_2.0.2-1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/universe/t/tree/tree_2.0.2-1_amd64.deb"
 			],
 			"version": "2.0.2-1"
 		},
@@ -39,7 +39,7 @@
 			"name": "libc6",
 			"sha256": "ea9a27e0ebdd0cfc9c750d94f8074f3a35d1f97dcc77ae04c370fb498a6b6db2",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/libc6_2.35-0ubuntu3_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/glibc/libc6_2.35-0ubuntu3_amd64.deb"
 			],
 			"version": "2.35-0ubuntu3"
 		},
@@ -50,7 +50,7 @@
 			"name": "libcrypt1",
 			"sha256": "3fa566e9f861a08736cbc5a97562d9d6e4f0c00450fbeafcb6d7583423b04a98",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/libx/libxcrypt/libcrypt1_4.4.27-1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libx/libxcrypt/libcrypt1_4.4.27-1_amd64.deb"
 			],
 			"version": "1:4.4.27-1"
 		},
@@ -61,7 +61,7 @@
 			"name": "libgcc-s1",
 			"sha256": "c9a93721431be07557c810d7e1b24c3b3c51f398334ded104362a68a415b9e61",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/libgcc-s1_12-20220319-1ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libgcc-s1_12-20220319-1ubuntu1_amd64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -72,7 +72,7 @@
 			"name": "gcc-12-base",
 			"sha256": "37990a768ecb1b40ce87c12fb7c7994877bb1256bde286c8e9bf5d4b51a17ca9",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-12/gcc-12-base_12-20220319-1ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/gcc-12-base_12-20220319-1ubuntu1_amd64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -169,7 +169,7 @@
 			"name": "ca-certificates",
 			"sha256": "29ca037f49f7a4b41d67ad72946c2e541f3ae52d8f6ab1495d2af09aa391144b",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/c/ca-certificates/ca-certificates_20260816ubuntu0.22.04.1_all.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/c/ca-certificates/ca-certificates_20260816ubuntu0.22.04.1_all.deb"
 			],
 			"version": "20260816ubuntu0.22.04.1"
 		},
@@ -180,7 +180,7 @@
 			"name": "debconf",
 			"sha256": "395a65b3a9539304391456d4d0e5531f4249f297b6e67eb0fcaf2ff77ddc3dc3",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/d/debconf/debconf_1.5.79ubuntu1_all.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/debconf/debconf_1.5.79ubuntu1_all.deb"
 			],
 			"version": "1.5.79ubuntu1"
 		},
@@ -191,7 +191,7 @@
 			"name": "perl-base",
 			"sha256": "1af46dbc6b00bbcff8b5e72eeedbb2bafdec48bf0d470ce461c1e453c2ecdfe8",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/p/perl/perl-base_5.34.0-3ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/perl/perl-base_5.34.0-3ubuntu1_amd64.deb"
 			],
 			"version": "5.34.0-3ubuntu1"
 		},
@@ -202,7 +202,7 @@
 			"name": "dpkg",
 			"sha256": "457a683c3209ac30338461b0f3f7641879a4ce15adff15fbcbc20f3430d0c84b",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/d/dpkg/dpkg_1.21.1ubuntu2_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dpkg/dpkg_1.21.1ubuntu2_amd64.deb"
 			],
 			"version": "1.21.1ubuntu2"
 		},
@@ -213,7 +213,7 @@
 			"name": "tar",
 			"sha256": "d6e4ef9e5793a271764209047ebb78970404b035fd1490cb513302744cfe9a25",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.34+dfsg-1build3_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/t/tar/tar_1.34+dfsg-1build3_amd64.deb"
 			],
 			"version": "1.34+dfsg-1build3"
 		},
@@ -224,7 +224,7 @@
 			"name": "libselinux1",
 			"sha256": "b96c6b40ee2388bd51341cb11c0f1d5bcca29b9180b6e3a77a06b881f2913f7e",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/libs/libselinux/libselinux1_3.3-1build2_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libs/libselinux/libselinux1_3.3-1build2_amd64.deb"
 			],
 			"version": "3.3-1build2"
 		},
@@ -235,7 +235,7 @@
 			"name": "libpcre2-8-0",
 			"sha256": "166e1162c3e86facf11bd31a3e10ffa67641f9ac295bc8e72e6cdfc494fc64c3",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/p/pcre2/libpcre2-8-0_10.39-3build1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/pcre2/libpcre2-8-0_10.39-3build1_amd64.deb"
 			],
 			"version": "10.39-3build1"
 		},
@@ -246,7 +246,7 @@
 			"name": "libacl1",
 			"sha256": "4db2c64ec74f673ed022e92cce7b83d0cbe0b779e02ca60a56ba59ae07754e05",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/a/acl/libacl1_2.3.1-1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/a/acl/libacl1_2.3.1-1_amd64.deb"
 			],
 			"version": "2.3.1-1"
 		},
@@ -257,7 +257,7 @@
 			"name": "zlib1g",
 			"sha256": "52449467942cc943d651fd16867014e9339f3657935fc09b75b3347aa5a78066",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9_amd64.deb"
 			],
 			"version": "1:1.2.11.dfsg-2ubuntu9"
 		},
@@ -268,7 +268,7 @@
 			"name": "libzstd1",
 			"sha256": "ae7db00ce8b093e50c994518b90203544e063b4bc574836a048bb142b950b2c9",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/libz/libzstd/libzstd1_1.4.8+dfsg-3build1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libz/libzstd/libzstd1_1.4.8+dfsg-3build1_amd64.deb"
 			],
 			"version": "1.4.8+dfsg-3build1"
 		},
@@ -279,7 +279,7 @@
 			"name": "liblzma5",
 			"sha256": "8f1c46e7d3f5102a5e4fdca7c949728a343ba71c2a7c124118df2c13d4c444f7",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1_amd64.deb"
 			],
 			"version": "5.2.5-2ubuntu1"
 		},
@@ -290,7 +290,7 @@
 			"name": "libbz2-1.0",
 			"sha256": "3bfeaf4259eadbb7faa09feee86cd6cad172cd95907d7465afd0eb5aebb5433f",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/b/bzip2/libbz2-1.0_1.0.8-5build1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/bzip2/libbz2-1.0_1.0.8-5build1_amd64.deb"
 			],
 			"version": "1.0.8-5build1"
 		},
@@ -301,7 +301,7 @@
 			"name": "openssl",
 			"sha256": "ade3df4e82f3e13b6f0248d06d0652646c39f4dbb97b2cf470d04fbec30acb2a",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/openssl_3.0.2-0ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/o/openssl/openssl_3.0.2-0ubuntu1_amd64.deb"
 			],
 			"version": "3.0.2-0ubuntu1"
 		},
@@ -312,7 +312,7 @@
 			"name": "libssl3",
 			"sha256": "11a83260542e05aebbbafce9164d594287d2584be80972e08708528fe06f80d3",
 			"urls": [
-				"https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_amd64.deb"
+				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_amd64.deb"
 			],
 			"version": "3.0.2-0ubuntu1"
 		}
