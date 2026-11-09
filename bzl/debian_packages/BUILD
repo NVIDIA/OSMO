@@ -16,20 +16,6 @@
 
 # Debian package manifests and lockfiles for rules_distroless
 #
-# Ubuntu sources use the same dated snapshot for amd64 and arm64. Keep the
-# snapshot URLs in both manifests and locks: live Ubuntu mirrors can remove
-# superseded packages even when their versions and hashes are pinned.
-#
-# To refresh Ubuntu packages, advance the snapshot date in all four manifests
-# together, then regenerate all four locks with the commands below. Review the
-# package changes and verify downloads for both architectures. Keep SHA256 pins.
-# Ubuntu documents snapshot retention of at least two years; refresh snapshots
-# regularly rather than treating them as permanent artifact storage:
-# https://snapshot.ubuntu.com/
-#
-# Docker packages use Docker's separate repository; Ubuntu snapshots do not
-# retain those artifacts.
-#
 # ## Regular Service Packages
 # Files: debian_packages.yaml (amd64), debian_packages_arm64.yaml (arm64), *.lock.json (auto-generated)
 # Used for: General service container images

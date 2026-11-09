@@ -18,9 +18,9 @@ version: 1
 
 sources:
   - channel: jammy-security main universe
-    url: https://snapshot.ubuntu.com/ubuntu/20261101T000000Z
+    url: https://ports.ubuntu.com/ubuntu-ports
   - channel: jammy main universe
-    url: https://snapshot.ubuntu.com/ubuntu/20261101T000000Z
+    url: https://ports.ubuntu.com/ubuntu-ports
 
 archs:
   - arm64

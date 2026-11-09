@@ -89,13 +89,13 @@
 					"version": "3.0.2-0ubuntu1"
 				}
 			],
-			"key": "ca-certificates_20260816ubuntu0.22.04.1_arm64",
+			"key": "ca-certificates_20260816ubuntu0.22.04.2_arm64",
 			"name": "ca-certificates",
-			"sha256": "29ca037f49f7a4b41d67ad72946c2e541f3ae52d8f6ab1495d2af09aa391144b",
+			"sha256": "f99e8375d35bdde4800d4842df777be3dafe38bca4d178429fa929de200bf821",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/c/ca-certificates/ca-certificates_20260816ubuntu0.22.04.1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/c/ca-certificates/ca-certificates_20260816ubuntu0.22.04.2_all.deb"
 			],
-			"version": "20260816ubuntu0.22.04.1"
+			"version": "20260816ubuntu0.22.04.2"
 		},
 		{
 			"arch": "arm64",
@@ -104,7 +104,7 @@
 			"name": "debconf",
 			"sha256": "395a65b3a9539304391456d4d0e5531f4249f297b6e67eb0fcaf2ff77ddc3dc3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/debconf/debconf_1.5.79ubuntu1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/debconf/debconf_1.5.79ubuntu1_all.deb"
 			],
 			"version": "1.5.79ubuntu1"
 		},
@@ -115,7 +115,7 @@
 			"name": "perl-base",
 			"sha256": "933e7ad3b97fd09d2b0ec763ee3b04500a3c6699c644405ad1cb2f9818d713cd",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/perl/perl-base_5.34.0-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/perl/perl-base_5.34.0-3ubuntu1_arm64.deb"
 			],
 			"version": "5.34.0-3ubuntu1"
 		},
@@ -126,7 +126,7 @@
 			"name": "dpkg",
 			"sha256": "d89a8b9a77ab893ff02bc794e84dbcc4729b84011f7170f6998bb1acee421274",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dpkg/dpkg_1.21.1ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/dpkg/dpkg_1.21.1ubuntu2_arm64.deb"
 			],
 			"version": "1.21.1ubuntu2"
 		},
@@ -137,7 +137,7 @@
 			"name": "tar",
 			"sha256": "328da7dfc33aafcd410c472410070abd31c9e7acd291cac0f6e03a8396746f33",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/t/tar/tar_1.34+dfsg-1build3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/t/tar/tar_1.34+dfsg-1build3_arm64.deb"
 			],
 			"version": "1.34+dfsg-1build3"
 		},
@@ -148,7 +148,7 @@
 			"name": "libselinux1",
 			"sha256": "3a0726b2174a40fa28e74712867aa6e40d3d725543e8f668af9e9e59a28c817c",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libs/libselinux/libselinux1_3.3-1build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libs/libselinux/libselinux1_3.3-1build2_arm64.deb"
 			],
 			"version": "3.3-1build2"
 		},
@@ -159,7 +159,7 @@
 			"name": "libpcre2-8-0",
 			"sha256": "ea4b84517ececbbafb3745a38e5af8af14ad9c993664fd07617c7d3a0e135cae",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/pcre2/libpcre2-8-0_10.39-3build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/pcre2/libpcre2-8-0_10.39-3build1_arm64.deb"
 			],
 			"version": "10.39-3build1"
 		},
@@ -170,7 +170,7 @@
 			"name": "libc6",
 			"sha256": "b1206b51690a810efc701e1d311e0ac5fd9a9f0f8e216585362512d805d261af",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/glibc/libc6_2.35-0ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/glibc/libc6_2.35-0ubuntu3_arm64.deb"
 			],
 			"version": "2.35-0ubuntu3"
 		},
@@ -181,7 +181,7 @@
 			"name": "libcrypt1",
 			"sha256": "fb5f8d59de95bbb118a635e83e2a92077e13c6d297980dae3119df057bf88111",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libx/libxcrypt/libcrypt1_4.4.27-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libx/libxcrypt/libcrypt1_4.4.27-1_arm64.deb"
 			],
 			"version": "1:4.4.27-1"
 		},
@@ -192,7 +192,7 @@
 			"name": "libgcc-s1",
 			"sha256": "b6e9a39b0ef3302053734e3a5e52ef12151566bb42d625feab7a502b3071c13b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libgcc-s1_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libgcc-s1_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -203,7 +203,7 @@
 			"name": "gcc-12-base",
 			"sha256": "5c6e7eb37d4e088e930b2119b0fbd4baf0bef59a2cf9aff4503573d60ddeef29",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/gcc-12-base_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/gcc-12-base_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -214,7 +214,7 @@
 			"name": "libacl1",
 			"sha256": "328e91b2d6e8ee44ad669fc7276b74f208bc781baf1ecdd7dbf5f092f8b41712",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/a/acl/libacl1_2.3.1-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/a/acl/libacl1_2.3.1-1_arm64.deb"
 			],
 			"version": "2.3.1-1"
 		},
@@ -225,7 +225,7 @@
 			"name": "zlib1g",
 			"sha256": "597820b01a8b019d04c9f9db2cad80d9d0ed93d39770066bd833e362c526b345",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/z/zlib/zlib1g_1.2.11.dfsg-2ubuntu9_arm64.deb"
 			],
 			"version": "1:1.2.11.dfsg-2ubuntu9"
 		},
@@ -236,7 +236,7 @@
 			"name": "libzstd1",
 			"sha256": "0102eb80384c2432c4be819663341a1c4e511d05f13ec1467643696531ec6491",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libz/libzstd/libzstd1_1.4.8+dfsg-3build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libz/libzstd/libzstd1_1.4.8+dfsg-3build1_arm64.deb"
 			],
 			"version": "1.4.8+dfsg-3build1"
 		},
@@ -247,7 +247,7 @@
 			"name": "liblzma5",
 			"sha256": "21f64a20db61954e19ecdd2641d9aace2617b2bf3d55267184e2405d4bd65fdb",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/x/xz-utils/liblzma5_5.2.5-2ubuntu1_arm64.deb"
 			],
 			"version": "5.2.5-2ubuntu1"
 		},
@@ -258,7 +258,7 @@
 			"name": "libbz2-1.0",
 			"sha256": "30fe3f2d662bb1c87a4b77e5b8f17a67dfcadfec319d0da2ece6cba98f9f8cb5",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/bzip2/libbz2-1.0_1.0.8-5build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/bzip2/libbz2-1.0_1.0.8-5build1_arm64.deb"
 			],
 			"version": "1.0.8-5build1"
 		},
@@ -269,7 +269,7 @@
 			"name": "openssl",
 			"sha256": "6dbd778934f22970604cc5e2f08dca4970c8d597f2824aa2550ab5d40451cb2a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/o/openssl/openssl_3.0.2-0ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/o/openssl/openssl_3.0.2-0ubuntu1_arm64.deb"
 			],
 			"version": "3.0.2-0ubuntu1"
 		},
@@ -280,7 +280,7 @@
 			"name": "libssl3",
 			"sha256": "9af0616c9fbb2c843892b203bc3306587ced1555be24dff154c768cdf27dfe2a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_arm64.deb"
 			],
 			"version": "3.0.2-0ubuntu1"
 		},
@@ -740,7 +740,7 @@
 			"name": "build-essential",
 			"sha256": "0cb2889ab95f48d9017d3c6dfcab7bd2bc598a7940294164c6ff4b413c8ff194",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/build-essential/build-essential_12.9ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/build-essential/build-essential_12.9ubuntu3_arm64.deb"
 			],
 			"version": "12.9ubuntu3"
 		},
@@ -751,7 +751,7 @@
 			"name": "dpkg-dev",
 			"sha256": "a55a14586b7d577f47dab685e386395d92f1ad7522738dcb0636e29dca366601",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dpkg/dpkg-dev_1.21.1ubuntu2_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/dpkg/dpkg-dev_1.21.1ubuntu2_all.deb"
 			],
 			"version": "1.21.1ubuntu2"
 		},
@@ -762,7 +762,7 @@
 			"name": "lto-disabled-list",
 			"sha256": "c7fed2763b58cec1bc2749e696629ea57aac1d2aa2e231f90ccb16a8a61b16a6",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/l/lto-disabled-list/lto-disabled-list_24_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/l/lto-disabled-list/lto-disabled-list_24_all.deb"
 			],
 			"version": "24"
 		},
@@ -773,7 +773,7 @@
 			"name": "binutils",
 			"sha256": "cd7a6e4fbae51aa86f73df3531fece7384f4444f257bb0bb711b8a0ea6dc9ae0",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/binutils_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/binutils_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -784,7 +784,7 @@
 			"name": "binutils-aarch64-linux-gnu",
 			"sha256": "28b5846de3d9edc07349c64c7b0c6552af6fbd4d1db6dba65b9a2135971fb48d",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/binutils-aarch64-linux-gnu_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/binutils-aarch64-linux-gnu_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -795,7 +795,7 @@
 			"name": "libctf0",
 			"sha256": "fdcf8fe805b2cadfb51e1b90b9503f8bd63ec177195d1fce557f41eed605cdab",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/libctf0_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/libctf0_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -806,7 +806,7 @@
 			"name": "libbinutils",
 			"sha256": "1e36b31e2cd4cc29097a4690ccf5b9b77cb9b767faffe7519b9a2f4d1d9f35cb",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/libbinutils_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/libbinutils_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -817,7 +817,7 @@
 			"name": "binutils-common",
 			"sha256": "a29042c088298f536beb2008ee3765dbacd319ec5918330d1df6ad90500b2751",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/binutils-common_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/binutils-common_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -828,7 +828,7 @@
 			"name": "libctf-nobfd0",
 			"sha256": "17a05fb8de58cf757ea6f430b059cc8770e3ad91f338eaece3886d8918e6b102",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/binutils/libctf-nobfd0_2.38-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/binutils/libctf-nobfd0_2.38-3ubuntu1_arm64.deb"
 			],
 			"version": "2.38-3ubuntu1"
 		},
@@ -839,7 +839,7 @@
 			"name": "make-guile",
 			"sha256": "ba8c5982187aa3164f0b965d1627ac828f3a48ad688c5edd34bf245aa1806950",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/universe/m/make-dfsg/make-guile_4.3-4.1build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/universe/m/make-dfsg/make-guile_4.3-4.1build1_arm64.deb"
 			],
 			"version": "4.3-4.1build1"
 		},
@@ -850,7 +850,7 @@
 			"name": "guile-3.0-libs",
 			"sha256": "f802b571ade4a2a46cca661f1a1b28d9c8d00fbea21530dc956df80a99f96fcf",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/universe/g/guile-3.0/guile-3.0-libs_3.0.7-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/guile-3.0/guile-3.0-libs_3.0.7-1_arm64.deb"
 			],
 			"version": "3.0.7-1"
 		},
@@ -861,7 +861,7 @@
 			"name": "libunistring2",
 			"sha256": "59e4af5c1fac70d1fbc19f3c732331ace8449f1f7112887e7b56b8370bd8942b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libu/libunistring/libunistring2_1.0-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libunistring/libunistring2_1.0-1_arm64.deb"
 			],
 			"version": "1.0-1"
 		},
@@ -872,7 +872,7 @@
 			"name": "libreadline8",
 			"sha256": "54291f2dd185d3a759227b31b7de4269e495a084fdad89e24a9cc4d0d20888a7",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/r/readline/libreadline8_8.1.2-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/r/readline/libreadline8_8.1.2-1_arm64.deb"
 			],
 			"version": "8.1.2-1"
 		},
@@ -883,7 +883,7 @@
 			"name": "libtinfo6",
 			"sha256": "a6411b7fe99672000a5ee51495cbee0d702d04a8bac341c973fbb82d61babc01",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/n/ncurses/libtinfo6_6.3-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libtinfo6_6.3-2_arm64.deb"
 			],
 			"version": "6.3-2"
 		},
@@ -894,7 +894,7 @@
 			"name": "readline-common",
 			"sha256": "a78d02935f6107a12d3d349c25ce4f92fcdcbf6b65e37f1f5a13a9054b5b9e94",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/r/readline/readline-common_8.1.2-1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/r/readline/readline-common_8.1.2-1_all.deb"
 			],
 			"version": "8.1.2-1"
 		},
@@ -905,7 +905,7 @@
 			"name": "libgmp10",
 			"sha256": "32233a3bf7c8b19e86ef3629334f0bece716bb163605d12e0d3a443d57a401d7",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gmp/libgmp10_6.2.1+dfsg-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gmp/libgmp10_6.2.1+dfsg-3ubuntu1_arm64.deb"
 			],
 			"version": "2:6.2.1+dfsg-3ubuntu1"
 		},
@@ -916,7 +916,7 @@
 			"name": "libgc1",
 			"sha256": "d67668da71cf5e335b38f377848be657dc1167f13b95de16a1cc563180745726",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libg/libgc/libgc1_8.0.6-1.1build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libg/libgc/libgc1_8.0.6-1.1build1_arm64.deb"
 			],
 			"version": "1:8.0.6-1.1build1"
 		},
@@ -927,7 +927,7 @@
 			"name": "libstdc++6",
 			"sha256": "d9903f1cf4e3c0a74e0bd2f7c65e673c104833cfaaab370d3f2114ffd06728f3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libstdc++6_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libstdc++6_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -938,7 +938,7 @@
 			"name": "libffi8",
 			"sha256": "a0cdf938e8da19bd2252c681f80268609a32d06496a1f8d0ebe1fa41debec697",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libf/libffi/libffi8_3.4.2-4_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libf/libffi/libffi8_3.4.2-4_arm64.deb"
 			],
 			"version": "3.4.2-4"
 		},
@@ -949,7 +949,7 @@
 			"name": "patch",
 			"sha256": "3a2e1141508445a00dde34e3993a3d9c5a9e9552cbeb483328f6a729aff7eca3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/patch/patch_2.7.6-7build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/patch/patch_2.7.6-7build2_arm64.deb"
 			],
 			"version": "2.7.6-7build2"
 		},
@@ -960,7 +960,7 @@
 			"name": "xz-utils",
 			"sha256": "fc8fe7117867944470113681389c0055387f0e615ec983b13ba4a3c0a58b0d56",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/x/xz-utils/xz-utils_5.2.5-2ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/x/xz-utils/xz-utils_5.2.5-2ubuntu1_arm64.deb"
 			],
 			"version": "5.2.5-2ubuntu1"
 		},
@@ -971,7 +971,7 @@
 			"name": "bzip2",
 			"sha256": "914d7370323138336f3cda3534c4b1ccd17f0ddd3c105c3758934fa0e90874ab",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/bzip2/bzip2_1.0.8-5build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/bzip2/bzip2_1.0.8-5build1_arm64.deb"
 			],
 			"version": "1.0.8-5build1"
 		},
@@ -982,7 +982,7 @@
 			"name": "libdpkg-perl",
 			"sha256": "7f79b318fa237d714a436c6bd1d7234c182e7029500d0d59cd34c631ee53af79",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dpkg/libdpkg-perl_1.21.1ubuntu2_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/dpkg/libdpkg-perl_1.21.1ubuntu2_all.deb"
 			],
 			"version": "1.21.1ubuntu2"
 		},
@@ -993,7 +993,7 @@
 			"name": "perl",
 			"sha256": "290e44076fcf81b8c4757e36a796b5e4d07de2de6494ea57946166f1b607cfae",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/perl/perl_5.34.0-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/perl/perl_5.34.0-3ubuntu1_arm64.deb"
 			],
 			"version": "5.34.0-3ubuntu1"
 		},
@@ -1004,7 +1004,7 @@
 			"name": "libperl5.34",
 			"sha256": "fde4f31c688acb1dae69a53673563e9e0f50fe27b7107f99f8feb0afcf698f75",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/perl/libperl5.34_5.34.0-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/perl/libperl5.34_5.34.0-3ubuntu1_arm64.deb"
 			],
 			"version": "5.34.0-3ubuntu1"
 		},
@@ -1015,7 +1015,7 @@
 			"name": "perl-modules-5.34",
 			"sha256": "ef70b4a8cccf414f4485b07474a1eba683b5906cb0bff98034f566c035f8cc4a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/perl/perl-modules-5.34_5.34.0-3ubuntu1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/perl/perl-modules-5.34_5.34.0-3ubuntu1_all.deb"
 			],
 			"version": "5.34.0-3ubuntu1"
 		},
@@ -1026,7 +1026,7 @@
 			"name": "libgdbm6",
 			"sha256": "66551e3d26e5c401b2aa69ff2093150893ea8df400edc4540673f3985f0b7cab",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gdbm/libgdbm6_1.23-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gdbm/libgdbm6_1.23-1_arm64.deb"
 			],
 			"version": "1.23-1"
 		},
@@ -1037,7 +1037,7 @@
 			"name": "libgdbm-compat4",
 			"sha256": "819cc2c04e24caff921b3ceb349b1476675648e035b43f86f8a7a81322ba95c8",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gdbm/libgdbm-compat4_1.23-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gdbm/libgdbm-compat4_1.23-1_arm64.deb"
 			],
 			"version": "1.23-1"
 		},
@@ -1048,7 +1048,7 @@
 			"name": "libdb5.3",
 			"sha256": "e5b672aeaca690b3b7ee97b03dbc07ddb49be7b6ea0a770fa6707666ca1cef59",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/db5.3/libdb5.3_5.3.28+dfsg1-0.8ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/db5.3/libdb5.3_5.3.28+dfsg1-0.8ubuntu3_arm64.deb"
 			],
 			"version": "5.3.28+dfsg1-0.8ubuntu3"
 		},
@@ -1059,7 +1059,7 @@
 			"name": "g++",
 			"sha256": "43ae21a89a37094b4f744196b8650da39aa69cee1fa881232db36d06d5c18ad7",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-defaults/g++_11.2.0-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-defaults/g++_11.2.0-1ubuntu1_arm64.deb"
 			],
 			"version": "4:11.2.0-1ubuntu1"
 		},
@@ -1070,7 +1070,7 @@
 			"name": "gcc-11",
 			"sha256": "529297dd073285f1a62262fc1d1e2cf07bad3c4f589c1b453c7b1ecde2536886",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/gcc-11_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/gcc-11_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1081,7 +1081,7 @@
 			"name": "libmpfr6",
 			"sha256": "cef55f2fe8a149d8d460140a10b8e8539ada9f7fbfa3a44f77ac2a049b3baaa2",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/m/mpfr4/libmpfr6_4.1.0-3build3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/m/mpfr4/libmpfr6_4.1.0-3build3_arm64.deb"
 			],
 			"version": "4.1.0-3build3"
 		},
@@ -1092,7 +1092,7 @@
 			"name": "libmpc3",
 			"sha256": "7f6fc0fdb744474a5f49077c37bc848af64392eb970fddf447092f190a3fe635",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/m/mpclib3/libmpc3_1.2.1-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/m/mpclib3/libmpc3_1.2.1-2build1_arm64.deb"
 			],
 			"version": "1.2.1-2build1"
 		},
@@ -1103,7 +1103,7 @@
 			"name": "libisl23",
 			"sha256": "1e6e12c1ec8aa83839fe9451b533bfe5bf63b44b0e66a71c1e41706c481fb6e9",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/i/isl/libisl23_0.24-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/i/isl/libisl23_0.24-2build1_arm64.deb"
 			],
 			"version": "0.24-2build1"
 		},
@@ -1114,7 +1114,7 @@
 			"name": "libgcc-11-dev",
 			"sha256": "ce742ecc7426fb2dd0bfc86365a7419a5c7e2aaed9c3faad9e400a1f1f7e89b1",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/libgcc-11-dev_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/libgcc-11-dev_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1125,7 +1125,7 @@
 			"name": "libhwasan0",
 			"sha256": "417397b8ff93f0d9c20f6326a50ba707385475967e4a5e88f9ba5b5c10bdabe0",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libhwasan0_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libhwasan0_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1136,7 +1136,7 @@
 			"name": "libubsan1",
 			"sha256": "1d27157b7ebd23a32e66aebbd44de13bd88eba1347f649038c7bec528ebb116f",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libubsan1_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libubsan1_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1147,7 +1147,7 @@
 			"name": "libtsan0",
 			"sha256": "10998c3eee8ab807977a75280a64672426a8d3784df268ea22845a3033c16ce3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/libtsan0_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/libtsan0_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1158,7 +1158,7 @@
 			"name": "gcc-11-base",
 			"sha256": "aa7cf600950715d8ab9c5eaee72700055ce5ccf741c48617ef0e7a9762992b5d",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/gcc-11-base_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/gcc-11-base_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1169,7 +1169,7 @@
 			"name": "liblsan0",
 			"sha256": "640f037dd93f2b49b5920a8b43feadc2290948daa9cdee3f653bc7f894e8a8fa",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/liblsan0_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/liblsan0_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1180,7 +1180,7 @@
 			"name": "libasan6",
 			"sha256": "d16c5f39926e471c4af08a16a1c1990c05b18f5f61dfad8bd430388175bc1359",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/libasan6_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/libasan6_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1191,7 +1191,7 @@
 			"name": "libatomic1",
 			"sha256": "cad7d920e727ca5db7bb1d396c205a4f27435971c8121590726c8b80cfdc55d9",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libatomic1_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libatomic1_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1202,7 +1202,7 @@
 			"name": "libitm1",
 			"sha256": "ca09b62b719c47f7acf3374b51ba02989a2004ab30e7acc0712fec78af2f149a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libitm1_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libitm1_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1213,7 +1213,7 @@
 			"name": "libgomp1",
 			"sha256": "c1719335234ccdef7558e97b37b1f6baf069911ce2f26d2789336051a7c929cd",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libgomp1_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libgomp1_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1224,7 +1224,7 @@
 			"name": "libcc1-0",
 			"sha256": "29ffcb4b1cd5a085805383475c7e30a080ea1b8d098afa1e2f7dc1c0adbd0621",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-12/libcc1-0_12-20220319-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-12/libcc1-0_12-20220319-1ubuntu1_arm64.deb"
 			],
 			"version": "12-20220319-1ubuntu1"
 		},
@@ -1235,7 +1235,7 @@
 			"name": "cpp-11",
 			"sha256": "d726883cf3591dd5a2b3227e413063a9a8c75777a7890c5f41f9e95a6bf7116b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/cpp-11_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/cpp-11_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1246,7 +1246,7 @@
 			"name": "g++-11",
 			"sha256": "b86cac3da983e6dffa48aaba84bafe7185ccaa922bf0911bcb3708f22eeb6ee1",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/g++-11_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/g++-11_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1257,7 +1257,7 @@
 			"name": "libstdc++-11-dev",
 			"sha256": "4ee878910f92c6ecf70ad61cb4377502713dbb2315bba855d18c5ea751f9ec77",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-11/libstdc++-11-dev_11.2.0-19ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-11/libstdc++-11-dev_11.2.0-19ubuntu1_arm64.deb"
 			],
 			"version": "11.2.0-19ubuntu1"
 		},
@@ -1268,7 +1268,7 @@
 			"name": "libc6-dev",
 			"sha256": "2f254d6e843e413d549f407362885171c285f08383bb7e9392da855810ff78fd",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/glibc/libc6-dev_2.35-0ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/glibc/libc6-dev_2.35-0ubuntu3_arm64.deb"
 			],
 			"version": "2.35-0ubuntu3"
 		},
@@ -1279,7 +1279,7 @@
 			"name": "libnsl-dev",
 			"sha256": "4a111ee814455ebf4db3be9caec555752315048cb5ec9c4c076fe3f00da22ec9",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libn/libnsl/libnsl-dev_1.3.0-2build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libn/libnsl/libnsl-dev_1.3.0-2build2_arm64.deb"
 			],
 			"version": "1.3.0-2build2"
 		},
@@ -1290,7 +1290,7 @@
 			"name": "libtirpc-dev",
 			"sha256": "1d4f7f96fe5a79abd0c503bff0295f5d9292e425d8ca7ef75babe6bdff04b1f7",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libt/libtirpc/libtirpc-dev_1.3.2-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtirpc/libtirpc-dev_1.3.2-2build1_arm64.deb"
 			],
 			"version": "1.3.2-2build1"
 		},
@@ -1301,7 +1301,7 @@
 			"name": "libtirpc3",
 			"sha256": "4dbb563610856ff20f2261dd0d69a7c200b6f0995c741639cb0b8bc43282a94b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libt/libtirpc/libtirpc3_1.3.2-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtirpc/libtirpc3_1.3.2-2build1_arm64.deb"
 			],
 			"version": "1.3.2-2build1"
 		},
@@ -1312,7 +1312,7 @@
 			"name": "libtirpc-common",
 			"sha256": "a2746e8c1ae8b1ced2312304e8bd5e3aaabd504377480e743b0edff7b96da6fa",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libt/libtirpc/libtirpc-common_1.3.2-2build1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtirpc/libtirpc-common_1.3.2-2build1_all.deb"
 			],
 			"version": "1.3.2-2build1"
 		},
@@ -1323,7 +1323,7 @@
 			"name": "libgssapi-krb5-2",
 			"sha256": "2d254fe8e03ce9cb375649cb3eb7a1dc2ffb9fd906eb01c2077679c3283d9343",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/k/krb5/libgssapi-krb5-2_1.19.2-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/k/krb5/libgssapi-krb5-2_1.19.2-2_arm64.deb"
 			],
 			"version": "1.19.2-2"
 		},
@@ -1334,7 +1334,7 @@
 			"name": "libkrb5support0",
 			"sha256": "379e96322c8288bdc6355c487e07a8bad82bc990ac75011e4f6e475603bede59",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/k/krb5/libkrb5support0_1.19.2-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/k/krb5/libkrb5support0_1.19.2-2_arm64.deb"
 			],
 			"version": "1.19.2-2"
 		},
@@ -1345,7 +1345,7 @@
 			"name": "libkrb5-3",
 			"sha256": "1c638ecff15987115408c4b16715ee1bdb5fe2acf9b15146566f3cbafbe13c6c",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/k/krb5/libkrb5-3_1.19.2-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/k/krb5/libkrb5-3_1.19.2-2_arm64.deb"
 			],
 			"version": "1.19.2-2"
 		},
@@ -1356,7 +1356,7 @@
 			"name": "libkeyutils1",
 			"sha256": "fc26b34c487ea5187585ee0f2c67c738b97e8bae434cca4b546d86743b9e6c80",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/k/keyutils/libkeyutils1_1.6.1-2ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/k/keyutils/libkeyutils1_1.6.1-2ubuntu3_arm64.deb"
 			],
 			"version": "1.6.1-2ubuntu3"
 		},
@@ -1367,7 +1367,7 @@
 			"name": "libk5crypto3",
 			"sha256": "638a6cf1624d045d0df1e0d693c349ea7c60cfa571f8ee05573b621d36a047ae",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/k/krb5/libk5crypto3_1.19.2-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/k/krb5/libk5crypto3_1.19.2-2_arm64.deb"
 			],
 			"version": "1.19.2-2"
 		},
@@ -1378,7 +1378,7 @@
 			"name": "libcom-err2",
 			"sha256": "07f5b417e636610c83d95e408f55ca6e2e8cf44649b8cd7c6dcab2c8078b6214",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/e/e2fsprogs/libcom-err2_1.46.5-2ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/e/e2fsprogs/libcom-err2_1.46.5-2ubuntu1_arm64.deb"
 			],
 			"version": "1.46.5-2ubuntu1"
 		},
@@ -1389,7 +1389,7 @@
 			"name": "libnsl2",
 			"sha256": "ab2e58eed36da75635f248fad08a2dd3fbe92c9d1f5e44eb68a99db083e9a9c3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libn/libnsl/libnsl2_1.3.0-2build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libn/libnsl/libnsl2_1.3.0-2build2_arm64.deb"
 			],
 			"version": "1.3.0-2build2"
 		},
@@ -1400,7 +1400,7 @@
 			"name": "rpcsvc-proto",
 			"sha256": "07e79aa5de920bbb123d9590cdb2add2a8ec366864d7403794741db604698376",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/r/rpcsvc-proto/rpcsvc-proto_1.4.2-0ubuntu6_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/r/rpcsvc-proto/rpcsvc-proto_1.4.2-0ubuntu6_arm64.deb"
 			],
 			"version": "1.4.2-0ubuntu6"
 		},
@@ -1411,7 +1411,7 @@
 			"name": "libcrypt-dev",
 			"sha256": "17805b64d386655edca4aafbf01e6b89bd3b9a35cde7a31da964dd766ad9c5b6",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libx/libxcrypt/libcrypt-dev_4.4.27-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libx/libxcrypt/libcrypt-dev_4.4.27-1_arm64.deb"
 			],
 			"version": "1:4.4.27-1"
 		},
@@ -1422,7 +1422,7 @@
 			"name": "linux-libc-dev",
 			"sha256": "ffbdfcd181d87b92c108cb49ca20e152c0688825b5a1aac9ecbc63391b348aeb",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/l/linux/linux-libc-dev_5.15.0-25.25_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-libc-dev_5.15.0-25.25_arm64.deb"
 			],
 			"version": "5.15.0-25.25"
 		},
@@ -1433,7 +1433,7 @@
 			"name": "libc-dev-bin",
 			"sha256": "b86ef82ee4eddb805c5933babf30831d1cce42b4a2fe9cef7d25bda3b8dc0a0b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/glibc/libc-dev-bin_2.35-0ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/glibc/libc-dev-bin_2.35-0ubuntu3_arm64.deb"
 			],
 			"version": "2.35-0ubuntu3"
 		},
@@ -1444,7 +1444,7 @@
 			"name": "gcc",
 			"sha256": "426deed543cc32f388ad8336354e312fb76a47450194d2d775d855ad5878f82e",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-defaults/gcc_11.2.0-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-defaults/gcc_11.2.0-1ubuntu1_arm64.deb"
 			],
 			"version": "4:11.2.0-1ubuntu1"
 		},
@@ -1455,7 +1455,7 @@
 			"name": "cpp",
 			"sha256": "6be683387ebdfe8dfc7c7a983d3d4458ff0c9d02c7ee7247d0252afc87bffd1b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gcc-defaults/cpp_11.2.0-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gcc-defaults/cpp_11.2.0-1ubuntu1_arm64.deb"
 			],
 			"version": "4:11.2.0-1ubuntu1"
 		},
@@ -1602,7 +1602,7 @@
 			"name": "libenchant-2-2",
 			"sha256": "137de4cc192a01426ab5af06be2b30bbd65d07331edc61ce9edb60fe44e38b01",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/e/enchant-2/libenchant-2-2_2.3.2-1ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/e/enchant-2/libenchant-2-2_2.3.2-1ubuntu2_arm64.deb"
 			],
 			"version": "2.3.2-1ubuntu2"
 		},
@@ -1613,7 +1613,7 @@
 			"name": "libhunspell-1.7-0",
 			"sha256": "32a88aeb6770cd7220d9988ba0137925cd91ee168e35eb810761534cb52e73ac",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/h/hunspell/libhunspell-1.7-0_1.7.0-4build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/h/hunspell/libhunspell-1.7-0_1.7.0-4build1_arm64.deb"
 			],
 			"version": "1.7.0-4build1"
 		},
@@ -1624,7 +1624,7 @@
 			"name": "libglib2.0-0",
 			"sha256": "7b5aaaea611c0da3ddc3b61d54a8c4de7e5bb69c357de1433d1f926b78159f5b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/glib2.0/libglib2.0-0_2.72.1-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/glib2.0/libglib2.0-0_2.72.1-1_arm64.deb"
 			],
 			"version": "2.72.1-1"
 		},
@@ -1635,7 +1635,7 @@
 			"name": "libpcre3",
 			"sha256": "5a0ae9427aaf8e83cb5e089ff10aec94efc2eb703011ec06fc96a28ff8672773",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/pcre3/libpcre3_8.39-13build5_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/pcre3/libpcre3_8.39-13build5_arm64.deb"
 			],
 			"version": "2:8.39-13build5"
 		},
@@ -1646,7 +1646,7 @@
 			"name": "libmount1",
 			"sha256": "1f065252ba4a808cbde2934ce87f2199b1e9a80814c95a9840d9b4026332d448",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/u/util-linux/libmount1_2.37.2-4ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/u/util-linux/libmount1_2.37.2-4ubuntu3_arm64.deb"
 			],
 			"version": "2.37.2-4ubuntu3"
 		},
@@ -1657,7 +1657,7 @@
 			"name": "libblkid1",
 			"sha256": "862f21d69cfad8d9016d2552428c0853172b5356379029ed9d8fba9e6cd6a213",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/u/util-linux/libblkid1_2.37.2-4ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/u/util-linux/libblkid1_2.37.2-4ubuntu3_arm64.deb"
 			],
 			"version": "2.37.2-4ubuntu3"
 		},
@@ -1668,7 +1668,7 @@
 			"name": "libaspell15",
 			"sha256": "195acc879700aa9553e4dabde9ea1209d5c3876724bfa945ee4e17a11cc1c342",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/a/aspell/libaspell15_0.60.8-4build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/a/aspell/libaspell15_0.60.8-4build1_arm64.deb"
 			],
 			"version": "0.60.8-4build1"
 		},
@@ -1679,7 +1679,7 @@
 			"name": "hunspell-en-us",
 			"sha256": "d231c94b54792215038a4f719c562deafe8efe0a7710c0c7218974cab513330c",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/s/scowl/hunspell-en-us_2020.12.07-2_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/s/scowl/hunspell-en-us_2020.12.07-2_all.deb"
 			],
 			"version": "1:2020.12.07-2"
 		},
@@ -1690,7 +1690,7 @@
 			"name": "dictionaries-common",
 			"sha256": "f3b711586f4617d920051e8f7887e4f034d9870104a1d5ef6994fa1829ab65fb",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dictionaries-common/dictionaries-common_1.28.14_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/dictionaries-common/dictionaries-common_1.28.14_all.deb"
 			],
 			"version": "1.28.14"
 		},
@@ -1701,7 +1701,7 @@
 			"name": "emacsen-common",
 			"sha256": "3563c905c330851ebe707ec3ed0604b681e9e76e6c31b86fd913155ab138f98d",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/e/emacsen-common/emacsen-common_3.0.4_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/e/emacsen-common/emacsen-common_3.0.4_all.deb"
 			],
 			"version": "3.0.4"
 		},
@@ -1712,7 +1712,7 @@
 			"name": "libtext-iconv-perl",
 			"sha256": "5911adff0eb46ef4e67ee7d6a55d35cfa9098f80e0400f6b3cd1ecf9af08e81a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libt/libtext-iconv-perl/libtext-iconv-perl_1.7-7build3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtext-iconv-perl/libtext-iconv-perl_1.7-7build3_arm64.deb"
 			],
 			"version": "1.7-7build3"
 		},
@@ -1764,7 +1764,7 @@
 			"name": "bash",
 			"sha256": "a12687dbb1c51a0228da3a67548ae6a956c2447d46051006a5a8fa5958f01dbb",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/bash/bash_5.1-6ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/bash/bash_5.1-6ubuntu1_arm64.deb"
 			],
 			"version": "5.1-6ubuntu1"
 		},
@@ -1775,7 +1775,7 @@
 			"name": "debianutils",
 			"sha256": "829460c98c24183696042b201cbe2f813421c1d3d5d3f6e1cf819b392e4920d1",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/debianutils/debianutils_5.5-1ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/debianutils/debianutils_5.5-1ubuntu2_arm64.deb"
 			],
 			"version": "5.5-1ubuntu2"
 		},
@@ -1786,7 +1786,7 @@
 			"name": "base-files",
 			"sha256": "278c097f912081bdc0c71e0403bfc200dbcbf51f45378d9a3e4a9d515f967ab8",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/base-files/base-files_12ubuntu4_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/base-files/base-files_12ubuntu4_arm64.deb"
 			],
 			"version": "12ubuntu4"
 		},
@@ -1797,7 +1797,7 @@
 			"name": "mawk",
 			"sha256": "05464e1bea28b2e930de24bda2257136b47caa52bf99c172f2a4eab7fe694921",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/m/mawk/mawk_1.3.4.20200120-3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/m/mawk/mawk_1.3.4.20200120-3_arm64.deb"
 			],
 			"version": "1.3.4.20200120-3"
 		},
@@ -1889,7 +1889,7 @@
 			"name": "dash",
 			"sha256": "f0fbe9c11fc95291a6f9db517f94fec56a6534461d1d70c0da402ac2e89d8389",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/d/dash/dash_0.5.11+git20210903+057cd650a4ed-3build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/d/dash/dash_0.5.11+git20210903+057cd650a4ed-3build1_arm64.deb"
 			],
 			"version": "0.5.11+git20210903+057cd650a4ed-3build1"
 		},
@@ -2116,7 +2116,7 @@
 			"name": "python3",
 			"sha256": "281aad1169b8a663b8db626b899b5d218216767e4b640b9218017b469aa4c2b1",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3-defaults/python3_3.10.4-0ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3-defaults/python3_3.10.4-0ubuntu2_arm64.deb"
 			],
 			"version": "3.10.4-0ubuntu2"
 		},
@@ -2127,7 +2127,7 @@
 			"name": "libpython3-stdlib",
 			"sha256": "b9d9ae2ab19cae25c2100974b8f5ec0679be4bdacf7cd882da50473908f76e6d",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3-defaults/libpython3-stdlib_3.10.4-0ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3-defaults/libpython3-stdlib_3.10.4-0ubuntu2_arm64.deb"
 			],
 			"version": "3.10.4-0ubuntu2"
 		},
@@ -2138,7 +2138,7 @@
 			"name": "libpython3.10-stdlib",
 			"sha256": "518287a6c474e53aa81df3d00fb7c4ec6128a7bb6421b0916d8a0334b88bcd8f",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3.10/libpython3.10-stdlib_3.10.4-3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3.10/libpython3.10-stdlib_3.10.4-3_arm64.deb"
 			],
 			"version": "3.10.4-3"
 		},
@@ -2149,7 +2149,7 @@
 			"name": "libuuid1",
 			"sha256": "6b98796f3d86375efdc0298702861f44effa3342d6892edbc0a79a90b30896d0",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/u/util-linux/libuuid1_2.37.2-4ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/u/util-linux/libuuid1_2.37.2-4ubuntu3_arm64.deb"
 			],
 			"version": "2.37.2-4ubuntu3"
 		},
@@ -2160,7 +2160,7 @@
 			"name": "libsqlite3-0",
 			"sha256": "40bda907175e64ef86c85fe47effed8e3dae83804b4a7ae272ad4e01b4813438",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/s/sqlite3/libsqlite3-0_3.37.2-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/s/sqlite3/libsqlite3-0_3.37.2-2_arm64.deb"
 			],
 			"version": "3.37.2-2"
 		},
@@ -2171,7 +2171,7 @@
 			"name": "libncursesw6",
 			"sha256": "c0f27d325d4b70a67915c6709ae69aeb6322628adc5c79977f303d03dc88d7de",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/n/ncurses/libncursesw6_6.3-2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/n/ncurses/libncursesw6_6.3-2_arm64.deb"
 			],
 			"version": "6.3-2"
 		},
@@ -2182,7 +2182,7 @@
 			"name": "libmpdec3",
 			"sha256": "e5dcef803ee13a0ef22d5970e7f99e976760d955474b73fd5360b24995a281ee",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/m/mpdecimal/libmpdec3_2.5.1-2build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/m/mpdecimal/libmpdec3_2.5.1-2build2_arm64.deb"
 			],
 			"version": "2.5.1-2build2"
 		},
@@ -2193,7 +2193,7 @@
 			"name": "media-types",
 			"sha256": "a993af16a8ccdcefaf75eef360f295f8a3a91a78fd5e5ea1e3fd4f2376df6615",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/m/media-types/media-types_7.0.0_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/m/media-types/media-types_7.0.0_all.deb"
 			],
 			"version": "7.0.0"
 		},
@@ -2204,7 +2204,7 @@
 			"name": "libpython3.10-minimal",
 			"sha256": "d4389192c5f1f100f0baaee3d25e21bdbeacc677188e0ab572619355b44f439d",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3.10/libpython3.10-minimal_3.10.4-3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3.10/libpython3.10-minimal_3.10.4-3_arm64.deb"
 			],
 			"version": "3.10.4-3"
 		},
@@ -2215,7 +2215,7 @@
 			"name": "python3.10",
 			"sha256": "8eed415bf8a90b5f7a7e3cd3686c2d9fc713fea2f53faaf33b22ca19ad85afb6",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3.10/python3.10_3.10.4-3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3.10/python3.10_3.10.4-3_arm64.deb"
 			],
 			"version": "3.10.4-3"
 		},
@@ -2226,7 +2226,7 @@
 			"name": "python3.10-minimal",
 			"sha256": "a5d07966dfacc1cdb2ec514fcbdd92dea72f3979e3209effea4956e3200d44ae",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3.10/python3.10-minimal_3.10.4-3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3.10/python3.10-minimal_3.10.4-3_arm64.deb"
 			],
 			"version": "3.10.4-3"
 		},
@@ -2237,7 +2237,7 @@
 			"name": "libexpat1",
 			"sha256": "7aab56ea57441c814123cc78e64dce0de8e14e95d00371e1e0acfcc6e0c9ee86",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/e/expat/libexpat1_2.4.7-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/e/expat/libexpat1_2.4.7-1_arm64.deb"
 			],
 			"version": "2.4.7-1"
 		},
@@ -2248,7 +2248,7 @@
 			"name": "python3-minimal",
 			"sha256": "9976e5a47e59a479e9bfe0696f77c64e829d053817dbbad28dbe8e0a14ebc93a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/python3-defaults/python3-minimal_3.10.4-0ubuntu2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/python3-defaults/python3-minimal_3.10.4-0ubuntu2_arm64.deb"
 			],
 			"version": "3.10.4-0ubuntu2"
 		},
@@ -2505,7 +2505,7 @@
 			"name": "git",
 			"sha256": "bc5762a72bbf0ff2c1116a1e30cca0f4fa63d176fb9facff42a5cc20f73783ec",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/git/git_2.34.1-1ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/git/git_2.34.1-1ubuntu1_arm64.deb"
 			],
 			"version": "1:2.34.1-1ubuntu1"
 		},
@@ -2516,7 +2516,7 @@
 			"name": "git-man",
 			"sha256": "bd8117afea6657ae92e65100c58e601b04daa4c80fcc46f8f43cd5d8fc23cde7",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/git/git-man_2.34.1-1ubuntu1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/git/git-man_2.34.1-1ubuntu1_all.deb"
 			],
 			"version": "1:2.34.1-1ubuntu1"
 		},
@@ -2527,7 +2527,7 @@
 			"name": "liberror-perl",
 			"sha256": "13c044def376282cd2a6a4b21e5ec829a6ac8aecd745183df22570e320cec08e",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libe/liberror-perl/liberror-perl_0.17029-1_all.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libe/liberror-perl/liberror-perl_0.17029-1_all.deb"
 			],
 			"version": "0.17029-1"
 		},
@@ -2538,7 +2538,7 @@
 			"name": "libcurl3-gnutls",
 			"sha256": "b69681055c8cf89aff42f9f7b34e60965f5b5af5fca4ec62b9aa60ca484e01c8",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/c/curl/libcurl3-gnutls_7.81.0-1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/c/curl/libcurl3-gnutls_7.81.0-1_arm64.deb"
 			],
 			"version": "7.81.0-1"
 		},
@@ -2549,7 +2549,7 @@
 			"name": "libssh-4",
 			"sha256": "81795ea7e841fc6389499bcabafb42fa2dffd293a243e0ab8f825be868be347b",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libs/libssh/libssh-4_0.9.6-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libs/libssh/libssh-4_0.9.6-2build1_arm64.deb"
 			],
 			"version": "0.9.6-2build1"
 		},
@@ -2560,7 +2560,7 @@
 			"name": "librtmp1",
 			"sha256": "f3b867a5a81382f8edcabfd3415465158eb952f018f960090141b5e188b8b28c",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/r/rtmpdump/librtmp1_2.4+20151223.gitfa8646d.1-2build4_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/r/rtmpdump/librtmp1_2.4+20151223.gitfa8646d.1-2build4_arm64.deb"
 			],
 			"version": "2.4+20151223.gitfa8646d.1-2build4"
 		},
@@ -2571,7 +2571,7 @@
 			"name": "libnettle8",
 			"sha256": "bcd667d9a51c2474f7ffc52807ab4a24f8b877b6da1a6f5b75e50e48ec4d634a",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/n/nettle/libnettle8_3.7.3-1build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/n/nettle/libnettle8_3.7.3-1build2_arm64.deb"
 			],
 			"version": "3.7.3-1build2"
 		},
@@ -2582,7 +2582,7 @@
 			"name": "libhogweed6",
 			"sha256": "844e5d093dd3982a85c134d47a9e22b129123fb817eb3eea96e936805b0f5170",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/n/nettle/libhogweed6_3.7.3-1build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/n/nettle/libhogweed6_3.7.3-1build2_arm64.deb"
 			],
 			"version": "3.7.3-1build2"
 		},
@@ -2593,7 +2593,7 @@
 			"name": "libgnutls30",
 			"sha256": "72efd84cbba66adf128b8c6456add70c21ca7d558adf540b404e2ad895716f30",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/g/gnutls28/libgnutls30_3.7.3-4ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gnutls28/libgnutls30_3.7.3-4ubuntu1_arm64.deb"
 			],
 			"version": "3.7.3-4ubuntu1"
 		},
@@ -2604,7 +2604,7 @@
 			"name": "libtasn1-6",
 			"sha256": "702c494ab69df04a313d0942620209662c3a4b221b81e24d4137cd0b27a394aa",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libt/libtasn1-6/libtasn1-6_4.18.0-4build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtasn1-6/libtasn1-6_4.18.0-4build1_arm64.deb"
 			],
 			"version": "4.18.0-4build1"
 		},
@@ -2615,7 +2615,7 @@
 			"name": "libp11-kit0",
 			"sha256": "541bdd2f81d5caaa83465c1b524ed94e8e5851eba5469a8dce23b92e8e90a0cc",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/p/p11-kit/libp11-kit0_0.24.0-6build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/p/p11-kit/libp11-kit0_0.24.0-6build1_arm64.deb"
 			],
 			"version": "0.24.0-6build1"
 		},
@@ -2626,7 +2626,7 @@
 			"name": "libidn2-0",
 			"sha256": "aeb29cc8deedc0710a97e44088ef0271dfe1197e77c0a0fc0c5602e14aeb938f",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libi/libidn2/libidn2-0_2.3.2-2build1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libi/libidn2/libidn2-0_2.3.2-2build1_arm64.deb"
 			],
 			"version": "2.3.2-2build1"
 		},
@@ -2637,7 +2637,7 @@
 			"name": "libpsl5",
 			"sha256": "8439cc8b11a848f91746c27b76bf55d0426d07fa4146e4bc3bc2d3e74ed7ab9e",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/libp/libpsl/libpsl5_0.21.0-1.2build2_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/libp/libpsl/libpsl5_0.21.0-1.2build2_arm64.deb"
 			],
 			"version": "0.21.0-1.2build2"
 		},
@@ -2648,7 +2648,7 @@
 			"name": "libnghttp2-14",
 			"sha256": "b1786c51d6b2fbd9386175fa61c633f22746ebf6143ff6bc08659c44a4e688a4",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/n/nghttp2/libnghttp2-14_1.43.0-1build3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/n/nghttp2/libnghttp2-14_1.43.0-1build3_arm64.deb"
 			],
 			"version": "1.43.0-1build3"
 		},
@@ -2659,7 +2659,7 @@
 			"name": "libldap-2.5-0",
 			"sha256": "72c54266fe0f2d4653165af6bb96da555edc2394e32212a207539378e80479d3",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/o/openldap/libldap-2.5-0_2.5.11+dfsg-1~exp1ubuntu3_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/o/openldap/libldap-2.5-0_2.5.11+dfsg-1~exp1ubuntu3_arm64.deb"
 			],
 			"version": "2.5.11+dfsg-1~exp1ubuntu3"
 		},
@@ -2670,7 +2670,7 @@
 			"name": "libsasl2-2",
 			"sha256": "2e5c81e184d7db5d3405ae0b77ec46dd6d6bd05875026cf36f9470724daa1224",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/c/cyrus-sasl2/libsasl2-2_2.1.27+dfsg2-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/c/cyrus-sasl2/libsasl2-2_2.1.27+dfsg2-3ubuntu1_arm64.deb"
 			],
 			"version": "2.1.27+dfsg2-3ubuntu1"
 		},
@@ -2681,7 +2681,7 @@
 			"name": "libsasl2-modules-db",
 			"sha256": "42d1810d60f9a3ec9982180ecfa03a0317fccc42b0b512b7470161b3f75f8365",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/c/cyrus-sasl2/libsasl2-modules-db_2.1.27+dfsg2-3ubuntu1_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/c/cyrus-sasl2/libsasl2-modules-db_2.1.27+dfsg2-3ubuntu1_arm64.deb"
 			],
 			"version": "2.1.27+dfsg2-3ubuntu1"
 		},
@@ -2692,7 +2692,7 @@
 			"name": "libbrotli1",
 			"sha256": "6ce71a1452d7ec3ed2404db11a4d0aea1326b8fa9bb904493b49ff873b70d6a5",
 			"urls": [
-				"https://snapshot.ubuntu.com/ubuntu/20261101T000000Z/pool/main/b/brotli/libbrotli1_1.0.9-2build6_arm64.deb"
+				"https://ports.ubuntu.com/ubuntu-ports/pool/main/b/brotli/libbrotli1_1.0.9-2build6_arm64.deb"
 			],
 			"version": "1.0.9-2build6"
 		}
