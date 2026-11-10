@@ -142,7 +142,7 @@ write_mock helm '#!/bin/bash' 'set -euo pipefail' 'echo "helm $*" >>"$COMMAND_LO
     '  previous="$argument"' \
     'done'
 write_mock openssl '#!/bin/bash' 'set -euo pipefail' 'echo "openssl $*" >>"$COMMAND_LOG"' \
-    'if [[ "$*" == "rand -base64 48" ]]; then printf "%s\n" "$ADMIN_PASSWORD_SENTINEL"; else echo digest-sentinel; fi'
+    'if [[ "$*" == "rand -base64 48" ]]; then printf "%s\n" "$ADMIN_PASSWORD_SENTINEL"; else cat >/dev/null; echo digest-sentinel; fi'
 write_mock curl '#!/bin/bash' 'set -euo pipefail' '[[ -f "$PORT_FORWARD_READY" ]] || exit 1' 'echo "curl $*" >>"$COMMAND_LOG"'
 write_mock bash '#!/bin/bash' 'set -euo pipefail' 'echo "bash $*" >>"$COMMAND_LOG"' \
     'if [[ "$*" == *"/verify.sh"* ]]; then' \
