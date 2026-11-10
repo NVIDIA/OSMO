@@ -9,7 +9,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/gokrazy/rsync v0.3.4
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/redis/go-redis/v9 v9.17.2
 

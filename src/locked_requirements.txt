@@ -32,9 +32,9 @@ annotated-types==0.7.0 \
     --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53 \
     --hash=sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89
     # via pydantic
-anyio==4.15.1 \
-    --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101 \
-    --hash=sha256:9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94
+anyio==4.16.0 \
+    --hash=sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb \
+    --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026
     # via
     #   -r requirements.txt
     #   httpx
@@ -53,9 +53,9 @@ attrs==26.1.0 \
     # via
     #   jsonschema
     #   referencing
-authlib==1.7.2 \
-    --hash=sha256:2cea25fefcd4e7173bdf1372c0afc265c8034b23a8cd5dcb6a9164b826c64231 \
-    --hash=sha256:3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f
+authlib==1.9.5 \
+    --hash=sha256:3f031d5e9b6486089e91e8f7f1b68f36275f3151c66460d650fc90d420545fd7 \
+    --hash=sha256:e32a63e3d869196b61816b2602231862179a2ffc29358c009d1f022c8b86a8b2
     # via -r requirements.txt
 azure-core==1.38.2 \
     --hash=sha256:074806c75cf239ea284a33a66827695ef7aeddac0b4e19dda266a93e4665ead9 \

@@ -19,7 +19,7 @@
 # pip install pip-tools
 # pip-compile ./requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
-anyio==4.15.1
+anyio==4.16.0
 bcrypt==4.2.1
 certifi==2026.10.19
 httpx==0.28.1

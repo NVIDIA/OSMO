@@ -50,7 +50,7 @@ mcp>=1.27,<2
 # these explicit server-import dependencies avoid upgrading OSMO's existing
 # Uvicorn/WebSocket runtime through the broad `server` extra.
 fastmcp-slim[mcp]==3.4.7
-authlib>=1.6.11
+authlib>=1.9.5
 griffelib>=2.0.0
 jsonref>=1.1.0
 joserfc>=1.7.4
@@ -134,4 +134,4 @@ azure-identity==1.23.1
 
 # Async
 aiofiles==25.1.0
-anyio==4.15.1
+anyio==4.16.0
