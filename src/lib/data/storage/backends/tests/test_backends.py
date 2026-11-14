@@ -691,6 +691,21 @@ class ConstructStorageBackendTest(unittest.TestCase):
             backends.construct_storage_backend('azure://myaccount')
         self.assertIn('Incorrectly formatted Azure URI', str(ctx.exception))
 
+    def test_uri_with_query_or_fragment_raises(self):
+        """'?' and '#' would be parsed as a URL query/fragment and dropped from the path."""
+        for uri in (
+            'swift://swift.example.com/AUTH_team/mycontainer/run#1/data',
+            's3://my-bucket/run#1/data',
+            's3://my-bucket/data?version=1',
+            'gs://my-bucket/run#1/data',
+            'tos://tos-s3-cn-beijing.volces.com/my-bucket/run#1/data',
+            'azure://myaccount/mycontainer/run#1/data',
+        ):
+            with self.subTest(uri=uri):
+                with self.assertRaises(osmo_errors.OSMOError) as ctx:
+                    backends.construct_storage_backend(uri)
+                self.assertIn('Incorrectly formatted', str(ctx.exception))
+
 
 class GetS3AddressingStyleTest(unittest.TestCase):
     """Tests for _get_s3_addressing_style helper."""

@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import re
 
 
-URI_COMPONENT = r'[^/,;*]+'
+URI_COMPONENT = r'[^/,;*?#]+'
 SWIFT_REGEX = fr'^swift://{URI_COMPONENT}(/{URI_COMPONENT}){{2,}}/*$'
 S3_REGEX = fr'^s3://{URI_COMPONENT}(/{URI_COMPONENT})*/*$'
 GS_REGEX = fr'^gs://{URI_COMPONENT}(/{URI_COMPONENT})*/*$'
