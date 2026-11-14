@@ -53,10 +53,14 @@ def _run_upload_command(service_client: client.ServiceClient, args: argparse.Nam
         ),
         logging_level=args.log_level.value,
     )
-    storage_client.upload_objects(
+    upload_result = storage_client.upload_objects(
         args.local_path,
         regex=args.regex,
     )
+    if upload_result.failures:
+        # Surface failed uploads through the exit code so callers do not treat them as success
+        raise osmo_errors.OSMODataStorageError(
+            f'Upload failed on {len(upload_result.failures)} file(s)')
 
 
 def _run_download_command(service_client: client.ServiceClient, args: argparse.Namespace):
