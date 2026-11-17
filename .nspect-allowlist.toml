@@ -8,6 +8,13 @@ file = "BUILD_AND_TEST.md"
   values = ["pas********************************ORD\""]
 
 [[pulse-trufflehog.files]]
+file = "deployments/charts/service/quick-start-values.yaml"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas*********smo\""]
+
+[[pulse-trufflehog.files]]
 file = "deployments/scripts/common.sh"
 
   [[pulse-trufflehog.files.secrets]]
@@ -41,6 +48,13 @@ file = "docs/deployment_guide/appendix/keycloak_setup.rst"
   [[pulse-trufflehog.files.secrets]]
   type = "Password"
   values = ["pas**********************rd>'"]
+
+[[pulse-trufflehog.files]]
+file = "run/minimal/osmo_values.yaml"
+
+  [[pulse-trufflehog.files.secrets]]
+  type = "Password"
+  values = ["pas*********smo\""]
 
 [[pulse-trufflehog.files]]
 file = "src/lib/utils/tests/test_login.py"
