@@ -104,6 +104,18 @@ py_test(
 )
 
 py_test(
+    name = "test_data",
+    srcs = [
+        "test_data.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+        "//src/lib/data/storage",
+        "//src/lib/utils:osmo_errors",
+    ]
+)
+
+py_test(
     name = "test_pool",
     srcs = [
         "test_pool.py"
