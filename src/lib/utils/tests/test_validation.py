@@ -103,6 +103,12 @@ class TestIsStoragePath(unittest.TestCase):
         with self.assertRaises(argparse.ArgumentTypeError):
             validation.is_storage_path('ftp://bucket')
 
+    def test_is_storage_path_rejects_query_and_fragment(self):
+        for path in ('s3://bucket/run#1/data', 's3://bucket/data?version=1'):
+            with self.subTest(path=path):
+                with self.assertRaises(argparse.ArgumentTypeError):
+                    validation.is_storage_path(path)
+
 
 class TestIsStorageCredentialPath(unittest.TestCase):
     """Tests for validation.is_storage_credential_path."""
