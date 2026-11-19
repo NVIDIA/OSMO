@@ -51,7 +51,9 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     """Configuration for the backend listener service that monitors Kubernetes resources"""
     include_namespace_usage: List[str] = pydantic.Field(
         default=[],
-        description='The namespaces of pods to include in node usage.',
+        description='Additional namespaces counted as workflow usage whose pod events trigger '
+                    'node usage updates. The backend namespace is always included; workflow '
+                    'task status is monitored only in the backend namespace.',
         json_schema_extra={'command_line': 'include_namespace_usage'})
     progress_folder_path: str = pydantic.Field(
         default='/var/run/osmo',
