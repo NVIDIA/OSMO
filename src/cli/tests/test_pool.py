@@ -29,7 +29,7 @@ class TestFetchDefaultPool(unittest.TestCase):
     def _client_with(self, profile_pool, pools_response=None, pools_raises=None):
         client = mock.MagicMock()
 
-        def request(_method, path, *_args, **_kwargs):
+        def request(unused_method, path, *_args, **_kwargs):
             if path == 'api/profile/settings':
                 return {'profile': {'pool': profile_pool}}
             if path == '/api/pool':
@@ -48,31 +48,27 @@ class TestFetchDefaultPool(unittest.TestCase):
     def test_auto_pick_single_pool(self):
         client = self._client_with(
             profile_pool=None,
-            pools_response={'node_sets': [{'pools': [{'name': 'only-pool'}]}]})
+            pools_response={'pools': {'only-pool': {}}})
         self.assertEqual(pool.fetch_default_pool(client), 'only-pool')
 
-    def test_auto_pick_dedupes_across_nodesets(self):
+    def test_missing_pools_raises(self):
         client = self._client_with(
             profile_pool=None,
-            pools_response={'node_sets': [
-                {'pools': [{'name': 'shared'}]},
-                {'pools': [{'name': 'shared'}]},
-            ]})
-        self.assertEqual(pool.fetch_default_pool(client), 'shared')
+            pools_response={})
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            pool.fetch_default_pool(client)
 
     def test_multiple_pools_raises(self):
         client = self._client_with(
             profile_pool=None,
-            pools_response={'node_sets': [
-                {'pools': [{'name': 'one'}, {'name': 'two'}]},
-            ]})
+            pools_response={'pools': {'one': {}, 'two': {}}})
         with self.assertRaises(osmo_errors.OSMOUserError):
             pool.fetch_default_pool(client)
 
     def test_no_pools_raises(self):
         client = self._client_with(
             profile_pool=None,
-            pools_response={'node_sets': []})
+            pools_response={'pools': {}})
         with self.assertRaises(osmo_errors.OSMOUserError):
             pool.fetch_default_pool(client)
 
