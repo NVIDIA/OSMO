@@ -41,5 +41,6 @@ go_test(
     deps = [
         "//src/runtime/pkg/common:common",
         "//src/runtime/pkg/metrics",
+        "//src/runtime/pkg/osmo_errors:osmo_errors",
     ],
 )
