@@ -381,8 +381,8 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_14_dev",
-#     digest = "sha256:d7a84cb63b5863cab0d0448630edc251f0c9d912dabedb9e8e7471952ee88107",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.1.8-dev",
+#     digest = "sha256:d33aa9d43ccf0e73123d1b100fc660c0612513e06376bdf54cecd1973cf4393a",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.1.9-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
