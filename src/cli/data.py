@@ -53,10 +53,13 @@ def _run_upload_command(service_client: client.ServiceClient, args: argparse.Nam
         ),
         logging_level=args.log_level.value,
     )
-    storage_client.upload_objects(
+    summary = storage_client.upload_objects(
         args.local_path,
         regex=args.regex,
     )
+    if summary.failures:
+        raise osmo_errors.OSMODataStorageError(
+            'Upload failed for one or more files:\n' + '\n'.join(summary.failures))
 
 
 def _run_download_command(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -76,11 +79,14 @@ def _run_download_command(service_client: client.ServiceClient, args: argparse.N
         ),
         logging_level=args.log_level.value,
     )
-    storage_client.download_objects(
+    summary = storage_client.download_objects(
         args.local_path,
         regex=args.regex,
         resume=args.resume,
     )
+    if summary.failures:
+        raise osmo_errors.OSMODataStorageError(
+            'Download failed for one or more files:\n' + '\n'.join(summary.failures))
 
 
 def _run_list_command(service_client: client.ServiceClient, args: argparse.Namespace):
