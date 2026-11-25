@@ -87,6 +87,7 @@ services:
           access_key_id: test
           access_key: test
           region: us-east-1
+          addressing_style: path
       workflow_log:
         credential:
           endpoint: s3://osmo/workflows
@@ -94,6 +95,7 @@ services:
           access_key_id: test
           access_key: test
           region: us-east-1
+          addressing_style: path
       workflow_app:
         credential:
           endpoint: s3://osmo/apps
@@ -101,6 +103,7 @@ services:
           access_key_id: test
           access_key: test
           region: us-east-1
+          addressing_style: path
       backend_images:
         init: nvcr.io/nvidia/osmo/init-container:latest
         client: nvcr.io/nvidia/osmo/client:latest
